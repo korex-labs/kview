@@ -14,6 +14,7 @@ type AccessReviewRequest struct {
 	Resource  string
 	Group     string
 	Namespace *string
+	Name      string
 }
 
 type AccessReviewResult struct {
@@ -29,6 +30,9 @@ func SelfSubjectAccessReview(ctx context.Context, c *cluster.Clients, req Access
 	}
 	if req.Namespace != nil && *req.Namespace != "" {
 		attrs.Namespace = *req.Namespace
+	}
+	if req.Name != "" {
+		attrs.Name = req.Name
 	}
 
 	review := &authorizationv1.SelfSubjectAccessReview{

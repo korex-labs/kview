@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -17,6 +18,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+// ErrUnknownContext is returned when a context name is not found in the kubeconfig.
+var ErrUnknownContext = errors.New("unknown context")
 
 type ContextInfo struct {
 	Name      string `json:"name"`
@@ -180,7 +184,7 @@ func (m *Manager) SetActiveContext(name string) error {
 	defer m.mu.Unlock()
 
 	if _, ok := m.rawConfig.Contexts[name]; !ok {
-		return fmt.Errorf("unknown context: %s", name)
+		return fmt.Errorf("%w: %s", ErrUnknownContext, name)
 	}
 	m.activeContext = name
 	return nil
@@ -228,6 +232,54 @@ func (m *Manager) GetClients(ctx context.Context) (*Clients, string, error) {
 	m.mu.Unlock()
 
 	return clients, active, nil
+}
+
+// GetClientsForContext returns clients for a specific context name without
+// touching the active context. Returns an error if contextName is unknown.
+func (m *Manager) GetClientsForContext(ctx context.Context, contextName string) (*Clients, string, error) {
+	m.mu.RLock()
+	if _, ok := m.rawConfig.Contexts[contextName]; !ok {
+		m.mu.RUnlock()
+		return nil, contextName, fmt.Errorf("%w: %s", ErrUnknownContext, contextName)
+	}
+	if c, ok := m.clients[contextName]; ok {
+		m.mu.RUnlock()
+		return c, contextName, nil
+	}
+	m.mu.RUnlock()
+
+	overrides := &clientcmd.ConfigOverrides{CurrentContext: contextName}
+	loadingRules := buildLoadingRules(m.kubeconfigFiles)
+	cc := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+
+	restCfg, err := cc.ClientConfig()
+	if err != nil {
+		return nil, contextName, fmt.Errorf("build rest config: %w", err)
+	}
+
+	ensureExecEnv(restCfg, m.kubeconfigFiles)
+
+	clientset, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return nil, contextName, fmt.Errorf("new clientset: %w", err)
+	}
+
+	disc, err := discovery.NewDiscoveryClientForConfig(restCfg)
+	if err != nil {
+		return nil, contextName, fmt.Errorf("new discovery: %w", err)
+	}
+
+	clients := &Clients{
+		RestConfig: restCfg,
+		Clientset:  clientset,
+		Discovery:  disc,
+	}
+
+	m.mu.Lock()
+	m.clients[contextName] = clients
+	m.mu.Unlock()
+
+	return clients, contextName, nil
 }
 
 func ensureExecEnv(restCfg *rest.Config, kubeconfigFiles []string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -21,12 +22,18 @@ import (
 var uiFS embed.FS
 
 type Server struct {
-	mgr   *cluster.Manager
-	token string
+	mgr     *cluster.Manager
+	token   string
+	actions *kube.ActionRegistry
 }
 
 func New(mgr *cluster.Manager, token string) *Server {
-	return &Server{mgr: mgr, token: token}
+	return &Server{mgr: mgr, token: token, actions: kube.NewActionRegistry()}
+}
+
+// Actions returns the action registry for registering handlers.
+func (s *Server) Actions() *kube.ActionRegistry {
+	return s.actions
 }
 
 func (s *Server) Router() http.Handler {
@@ -35,7 +42,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:*", "http://127.0.0.1:*"},
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Kview-Context"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
@@ -2245,6 +2252,108 @@ func (s *Server) Router() http.Handler {
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
+		})
+
+		api.Post("/capabilities", func(w http.ResponseWriter, r *http.Request) {
+			ctxName := r.Header.Get("X-Kview-Context")
+			if ctxName == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{
+					"error": &APIError{Code: ErrCodeValidation, Message: "missing X-Kview-Context header"},
+				})
+				return
+			}
+
+			var body struct {
+				Group     string `json:"group"`
+				Resource  string `json:"resource"`
+				Namespace string `json:"namespace"`
+				Name      string `json:"name"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Resource == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("invalid body")})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			defer cancel()
+
+			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
+			if err != nil {
+				if errors.Is(err, cluster.ErrUnknownContext) {
+					writeJSON(w, http.StatusNotFound, map[string]any{
+						"error": &APIError{Code: ErrCodeNotFound, Message: err.Error()},
+					})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]any{
+					"error": &APIError{Code: ErrCodeInternal, Message: err.Error()},
+				})
+				return
+			}
+
+			caps, err := kube.CheckCapabilities(ctx, clients, kube.CapabilitiesRequest{
+				Group:     body.Group,
+				Resource:  body.Resource,
+				Namespace: body.Namespace,
+				Name:      body.Name,
+			})
+			if err != nil {
+				status, apiErr := mapKubeError(err)
+				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"context": ctxName, "capabilities": caps})
+		})
+
+		api.Post("/actions", func(w http.ResponseWriter, r *http.Request) {
+			ctxName := r.Header.Get("X-Kview-Context")
+			if ctxName == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{
+					"error": &APIError{Code: ErrCodeValidation, Message: "missing X-Kview-Context header"},
+				})
+				return
+			}
+
+			var body kube.ActionRequest
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Resource == "" || body.Action == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("invalid body")})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			defer cancel()
+
+			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
+			if err != nil {
+				if errors.Is(err, cluster.ErrUnknownContext) {
+					writeJSON(w, http.StatusNotFound, map[string]any{
+						"error": &APIError{Code: ErrCodeNotFound, Message: err.Error()},
+					})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]any{
+					"error": &APIError{Code: ErrCodeInternal, Message: err.Error()},
+				})
+				return
+			}
+
+			result, err := s.actions.Execute(ctx, clients, body)
+			if err != nil {
+				if errors.Is(err, kube.ErrUnknownAction) {
+					writeJSON(w, http.StatusBadRequest, map[string]any{
+						"context": ctxName,
+						"error":   validationError(err.Error()),
+					})
+					return
+				}
+
+				status, apiErr := mapKubeError(err)
+				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"context": ctxName, "result": result})
 		})
 	})
 
