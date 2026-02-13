@@ -120,10 +120,13 @@ export function toApiError(error: unknown): ApiError {
   return { message: "Unknown error", details: error };
 }
 
-export async function apiGet<T>(path: string, token: string): Promise<T> {
+export async function apiGet<T>(path: string, token: string, opts?: { headers?: Record<string, string> }): Promise<T> {
   let res: Response;
+  const mergedHeaders = { ...(opts?.headers || {}) };
   try {
-    res = await fetch(path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token));
+    res = await fetch(path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token), {
+      headers: mergedHeaders,
+    });
   } catch (err) {
     notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
     throw err;
@@ -143,12 +146,13 @@ export async function apiGet<T>(path: string, token: string): Promise<T> {
   }
 }
 
-export async function apiPost<T>(path: string, token: string, body: any): Promise<T> {
+export async function apiPost<T>(path: string, token: string, body: any, opts?: { headers?: Record<string, string> }): Promise<T> {
   let res: Response;
+  const mergedHeaders = { "Content-Type": "application/json", ...(opts?.headers || {}) };
   try {
     res = await fetch(path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mergedHeaders,
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -170,3 +174,12 @@ export async function apiPost<T>(path: string, token: string, body: any): Promis
   }
 }
 
+export async function apiGetWithContext<T>(path: string, token: string, contextName: string): Promise<T> {
+  if (!contextName) throw new Error("Missing active context");
+  return apiGet<T>(path, token, { headers: { "X-Kview-Context": contextName } });
+}
+
+export async function apiPostWithContext<T>(path: string, token: string, contextName: string, body: any): Promise<T> {
+  if (!contextName) throw new Error("Missing active context");
+  return apiPost<T>(path, token, body, { headers: { "X-Kview-Context": contextName } });
+}

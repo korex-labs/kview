@@ -11,6 +11,7 @@ import (
 	"runtime"
 
 	"kview/internal/cluster"
+	"kview/internal/kube"
 	"kview/internal/server"
 )
 
@@ -26,6 +27,10 @@ func main() {
 
 	token := randomToken(24)
 	srv := server.New(mgr, token)
+
+	srv.Actions().Register("scale", kube.HandleDeploymentScale)
+	srv.Actions().Register("restart", kube.HandleDeploymentRestart)
+	srv.Actions().Register("delete", kube.HandleDeploymentDelete)
 
 	url := fmt.Sprintf("http://%s/?token=%s", *addr, token)
 	log.Printf("kview listening on http://%s", *addr)

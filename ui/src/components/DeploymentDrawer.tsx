@@ -22,6 +22,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiGet } from "../api";
 import { useConnectionState } from "../connectionState";
+import DeploymentActions from "./DeploymentActions";
+import Section from "./shared/Section";
 import PodDrawer from "./PodDrawer";
 import ReplicaSetDrawer from "./ReplicaSetDrawer";
 import { fmtAge, fmtTs, valueOrDash } from "../utils/format";
@@ -166,6 +168,7 @@ export default function DeploymentDrawer(props: {
 }) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<DeploymentDetails | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
@@ -207,7 +210,7 @@ export default function DeploymentDrawer(props: {
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, name, ns, props.token, retryNonce]);
+  }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);
 
   const summary = details?.summary;
   const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
@@ -345,6 +348,19 @@ export default function DeploymentDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <DeploymentActions
+                        token={props.token}
+                        namespace={ns}
+                        deploymentName={name}
+                        currentReplicas={summary?.desired ?? 0}
+                        onRefresh={() => setRefreshNonce((n) => n + 1)}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <WarningsSection warnings={deploymentWarnings} />
 
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
