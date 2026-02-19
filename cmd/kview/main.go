@@ -56,6 +56,10 @@ func main() {
 
 	srv.Actions().Register("ingress.delete", kube.HandleIngressDelete)
 
+	srv.Actions().Register("configmap.delete", kube.HandleConfigMapDelete)
+
+	srv.Actions().Register("secret.delete", kube.HandleSecretDelete)
+
 	url := fmt.Sprintf("http://%s/?token=%s", *addr, token)
 	log.Printf("kview listening on http://%s", *addr)
 	log.Printf("open: %s", url)

@@ -19,12 +19,14 @@ import { apiGet } from "../api";
 import { useConnectionState } from "../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../utils/format";
 import { detectLanguageFromKey } from "../utils/syntaxDetect";
+import Section from "./shared/Section";
 import KeyValueTable from "./shared/KeyValueTable";
 import EmptyState from "./shared/EmptyState";
 import ErrorState from "./shared/ErrorState";
 import MetadataSection from "./shared/MetadataSection";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
+import SecretActions from "./SecretActions";
 
 type SecretDetails = {
   summary: SecretSummary;
@@ -191,6 +193,17 @@ export default function SecretDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <SecretActions
+                        token={props.token}
+                        namespace={ns}
+                        secretName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

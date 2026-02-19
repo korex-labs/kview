@@ -26,6 +26,7 @@ import ErrorState from "./shared/ErrorState";
 import MetadataSection from "./shared/MetadataSection";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
+import ConfigMapActions from "./ConfigMapActions";
 
 type ConfigMapDetails = {
   summary: ConfigMapSummary;
@@ -334,6 +335,17 @@ export default function ConfigMapDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <ConfigMapActions
+                        token={props.token}
+                        namespace={ns}
+                        configMapName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
