@@ -22,11 +22,17 @@ The focus is operational clarity, consistency, and cross-resource navigation.
 Backend:
 - Go (chi, client-go)
 - Embedded UI via go:embed
+- Generic mutation endpoint (`/api/actions`)
+- Centralized ActionRegistry
+- RBAC-aware capabilities endpoint (`/api/capabilities`)
+- Shared mutation helpers (namespaced + cluster-scoped)
 
 Frontend:
 - React + Vite + MUI
 - Drawer-based UX
-- Shared components enforcing UI contract
+- Metadata-driven mutation framework
+- Shared ActionButton + MutationDialog
+- Capability-aware rendering via `useResourceCapabilities`
 
 ---
 
@@ -53,10 +59,17 @@ Configuration:
 - ConfigMaps
 - Secrets
 
+Access Control:
+- Roles
+- RoleBindings
+- ClusterRoles
+- ClusterRoleBindings
+
 Cluster:
 - Nodes
 - Namespaces
 - ResourceQuotas
+- CustomResourceDefinitions
 
 Helm:
 - Full Helm SDK integration
@@ -84,16 +97,29 @@ Status: COMPLETE
 
 ---
 
-### 🚧 Milestone 2 — Full Resource Control
+### ✅ Milestone 2 — Full Resource Control
 
-Cluster mutation support:
+Cluster mutation support implemented across all major resource categories.
+
+Includes:
 
 - Install / upgrade / uninstall (Helm)
-- Delete / restart / scale workloads
-- Safe confirmations
-- Clear error surfacing
+- Delete for all supported resources
+- Scale workloads (Deployments, StatefulSets, etc.)
+- Rollout restart where applicable
+- Safe confirmation dialogs
+- Centralized mutation handling
+- RBAC-aware action gating via capabilities endpoint
+- Clear error surfacing through unified mutation framework
 
-Status: PLANNED
+Architecture guarantees:
+
+- No per-kind copy-paste mutation logic
+- Shared backend helpers (namespaced + cluster-scoped)
+- Unified frontend mutation descriptors
+- Strict UI contract enforcement
+
+Status: COMPLETE
 
 ---
 
@@ -146,4 +172,3 @@ All UI changes must follow:
 
 - docs/UI_UX_GUIDE.md
 - docs/AI_AGENT_RULES.md
-
