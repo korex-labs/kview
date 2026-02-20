@@ -156,6 +156,52 @@ func handleNamespacedScale(
 	}, nil
 }
 
+// validateClusterTarget returns an error if req.Group, req.Resource, or req.Name
+// do not match expectations. Namespace is intentionally not required.
+func validateClusterTarget(req ActionRequest, expectedGroup, expectedResource string) error {
+	if req.Group != expectedGroup {
+		return fmt.Errorf("unsupported group %q, expected %q", req.Group, expectedGroup)
+	}
+	if req.Resource != expectedResource {
+		return fmt.Errorf("unsupported resource %q, expected %q", req.Resource, expectedResource)
+	}
+	if req.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	return nil
+}
+
+// handleClusterDelete is the shared helper for cluster-scoped delete action
+// handlers. It validates the target (no namespace required), builds DeleteOptions
+// from the request params, calls deleteFn, and returns the canonical ActionResult.
+func handleClusterDelete(
+	ctx context.Context,
+	req ActionRequest,
+	expectedGroup, expectedResource, kindLabel string,
+	deleteFn func(ctx context.Context, name string, opts metav1.DeleteOptions) error,
+) (*ActionResult, error) {
+	if err := validateClusterTarget(req, expectedGroup, expectedResource); err != nil {
+		return &ActionResult{Status: "error", Message: err.Error()}, nil
+	}
+
+	opts, errResult := buildDeleteOptions(req)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	if err := deleteFn(ctx, req.Name, opts); err != nil {
+		return nil, err
+	}
+
+	return &ActionResult{
+		Status:  "ok",
+		Message: fmt.Sprintf("Deleted %s %s", kindLabel, req.Name),
+		Details: map[string]any{
+			"name": req.Name,
+		},
+	}, nil
+}
+
 // handleNamespacedRolloutRestart is the shared helper for rollout-restart
 // action handlers. It validates the target, builds the restart annotation
 // patch, calls patchFn, and returns the canonical ActionResult.

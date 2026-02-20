@@ -25,6 +25,8 @@ import EmptyState from "./shared/EmptyState";
 import ErrorState from "./shared/ErrorState";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
+import Section from "./shared/Section";
+import ClusterRoleActions from "./ClusterRoleActions";
 
 type ClusterRoleDetails = {
   summary: ClusterRoleSummary;
@@ -158,6 +160,16 @@ export default function ClusterRoleDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <ClusterRoleActions
+                        token={props.token}
+                        clusterRoleName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

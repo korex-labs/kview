@@ -27,6 +27,7 @@ import MetadataSection from "./shared/MetadataSection";
 import ConditionsTable from "./shared/ConditionsTable";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
+import CRDActions from "./CRDActions";
 
 type CRDDetails = {
   summary: CRDSummary;
@@ -204,6 +205,16 @@ export default function CustomResourceDefinitionDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <CRDActions
+                        token={props.token}
+                        crdName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

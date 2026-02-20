@@ -35,6 +35,7 @@ import PodDrawer from "./PodDrawer";
 import DeploymentDrawer from "./DeploymentDrawer";
 import JobDrawer from "./JobDrawer";
 import HelmReleaseDrawer from "./HelmReleaseDrawer";
+import NamespaceActions from "./NamespaceActions";
 
 type NamespaceDetails = {
   summary: NamespaceSummary;
@@ -349,6 +350,16 @@ export default function NamespaceDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <NamespaceActions
+                        token={props.token}
+                        namespaceName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

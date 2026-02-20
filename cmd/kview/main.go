@@ -60,6 +60,26 @@ func main() {
 
 	srv.Actions().Register("secret.delete", kube.HandleSecretDelete)
 
+	srv.Actions().Register("serviceaccount.delete", kube.HandleServiceAccountDelete)
+
+	srv.Actions().Register("role.delete", kube.HandleRoleDelete)
+
+	srv.Actions().Register("rolebinding.delete", kube.HandleRoleBindingDelete)
+
+	srv.Actions().Register("clusterrole.delete", kube.HandleClusterRoleDelete)
+
+	srv.Actions().Register("clusterrolebinding.delete", kube.HandleClusterRoleBindingDelete)
+
+	srv.Actions().Register("persistentvolumeclaims.delete", kube.HandlePVCDelete)
+
+	srv.Actions().Register("persistentvolumes.delete", kube.HandlePVDelete)
+
+	srv.Actions().Register("nodes.delete", kube.HandleNodeDelete)
+
+	srv.Actions().Register("namespaces.delete", kube.HandleNamespaceDelete)
+
+	srv.Actions().Register("customresourcedefinitions.delete", kube.HandleCRDDelete)
+
 	url := fmt.Sprintf("http://%s/?token=%s", *addr, token)
 	log.Printf("kview listening on http://%s", *addr)
 	log.Printf("open: %s", url)

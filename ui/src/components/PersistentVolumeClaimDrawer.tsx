@@ -25,6 +25,7 @@ import ConditionsTable from "./shared/ConditionsTable";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
 import PersistentVolumeDrawer from "./PersistentVolumeDrawer";
+import PVCActions from "./PVCActions";
 import useAccessReview from "../utils/useAccessReview";
 import { listResourceAccess } from "../utils/k8sResources";
 
@@ -265,6 +266,17 @@ export default function PersistentVolumeClaimDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <PVCActions
+                        token={props.token}
+                        namespace={ns}
+                        pvcName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                     {showPvDeniedHint ? (

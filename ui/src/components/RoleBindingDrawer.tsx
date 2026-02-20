@@ -26,8 +26,10 @@ import EmptyState from "./shared/EmptyState";
 import ErrorState from "./shared/ErrorState";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
+import Section from "./shared/Section";
 import RoleDrawer from "./RoleDrawer";
 import ClusterRoleDrawer from "./ClusterRoleDrawer";
+import RoleBindingActions from "./RoleBindingActions";
 
 type RoleBindingDetails = {
   summary: BindingSummary;
@@ -191,6 +193,17 @@ export default function RoleBindingDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <RoleBindingActions
+                        token={props.token}
+                        namespace={ns}
+                        roleBindingName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

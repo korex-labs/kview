@@ -31,6 +31,8 @@ import { nodeStatusChipColor, phaseChipColor } from "../utils/k8sUi";
 import KeyValueTable from "./shared/KeyValueTable";
 import EmptyState from "./shared/EmptyState";
 import ErrorState from "./shared/ErrorState";
+import Section from "./shared/Section";
+import NodeActions from "./NodeActions";
 
 type NodeDetails = {
   summary: NodeSummary;
@@ -235,6 +237,16 @@ export default function NodeDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <NodeActions
+                        token={props.token}
+                        nodeName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

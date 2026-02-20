@@ -27,6 +27,7 @@ import KeyValueTable from "./shared/KeyValueTable";
 import AccessDeniedState from "./shared/AccessDeniedState";
 import EmptyState from "./shared/EmptyState";
 import ErrorState from "./shared/ErrorState";
+import ServiceAccountActions from "./ServiceAccountActions";
 
 type ServiceAccountDetails = {
   summary: ServiceAccountSummary;
@@ -220,6 +221,17 @@ export default function ServiceAccountDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {name && (
+                    <Section title="Actions" divider={false}>
+                      <ServiceAccountActions
+                        token={props.token}
+                        namespace={ns}
+                        serviceAccountName={name}
+                        onDeleted={props.onClose}
+                      />
+                    </Section>
+                  )}
+
                   <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
