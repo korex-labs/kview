@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Box,
-  Drawer,
   Typography,
   IconButton,
   Divider,
@@ -11,6 +10,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { valueOrDash } from "../utils/format";
 import KeyValueTable from "./shared/KeyValueTable";
 import Section from "./shared/Section";
+import RightDrawer from "./layout/RightDrawer";
 
 type HelmChart = {
   chartName: string;
@@ -37,19 +37,7 @@ export default function HelmChartDrawer(props: {
     : [];
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose} PaperProps={{ sx: { width: 620 } }}>
       <Box sx={{ width: 620, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -84,6 +72,6 @@ export default function HelmChartDrawer(props: {
           </Box>
         )}
       </Box>
-    </Drawer>
+    </RightDrawer>
   );
 }

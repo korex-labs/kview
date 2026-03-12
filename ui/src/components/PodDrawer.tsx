@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Tabs,
   Tab,
@@ -44,6 +43,7 @@ import DaemonSetDrawer from "./DaemonSetDrawer";
 import JobDrawer from "./JobDrawer";
 import NodeDrawer from "./NodeDrawer";
 import PodActions from "./PodActions";
+import RightDrawer from "./layout/RightDrawer";
 import ServiceAccountDrawer from "./ServiceAccountDrawer";
 import NamespaceDrawer from "./NamespaceDrawer";
 import Section from "./shared/Section";
@@ -800,20 +800,7 @@ export default function PodDrawer(props: {
     networkingIngressesErr?.status === 401 || networkingIngressesErr?.status === 403;
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          // AppBar is 64px (mt: 8), keep drawer below it
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose}>
       <Box sx={{ width: 820, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -1782,7 +1769,7 @@ export default function PodDrawer(props: {
           </>
         )}
       </Box>
-    </Drawer>
+    </RightDrawer>
   );
 }
 

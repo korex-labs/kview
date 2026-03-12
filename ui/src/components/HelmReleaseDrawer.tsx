@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Tabs,
   Tab,
@@ -43,6 +42,7 @@ import PersistentVolumeClaimDrawer from "./PersistentVolumeClaimDrawer";
 import ServiceAccountDrawer from "./ServiceAccountDrawer";
 import CustomResourceDefinitionDrawer from "./CustomResourceDefinitionDrawer";
 import NamespaceDrawer from "./NamespaceDrawer";
+import RightDrawer from "./layout/RightDrawer";
 
 type HelmHook = {
   name: string;
@@ -205,19 +205,7 @@ export default function HelmReleaseDrawer(props: {
   const linkedKind = linkedResource?.kind;
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose}>
       <Box sx={{ width: 820, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -532,6 +520,6 @@ export default function HelmReleaseDrawer(props: {
           </>
         )}
       </Box>
-    </Drawer>
+    </RightDrawer>
   );
 }

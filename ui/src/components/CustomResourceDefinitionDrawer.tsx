@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Tabs,
   Tab,
@@ -28,6 +27,7 @@ import ConditionsTable from "./shared/ConditionsTable";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
 import CRDActions from "./CRDActions";
+import RightDrawer from "./layout/RightDrawer";
 
 type CRDDetails = {
   summary: CRDSummary;
@@ -161,19 +161,7 @@ export default function CustomResourceDefinitionDrawer(props: {
   );
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose}>
       <Box sx={{ width: 820, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -287,6 +275,6 @@ export default function CustomResourceDefinitionDrawer(props: {
           </>
         )}
       </Box>
-    </Drawer>
+    </RightDrawer>
   );
 }

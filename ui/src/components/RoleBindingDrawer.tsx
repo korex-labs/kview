@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Tabs,
   Tab,
@@ -30,6 +29,7 @@ import Section from "./shared/Section";
 import RoleDrawer from "./RoleDrawer";
 import ClusterRoleDrawer from "./ClusterRoleDrawer";
 import RoleBindingActions from "./RoleBindingActions";
+import RightDrawer from "./layout/RightDrawer";
 
 type RoleBindingDetails = {
   summary: BindingSummary;
@@ -143,19 +143,7 @@ export default function RoleBindingDrawer(props: {
   const canOpenRoleRef = roleRef?.kind === "Role" || roleRef?.kind === "ClusterRole";
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose}>
       <Box sx={{ width: 820, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -288,6 +276,6 @@ export default function RoleBindingDrawer(props: {
         token={props.token}
         clusterRoleName={drawerClusterRole}
       />
-    </Drawer>
+    </RightDrawer>
   );
 }

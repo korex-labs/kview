@@ -15,6 +15,7 @@ import (
 
 	"kview/internal/cluster"
 	"kview/internal/kube"
+	"kview/internal/runtime"
 	"kview/internal/stream"
 )
 
@@ -25,10 +26,16 @@ type Server struct {
 	mgr     *cluster.Manager
 	token   string
 	actions *kube.ActionRegistry
+	rt      runtime.RuntimeManager
 }
 
 func New(mgr *cluster.Manager, token string) *Server {
-	return &Server{mgr: mgr, token: token, actions: kube.NewActionRegistry()}
+	return &Server{
+		mgr:     mgr,
+		token:   token,
+		actions: kube.NewActionRegistry(),
+		rt:      runtime.NewManager(),
+	}
 }
 
 // Actions returns the action registry for registering handlers.
@@ -50,6 +57,21 @@ func (s *Server) Router() http.Handler {
 	// Protected API
 	r.Route("/api", func(api chi.Router) {
 		api.Use(s.authMiddleware)
+
+		api.Get("/activity", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			activities, err := s.rt.Registry().List(ctx)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list activities"})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{
+				"items": activities,
+			})
+		})
 
 		api.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Tabs,
   Tab,
@@ -29,6 +28,7 @@ import MetadataSection from "./shared/MetadataSection";
 import EventsList from "./shared/EventsList";
 import CodeBlock from "./shared/CodeBlock";
 import IngressActions from "./IngressActions";
+import RightDrawer from "./layout/RightDrawer";
 
 function buildIngressUrls(hosts?: string[], tls?: IngressTLS[]): { host: string; url: string }[] {
   if (!hosts || hosts.length === 0) return [];
@@ -199,19 +199,7 @@ export default function IngressDrawer(props: {
   );
 
   return (
-    <Drawer
-      anchor="right"
-      open={props.open}
-      onClose={props.onClose}
-      PaperProps={{
-        sx: {
-          mt: 8,
-          height: "calc(100% - 64px)",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-        },
-      }}
-    >
+    <RightDrawer open={props.open} onClose={props.onClose}>
       <Box sx={{ width: 820, p: 2, display: "flex", flexDirection: "column", height: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -412,6 +400,6 @@ export default function IngressDrawer(props: {
           </>
         )}
       </Box>
-    </Drawer>
+    </RightDrawer>
   );
 }

@@ -28,6 +28,7 @@ import { apiGet, apiPost, toApiError } from "./api";
 import { loadState, saveState, toggleFavouriteNamespace, type Section } from "./state";
 import { useConnectionState } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
+import ActivityPanel from "./components/activity/ActivityPanel";
 import { ActiveContextProvider } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
 import { ThemeProvider, useThemeMode } from "./theme/ThemeProvider";
@@ -188,6 +189,7 @@ function AppInner() {
             height: "100vh",
             backgroundColor: "var(--bg-primary)",
             color: "var(--text-primary)",
+            pb: 6,
           }}
         >
           <CssBaseline />
@@ -284,6 +286,7 @@ function AppInner() {
               Connection restored
             </Alert>
           </Snackbar>
+          <ActivityPanel />
         </Box>
       </MutationProvider>
     </ActiveContextProvider>
