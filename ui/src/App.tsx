@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert } from "@mui/material";
+import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import Sidebar from "./components/Sidebar";
 import NodesTable from "./components/NodesTable";
 import NamespacesTable from "./components/NamespacesTable";
@@ -30,13 +30,15 @@ import { useConnectionState } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
 import { ActiveContextProvider } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
+import { ThemeProvider, useThemeMode } from "./theme/ThemeProvider";
+import "./styles/theme.css";
 
 function getToken(): string {
   const u = new URL(window.location.href);
   return u.searchParams.get("token") || "";
 }
 
-export default function App() {
+function AppInner() {
   const token = useMemo(() => getToken(), []);
   const { lastRecoveryShownAt } = useConnectionState();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -179,84 +181,140 @@ export default function App() {
 
   return (
     <ActiveContextProvider value={activeContext}>
-    <MutationProvider>
-    <Box sx={{ display: "flex", height: "100vh" }}>
-      <CssBaseline />
-      <AppBar position="fixed" sx={{ zIndex: 1201 }}>
-        <Toolbar>
-          <Typography variant="h6" noWrap component="div">
-            kview — {activeContext || "no context"}
-          </Typography>
-        </Toolbar>
-      </AppBar>
+      <MutationProvider>
+        <Box
+          sx={{
+            display: "flex",
+            height: "100vh",
+            backgroundColor: "var(--bg-primary)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <CssBaseline />
+          <AppBar position="fixed" sx={{ zIndex: 1201 }}>
+            <Toolbar>
+              <Typography variant="h6" noWrap component="div">
+                kview — {activeContext || "no context"}
+              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              <ThemeSelector />
+            </Toolbar>
+          </AppBar>
 
-      <Sidebar
-        contexts={contexts}
-        activeContext={activeContext}
-        onSelectContext={onSelectContext}
-        namespaces={namespaces}
-        namespace={namespace}
-        onSelectNamespace={onSelectNamespace}
-        nsLimited={nsLimited}
-        favourites={favourites}
-        onToggleFavourite={onToggleFavourite}
-        section={section}
-        onSelectSection={onSelectSection}
-      />
+          <Sidebar
+            contexts={contexts}
+            activeContext={activeContext}
+            onSelectContext={onSelectContext}
+            namespaces={namespaces}
+            namespace={namespace}
+            onSelectNamespace={onSelectNamespace}
+            nsLimited={nsLimited}
+            favourites={favourites}
+            onToggleFavourite={onToggleFavourite}
+            section={section}
+            onSelectSection={onSelectSection}
+          />
 
-      <Box component="main" sx={{ flexGrow: 1, p: 2, mt: 8 }}>
-        <ConnectionBanner />
-        {section === "nodes" ? <NodesTable token={token} /> : null}
-        {section === "namespaces" ? <NamespacesTable token={token} onNavigate={(sec, ns) => { onSelectNamespace(ns); onSelectSection(sec as Section); }} /> : null}
-        {section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
-        {section === "deployments" && namespace ? (
-          <DeploymentsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "daemonsets" && namespace ? (
-          <DaemonSetsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "statefulsets" && namespace ? (
-          <StatefulSetsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "replicasets" && namespace ? (
-          <ReplicaSetsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
-        {section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
-        {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
-        {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
-        {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
-        {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
-        {section === "serviceaccounts" && namespace ? (
-          <ServiceAccountsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
-        {section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
-        {section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
-        {section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
-        {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
-        {section === "persistentvolumeclaims" && namespace ? (
-          <PersistentVolumeClaimsTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "customresourcedefinitions" ? <CustomResourceDefinitionsTable token={token} /> : null}
-        {section === "helm" && namespace ? (
-          <HelmReleasesTable token={token} namespace={namespace} />
-        ) : null}
-        {section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
-      </Box>
-      <Snackbar
-        open={recoveryOpen}
-        autoHideDuration={3000}
-        onClose={() => setRecoveryOpen(false)}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setRecoveryOpen(false)}>
-          Connection restored
-        </Alert>
-      </Snackbar>
-    </Box>
-    </MutationProvider>
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 2,
+              mt: 8,
+              backgroundColor: "var(--bg-elevated)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <ConnectionBanner />
+            {section === "nodes" ? <NodesTable token={token} /> : null}
+            {section === "namespaces" ? (
+              <NamespacesTable
+                token={token}
+                onNavigate={(sec, ns) => {
+                  onSelectNamespace(ns);
+                  onSelectSection(sec as Section);
+                }}
+              />
+            ) : null}
+            {section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
+            {section === "deployments" && namespace ? (
+              <DeploymentsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "daemonsets" && namespace ? (
+              <DaemonSetsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "statefulsets" && namespace ? (
+              <StatefulSetsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "replicasets" && namespace ? (
+              <ReplicaSetsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
+            {section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
+            {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
+            {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
+            {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
+            {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
+            {section === "serviceaccounts" && namespace ? (
+              <ServiceAccountsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
+            {section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
+            {section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
+            {section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
+            {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
+            {section === "persistentvolumeclaims" && namespace ? (
+              <PersistentVolumeClaimsTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "customresourcedefinitions" ? (
+              <CustomResourceDefinitionsTable token={token} />
+            ) : null}
+            {section === "helm" && namespace ? (
+              <HelmReleasesTable token={token} namespace={namespace} />
+            ) : null}
+            {section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
+          </Box>
+          <Snackbar
+            open={recoveryOpen}
+            autoHideDuration={3000}
+            onClose={() => setRecoveryOpen(false)}
+            anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Alert severity="success" variant="filled" onClose={() => setRecoveryOpen(false)}>
+              Connection restored
+            </Alert>
+          </Snackbar>
+        </Box>
+      </MutationProvider>
     </ActiveContextProvider>
+  );
+}
+
+function ThemeSelector() {
+  const { mode, setMode } = useThemeMode();
+
+  return (
+    <FormControl size="small" variant="outlined" sx={{ minWidth: 140 }}>
+      <InputLabel id="theme-mode-label">Theme</InputLabel>
+      <Select
+        labelId="theme-mode-label"
+        value={mode}
+        label="Theme"
+        onChange={(e) => setMode(e.target.value as any)}
+      >
+        <MenuItem value="light">Light</MenuItem>
+        <MenuItem value="dark">Dark</MenuItem>
+        <MenuItem value="system">System</MenuItem>
+      </Select>
+    </FormControl>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }
 

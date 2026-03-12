@@ -1679,7 +1679,14 @@ export default function PodDrawer(props: {
 
                   <Box
                     ref={logScrollRef}
-                    sx={{ border: "1px solid #ddd", borderRadius: 2, overflow: "auto", flexGrow: 1 }}
+                    sx={{
+                      border: "1px solid var(--code-border)",
+                      borderRadius: 2,
+                      overflow: "auto",
+                      flexGrow: 1,
+                      backgroundColor: "var(--code-bg)",
+                      color: "var(--code-text)",
+                    }}
                   >
                     <SyntaxHighlighter
                       key={`${pretty}-${wrapLines}`}
@@ -1689,9 +1696,13 @@ export default function PodDrawer(props: {
                         margin: 0,
                         background: "transparent",
                         whiteSpace: wrapLines ? "pre-wrap" : "pre",
+                        color: "var(--code-text)",
                       }}
                       codeTagProps={{
-                        style: { whiteSpace: wrapLines ? "pre-wrap" : "pre" },
+                        style: {
+                          whiteSpace: wrapLines ? "pre-wrap" : "pre",
+                          color: "var(--code-text)",
+                        },
                       }}
                     >
                       {renderedLogs || ""}
