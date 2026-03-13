@@ -3,6 +3,7 @@ import { Box, Chip, Typography } from "@mui/material";
 import ActivityList from "./ActivityList";
 import EmptyState from "../shared/EmptyState";
 import { apiGet } from "../../api";
+import SessionList from "./SessionList";
 
 type Props = {
   tab: number;
@@ -17,6 +18,17 @@ type ActivityLogEntry = {
   message: string;
 };
 
+type Session = {
+  id: string;
+  type: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  targetCluster?: string;
+  targetNamespace?: string;
+  targetResource?: string;
+};
+
 export default function ActivityTabs({ tab, token }: Props) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +37,10 @@ export default function ActivityTabs({ tab, token }: Props) {
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsErr, setLogsErr] = useState<string | null>(null);
+
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsErr, setSessionsErr] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -39,6 +55,25 @@ export default function ActivityTabs({ tab, token }: Props) {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const reloadSessions = () => {
+    setSessionsLoading(true);
+    setSessionsErr(null);
+    apiGet<{ items: Session[] }>("/api/sessions", token)
+      .then((res) => {
+        setSessions(res.items || []);
+      })
+      .catch((e) => {
+        setSessionsErr(String(e));
+      })
+      .finally(() => setSessionsLoading(false));
+  };
+
+  useEffect(() => {
+    if (tab !== 1) return;
+    reloadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   useEffect(() => {
     if (tab !== 2) return;
@@ -57,7 +92,15 @@ export default function ActivityTabs({ tab, token }: Props) {
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "auto" }}>
       {tab === 0 && <ActivityList items={activities} loading={loading} error={err || undefined} />}
-      {tab === 1 && <EmptyState message="No active sessions yet." />}
+      {tab === 1 && (
+        <SessionList
+          items={sessions}
+          loading={sessionsLoading}
+          error={sessionsErr || undefined}
+          token={token}
+          onChange={reloadSessions}
+        />
+      )}
       {tab === 2 && (
         <>
           {logsLoading && <EmptyState message="Loading runtime logs…" />}

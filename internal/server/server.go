@@ -16,6 +16,7 @@ import (
 	"kview/internal/cluster"
 	"kview/internal/kube"
 	"kview/internal/runtime"
+	"kview/internal/session"
 	"kview/internal/stream"
 )
 
@@ -27,6 +28,7 @@ type Server struct {
 	token   string
 	actions *kube.ActionRegistry
 	rt      runtime.RuntimeManager
+	sessions session.Manager
 }
 
 func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server {
@@ -35,6 +37,7 @@ func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server 
 		token:   token,
 		actions: kube.NewActionRegistry(),
 		rt:      rt,
+		sessions: session.NewInMemoryManager(rt.Registry()),
 	}
 	// Best-effort runtime manager startup; failures are logged via regular logs.
 	_ = s.rt.Start(context.Background())
@@ -49,6 +52,10 @@ func (s *Server) Actions() *kube.ActionRegistry {
 // Runtime exposes the runtime manager for startup/launcher logging.
 func (s *Server) Runtime() runtime.RuntimeManager {
 	return s.rt
+}
+
+func (s *Server) Sessions() session.Manager {
+	return s.sessions
 }
 
 func (s *Server) Router() http.Handler {
@@ -99,6 +106,107 @@ func (s *Server) Router() http.Handler {
 
 			logs := s.rt.Logs().List(ctx)
 			writeJSON(w, http.StatusOK, map[string]any{"items": logs})
+		})
+
+		api.Get("/sessions", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			items, err := s.sessions.List(ctx)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list sessions"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		})
+
+		api.Get("/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+			id := chi.URLParam(r, "id")
+			if id == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing session id"})
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			sess, ok, err := s.sessions.Get(ctx, id)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to get session"})
+				return
+			}
+			if !ok {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "session not found"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"item": sess})
+		})
+
+		api.Delete("/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+			id := chi.URLParam(r, "id")
+			if id == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing session id"})
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			if err := s.sessions.Stop(ctx, id); err != nil {
+				if errors.Is(err, session.ErrNotFound) {
+					writeJSON(w, http.StatusNotFound, map[string]any{"error": "session not found"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to stop session"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		})
+
+		// Optional placeholder endpoint to create fake sessions for testing.
+		api.Post("/sessions", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			var body struct {
+				Type            string `json:"type"`
+				Title           string `json:"title"`
+				TargetCluster   string `json:"targetCluster"`
+				TargetNamespace string `json:"targetNamespace"`
+				TargetResource  string `json:"targetResource"`
+				TargetContainer string `json:"targetContainer"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid body"})
+				return
+			}
+
+			var t session.Type
+			switch body.Type {
+			case string(session.TypeTerminal):
+				t = session.TypeTerminal
+			case string(session.TypePortForward):
+				t = session.TypePortForward
+			default:
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported session type"})
+				return
+			}
+
+			sess := session.Session{
+				Type:            t,
+				Title:           body.Title,
+				Status:          session.StatusPending,
+				TargetCluster:   body.TargetCluster,
+				TargetNamespace: body.TargetNamespace,
+				TargetResource:  body.TargetResource,
+				TargetContainer: body.TargetContainer,
+				ConnectionState: session.ConnectionDisconnected,
+			}
+
+			created, err := s.sessions.Create(ctx, sess)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create session"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"item": created})
 		})
 
 		api.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
