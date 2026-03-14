@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Tabs, Tab, IconButton, Typography } from "@mui/material";
+import { Box, Tabs, Tab, IconButton } from "@mui/material";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ActivityTabs from "./ActivityTabs";
@@ -15,7 +15,7 @@ type Props = {
 
 const MIN_PANEL_HEIGHT = 160;
 const MAX_PANEL_HEIGHT = 480;
-const HEADER_HEIGHT = 32; // approx header + tabs strip height
+const HEADER_HEIGHT = 28;
 
 export default function ActivityPanel({ token }: Props) {
   const [open, setOpen] = useState(true);
@@ -26,7 +26,7 @@ export default function ActivityPanel({ token }: Props) {
   const [requestKey, setRequestKey] = useState(0);
 
   useEffect(() => {
-    const offset = open ? `${HEADER_HEIGHT + height}px` : "32px";
+    const offset = open ? `${HEADER_HEIGHT + height}px` : `${HEADER_HEIGHT}px`;
     document.documentElement.style.setProperty("--bottom-panel-offset", offset);
   }, [open, height]);
 
@@ -96,12 +96,22 @@ export default function ActivityPanel({ token }: Props) {
         zIndex: 1400,
       }}
     >
+      {open && (
+        <Box
+          sx={{
+            height: 5,
+            cursor: "ns-resize",
+            "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
+          }}
+          onMouseDown={() => setDragging(true)}
+        />
+      )}
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
-          px: 1.5,
-          py: 0.75,
+          px: 1,
+          py: 0.25,
           borderBottom: open ? "1px solid var(--border-subtle)" : "none",
           bgcolor: "var(--bg-primary)",
           backdropFilter: "blur(10px)",
@@ -109,22 +119,17 @@ export default function ActivityPanel({ token }: Props) {
           displayPrint: "none",
         }}
       >
-        <Typography
-          variant="subtitle2"
-          sx={{ fontWeight: 600, letterSpacing: 0.2, textTransform: "uppercase", fontSize: 11 }}
-        >
-          Activity Panel
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
-          sx={{ minHeight: 32, "& .MuiTab-root": { minHeight: 32 } }}
+          sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0 } }}
         >
           <Tab label="Activities" />
-          <Tab label="Sessions" />
+          <Tab label="Terminals" />
+          <Tab label="Port Forwards" />
           <Tab label="Logs" />
         </Tabs>
+        <Box sx={{ flexGrow: 1 }} />
         <IconButton size="small" onClick={() => setOpen((v) => !v)}>
           {open ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
         </IconButton>
@@ -132,19 +137,9 @@ export default function ActivityPanel({ token }: Props) {
       {open && (
         <Box
           sx={{
-            height: 6,
-            cursor: "ns-resize",
-            "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
-          }}
-          onMouseDown={() => setDragging(true)}
-        />
-      )}
-      {open && (
-        <Box
-          sx={{
             height,
-            px: 1.5,
-            py: 1,
+            px: 1,
+            py: 0.75,
             display: "flex",
             flexDirection: "column",
             minHeight: 0,

@@ -61,7 +61,6 @@ export default function Sidebar(props: Props) {
       }}
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="subtitle2">Cluster / Context</Typography>
         <FormControl fullWidth size="small">
           <InputLabel id="ctx-label">Context</InputLabel>
           <Select
@@ -77,8 +76,6 @@ export default function Sidebar(props: Props) {
             ))}
           </Select>
         </FormControl>
-
-        <Typography variant="subtitle2">Namespace</Typography>
 
         {isClusterScoped ? (
           <TextField
@@ -133,7 +130,6 @@ export default function Sidebar(props: Props) {
 
         <Divider />
 
-        <Typography variant="subtitle2">Navigation</Typography>
         {sidebarGroups.map((group, index) => (
           <Box key={group.id}>
             <Typography variant="overline" color="text.secondary">

@@ -158,7 +158,7 @@ export default function PersistentVolumeClaimsTable({ token, namespace }: { toke
         {resourceLabel} — {namespace}
       </Typography>
 
-      <div style={{ height: 700, width: "100%" }}>
+      <div style={{ height: "100%", width: "100%", minHeight: 0 }}>
         <DataGrid
           rows={filteredRows}
           columns={cols}

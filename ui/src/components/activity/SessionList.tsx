@@ -78,7 +78,7 @@ export default function SessionList({ items, loading, error, onOpen, onTerminate
             <TableCell>Type</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Target</TableCell>
-            <TableCell sx={{ width: 92 }}>Created</TableCell>
+            <TableCell sx={{ width: 84 }}>Created</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>

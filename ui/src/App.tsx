@@ -186,10 +186,11 @@ function AppInner() {
         <Box
           sx={{
             display: "flex",
-            height: "100vh",
+            height: "100dvh",
             backgroundColor: "var(--bg-primary)",
             color: "var(--text-primary)",
-            pb: 6,
+            pt: 8,
+            overflow: "hidden",
           }}
         >
           <CssBaseline />
@@ -221,60 +222,65 @@ function AppInner() {
             component="main"
             sx={{
               flexGrow: 1,
-              p: 2,
-              mt: 8,
-              backgroundColor: "var(--bg-elevated)",
+              minWidth: 0,
+              minHeight: 0,
+              pb: "var(--bottom-panel-offset, 32px)",
+              backgroundColor: "var(--bg-primary)",
               color: "var(--text-primary)",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <ConnectionBanner />
-            {section === "nodes" ? <NodesTable token={token} /> : null}
-            {section === "namespaces" ? (
-              <NamespacesTable
-                token={token}
-                onNavigate={(sec, ns) => {
-                  onSelectNamespace(ns);
-                  onSelectSection(sec as Section);
-                }}
-              />
-            ) : null}
-            {section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
-            {section === "deployments" && namespace ? (
-              <DeploymentsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "daemonsets" && namespace ? (
-              <DaemonSetsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "statefulsets" && namespace ? (
-              <StatefulSetsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "replicasets" && namespace ? (
-              <ReplicaSetsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
-            {section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
-            {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
-            {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
-            {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
-            {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
-            {section === "serviceaccounts" && namespace ? (
-              <ServiceAccountsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
-            {section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
-            {section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
-            {section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
-            {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
-            {section === "persistentvolumeclaims" && namespace ? (
-              <PersistentVolumeClaimsTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "customresourcedefinitions" ? (
-              <CustomResourceDefinitionsTable token={token} />
-            ) : null}
-            {section === "helm" && namespace ? (
-              <HelmReleasesTable token={token} namespace={namespace} />
-            ) : null}
-            {section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
+            <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {section === "nodes" ? <NodesTable token={token} /> : null}
+              {section === "namespaces" ? (
+                <NamespacesTable
+                  token={token}
+                  onNavigate={(sec, ns) => {
+                    onSelectNamespace(ns);
+                    onSelectSection(sec as Section);
+                  }}
+                />
+              ) : null}
+              {section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
+              {section === "deployments" && namespace ? (
+                <DeploymentsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "daemonsets" && namespace ? (
+                <DaemonSetsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "statefulsets" && namespace ? (
+                <StatefulSetsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "replicasets" && namespace ? (
+                <ReplicaSetsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
+              {section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
+              {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
+              {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
+              {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
+              {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
+              {section === "serviceaccounts" && namespace ? (
+                <ServiceAccountsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
+              {section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
+              {section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
+              {section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
+              {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
+              {section === "persistentvolumeclaims" && namespace ? (
+                <PersistentVolumeClaimsTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "customresourcedefinitions" ? (
+                <CustomResourceDefinitionsTable token={token} />
+              ) : null}
+              {section === "helm" && namespace ? (
+                <HelmReleasesTable token={token} namespace={namespace} />
+              ) : null}
+              {section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
+            </Box>
           </Box>
           <Snackbar
             open={recoveryOpen}

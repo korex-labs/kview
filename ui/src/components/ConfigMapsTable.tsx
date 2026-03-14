@@ -106,7 +106,7 @@ export default function ConfigMapsTable({ token, namespace }: { token: string; n
         {resourceLabel} — {namespace}
       </Typography>
 
-      <div style={{ height: 700, width: "100%" }}>
+      <div style={{ height: "100%", width: "100%", minHeight: 0 }}>
         <DataGrid
           rows={filteredRows}
           columns={cols}

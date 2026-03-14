@@ -62,7 +62,7 @@ export default function ActivityList({ items, loading, error }: Props) {
   }
 
   return (
-    <Box sx={{ overflow: "auto" }}>
+    <Box sx={{ overflow: "auto", border: "1px solid var(--border-subtle)", borderRadius: 1 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
