@@ -1,10 +1,23 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Drawer, type DrawerProps } from "@mui/material";
 
 type Props = DrawerProps;
 
+let openedRightDrawers = 0;
+
 export default function RightDrawer(props: Props) {
   const { PaperProps, ModalProps, ...rest } = props;
+  const [drawerDepth, setDrawerDepth] = useState(0);
+
+  useEffect(() => {
+    if (!props.open) return;
+    openedRightDrawers += 1;
+    setDrawerDepth(openedRightDrawers);
+    return () => {
+      openedRightDrawers = Math.max(0, openedRightDrawers - 1);
+      setDrawerDepth(0);
+    };
+  }, [props.open]);
 
   return (
     <Drawer
@@ -15,6 +28,7 @@ export default function RightDrawer(props: Props) {
         disableEnforceFocus: true,
         disableAutoFocus: true,
         disableRestoreFocus: true,
+        hideBackdrop: ModalProps?.hideBackdrop ?? drawerDepth > 1,
         ...ModalProps,
       }}
       PaperProps={{

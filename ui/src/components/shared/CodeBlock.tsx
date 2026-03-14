@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Box, Button } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 type CodeBlockProps = {
   code: string;
@@ -35,7 +37,10 @@ export default function CodeBlock({
   language,
   showCopy = true,
 }: CodeBlockProps) {
+  const theme = useTheme();
+
   if (language) {
+    const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
     return (
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
         {showCopy && <CopyButton text={code} />}
@@ -46,19 +51,28 @@ export default function CodeBlock({
             borderRadius: 2,
             border: "1px solid var(--code-border)",
             backgroundColor: "var(--code-bg)",
+            "& pre, & code, & .token": {
+              textShadow: "none !important",
+            },
           }}
         >
           <SyntaxHighlighter
             language={language}
+            style={prismTheme}
             showLineNumbers
             wrapLongLines
             customStyle={{
               margin: 0,
               background: "transparent",
               color: "var(--code-text)",
+              textShadow: "none",
             }}
             codeTagProps={{
-              style: { color: "var(--code-text)" },
+              style: { color: "var(--code-text)", textShadow: "none" },
+            }}
+            lineNumberStyle={{
+              color: "var(--code-line-number)",
+              opacity: 0.9,
             }}
           >
             {code}

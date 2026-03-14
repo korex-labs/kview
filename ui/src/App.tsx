@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
+import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert, IconButton, Tooltip } from "@mui/material";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
 import Sidebar from "./components/Sidebar";
 import NodesTable from "./components/NodesTable";
 import NamespacesTable from "./components/NamespacesTable";
@@ -301,21 +304,23 @@ function AppInner() {
 
 function ThemeSelector() {
   const { mode, setMode } = useThemeMode();
+  const icon =
+    mode === "light" ? <Brightness7Icon fontSize="small" /> : mode === "dark" ? <DarkModeIcon fontSize="small" /> : <BrightnessAutoIcon fontSize="small" />;
+  const nextMode = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
+  const title = mode === "light" ? "Theme: Light" : mode === "dark" ? "Theme: Dark" : "Theme: System";
 
   return (
-    <FormControl size="small" variant="outlined" sx={{ minWidth: 140 }}>
-      <InputLabel id="theme-mode-label">Theme</InputLabel>
-      <Select
-        labelId="theme-mode-label"
-        value={mode}
-        label="Theme"
-        onChange={(e) => setMode(e.target.value as any)}
+    <Tooltip title={`${title}. Click to switch to ${nextMode}.`}>
+      <IconButton
+        size="small"
+        color="inherit"
+        onClick={() => {
+          setMode(nextMode);
+        }}
       >
-        <MenuItem value="light">Light</MenuItem>
-        <MenuItem value="dark">Dark</MenuItem>
-        <MenuItem value="system">System</MenuItem>
-      </Select>
-    </FormControl>
+        {icon}
+      </IconButton>
+    </Tooltip>
   );
 }
 

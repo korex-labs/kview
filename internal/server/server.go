@@ -296,6 +296,7 @@ func (s *Server) Router() http.Handler {
 			var body struct {
 				Namespace  string `json:"namespace"`
 				Pod        string `json:"pod"`
+				Service    string `json:"service"`
 				RemotePort int    `json:"remotePort"`
 				LocalPort  int    `json:"localPort"`
 				LocalHost  string `json:"localHost"`
@@ -307,26 +308,40 @@ func (s *Server) Router() http.Handler {
 			}
 			ns := strings.TrimSpace(body.Namespace)
 			pod := strings.TrimSpace(body.Pod)
-			if ns == "" || pod == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "namespace and pod are required"})
+			serviceName := strings.TrimSpace(body.Service)
+			if ns == "" || (pod == "" && serviceName == "") {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "namespace and one of pod/service are required"})
 				return
 			}
 			if body.RemotePort <= 0 {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "remotePort must be > 0"})
 				return
 			}
+			targetKind := "pod"
+			targetResource := pod
+			if serviceName != "" {
+				targetKind = "service"
+				targetResource = serviceName
+			}
 
 			clusterName := s.mgr.ActiveContext()
 			title := strings.TrimSpace(body.Title)
 			if title == "" {
-				title = fmt.Sprintf("Port-forward %s/%s :%d", ns, pod, body.RemotePort)
+				title = fmt.Sprintf("Port-forward %s/%s :%d", ns, targetResource, body.RemotePort)
 			}
 
 			baseMeta := map[string]string{
-				"targetKind": "pod",
+				"targetKind": targetKind,
 				"remotePort": fmt.Sprintf("%d", body.RemotePort),
 				"localHost":  strings.TrimSpace(body.LocalHost),
 				"localPort":  "",
+			}
+			if pod != "" {
+				baseMeta["pod"] = pod
+			}
+			if serviceName != "" {
+				baseMeta["service"] = serviceName
+				baseMeta["targetService"] = serviceName
 			}
 
 			sess := session.Session{
@@ -337,7 +352,7 @@ func (s *Server) Router() http.Handler {
 				UpdatedAt:       time.Now().UTC(),
 				TargetCluster:   clusterName,
 				TargetNamespace: ns,
-				TargetResource:  pod,
+				TargetResource:  targetResource,
 				ConnectionState: session.ConnectionDisconnected,
 				Metadata:        baseMeta,
 			}
@@ -372,10 +387,46 @@ func (s *Server) Router() http.Handler {
 				localPort = body.RemotePort
 			}
 
-			effectiveLocal, stopFn, err := kube.StartPodPortForward(ctx, clients, ns, pod, body.LocalHost, localPort, body.RemotePort)
+			forwardPod := ""
+			startForward := func(requestedLocal int) (int, func(), error) {
+				if targetKind == "service" && forwardPod == "" {
+					return kube.StartServicePortForward(ctx, clients, ns, targetResource, body.LocalHost, requestedLocal, body.RemotePort)
+				}
+				podTarget := targetResource
+				if forwardPod != "" {
+					podTarget = forwardPod
+				}
+				return kube.StartPodPortForward(ctx, clients, ns, podTarget, body.LocalHost, requestedLocal, body.RemotePort)
+			}
+
+			var effectiveLocal int
+			var stopFn func()
+			effectiveLocal, stopFn, err = startForward(localPort)
 			if err != nil && body.LocalPort <= 0 && localPort == body.RemotePort {
 				// Preferred local=remote was unavailable by start time; retry with random local port.
-				effectiveLocal, stopFn, err = kube.StartPodPortForward(ctx, clients, ns, pod, body.LocalHost, 0, body.RemotePort)
+				effectiveLocal, stopFn, err = startForward(0)
+			}
+
+			if err != nil && targetKind == "service" {
+				// Some clusters/kube-proxies do not support service port-forward robustly.
+				// Fallback to one backing Pod while preserving service metadata in session.
+				if podName, podErr := kube.ResolveServiceTargetPod(ctx, clients, ns, targetResource); podErr == nil && podName != "" {
+					forwardPod = podName
+					effectiveLocal, stopFn, err = startForward(localPort)
+					if err != nil && body.LocalPort <= 0 && localPort == body.RemotePort {
+						effectiveLocal, stopFn, err = startForward(0)
+					}
+					if err == nil {
+						if created.Metadata == nil {
+							created.Metadata = map[string]string{}
+						}
+						created.Metadata["pod"] = podName
+						created.Metadata["forwardMode"] = "service-via-pod"
+						s.rt.Log(runtime.LogLevelWarn, "portforward",
+							fmt.Sprintf("service port-forward fallback for session %s: %s/%s via pod %s",
+								created.ID, ns, targetResource, podName))
+					}
+				}
 			}
 			if err != nil {
 				s.rt.Log(runtime.LogLevelError, "portforward", fmt.Sprintf("failed to start port-forward for session %s: %v", created.ID, err))
@@ -383,6 +434,7 @@ func (s *Server) Router() http.Handler {
 				created.ConnectionState = session.ConnectionDisconnected
 				created.UpdatedAt = time.Now().UTC()
 				_ = s.sessions.Update(ctx, created)
+				_ = s.sessions.Stop(ctx, created.ID)
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to start port-forward"})
 				return
 			}
@@ -414,10 +466,11 @@ func (s *Server) Router() http.Handler {
 				runtime.LogLevelInfo,
 				"portforward",
 				fmt.Sprintf(
-					"started port-forward session %s for pod %s/%s local %s:%d -> %d",
+					"started port-forward session %s for %s %s/%s local %s:%d -> %d",
 					created.ID,
+					targetKind,
 					ns,
-					pod,
+					targetResource,
 					created.Metadata["localHost"],
 					effectiveLocal,
 					body.RemotePort,

@@ -1,15 +1,34 @@
 import { apiPost } from "./api";
 
 export async function apiDelete(path: string, token: string): Promise<void> {
-  // Reuse apiPost with an empty body for DELETE to inherit error handling and notifications.
-  await fetch(path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token), {
+  const url = path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+  const res = await fetch(url, {
     method: "DELETE",
-  }).then(async (res) => {
-    if (!res.ok) {
-      // Let apiPost handle error classification and notifications.
-      await apiPost(path, token, {}); // This will always fail but will parse and emit the right notifications.
-    }
   });
+  if (!res.ok) {
+    let msg = res.statusText || "Request failed";
+    try {
+      const raw = (await res.text()).trim();
+      if (raw) {
+        if (raw.startsWith("{") || raw.startsWith("[")) {
+          const parsed = JSON.parse(raw) as Record<string, unknown>;
+          const fromPayload = parsed.message || parsed.error;
+          if (typeof fromPayload === "string" && fromPayload.trim()) {
+            msg = fromPayload;
+          } else {
+            msg = raw;
+          }
+        } else {
+          msg = raw;
+        }
+      }
+    } catch {
+      // ignore parse failures and keep status text
+    }
+    const err = new Error(msg) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
 }
 
 type TerminalSessionRequest = {
@@ -33,7 +52,8 @@ export async function createTerminalSession(req: TerminalSessionRequest, token: 
 
 type PortForwardSessionRequest = {
   namespace: string;
-  pod: string;
+  pod?: string;
+  service?: string;
   remotePort: number;
   localPort?: number;
   localHost?: string;

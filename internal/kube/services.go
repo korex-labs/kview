@@ -117,3 +117,27 @@ func serviceIntOrString(v intstr.IntOrString) string {
 	}
 	return fmt.Sprintf("%d", v.IntVal)
 }
+
+// ResolveServiceTargetPod returns a Pod name backing the Service.
+// It prefers ready endpoint addresses and falls back to not-ready ones.
+func ResolveServiceTargetPod(ctx context.Context, c *cluster.Clients, namespace, serviceName string) (string, error) {
+	ep, err := c.Clientset.CoreV1().Endpoints(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, subset := range ep.Subsets {
+		for _, addr := range subset.Addresses {
+			if addr.TargetRef != nil && addr.TargetRef.Kind == "Pod" && addr.TargetRef.Name != "" {
+				return addr.TargetRef.Name, nil
+			}
+		}
+	}
+	for _, subset := range ep.Subsets {
+		for _, addr := range subset.NotReadyAddresses {
+			if addr.TargetRef != nil && addr.TargetRef.Kind == "Pod" && addr.TargetRef.Name != "" {
+				return addr.TargetRef.Name, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("service has no endpoint pods")
+}

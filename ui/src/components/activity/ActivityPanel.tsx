@@ -4,7 +4,8 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ActivityTabs from "./ActivityTabs";
 import {
-  FOCUS_SESSIONS_TAB_EVENT,
+  FOCUS_LOGS_TAB_EVENT,
+  FOCUS_PORT_FORWARDS_TAB_EVENT,
   OPEN_TERMINAL_SESSION_EVENT,
   type OpenTerminalSessionEventDetail,
 } from "../../activityEvents";
@@ -14,16 +15,17 @@ type Props = {
 };
 
 const MIN_PANEL_HEIGHT = 160;
-const MAX_PANEL_HEIGHT = 480;
+const MAX_PANEL_HEIGHT = 630;
 const HEADER_HEIGHT = 28;
 
 export default function ActivityPanel({ token }: Props) {
   const [open, setOpen] = useState(true);
   const [tab, setTab] = useState(0);
-  const [height, setHeight] = useState(200);
+  const [height, setHeight] = useState(230);
   const [dragging, setDragging] = useState(false);
   const [requestedTerminalId, setRequestedTerminalId] = useState<string | null>(null);
   const [requestKey, setRequestKey] = useState(0);
+  const [tabCounts, setTabCounts] = useState({ activities: 0, terminals: 0, portForwards: 0 });
 
   useEffect(() => {
     const offset = open ? `${HEADER_HEIGHT + height}px` : `${HEADER_HEIGHT}px`;
@@ -71,13 +73,24 @@ export default function ActivityPanel({ token }: Props) {
   }, []);
 
   useEffect(() => {
-    const onFocusSessions = () => {
+    const onFocusPortForwards = () => {
       setOpen(true);
-      setTab(1);
+      setTab(2);
     };
-    window.addEventListener(FOCUS_SESSIONS_TAB_EVENT, onFocusSessions);
+    window.addEventListener(FOCUS_PORT_FORWARDS_TAB_EVENT, onFocusPortForwards);
     return () => {
-      window.removeEventListener(FOCUS_SESSIONS_TAB_EVENT, onFocusSessions);
+      window.removeEventListener(FOCUS_PORT_FORWARDS_TAB_EVENT, onFocusPortForwards);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFocusLogs = () => {
+      setOpen(true);
+      setTab(3);
+    };
+    window.addEventListener(FOCUS_LOGS_TAB_EVENT, onFocusLogs);
+    return () => {
+      window.removeEventListener(FOCUS_LOGS_TAB_EVENT, onFocusLogs);
     };
   }, []);
 
@@ -124,9 +137,9 @@ export default function ActivityPanel({ token }: Props) {
           onChange={(_, v) => setTab(v)}
           sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0 } }}
         >
-          <Tab label="Activities" />
-          <Tab label="Terminals" />
-          <Tab label="Port Forwards" />
+          <Tab label={`Activities (${tabCounts.activities})`} />
+          <Tab label={`Terminals (${tabCounts.terminals})`} />
+          <Tab label={`Port Forwards (${tabCounts.portForwards})`} />
           <Tab label="Logs" />
         </Tabs>
         <Box sx={{ flexGrow: 1 }} />
@@ -134,25 +147,27 @@ export default function ActivityPanel({ token }: Props) {
           {open ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
         </IconButton>
       </Box>
-      {open && (
-        <Box
-          sx={{
-            height,
-            px: 1,
-            py: 0.75,
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
-        >
-          <ActivityTabs
-            tab={tab}
-            token={token}
-            requestedTerminalId={requestedTerminalId}
-            requestedTerminalRequestKey={requestKey}
-          />
-        </Box>
-      )}
+      <Box
+        sx={{
+          height: open ? height : 0,
+          px: 1,
+          py: open ? 0.75 : 0,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          overflow: "hidden",
+          visibility: open ? "visible" : "hidden",
+          pointerEvents: open ? "auto" : "none",
+        }}
+      >
+        <ActivityTabs
+          tab={tab}
+          token={token}
+          requestedTerminalId={requestedTerminalId}
+          requestedTerminalRequestKey={requestKey}
+          onCountsChange={setTabCounts}
+        />
+      </Box>
     </Box>
   );
 }

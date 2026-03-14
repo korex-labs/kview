@@ -7,6 +7,7 @@ import {
   Tab,
   Typography,
   Table,
+  TableContainer,
   TableBody,
   TableCell,
   TableHead,
@@ -17,15 +18,25 @@ import CloseIcon from "@mui/icons-material/Close";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ActivityList from "./ActivityList";
 import EmptyState from "../shared/EmptyState";
-import { apiGet } from "../../api";
+import { apiGet, toApiError } from "../../api";
 import TerminalSessionView from "./TerminalSessionView";
 import { apiDelete } from "../../sessionsApi";
+import { emitFocusLogsTab, emitOpenTerminalSession } from "../../activityEvents";
+import {
+  chipSxForValue,
+  compactCellSx,
+  compactHeaderCellSx,
+  compactTableSx,
+  compactTableContainerSx,
+  panelEmptyStateSx,
+} from "./activityUi";
 
 type Props = {
   tab: number;
   token: string;
   requestedTerminalId?: string | null;
   requestedTerminalRequestKey?: number;
+  onCountsChange?: (counts: { activities: number; terminals: number; portForwards: number }) => void;
 };
 
 type Activity = {
@@ -64,6 +75,7 @@ export default function ActivityTabs({
   token,
   requestedTerminalId,
   requestedTerminalRequestKey,
+  onCountsChange,
 }: Props) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +93,48 @@ export default function ActivityTabs({
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const logsScrollRef = useRef<HTMLDivElement | null>(null);
+  const terminalInfoCacheRef = useRef<Map<string, Session>>(new Map());
+  const logsStickToBottomRef = useRef(true);
+
+  const mergeRuntimeLogs = useCallback(
+    (prev: ActivityLogEntry[], incoming: ActivityLogEntry[]): ActivityLogEntry[] => {
+      if (incoming.length === 0) {
+        return prev;
+      }
+
+      const byId = new Map<string, ActivityLogEntry>();
+      const order: string[] = [];
+
+      prev.forEach((item) => {
+        byId.set(item.id, item);
+        order.push(item.id);
+      });
+
+      let changed = false;
+      incoming.forEach((item) => {
+        const existing = byId.get(item.id);
+        if (!existing) {
+          byId.set(item.id, item);
+          order.push(item.id);
+          changed = true;
+          return;
+        }
+        if (
+          existing.timestamp !== item.timestamp ||
+          existing.level !== item.level ||
+          existing.source !== item.source ||
+          existing.message !== item.message
+        ) {
+          byId.set(item.id, item);
+          changed = true;
+        }
+      });
+
+      if (!changed) return prev;
+      return order.map((id) => byId.get(id)!).filter(Boolean);
+    },
+    [],
+  );
 
   const reloadActivities = useCallback(() => {
     setLoading(true);
@@ -97,11 +151,10 @@ export default function ActivityTabs({
   }, [token]);
 
   useEffect(() => {
-    if (tab !== 0) return;
     reloadActivities();
     const id = window.setInterval(reloadActivities, 5000);
     return () => window.clearInterval(id);
-  }, [tab, reloadActivities]);
+  }, [reloadActivities]);
 
   const reloadSessions = useCallback(() => {
     setSessionsLoading(true);
@@ -117,11 +170,10 @@ export default function ActivityTabs({
   }, [token]);
 
   useEffect(() => {
-    if (tab !== 1 && tab !== 2) return;
     reloadSessions();
     const id = window.setInterval(reloadSessions, 5000);
     return () => window.clearInterval(id);
-  }, [tab, reloadSessions]);
+  }, [reloadSessions]);
 
   useEffect(() => {
     if (!requestedTerminalId) return;
@@ -151,25 +203,51 @@ export default function ActivityTabs({
     return map;
   }, [sessions]);
   const terminalSessions = useMemo(() => sessions.filter((s) => s.type === "terminal"), [sessions]);
-  const portForwardSessions = useMemo(() => sessions.filter((s) => s.type === "portforward"), [sessions]);
+  const portForwardSessions = useMemo(
+    () =>
+      sessions.filter(
+        (s) =>
+          s.type === "portforward" &&
+          (s.status === "running" || s.status === "starting" || s.status === "pending" || s.status === "stopping"),
+      ),
+    [sessions],
+  );
 
   const terminateSession = async (id: string) => {
-    await apiDelete(`/api/sessions/${encodeURIComponent(id)}`, token);
-    setOpenTerminalIds((prev) => prev.filter((item) => item !== id));
-    setActiveTerminalId((prev) => (prev === id ? null : prev));
-    reloadSessions();
-    reloadActivities();
+    try {
+      await apiDelete(`/api/sessions/${encodeURIComponent(id)}`, token);
+      setOpenTerminalIds((prev) => prev.filter((item) => item !== id));
+      setActiveTerminalId((prev) => (prev === id ? null : prev));
+      reloadSessions();
+      reloadActivities();
+    } catch (e) {
+      const apiErr = toApiError(e);
+      if (apiErr.status === 404) {
+        // Session is already closed on backend (e.g. shell exited via Ctrl+D).
+        setOpenTerminalIds((prev) => prev.filter((item) => item !== id));
+        setActiveTerminalId((prev) => (prev === id ? null : prev));
+        reloadSessions();
+        return;
+      }
+      const msg = apiErr.message || "Unable to terminate session.";
+      setSessionsErr(msg);
+    }
   };
 
   useEffect(() => {
     if (tab !== 3) return;
 
     const loadOnce = () => {
+      const node = logsScrollRef.current;
+      if (node) {
+        const distanceToBottom = node.scrollHeight - node.clientHeight - node.scrollTop;
+        logsStickToBottomRef.current = distanceToBottom <= 24;
+      }
       setLogsLoading(true);
       setLogsErr(null);
       apiGet<{ items: ActivityLogEntry[] }>("/api/activity/runtime/logs", token)
         .then((res) => {
-          setLogs(res.items || []);
+          setLogs((prev) => mergeRuntimeLogs(prev, res.items || []));
         })
         .catch((e) => {
           setLogsErr(String(e));
@@ -180,9 +258,12 @@ export default function ActivityTabs({
     loadOnce();
     const id = window.setInterval(loadOnce, 5000);
     return () => window.clearInterval(id);
-  }, [tab, token]);
+  }, [tab, token, mergeRuntimeLogs]);
 
   useEffect(() => {
+    terminalSessions.forEach((s) => {
+      terminalInfoCacheRef.current.set(s.id, s);
+    });
     const nextIds = new Set(terminalSessions.map((s) => s.id));
     setOpenTerminalIds((prev) => {
       const merged = [...prev];
@@ -203,13 +284,42 @@ export default function ActivityTabs({
     if (tab !== 3) return;
     const node = logsScrollRef.current;
     if (!node) return;
-    node.scrollTop = node.scrollHeight;
+    if (logsStickToBottomRef.current) {
+      node.scrollTop = node.scrollHeight;
+    }
   }, [logs, tab]);
+
+  useEffect(() => {
+    onCountsChange?.({
+      activities: activities.length,
+      terminals: openTerminalIds.length,
+      portForwards: portForwardSessions.length,
+    });
+  }, [activities.length, openTerminalIds.length, portForwardSessions.length, onCountsChange]);
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <Box sx={{ display: tab === 0 ? "block" : "none", flex: 1, minHeight: 0, overflow: "auto" }}>
-        <ActivityList items={activities} loading={loading} error={err || undefined} />
+      <Box sx={{ display: tab === 0 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
+        <ActivityList
+          items={activities}
+          loading={loading}
+          error={err || undefined}
+          onViewTerminal={(activity) => {
+            emitOpenTerminalSession({ sessionId: activity.id });
+          }}
+          onOpenPortForward={(activity) => {
+            const host = activity.metadata?.localHost || "127.0.0.1";
+            const localPort = activity.metadata?.localPort;
+            if (!localPort) return;
+            window.open(`http://${host}:${localPort}`, "_blank", "noopener,noreferrer");
+          }}
+          onFocusLogs={() => emitFocusLogsTab()}
+          onDeleteSession={(activity) => {
+            if (activity.type === "terminal" || activity.type === "portforward") {
+              void terminateSession(activity.id);
+            }
+          }}
+        />
       </Box>
       <Box sx={{ display: tab === 1 ? "flex" : "none", flex: 1, minHeight: 0, flexDirection: "column", gap: 0.75 }}>
         {openTerminalIds.length > 0 && (
@@ -234,7 +344,7 @@ export default function ActivityTabs({
               sx={{ minHeight: 30, "& .MuiTab-root": { minHeight: 30, textTransform: "none", py: 0 } }}
             >
               {openTerminalIds.map((id) => {
-                const info = sessionsById.get(id);
+                const info = sessionsById.get(id) || terminalInfoCacheRef.current.get(id);
                 const label = info?.targetContainer || info?.title || id;
                 return (
                   <Tab
@@ -245,7 +355,7 @@ export default function ActivityTabs({
                           {label}
                         </Typography>
                         {info?.status ? (
-                          <Chip size="small" label={info.status} sx={{ height: 16, fontSize: "0.55rem", textTransform: "uppercase" }} />
+                          <Chip size="small" label={info.status} sx={chipSxForValue(info.status, "status")} />
                         ) : null}
                         <IconButton
                           size="small"
@@ -268,14 +378,14 @@ export default function ActivityTabs({
 
         <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           {openTerminalIds.length === 0 ? (
-            <EmptyState message="Open a terminal session from Pod actions." />
+            <EmptyState message="No open terminal sessions." sx={panelEmptyStateSx} />
           ) : (
             openTerminalIds.map((id) => (
               <Box key={id} sx={{ display: id === activeTerminalId ? "block" : "none", height: "100%" }}>
                 <TerminalSessionView
                   id={id}
                   token={token}
-                  session={sessionsById.get(id)}
+                  session={sessionsById.get(id) || terminalInfoCacheRef.current.get(id)}
                   active={id === activeTerminalId}
                   focusNonce={focusNonce}
                   onClose={() => {
@@ -292,48 +402,67 @@ export default function ActivityTabs({
           </Typography>
         )}
       </Box>
-      <Box sx={{ display: tab === 2 ? "block" : "none", flex: 1, minHeight: 0, overflow: "auto" }}>
-        <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", border: "1px solid var(--border-subtle)", borderRadius: 1 }}>
+      <Box sx={{ display: tab === 2 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
+        <Box sx={compactTableContainerSx}>
           {sessionsLoading ? (
-            <EmptyState message="Loading port forwards..." />
+            <EmptyState message="Loading port forwards..." sx={panelEmptyStateSx} />
           ) : sessionsErr ? (
-            <EmptyState message="Unable to refresh port forwards." />
+            <EmptyState message="Unable to load port forwards." sx={panelEmptyStateSx} />
           ) : portForwardSessions.length === 0 ? (
-            <EmptyState message="No active port forwards." />
+            <EmptyState message="No active port forwards." sx={panelEmptyStateSx} />
           ) : (
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={compactTableSx}>
               <TableHead>
                 <TableRow>
-                  <TableCell>Local</TableCell>
-                  <TableCell>Remote</TableCell>
-                  <TableCell>Service</TableCell>
-                  <TableCell>Pod</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>ID</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Local</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Remote</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Service</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Pod</TableCell>
+                  <TableCell sx={compactHeaderCellSx} align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {portForwardSessions.map((session) => {
+                  const targetKind = session.metadata?.targetKind || "pod";
                   const localHost = session.metadata?.localHost || "127.0.0.1";
                   const localPort = session.metadata?.localPort || "";
                   const remotePort = session.metadata?.remotePort || "";
                   const service =
                     session.metadata?.targetService ||
                     session.metadata?.service ||
-                    session.metadata?.targetResource ||
+                    (targetKind === "service" ? session.targetResource : "") ||
                     "-";
-                  const pod = session.targetResource || session.metadata?.pod || "-";
+                  const pod = session.metadata?.pod || (targetKind === "pod" ? session.targetResource || "-" : "-");
                   const url = localPort ? `http://${localHost}:${localPort}` : "";
                   return (
                     <TableRow key={session.id} hover>
-                      <TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                          {session.id}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
                         <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
                           {localPort ? `${localHost}:${localPort}` : "-"}
                         </Typography>
                       </TableCell>
-                      <TableCell>{remotePort || "-"}</TableCell>
-                      <TableCell>{service}</TableCell>
-                      <TableCell>{pod}</TableCell>
-                      <TableCell align="right">
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                          {remotePort || "-"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                          {service}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                          {pod}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx} align="right">
                         <Tooltip title={url || "Local endpoint not available"}>
                           <span>
                             <IconButton
@@ -365,60 +494,63 @@ export default function ActivityTabs({
           )}
         </Box>
       </Box>
-      <Box sx={{ display: tab === 3 ? "block" : "none", flex: 1, minHeight: 0, overflow: "auto" }}>
-        <Box ref={logsScrollRef} sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-          {logsLoading && <EmptyState message="Loading runtime logs…" />}
-          {!logsLoading && logsErr && <EmptyState message="Failed to load runtime logs." />}
-          {!logsLoading && !logsErr && logs.length === 0 && <EmptyState message="No runtime logs yet." />}
-          {!logsLoading && !logsErr && logs.length > 0 && (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 0.5,
-                fontFamily: "monospace",
-                fontSize: "0.75rem",
-                py: 0.5,
-              }}
-            >
-              {logs.map((log) => (
-                <Box
-                  key={log.id}
-                  sx={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 1,
-                    px: 1,
-                    py: 0.25,
-                    borderBottom: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary", minWidth: 150, flexShrink: 0 }}
-                  >
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </Typography>
-                  <Chip
-                    label={log.level.toUpperCase()}
-                    size="small"
-                    color={log.level === "error" ? "error" : log.level === "warn" ? "warning" : "default"}
-                    sx={{ height: 18, fontSize: "0.6rem" }}
-                  />
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary", minWidth: 80, flexShrink: 0 }}
-                  >
-                    {log.source}
-                  </Typography>
-                  <Typography variant="caption" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word", flexGrow: 1 }}>
-                    {log.message}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Box>
+      <Box sx={{ display: tab === 3 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
+        {logsErr && logs.length === 0 && !logsLoading ? (
+          <EmptyState message="Unable to load runtime logs." sx={panelEmptyStateSx} />
+        ) : (
+          <TableContainer
+            ref={logsScrollRef}
+            sx={compactTableContainerSx}
+            onScroll={(e) => {
+              const node = e.currentTarget;
+              const distanceToBottom = node.scrollHeight - node.clientHeight - node.scrollTop;
+              logsStickToBottomRef.current = distanceToBottom <= 24;
+            }}
+          >
+            <Table size="small" stickyHeader sx={compactTableSx}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={compactHeaderCellSx}>Time</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Level</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Source</TableCell>
+                  <TableCell sx={compactHeaderCellSx}>Message</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {logs.length === 0 ? (
+                  <TableRow>
+                    <TableCell sx={compactCellSx} colSpan={4}>
+                      <EmptyState message={logsLoading ? "Loading runtime logs..." : "No runtime logs yet."} sx={panelEmptyStateSx} />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  logs.map((log) => (
+                    <TableRow key={log.id} hover>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Chip label={log.level.toUpperCase()} size="small" sx={chipSxForValue(log.level, "level")} />
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
+                          {log.source}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={compactCellSx}>
+                        <Typography variant="caption" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {log.message}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Box>
     </Box>
   );

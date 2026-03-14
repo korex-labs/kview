@@ -40,7 +40,7 @@ import { createPortForwardSession } from "../sessionsApi";
 import RightDrawer from "./layout/RightDrawer";
 import PortForwardDialog, { type PortForwardOption } from "./shared/PortForwardDialog";
 import PortForwardCreatedSnackbar from "./shared/PortForwardCreatedSnackbar";
-import { emitFocusSessionsTab } from "../activityEvents";
+import { emitFocusPortForwardsTab } from "../activityEvents";
 
 type ServiceDetails = {
   summary: ServiceSummary;
@@ -259,25 +259,6 @@ export default function ServiceDrawer(props: {
       })),
     [knownServicePorts]
   );
-  const portForwardTarget = useMemo(() => {
-    const pods = details?.endpoints?.pods || [];
-    const ready = pods.find((p) => p.ready && p.name);
-    if (ready?.name) {
-      return {
-        namespace: ready.namespace || summary?.namespace || ns,
-        pod: ready.name,
-      };
-    }
-    const any = pods.find((p) => p.name);
-    if (any?.name) {
-      return {
-        namespace: any.namespace || summary?.namespace || ns,
-        pod: any.name,
-      };
-    }
-    return null;
-  }, [details, summary?.namespace, ns]);
-
   const handleOpenPortForwardDialog = () => {
     setPortForwardError("");
     if (knownServicePorts.length > 0) {
@@ -290,8 +271,8 @@ export default function ServiceDrawer(props: {
   };
 
   const handleCreatePortForward = async () => {
-    if (!summary?.name || !portForwardTarget?.pod) {
-      setPortForwardError("No endpoint Pod available for this Service.");
+    if (!summary?.name) {
+      setPortForwardError("Service is not available.");
       return;
     }
     const remote = Number(portForwardRemotePort);
@@ -313,8 +294,8 @@ export default function ServiceDrawer(props: {
       setCreatingPortForward(true);
       const res = await createPortForwardSession(
         {
-          namespace: portForwardTarget.namespace,
-          pod: portForwardTarget.pod,
+          namespace: summary.namespace || ns,
+          service: summary.name,
           remotePort: remote,
           localPort: local,
           title: `svc/${summary.name}:${remote}`,
@@ -322,7 +303,7 @@ export default function ServiceDrawer(props: {
         props.token
       );
       setPortForwardCreatedMsg(`Port forward started: ${res.localHost}:${res.localPort} -> ${res.remotePort}`);
-      emitFocusSessionsTab();
+      emitFocusPortForwardsTab();
       setPortForwardDialogOpen(false);
     } catch {
       setPortForwardError("Failed to create port-forward session.");
@@ -408,8 +389,7 @@ export default function ServiceDrawer(props: {
                           disabled={
                             creatingPortForward ||
                             !details ||
-                            knownServicePorts.length === 0 ||
-                            !portForwardTarget?.pod
+                            knownServicePorts.length === 0
                           }
                           onClick={handleOpenPortForwardDialog}
                         >
@@ -625,7 +605,7 @@ export default function ServiceDrawer(props: {
       <PortForwardDialog
         open={portForwardDialogOpen}
         busy={creatingPortForward}
-        targetLabel={`Target Service: ${summary?.namespace}/${summary?.name}${portForwardTarget?.pod ? ` (via pod ${portForwardTarget.pod})` : ""}`}
+        targetLabel={`Target Service: ${summary?.namespace || ns}/${summary?.name || "-"}`}
         remotePort={portForwardRemotePort}
         localPort={portForwardLocalPort}
         error={portForwardError}

@@ -88,6 +88,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         palette: {
           mode: effectiveMode,
         },
+        zIndex: {
+          modal: 1700,
+          snackbar: 1750,
+        },
       }),
     [effectiveMode],
   );

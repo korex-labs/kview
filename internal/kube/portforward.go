@@ -29,11 +29,38 @@ func StartPodPortForward(
 	localPort int,
 	remotePort int,
 ) (int, func(), error) {
+	return startPortForward(ctx, c, namespace, "pods", pod, localHost, localPort, remotePort)
+}
+
+// StartServicePortForward starts a Kubernetes port-forward to a Service and
+// returns the effective local port and a stop function.
+func StartServicePortForward(
+	ctx context.Context,
+	c *cluster.Clients,
+	namespace string,
+	service string,
+	localHost string,
+	localPort int,
+	remotePort int,
+) (int, func(), error) {
+	return startPortForward(ctx, c, namespace, "services", service, localHost, localPort, remotePort)
+}
+
+func startPortForward(
+	ctx context.Context,
+	c *cluster.Clients,
+	namespace string,
+	resourceType string,
+	resourceName string,
+	localHost string,
+	localPort int,
+	remotePort int,
+) (int, func(), error) {
 	if c == nil || c.RestConfig == nil {
 		return 0, nil, fmt.Errorf("missing Kubernetes rest config")
 	}
-	if namespace == "" || pod == "" {
-		return 0, nil, fmt.Errorf("namespace and pod are required")
+	if namespace == "" || strings.TrimSpace(resourceName) == "" {
+		return 0, nil, fmt.Errorf("namespace and target resource are required")
 	}
 	if remotePort <= 0 {
 		return 0, nil, fmt.Errorf("remote port must be > 0")
@@ -53,7 +80,7 @@ func StartPodPortForward(
 	serverURL := &url.URL{
 		Scheme: "https",
 		Host:   hostIP,
-		Path:   fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, pod),
+		Path:   fmt.Sprintf("/api/v1/namespaces/%s/%s/%s/portforward", namespace, resourceType, strings.TrimSpace(resourceName)),
 	}
 
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, serverURL)
@@ -74,14 +101,25 @@ func StartPodPortForward(
 		return 0, nil, fmt.Errorf("create portforward: %w", err)
 	}
 
+	forwardErrCh := make(chan error, 1)
 	go func() {
 		// ForwardPorts blocks until stopChan is closed or an error occurs.
-		_ = pf.ForwardPorts()
+		forwardErrCh <- pf.ForwardPorts()
 	}()
 
 	select {
 	case <-readyChan:
 		// ready
+	case err := <-forwardErrCh:
+		close(stopChan)
+		msg := strings.TrimSpace(errBuf.String())
+		if msg == "" {
+			msg = strings.TrimSpace(outBuf.String())
+		}
+		if msg != "" {
+			return 0, nil, fmt.Errorf("start portforward: %w (%s)", err, msg)
+		}
+		return 0, nil, fmt.Errorf("start portforward: %w", err)
 	case <-ctx.Done():
 		close(stopChan)
 		return 0, nil, ctx.Err()

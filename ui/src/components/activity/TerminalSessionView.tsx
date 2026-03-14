@@ -35,6 +35,7 @@ export default function TerminalSessionView({
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const focusTerminal = useCallback(() => {
     fitRef.current?.fit();
@@ -115,9 +116,20 @@ export default function TerminalSessionView({
     };
     window.addEventListener("resize", onResize);
 
+    if (containerRef.current && typeof ResizeObserver !== "undefined") {
+      resizeObserverRef.current = new ResizeObserver(() => {
+        tryFit();
+      });
+      resizeObserverRef.current.observe(containerRef.current);
+    }
+
     return () => {
       disposable.dispose();
       window.removeEventListener("resize", onResize);
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.close();
       }
@@ -156,10 +168,7 @@ export default function TerminalSessionView({
         }}
       >
         <Typography variant="caption" sx={{ fontWeight: 500 }}>
-          {session?.title || `Terminal session ${id}`}
-          <Box component="span" sx={{ ml: 1, color: "text.secondary" }}>
-            {session?.targetNamespace || "-"} / {session?.targetResource || "-"} / {session?.targetContainer || "-"} / {session?.status || "-"}
-          </Box>
+          {session?.targetNamespace || "-"} / {session?.targetResource || "-"} / {session?.targetContainer || "-"}
         </Typography>
         {onClose && (
           <IconButton size="small" onClick={onClose}>

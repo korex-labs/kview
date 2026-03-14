@@ -58,7 +58,7 @@ import WarningsSection, { type Warning } from "./shared/WarningsSection";
 import PortForwardDialog, { type PortForwardOption } from "./shared/PortForwardDialog";
 import PortForwardCreatedSnackbar from "./shared/PortForwardCreatedSnackbar";
 import { createTerminalSession, createPortForwardSession } from "../sessionsApi";
-import { emitFocusSessionsTab, emitOpenTerminalSession } from "../activityEvents";
+import { emitFocusPortForwardsTab, emitOpenTerminalSession } from "../activityEvents";
 
 type PodDetails = {
   summary: PodSummary;
@@ -511,7 +511,7 @@ export default function PodDrawer(props: {
         props.token
       );
       setPortForwardCreatedMsg(`Port forward started: ${res.localHost}:${res.localPort} -> ${res.remotePort}`);
-      emitFocusSessionsTab();
+      emitFocusPortForwardsTab();
       setPortForwardDialogOpen(false);
     } catch (e) {
       setPortForwardError("Failed to create port-forward session.");

@@ -1,7 +1,6 @@
 package stream
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,9 +66,6 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sess.ConnectionState = session.ConnectionClosed
 		sess.UpdatedAt = time.Now().UTC()
 		_ = t.Sessions.Update(ctx, sess)
-		if stopErr := t.Sessions.Stop(ctx, id); stopErr != nil && !errors.Is(stopErr, session.ErrNotFound) {
-			_ = conn.WriteMessage(websocket.TextMessage, []byte("error: failed to stop session"))
-		}
 		return
 	}
 
@@ -82,9 +78,6 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sess.ConnectionState = session.ConnectionClosed
 		sess.UpdatedAt = time.Now().UTC()
 		_ = t.Sessions.Update(ctx, sess)
-		if stopErr := t.Sessions.Stop(ctx, id); stopErr != nil && !errors.Is(stopErr, session.ErrNotFound) {
-			_ = conn.WriteMessage(websocket.TextMessage, []byte("error: failed to stop session"))
-		}
 		return
 	}
 
@@ -120,9 +113,6 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sess.ConnectionState = session.ConnectionClosed
 		sess.UpdatedAt = time.Now().UTC()
 		_ = t.Sessions.Update(ctx, sess)
-		if stopErr := t.Sessions.Stop(ctx, id); stopErr != nil && !errors.Is(stopErr, session.ErrNotFound) {
-			_ = conn.WriteMessage(websocket.TextMessage, []byte("error: failed to stop session"))
-		}
 		return
 	}
 
@@ -177,7 +167,4 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sess.ConnectionState = session.ConnectionClosed
 	sess.UpdatedAt = time.Now().UTC()
 	_ = t.Sessions.Update(ctx, sess)
-	if stopErr := t.Sessions.Stop(ctx, id); stopErr != nil && !errors.Is(stopErr, session.ErrNotFound) {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("error: failed to stop session"))
-	}
 }
