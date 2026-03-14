@@ -2924,6 +2924,13 @@ func (w *statusCapturingWriter) WriteHeader(statusCode int) {
 
 func (s *Server) activityAccessDeniedLogMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// WebSocket upgrade requires optional interfaces (Hijacker, etc.).
+		// Wrapping ResponseWriter here can break upgrades for terminal/log streams.
+		if isWebSocketUpgradeRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		sw := &statusCapturingWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(sw, r)
 		if sw.statusCode != http.StatusForbidden {
@@ -2944,6 +2951,12 @@ func (s *Server) activityAccessDeniedLogMiddleware(next http.Handler) http.Handl
 
 		s.rt.Log(runtime.LogLevelWarn, "rbac", fmt.Sprintf("access denied: %s", key))
 	})
+}
+
+func isWebSocketUpgradeRequest(r *http.Request) bool {
+	connection := strings.ToLower(r.Header.Get("Connection"))
+	upgrade := strings.ToLower(r.Header.Get("Upgrade"))
+	return strings.Contains(connection, "upgrade") && upgrade == "websocket"
 }
 
 func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
