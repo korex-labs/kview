@@ -11,6 +11,8 @@ export type ApiError = { status?: number; message: string; details?: unknown };
 
 type ApiErrorShape = { status?: number; message: string };
 
+// API error envelope: backend sends either top-level "message" or "error" (string),
+// or structured "error": { "code", "message" } for mutations. We extract message for consistent display.
 function extractJsonMessage(payload: unknown): string | null {
   if (payload == null) return null;
   if (typeof payload === "string") return payload;

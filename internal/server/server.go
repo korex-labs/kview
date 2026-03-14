@@ -170,7 +170,9 @@ func (s *Server) Router() http.Handler {
 
 			// Log termination into runtime logs so it appears in the Activity Panel Logs tab.
 			if sess.ID != "" {
-				s.rt.Log(runtime.LogLevelInfo, "sessions", fmt.Sprintf("stopped session %s (%s)", sess.ID, sess.Title))
+				logStructured(s.rt, runtime.LogLevelInfo, "sessions", "success",
+					fmt.Sprintf("stopped session %s (%s)", sess.ID, sess.Title),
+					"session_id", sess.ID, "kind", string(sess.Type))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -274,18 +276,9 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to create terminal session"})
 				return
 			}
-			// Log session creation for visibility in runtime logs tab.
-			s.rt.Log(
-				runtime.LogLevelInfo,
-				"sessions",
-				fmt.Sprintf(
-					"created terminal session %s for pod %s/%s (container=%s)",
-					created.ID,
-					body.Namespace,
-					body.Pod,
-					body.Container,
-				),
-			)
+			logStructured(s.rt, runtime.LogLevelInfo, "sessions", "success",
+				fmt.Sprintf("created terminal session %s for pod %s/%s (container=%s)", created.ID, body.Namespace, body.Pod, body.Container),
+				"session_id", created.ID, "kind", "terminal", "namespace", body.Namespace, "name", body.Pod)
 			writeJSON(w, http.StatusOK, map[string]any{"item": created})
 		})
 
@@ -374,7 +367,9 @@ func (s *Server) Router() http.Handler {
 
 			clients, active, err := s.mgr.GetClients(ctx)
 			if err != nil {
-				s.rt.Log(runtime.LogLevelError, "portforward", fmt.Sprintf("failed to get clients for port-forward session %s: %v", created.ID, err))
+				logStructured(s.rt, runtime.LogLevelError, "portforward", "failure",
+				fmt.Sprintf("failed to get clients for port-forward session %s: %v", created.ID, err),
+				"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
@@ -429,7 +424,9 @@ func (s *Server) Router() http.Handler {
 				}
 			}
 			if err != nil {
-				s.rt.Log(runtime.LogLevelError, "portforward", fmt.Sprintf("failed to start port-forward for session %s: %v", created.ID, err))
+				logStructured(s.rt, runtime.LogLevelError, "portforward", "failure",
+				fmt.Sprintf("failed to start port-forward for session %s: %v", created.ID, err),
+				"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
 				created.Status = session.StatusFailed
 				created.ConnectionState = session.ConnectionDisconnected
 				created.UpdatedAt = time.Now().UTC()
@@ -462,20 +459,10 @@ func (s *Server) Router() http.Handler {
 				inMem.RegisterPortForward(created.ID, stopFn)
 			}
 
-			s.rt.Log(
-				runtime.LogLevelInfo,
-				"portforward",
-				fmt.Sprintf(
-					"started port-forward session %s for %s %s/%s local %s:%d -> %d",
-					created.ID,
-					targetKind,
-					ns,
-					targetResource,
-					created.Metadata["localHost"],
-					effectiveLocal,
-					body.RemotePort,
-				),
-			)
+			logStructured(s.rt, runtime.LogLevelInfo, "portforward", "success",
+				fmt.Sprintf("started port-forward session %s for %s %s/%s local %s:%d -> %d",
+					created.ID, targetKind, ns, targetResource, created.Metadata["localHost"], effectiveLocal, body.RemotePort),
+				"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
 
 			writeJSON(w, http.StatusOK, map[string]any{
 				"item":       created,
@@ -2960,7 +2947,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if token != s.token {
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
+			writeErrorResponse(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -3057,6 +3044,12 @@ func contentTypeByPath(p string) string {
 	}
 }
 
+// writeErrorResponse sends a consistent error envelope for API errors.
+// Use {"message": msg} so the frontend can extract it consistently (see api.ts extractJsonMessage).
+func writeErrorResponse(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]any{"message": message})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	if status >= http.StatusBadRequest {
 		if payload, ok := v.(map[string]any); ok {
@@ -3098,4 +3091,27 @@ func sanitizeErrorMessage(status int) string {
 	default:
 		return "request failed"
 	}
+}
+
+// logStructured writes a runtime log with a consistent key=value prefix for observability.
+// Outcome is one of: start, success, failure. Optional kv pairs (key, value) follow outcome.
+// Example: "outcome=success session_id=abc kind=terminal namespace=default name=pod-1 | created terminal session"
+func logStructured(rt runtime.RuntimeManager, level runtime.LogLevel, source, outcome string, msg string, kv ...string) {
+	var b strings.Builder
+	b.WriteString("outcome=")
+	b.WriteString(outcome)
+	for i := 0; i+1 < len(kv); i += 2 {
+		if kv[i] == "" || kv[i+1] == "" {
+			continue
+		}
+		b.WriteString(" ")
+		b.WriteString(kv[i])
+		b.WriteString("=")
+		b.WriteString(kv[i+1])
+	}
+	if msg != "" {
+		b.WriteString(" | ")
+		b.WriteString(msg)
+	}
+	rt.Log(level, source, b.String())
 }

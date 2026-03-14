@@ -20,6 +20,7 @@ const (
 )
 
 // APIError is the structured error type returned by mutation endpoints.
+// Envelope: mutations use {"error": {"code", "message"}}; simple errors use {"message": "..."}.
 type APIError struct {
 	Code    string         `json:"code"`
 	Message string         `json:"message"`
