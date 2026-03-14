@@ -487,7 +487,7 @@ export default function NamespaceDrawer(props: {
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <ConditionsTable
                     conditions={conditions}
-                    isHealthy={isNamespaceConditionHealthy}
+                    isHealthy={(cond) => isNamespaceConditionHealthy(cond as NamespaceCondition)}
                     chipColor={(cond) => namespaceConditionChipColor(cond.status)}
                     title="Namespace Conditions"
                   />

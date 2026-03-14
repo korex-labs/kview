@@ -1,7 +1,12 @@
 UI_DIR=ui
 EMBED_DIR=internal/server/ui_dist
 
-.PHONY: ui run build build-webview clean
+.PHONY: ui run build build-webview clean check
+
+check:
+	cd $(UI_DIR) && npm run typecheck && npm run lint && npm run test
+	go vet ./...
+	go test ./...
 
 ui:
 	cd $(UI_DIR) && npm install && npm run build

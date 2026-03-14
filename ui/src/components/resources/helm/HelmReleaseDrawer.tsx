@@ -492,7 +492,7 @@ export default function HelmReleaseDrawer(props: {
               onClose={() => setLinkedResource(null)}
               token={props.token}
               namespace={linkedResource?.namespace || ns}
-              pvcName={linkedResource?.kind === "PersistentVolumeClaim" ? linkedResource.name : null}
+              persistentVolumeClaimName={linkedResource?.kind === "PersistentVolumeClaim" ? linkedResource.name : null}
             />
             <ServiceAccountDrawer
               open={linkedKind === "ServiceAccount"}

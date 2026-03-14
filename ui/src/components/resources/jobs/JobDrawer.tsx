@@ -252,7 +252,7 @@ export default function JobDrawer(props: {
                     />
                   </Box>
 
-                  <ConditionsTable conditions={details?.conditions || []} isHealthy={isConditionHealthy} />
+                  <ConditionsTable conditions={details?.conditions || []} isHealthy={(cond) => isConditionHealthy(cond as JobCondition)} />
 
                   {events.length > 0 && (() => {
                     const lastEvent = events[events.length - 1];

@@ -318,7 +318,7 @@ export default function NodeDrawer(props: {
                       <TableBody>
                         {(details?.pods || []).map((p, idx) => (
                           <TableRow
-                            key={`${p.namespace}/${p.name}` || String(idx)}
+                            key={p.namespace && p.name ? `${p.namespace}/${p.name}` : idx}
                             hover
                             onClick={() =>
                               p.name && p.namespace
@@ -348,8 +348,8 @@ export default function NodeDrawer(props: {
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <ConditionsTable
                     conditions={conditions}
-                    isHealthy={isNodeConditionHealthy}
-                    chipColor={(cond) => nodeConditionChipColor(cond)}
+                    isHealthy={(cond) => isNodeConditionHealthy(cond as NodeCondition)}
+                    chipColor={(cond) => nodeConditionChipColor(cond as NodeCondition)}
                     title="Node Conditions"
                   />
                 </Box>

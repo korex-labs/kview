@@ -29,6 +29,7 @@ import RoleBindingActions from "./RoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { SxProps, Theme } from "@mui/material/styles";
 import { drawerBodySx, drawerTabContentSx, panelBoxSx } from "../../../theme/sxTokens";
 
 type RoleBindingDetails = {
@@ -245,7 +246,7 @@ export default function RoleBindingDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={[drawerTabContentSx, { gap: 1 }]}>
+                <Box sx={[drawerTabContentSx, { gap: 1 }] as SxProps<Theme>}>
                   <EventsList events={events} emptyMessage="No events found for this RoleBinding." />
                 </Box>
               )}

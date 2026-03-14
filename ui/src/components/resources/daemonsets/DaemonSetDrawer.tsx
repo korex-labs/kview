@@ -258,7 +258,7 @@ export default function DaemonSetDrawer(props: {
                     />
                   </Box>
 
-                  <ConditionsTable conditions={details?.conditions || []} isHealthy={isConditionHealthy} />
+                  <ConditionsTable conditions={details?.conditions || []} isHealthy={(cond) => isConditionHealthy(cond as DaemonSetCondition)} />
 
                   <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
                 </Box>

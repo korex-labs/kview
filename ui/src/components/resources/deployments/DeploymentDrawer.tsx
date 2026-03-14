@@ -362,7 +362,7 @@ export default function DeploymentDrawer(props: {
 
                   <ConditionsTable
                     conditions={details?.conditions || []}
-                    isHealthy={isConditionHealthy}
+                    isHealthy={(cond) => isConditionHealthy(cond as DeploymentCondition)}
                   />
 
                   <Accordion defaultExpanded={!!rollout && (rollout.inProgress || rollout.progressDeadlineExceeded)}>

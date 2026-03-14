@@ -157,6 +157,6 @@ const chipToneSx: Record<ChipTone, SxProps<Theme>> = {
 
 export function chipSxForValue(value: string, category: ChipCategory = "status"): SxProps<Theme> {
   const tone = chipToneForValue(value, category);
-  return [badgeChipSx, chipToneSx[tone]];
+  return [badgeChipSx, chipToneSx[tone]] as SxProps<Theme>;
 }
 

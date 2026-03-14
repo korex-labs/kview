@@ -299,7 +299,7 @@ export default function ReplicaSetDrawer(props: {
                     />
                   </Box>
 
-                  <ConditionsTable conditions={details?.conditions || []} isHealthy={isConditionHealthy} />
+                  <ConditionsTable conditions={details?.conditions || []} isHealthy={(cond) => isConditionHealthy(cond as ReplicaSetCondition)} />
                 </Box>
               )}
 

@@ -873,7 +873,7 @@ export default function PodDrawer(props: {
       {
         label: "Node",
         value: summary?.node ? (
-          <ResourceLinkChip label={summary.node} onClick={() => setDrawerNode(summary.node)} />
+          <ResourceLinkChip label={summary.node} onClick={() => setDrawerNode(summary.node ?? null)} />
         ) : (
           "-"
         ),
@@ -891,7 +891,7 @@ export default function PodDrawer(props: {
               label={`${summary.controllerKind}/${summary.controllerName}`}
               onClick={
                 ["ReplicaSet", "Deployment", "StatefulSet", "DaemonSet", "Job"].includes(summary.controllerKind)
-                  ? () => openController(summary.controllerKind, summary.controllerName)
+                  ? () => openController(summary.controllerKind!, summary.controllerName!)
                   : undefined
               }
               sx={
@@ -909,7 +909,7 @@ export default function PodDrawer(props: {
         value: summary?.serviceAccount ? (
           <ResourceLinkChip
             label={summary.serviceAccount}
-            onClick={() => setDrawerServiceAccount(summary.serviceAccount)}
+            onClick={() => setDrawerServiceAccount(summary.serviceAccount ?? "")}
           />
         ) : (
           "-"
@@ -1501,9 +1501,9 @@ export default function PodDrawer(props: {
                                 <TableCell>{valueOrDash(c.name)}</TableCell>
                                   <TableCell>{valueOrDash(c.runAsUser)}</TableCell>
                                   <TableCell>{valueOrDash(c.runAsGroup)}</TableCell>
-                                  <TableCell>{valueOrDash(c.privileged)}</TableCell>
-                                  <TableCell>{valueOrDash(c.readOnlyRootFilesystem)}</TableCell>
-                                  <TableCell>{valueOrDash(c.allowPrivilegeEscalation)}</TableCell>
+                                  <TableCell>{valueOrDash(c.privileged != null ? String(c.privileged) : undefined)}</TableCell>
+                                  <TableCell>{valueOrDash(c.readOnlyRootFilesystem != null ? String(c.readOnlyRootFilesystem) : undefined)}</TableCell>
+                                  <TableCell>{valueOrDash(c.allowPrivilegeEscalation != null ? String(c.allowPrivilegeEscalation) : undefined)}</TableCell>
                                   <TableCell>
                                     {[
                                       ...(c.capabilitiesAdd || []).map((cap) => `+${cap}`),

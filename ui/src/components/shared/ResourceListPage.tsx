@@ -140,7 +140,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
             sorting: { sortModel },
           }}
           {...(getRowHeight ? { getRowHeight } : {})}
-          slots={{ toolbar: ResourceTableToolbar, noRowsOverlay: ListStateOverlay }}
+          slots={{
+            // DataGrid slot types don't match our toolbar/overlay props; we pass props via slotProps
+            toolbar: ResourceTableToolbar as React.ComponentType<any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+            noRowsOverlay: ListStateOverlay as React.ComponentType<any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+          }}
           slotProps={{
             toolbar: {
               filterLabel,
@@ -159,7 +163,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
               accessDenied,
               emptyMessage,
               resourceLabel,
-            },
+            } as Record<string, unknown>,
           }}
         />
       </div>

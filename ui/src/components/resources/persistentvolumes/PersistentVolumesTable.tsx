@@ -104,7 +104,7 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
           open={open}
           onClose={onClose}
           token={token}
-          pvName={selectedId}
+          persistentVolumeName={selectedId}
         />
       )}
     />
