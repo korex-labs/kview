@@ -44,6 +44,14 @@ import NodeDrawer from "../nodes/NodeDrawer";
 import PodActions from "./PodActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  panelBoxCompactSx,
+  drawerBodySx,
+  drawerTabContentSx,
+  drawerTabContentCompactSx,
+  loadingCenterSx,
+} from "../../../theme/sxTokens";
 import ServiceAccountDrawer from "../serviceaccounts/ServiceAccountDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import Section from "../../shared/Section";
@@ -942,7 +950,7 @@ export default function PodDrawer(props: {
               <Tab label="Logs" />
             </Tabs>
 
-            <Box sx={{ mt: 3, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={{ ...drawerBodySx, mt: 3 }}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -1003,7 +1011,7 @@ export default function PodDrawer(props: {
 
                   <WarningsSection warnings={podWarnings} />
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
 
@@ -1724,7 +1732,7 @@ export default function PodDrawer(props: {
                     <EmptyState message="No events found for this Pod." />
                   ) : (
                     filteredEvents.map((e, idx) => (
-                      <Box key={idx} sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.25 }}>
+                      <Box key={idx} sx={panelBoxCompactSx}>
                         <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                             <Chip size="small" label={e.type || "Unknown"} color={eventChipColor(e.type)} />

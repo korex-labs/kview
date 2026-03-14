@@ -26,6 +26,7 @@ import ClusterRoleDrawer from "../clusterroles/ClusterRoleDrawer";
 import ClusterRoleBindingActions from "./ClusterRoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import { panelBoxSx, drawerBodySx, drawerTabContentSx, loadingCenterSx } from "../../../theme/sxTokens";
 
 type ClusterRoleBindingDetails = {
   summary: BindingSummary;
@@ -126,7 +127,7 @@ export default function ClusterRoleBindingDrawer(props: {
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell title={<>ClusterRoleBinding: {name || "-"}</>} onClose={props.onClose}>
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : accessDenied ? (
@@ -143,7 +144,7 @@ export default function ClusterRoleBindingDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -157,7 +158,7 @@ export default function ClusterRoleBindingDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
                 </Box>
@@ -194,7 +195,7 @@ export default function ClusterRoleBindingDrawer(props: {
               {/* ROLE REF */}
               {tab === 2 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={[
                         { label: "Kind", value: valueOrDash(roleRef?.kind) },

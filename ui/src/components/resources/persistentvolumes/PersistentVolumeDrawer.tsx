@@ -24,6 +24,13 @@ import PersistentVolumeClaimDrawer from "../persistentvolumeclaims/PersistentVol
 import PVActions from "./PVActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  drawerBodySx,
+  drawerTabContentSx,
+  drawerTabContentCompactSx,
+  loadingCenterSx,
+} from "../../../theme/sxTokens";
 import useAccessReview from "../../../utils/useAccessReview";
 import { listResourceAccess } from "../../../utils/k8sResources";
 
@@ -212,7 +219,7 @@ export default function PersistentVolumeDrawer(props: {
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell title={<>PV: {name || "-"}</>} onClose={props.onClose}>
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : err ? (
@@ -226,7 +233,7 @@ export default function PersistentVolumeDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -240,7 +247,7 @@ export default function PersistentVolumeDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                     {showPvcDeniedHint ? (
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>

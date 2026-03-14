@@ -36,6 +36,12 @@ import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  drawerBodySx,
+  drawerTabContentCompactSx,
+  loadingCenterSx,
+} from "../../../theme/sxTokens";
 
 type DeploymentDetails = {
   summary: DeploymentSummary;
@@ -310,7 +316,7 @@ export default function DeploymentDrawer(props: {
         onClose={props.onClose}
       >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : err ? (
@@ -326,7 +332,7 @@ export default function DeploymentDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -345,7 +351,7 @@ export default function DeploymentDrawer(props: {
 
                   <WarningsSection warnings={deploymentWarnings} />
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}
                       columns={3}
@@ -542,7 +548,7 @@ export default function DeploymentDrawer(props: {
 
               {/* SPEC */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
+                <Box sx={drawerTabContentCompactSx}>
                   <Accordion defaultExpanded>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Typography variant="subtitle2">Pod Template Summary</Typography>

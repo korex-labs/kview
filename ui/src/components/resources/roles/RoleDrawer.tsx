@@ -25,6 +25,12 @@ import Section from "../../shared/Section";
 import RoleActions from "./RoleActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  drawerBodySx,
+  drawerTabContentSx,
+  loadingCenterSx,
+} from "../../../theme/sxTokens";
 
 type RoleDetails = {
   summary: RoleSummary;
@@ -135,7 +141,7 @@ export default function RoleDrawer(props: {
         onClose={props.onClose}
       >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : accessDenied ? (
@@ -151,10 +157,10 @@ export default function RoleDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box sx={drawerTabContentSx}>
                   {name && (
                     <Section title="Actions" divider={false}>
                       <RoleActions
@@ -166,7 +172,7 @@ export default function RoleDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
                 </Box>

@@ -14,6 +14,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { GridToolbarContainer } from "@mui/x-data-grid";
 import type { QuickFilter } from "../../utils/listFilters";
 import { refreshOptions } from "../../utils/listFilters";
+import { actionRowSx } from "../../theme/sxTokens";
 
 type ResourceTableToolbarProps = {
   filterLabel: string;
@@ -80,7 +81,7 @@ export default function ResourceTableToolbar({
         </Button>
       </Box>
       {quickFilters.length > 0 && (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <Box sx={actionRowSx}>
           {quickFilters.map((q) => (
             <Button
               key={q.value}

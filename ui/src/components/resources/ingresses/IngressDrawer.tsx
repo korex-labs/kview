@@ -27,6 +27,13 @@ import CodeBlock from "../../shared/CodeBlock";
 import IngressActions from "./IngressActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  drawerBodySx,
+  drawerTabContentSx,
+  drawerTabContentCompactSx,
+  loadingCenterSx,
+} from "../../../theme/sxTokens";
 
 function buildIngressUrls(hosts?: string[], tls?: IngressTLS[]): { host: string; url: string }[] {
   if (!hosts || hosts.length === 0) return [];
@@ -207,7 +214,7 @@ export default function IngressDrawer(props: {
         onClose={props.onClose}
       >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : err ? (
@@ -222,7 +229,7 @@ export default function IngressDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -239,7 +246,7 @@ export default function IngressDrawer(props: {
 
                   <WarningsSection warnings={ingressWarnings} />
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
 
@@ -286,7 +293,7 @@ export default function IngressDrawer(props: {
 
               {/* RULES */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
+                <Box sx={drawerTabContentCompactSx}>
                   {(details?.rules || []).length === 0 ? (
                     <EmptyState message="No rules configured for this Ingress." />
                   ) : (

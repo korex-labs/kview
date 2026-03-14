@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { valueOrDash } from "../../utils/format";
+import { monospaceSx } from "../../theme/sxTokens";
 
 type KeyValueRow = {
   label: string;
@@ -36,7 +37,7 @@ export default function KeyValueTable({
         const isEmpty = row.value === undefined || row.value === null || row.value === "";
         const displayValue = isEmpty ? valueOrDash(row.value as string | number | null | undefined) : row.value;
         const sharedValueSx = {
-          ...(row.monospace ? { fontFamily: "monospace" } : {}),
+          ...(row.monospace ? monospaceSx : {}),
           ...(valueSx || {}),
           ...(row.valueSx || {}),
         };

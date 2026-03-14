@@ -28,6 +28,7 @@ import ClusterRoleDrawer from "../clusterroles/ClusterRoleDrawer";
 import RoleBindingActions from "./RoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import { drawerBodySx, drawerTabContentSx, panelBoxSx } from "../../../theme/sxTokens";
 
 type RoleBindingDetails = {
   summary: BindingSummary;
@@ -171,10 +172,10 @@ export default function RoleBindingDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box sx={drawerTabContentSx}>
                   {name && (
                     <Section title="Actions" divider={false}>
                       <RoleBindingActions
@@ -186,7 +187,7 @@ export default function RoleBindingDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
                 </Box>
@@ -222,8 +223,8 @@ export default function RoleBindingDrawer(props: {
 
               {/* ROLE REF */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                <Box sx={drawerTabContentSx}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={[
                         { label: "Kind", value: valueOrDash(roleRef?.kind) },
@@ -243,7 +244,7 @@ export default function RoleBindingDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box sx={[drawerTabContentSx, { gap: 1 }]}>
                   <EventsList events={events} emptyMessage="No events found for this RoleBinding." />
                 </Box>
               )}

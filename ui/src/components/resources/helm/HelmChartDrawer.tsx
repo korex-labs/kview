@@ -11,6 +11,7 @@ import { valueOrDash } from "../../../utils/format";
 import KeyValueTable from "../../shared/KeyValueTable";
 import Section from "../../shared/Section";
 import RightDrawer from "../../layout/RightDrawer";
+import { panelBoxSx } from "../../../theme/sxTokens";
 
 type HelmChart = {
   chartName: string;
@@ -53,7 +54,7 @@ export default function HelmChartDrawer(props: {
 
         {chart && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, overflow: "auto" }}>
-            <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+            <Box sx={panelBoxSx}>
               <KeyValueTable rows={summaryItems} columns={2} />
             </Box>
 

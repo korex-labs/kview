@@ -25,6 +25,13 @@ import CodeBlock from "../../shared/CodeBlock";
 import ConfigMapActions from "./ConfigMapActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import {
+  panelBoxSx,
+  drawerBodySx,
+  drawerTabContentSx,
+  loadingCenterSx,
+  monospaceSx,
+} from "../../../theme/sxTokens";
 
 type ConfigMapDetails = {
   summary: ConfigMapSummary;
@@ -299,7 +306,7 @@ export default function ConfigMapDrawer(props: {
         onClose={props.onClose}
       >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : err ? (
@@ -313,10 +320,10 @@ export default function ConfigMapDrawer(props: {
               <Tab label="YAML" />
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box sx={drawerTabContentSx}>
                   {name && (
                     <Section title="Actions" divider={false}>
                       <ConfigMapActions
@@ -328,7 +335,7 @@ export default function ConfigMapDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
 
@@ -374,7 +381,7 @@ export default function ConfigMapDrawer(props: {
                         >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flexGrow: 1 }}>
-                              <Typography variant="subtitle2" sx={{ fontFamily: "monospace" }}>
+                              <Typography variant="subtitle2" sx={monospaceSx}>
                                 {valueOrDash(k.name)}
                               </Typography>
                               {k.type && <Chip size="small" label={k.type} />}
@@ -385,11 +392,11 @@ export default function ConfigMapDrawer(props: {
                             {isBinary ? (
                               <Box
                                 sx={{
-                                  border: "1px solid #ddd",
+                                  border: "1px solid var(--panel-border)",
                                   borderRadius: 2,
                                   p: 1,
-                                  backgroundColor: "#fafafa",
-                                  fontFamily: "monospace",
+                                  backgroundColor: "var(--code-bg)",
+                                  ...monospaceSx,
                                   whiteSpace: "pre-wrap",
                                   fontSize: "0.8125rem",
                                 }}

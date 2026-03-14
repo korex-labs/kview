@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Chip, Typography } from "@mui/material";
 import { fmtTs, valueOrDash } from "../../utils/format";
 import { eventChipColor } from "../../utils/k8sUi";
+import { panelBoxCompactSx } from "../../theme/sxTokens";
 import EmptyState from "./EmptyState";
 
 type EventDTO = {
@@ -29,7 +30,7 @@ export default function EventsList({
   return (
     <>
       {events.map((e, idx) => (
-        <Box key={idx} sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.25 }}>
+        <Box key={idx} sx={panelBoxCompactSx}>
           <Box
             sx={{
               display: "flex",

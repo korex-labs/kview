@@ -41,6 +41,7 @@ import CustomResourceDefinitionDrawer from "../customresourcedefinitions/CustomR
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import { panelBoxSx, drawerBodySx, loadingCenterSx } from "../../../theme/sxTokens";
 
 type HelmHook = {
   name: string;
@@ -214,7 +215,7 @@ export default function HelmReleaseDrawer(props: {
         onClose={props.onClose}
       >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
         ) : err ? (
@@ -227,7 +228,7 @@ export default function HelmReleaseDrawer(props: {
               ))}
             </Tabs>
 
-            <Box sx={{ mt: 2, flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {activeTabId === "overview" && (
                 <Box
@@ -257,7 +258,7 @@ export default function HelmReleaseDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={{ border: "1px solid #ddd", borderRadius: 2, p: 1.5 }}>
+                  <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
 

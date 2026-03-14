@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Chip, Tooltip, Typography } from "@mui/material";
 import Section from "./Section";
 import EmptyState from "./EmptyState";
+import { actionRowSx } from "../../theme/sxTokens";
 
 type MetadataSectionProps = {
   labels?: Record<string, string>;
@@ -12,7 +13,7 @@ type MetadataSectionProps = {
 
 function ChipsList({ entries }: { entries: [string, string][] }) {
   return (
-    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+    <Box sx={[actionRowSx, { mt: 0.5 }]}>
       {entries.map(([k, v]) => {
         const label = `${k}=${v}`;
         const needsTooltip = label.length > 64;
