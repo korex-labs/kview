@@ -94,13 +94,14 @@ The registry should be in-memory in the first implementation.
 
 Handles interactive or transport-like activities.
 
-Current responsibilities (as of Milestone 3):
+Current responsibilities:
 
 - create session records
 - track session status using the shared Activity state machine
 - terminate sessions explicitly
 - mirror sessions into `ActivityRegistry` for visibility in the Activity Panel
 - back terminal WebSocket attach logic (for `session type = terminal`)
+- manage port-forward session lifecycle (for `session type = portforward`)
 
 Future responsibilities (for additional session types):
 
@@ -110,7 +111,7 @@ Future responsibilities (for additional session types):
 Session types:
 
 - terminal session (implemented)
-- port-forward session (planned)
+- port-forward session (implemented)
 
 ---
 
@@ -118,7 +119,7 @@ Session types:
 
 Handles internal background processes.
 
-Phase 1 purpose:
+Current purpose:
 
 - define the abstraction
 - allow registering workers
@@ -241,7 +242,7 @@ Additional fields:
 
 ---
 
-## API Contract for Phase 1
+## API Contract
 
 Minimum read-only endpoints:
 
@@ -250,11 +251,11 @@ Minimum read-only endpoints:
 
 Response should be stable, typed, and frontend-friendly.
 
-Phase 1 may return an empty list, but the backend structure should be real and reusable.
+Response should remain stable and reusable across UI surfaces.
 
 ---
 
-## Eventing Contract (Future-Oriented, Optional in Phase 1)
+## Eventing Contract (Future-Oriented)
 
 Later the backend may expose runtime activity streams via WebSocket.
 
@@ -263,7 +264,7 @@ Examples:
 - `/ws/activity`
 - `/ws/activity/:id/logs`
 
-Do not implement broad streaming in Phase 1 unless it is tiny and clearly scoped.
+Keep streaming scope narrow and operationally focused.
 
 ---
 
@@ -292,25 +293,20 @@ Therefore:
 
 ---
 
-## Recommended Implementation Boundaries for Initial Runtime Foundation
+## Runtime Foundation Boundaries
 
-The initial runtime foundation implemented:
+The current runtime foundation includes:
 
 - runtime package scaffolding
 - in-memory registry
-- activity model
-- read-only listing API
-- clean ownership boundaries
-
-On top of this, Milestone 3 added:
-
+- activity model and listing API
 - `SessionManager` in-memory implementation
 - `session type = terminal` wired into ActivityRegistry and Activity Panel
 - WebSocket terminal bridge backed by Kubernetes exec
+- `session type = portforward` lifecycle and registry integration
 
 Still intentionally **not** implemented yet:
 
-- port-forward runtime
 - worker execution engine
 - durable storage
 - Redis
@@ -320,19 +316,19 @@ Still intentionally **not** implemented yet:
 
 ## Future Mapping
 
-### Phase 2 / Terminal
+### Terminal Enhancements
 Will use:
 - SessionManager
 - ActivityRegistry
-- Activity Panel `Sessions` / `Logs`
+- Activity Panel `Terminals` / `Logs`
 
-### Phase 3 / Port Forward
+### Port Forward Enhancements
 Will use:
 - SessionManager
 - ActivityRegistry
 - lifecycle-aware cleanup
 
-### Phase 4 / Analytics
+### Analytics / Worker Runtime
 Will use:
 - WorkerManager
 - ActivityRegistry
@@ -348,5 +344,5 @@ This runtime foundation is acceptable when:
 - activity concepts are centralized
 - session and worker concepts have clear boundaries
 - registry is the source of truth
-- the design does not force a rewrite for terminal or port-forward later
+- terminal and port-forward runtime share one lifecycle model
 - desktop mode works without preventing future web deployment

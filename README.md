@@ -78,79 +78,25 @@ Helm:
 
 ---
 
-## Milestones
+## Current Functionality
 
-### ✅ Milestone 1 — Full UI Overview
+Core platform:
+- Single local binary with embedded web UI
+- Context-aware Kubernetes browsing with RBAC-sensitive behavior
+- Shared activity/session runtime for long-lived operations
+- Web and desktop/webview launch modes
 
-Complete, RBAC-aware, cross-linked, view-only UI for:
+Resource operations:
+- Read and inspect all supported resources
+- Cross-resource navigation through linked drawers
+- Unified mutation framework for delete/scale/restart and Helm operations
+- Capability-aware action rendering (`/api/capabilities`)
 
-- Core Kubernetes workloads
-- Networking
-- Storage
-- RBAC
-- CRDs
-- Helm (SDK-backed)
-- Namespace aggregated overview
-- ResourceQuotas with gauges
-
-Status: COMPLETE
-
----
-
-### ✅ Milestone 2 — Full Resource Control
-
-Cluster mutation support implemented across all major resource categories.
-
-Includes:
-
-- Install / upgrade / uninstall (Helm)
-- Delete for all supported resources
-- Scale workloads (Deployments, StatefulSets, etc.)
-- Rollout restart where applicable
-- Safe confirmation dialogs
-- Centralized mutation handling
-- RBAC-aware action gating via capabilities endpoint
-- Clear error surfacing through unified mutation framework
-
-Architecture guarantees:
-
-- No per-kind copy-paste mutation logic
-- Shared backend helpers (namespaced + cluster-scoped)
-- Unified frontend mutation descriptors
-- Strict UI contract enforcement
-
-Status: COMPLETE
-
----
-
-### ✅ Milestone 3 — Web Terminal
-
-- Exec into containers (per-container Pod terminal)
-- WebSocket streaming wired through shared SessionManager
-- RBAC-aware (reuses existing capabilities / access model)
-- Controlled lifecycle via Activity/Session state machine and Activity Panel Sessions tab
-
-Status: COMPLETE
-
----
-
-### 🚧 Milestone 4 — Port Forwarding
-
-- UI-driven port forwarding
-- Live session management
-- Visual feedback
-
-Status: PLANNED
-
----
-
-### 🚧 Milestone 5 — Plugin / Extension System
-
-- Custom views
-- Custom resource renderers
-- Configurable extensions
-
-Status: FUTURE
+Activity Panel:
+- Activities view with runtime/session events
+- Terminal sessions with tabbed xterm views
+- Port-forward session management with open/close actions
+- Runtime logs with live refresh and sticky table headers
 
 ---
 
