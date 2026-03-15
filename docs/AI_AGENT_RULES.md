@@ -1,71 +1,115 @@
-# AI_AGENT_RULES
+# AI Agent Development Rules
 
-This document defines how AI code-generation agents (Claude, ChatGPT, etc.) must operate within this repository.
-
-UI_UX_GUIDE.md is the authoritative UI contract.
+This document defines **strict rules for AI agents working on the kview repository**.
 
 ---
 
-## Core Principles
+# Reuse Over Duplication
 
-1. Follow `UI_UX_GUIDE.md` strictly. The app is **view-first**, and mutations are allowed only when the UI contract explicitly permits them and the milestone scope requires them.
-2. RBAC-aware behavior must always be respected.
-3. Cross-resource linking is mandatory whenever logically possible.
-4. Follow the “title above value” layout rule.
-5. Use shared UI components — avoid ad-hoc styling.
-6. No new dependencies unless explicitly approved.
-7. Always run `make build` before reporting completion. Provide build output and fix issues.
+Always search for existing components before implementing new ones.
+
+Prefer extending existing logic instead of duplicating code.
 
 ---
 
-## Cross-Link Contract
+# Extract Reusable Components
 
-Whenever implementing or refactoring a feature:
+If similar logic appears multiple times:
 
-- If resource A references resource B → add a deep link.
-- If adding a new resource type → scan existing drawers for possible links.
-- If reviewing code → verify link completeness.
-
-Cross-linking is not optional.
+1. extract shared logic
+2. create reusable helpers
+3. refactor callers
 
 ---
 
-## UI Consistency Enforcement
+# Use UI Tokens
 
-- Statuses must use chips.
-- Selectors must render as key=value chips.
-- Metadata must use consistent components.
-- YAML must use canonical CodeBlock.
-- Empty vs AccessDenied states must be correct.
-- Gauges and progress indicators must follow defined threshold colors.
+Avoid introducing inline styles.
 
-If inconsistency is detected → refactor immediately.
+Use shared tokens and layout helpers.
 
 ---
 
-## Documentation Policy
+# Follow UI Architecture
 
-- README contains architecture, philosophy, supported resources, and milestones.
-- No HISTORY.md.
-- No ROADMAP.md.
-- Large architectural shifts require README update.
+All UI code must follow:
+
+docs/UI_UX_GUIDE.md
+
+Do not invent new UI patterns without updating documentation.
 
 ---
 
-## Commit Flow (Agent)
+# Maintain Consistent UX
 
-After implementation:
+Preserve:
 
-1. Run `make build`
-2. Fix errors
-3. Provide:
-   - a short summary of what changed
-   - files changed
-   - how to verify (manual steps / endpoints / UI clicks)
-   - any follow-up risks or TODOs
+- table density
+- drawer layout
+- action placement
+- terminology
 
-Do NOT:
-- propose commit messages
-- change documentation files (`README.md`, `docs/*.md`) unless explicitly requested
+---
 
-Never auto-commit.
+# Preserve Type Safety
+
+Avoid introducing:
+
+any  
+as any
+
+Prefer explicit interfaces.
+
+---
+
+# Respect Backend Mutation Architecture
+
+All mutations must use:
+
+POST /api/actions
+
+and be registered via ActionRegistry.
+
+---
+
+# Respect RBAC Awareness
+
+UI actions must respect:
+
+/api/capabilities
+
+Never bypass capability checks.
+
+---
+
+# Avoid Dead Code
+
+Remove unused helpers and components.
+
+Do not introduce experimental code without purpose.
+
+---
+
+# Documentation Updates
+
+If architecture changes, update:
+
+- README
+- UI_UX_GUIDE
+- ARCHITECTURE_PRINCIPLES
+
+---
+
+# Quality Checks
+
+Backend:
+
+go test ./...  
+go vet ./...
+
+Frontend:
+
+npm run typecheck  
+npm run lint
+
+Tests should accompany important logic changes.

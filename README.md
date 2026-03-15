@@ -1,120 +1,237 @@
 # kview
 
-kview is a local, single-binary, view-first Kubernetes UI inspired by tools like Lens and k9s.
+kview is a **local, single-binary, view-first Kubernetes UI** inspired by tools like Lens and k9s.
 
-It embeds a React + MUI frontend inside a Go backend and runs as a standalone binary.
-The focus is operational clarity, consistency, and cross-resource navigation.
+It embeds a **React + MUI frontend inside a Go backend** and runs as a standalone binary.
+
+The project focuses on:
+
+- operational clarity
+- strict RBAC awareness
+- deep cross-resource navigation
+- consistent UI contracts
+- predictable operator workflows
+
+kview is designed to be **fast, local, and automation-friendly**.
 
 ---
 
-## Philosophy
+# Philosophy
 
-- Local-first
-- View-first (power-user ready)
-- Strict RBAC awareness
-- Deep cross-resource linking
-- Clean, consistent UI contract
+kview follows several core principles:
+
+- **Local-first**
+- **View-first UI**
+- **RBAC-aware operations**
+- **Cross-resource navigation**
+- **Consistent UI architecture**
+- **Minimal operational friction**
+
+The UI prioritizes **clarity, density, and operator efficiency** over visual noise.
 
 ---
 
-## Architecture
+# Architecture
 
-Backend:
-- Go (chi, client-go)
-- Embedded UI via go:embed
+## Backend
+
+Written in Go.
+
+Key components:
+
+- `client-go` Kubernetes integration
+- REST API (`chi`)
+- Embedded UI (`go:embed`)
 - Generic mutation endpoint (`/api/actions`)
-- Centralized ActionRegistry
-- RBAC-aware capabilities endpoint (`/api/capabilities`)
-- Shared mutation helpers (namespaced + cluster-scoped)
+- Centralized **ActionRegistry**
+- RBAC-aware capability detection (`/api/capabilities`)
+- Shared mutation helpers
 
-Frontend:
-- React + Vite + MUI
-- Drawer-based UX
-- Metadata-driven mutation framework
-- Shared ActionButton + MutationDialog
-- Capability-aware rendering via `useResourceCapabilities`
+Runtime features:
+
+- Activity runtime
+- Session management
+- Terminal sessions
+- Port-forward sessions
 
 ---
 
-## Supported Resources
+## Frontend
 
-Workloads:
+Built with:
+
+- React
+- Vite
+- MUI (Material UI)
+- TypeScript
+
+Key UI architecture concepts:
+
+- **Drawer-based navigation**
+- **Shared component system**
+- **UI tokens for styling**
+- **Capability-aware action rendering**
+- **Reusable resource table patterns**
+- **Generic mutation dialogs**
+
+UI design strongly favors:
+
+- component reuse
+- layout consistency
+- minimal duplication
+
+---
+
+# Supported Resources
+
+## Workloads
+
 - Pods
 - Deployments
-- ReplicaSets (derived via Deployments)
+- ReplicaSets
 - StatefulSets
 - DaemonSets
 - Jobs
 - CronJobs
 
-Networking:
+## Networking
+
 - Services
 - Ingresses
 
-Storage:
-- PVCs
-- PVs
+## Storage
 
-Configuration:
+- PersistentVolumeClaims
+- PersistentVolumes
+
+## Configuration
+
 - ConfigMaps
 - Secrets
 
-Access Control:
+## Access Control
+
 - Roles
 - RoleBindings
 - ClusterRoles
 - ClusterRoleBindings
 
-Cluster:
+## Cluster
+
 - Nodes
 - Namespaces
 - ResourceQuotas
 - CustomResourceDefinitions
 
-Helm:
-- Full Helm SDK integration
-- Releases
-- Values / Manifest / History / Notes
+## Helm
+
+- Helm releases
+- Values
+- Manifest
+- History
+- Notes
 
 ---
 
-## Current Functionality
+# Core Features
 
-Core platform:
-- Single local binary with embedded web UI
-- Context-aware Kubernetes browsing with RBAC-sensitive behavior
-- Shared activity/session runtime for long-lived operations
-- Web and desktop/webview launch modes
+## Resource Exploration
 
-Resource operations:
-- Read and inspect all supported resources
-- Cross-resource navigation through linked drawers
-- Unified mutation framework for delete/scale/restart and Helm operations
-- Capability-aware action rendering (`/api/capabilities`)
+- High-density resource tables
+- Drawer-based inspection
+- Deep cross-resource navigation
+- Metadata-rich views
 
-Activity Panel:
-- Activities view with runtime/session events
-- Terminal sessions with tabbed xterm views
-- Port-forward session management with open/close actions
-- Runtime logs with live refresh and sticky table headers
+## Mutation Framework
 
----
+kview implements a **generic mutation framework**:
 
-## Development
+- delete
+- scale
+- restart
+- Helm operations
+- future resource mutations
 
-Build:
+Mutations use a shared API:
 
-    make build
+POST /api/actions
 
-Run:
-
-    ./kview
+Actions are registered in the backend ActionRegistry.
 
 ---
 
-## Design Contract
+## Activity Panel
 
-All UI changes must follow:
+The Activity Panel provides visibility into runtime operations.
 
-- docs/UI_UX_GUIDE.md
-- docs/AI_AGENT_RULES.md
+Features:
+
+- activity timeline
+- session tracking
+- terminal sessions
+- port-forward sessions
+- mutation execution logs
+
+---
+
+# Launch Modes
+
+kview supports two launch modes.
+
+## Browser mode
+
+Default mode.
+
+Starts local server and opens UI in browser.
+
+```
+kview
+```
+
+---
+
+## Webview mode
+
+kview can launch its UI inside a **native desktop webview window**.
+
+This mode runs:
+
+- embedded HTTP server
+- native webview window
+- local UI instance
+
+Useful for:
+
+- desktop usage
+- kiosk environments
+- tightly scoped operator tooling
+
+---
+
+# Build
+
+```
+make build
+```
+
+or, for embeded webview
+
+```
+make build-webview
+```
+
+---
+
+# Documentation
+
+Important documents:
+
+| Document | Purpose |
+|--------|--------|
+| UI_UX_GUIDE.md | UI architecture and UX contracts |
+| AI_AGENT_RULES.md | strict development rules for AI agents |
+| ARCHITECTURE_PRINCIPLES.md | core architectural rules |
+
+Documentation acts as a **contract**.
+
+Code should follow documented architecture unless the documentation is intentionally updated.
