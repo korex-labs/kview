@@ -3,18 +3,40 @@ package dataplane
 import "time"
 
 // Profile represents a high-level data plane behavior profile.
-// Future stages can extend this with additional profiles.
+// Only ProfileFocused is active today; other profiles are reserved for future
+// stages and documented here to reflect the intended architecture.
 type Profile string
 
 const (
+	// ProfileManual disables background observation; reads happen on demand only.
+	ProfileManual Profile = "manual"
+	// ProfileFocused prioritizes a small, operator-selected scope (current namespace,
+	// pinned namespaces, first-wave resources). This is the current default.
 	ProfileFocused Profile = "focused"
+	// ProfileBalanced is intended to balance breadth of observation with resource use.
+	ProfileBalanced Profile = "balanced"
+	// ProfileWide is intended for broader observation across many namespaces/resources.
+	ProfileWide Profile = "wide"
+	// ProfileDiagnostic is intended for short-lived, more intensive observation
+	// during troubleshooting. Not yet implemented.
+	ProfileDiagnostic Profile = "diagnostic"
 )
 
 // DiscoveryMode represents how the data plane discovers clusters and scopes.
+// Only DiscoveryModeTargeted is active today; other modes are reserved for
+// future stages and documented here to reflect the intended architecture.
 type DiscoveryMode string
 
 const (
+	// DiscoveryModePassive does not perform its own discovery; it reacts only to
+	// explicit UI-driven scopes. Not yet implemented.
+	DiscoveryModePassive DiscoveryMode = "passive"
+	// DiscoveryModeTargeted focuses discovery on the current cluster/context and
+	// first-wave resources. This is the current default.
 	DiscoveryModeTargeted DiscoveryMode = "targeted"
+	// DiscoveryModeAdaptive is intended to expand or contract observation based on
+	// recent activity or signals. Not yet implemented.
+	DiscoveryModeAdaptive DiscoveryMode = "adaptive"
 )
 
 // ObservationScope is a first-class structure describing what a plane should observe.
@@ -74,8 +96,23 @@ const (
 type CapabilityProvenance string
 
 const (
+	// CapabilityProvenanceRBACScan indicates a direct RBAC-related response from
+	// the cluster (success or explicit access denial).
 	CapabilityProvenanceRBACScan CapabilityProvenance = "rbac_scan"
+	// CapabilityProvenanceReadSuccess indicates a successful read that implicitly
+	// proved the capability.
+	CapabilityProvenanceReadSuccess CapabilityProvenance = "read_success"
+	// CapabilityProvenanceAccessDenied indicates an explicit access denial from
+	// the cluster.
+	CapabilityProvenanceAccessDenied CapabilityProvenance = "access_denied"
+	// CapabilityProvenanceTransientFailure indicates a transient or rate-limited
+	// failure where capability state is inferred as degraded but not denied.
+	CapabilityProvenanceTransientFailure CapabilityProvenance = "transient_failure"
+	// CapabilityProvenanceHeuristic covers heuristic inference where the system
+	// cannot be certain (e.g. proxy issues, connectivity, not-found heuristics).
 	CapabilityProvenanceHeuristic CapabilityProvenance = "heuristic"
+	// CapabilityProvenanceUserHint indicates capability information provided or
+	// adjusted explicitly by the user (reserved for future work).
 	CapabilityProvenanceUserHint CapabilityProvenance = "user_hint"
 )
 

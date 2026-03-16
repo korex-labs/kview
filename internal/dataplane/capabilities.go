@@ -52,14 +52,14 @@ func (r *CapabilityRegistry) LearnReadResult(cluster, group, resource, namespace
 
 	if err == nil {
 		rec.State = CapabilityStateAllowed
-		rec.Provenance = CapabilityProvenanceRBACScan
+		rec.Provenance = CapabilityProvenanceReadSuccess
 		rec.Confidence = CapabilityConfidenceHigh
 	} else {
 		norm := NormalizeError(err)
 		switch norm.Class {
 		case NormalizedErrorClassAccessDenied, NormalizedErrorClassUnauthorized:
 			rec.State = CapabilityStateDenied
-			rec.Provenance = CapabilityProvenanceRBACScan
+			rec.Provenance = CapabilityProvenanceAccessDenied
 			rec.Confidence = CapabilityConfidenceHigh
 		case NormalizedErrorClassNotFound:
 			// Resource itself might not exist in this cluster; treat as not-applicable.
@@ -68,7 +68,7 @@ func (r *CapabilityRegistry) LearnReadResult(cluster, group, resource, namespace
 			rec.Confidence = CapabilityConfidenceMedium
 		case NormalizedErrorClassRateLimited, NormalizedErrorClassTimeout, NormalizedErrorClassTransient:
 			rec.State = CapabilityStateDegraded
-			rec.Provenance = CapabilityProvenanceHeuristic
+			rec.Provenance = CapabilityProvenanceTransientFailure
 			rec.Confidence = CapabilityConfidenceLow
 		case NormalizedErrorClassProxyFailure, NormalizedErrorClassConnectivity:
 			// Environment/proxy issues: do not infer hard denial.

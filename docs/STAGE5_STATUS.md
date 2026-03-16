@@ -46,6 +46,7 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
   - Overlays dataplane snapshots for **pods and deployments**:
     - Recomputes pod/deployment counts and health from snapshots.
     - Rebuilds pod/deployment problematic entries from snapshots, keeping legacy non-pod/deployment problematic entries.
+    - Pods and deployments in this view are considered **dataplane-owned**.
   - Attaches projection metadata (`NamespaceSummaryMetaDTO`) for:
     - `freshness`, `coverage`, `degradation`, `completeness`, `state`.
 
@@ -79,7 +80,7 @@ These are still correct but do not yet benefit from scheduler-mediated caching/n
 
 ---
 
-## Observer activation and visibility
+## Observer activation, lifecycle, and visibility
 
 ### Activation
 
@@ -89,8 +90,12 @@ These are still correct but do not yet benefit from scheduler-mediated caching/n
   - Resolves the current kube context.
   - Calls `DataPlaneManager.EnsureObservers` for that context.
   - Uses the dataplane namespaces snapshot as the backing source for the list.
+- Startup is intentionally **endpoint-driven** rather than global:
+  - There is no process-wide "start all observers for all clusters" loop.
+  - Only clusters that are actively viewed incur observation cost.
+  - This keeps the system bounded for multi-cluster setups.
 
-### Behavior
+### Behavior and lifecycle
 
 - Namespaces observer:
   - Periodically refreshes the namespaces snapshot for that context.
@@ -99,6 +104,15 @@ These are still correct but do not yet benefit from scheduler-mediated caching/n
   - Periodically refreshes the nodes snapshot.
   - Applies simple exponential backoff when access is blocked or upstream is unstable.
 
+Operators may see the following `ObserverState` values in logs or the dashboard:
+
+- `starting` / `active` / `running`: observer is healthy and making progress.
+- `blocked_by_access`: RBAC denies required reads; capabilities will reflect denial.
+- `backoff`: repeated failures; observer is temporarily backing off.
+- `degraded`: observer is running but has seen recent transient issues.
+- `stopped` / `failed`: observer is no longer running for that cluster.
+- `idle` / `waiting_for_scope` / `uncertain`: internal states used when a plane is created but not yet fully activated.
+
 ### Runtime logs
 
 - When observer state transitions, a single log entry is written to the runtime log buffer:
@@ -106,6 +120,19 @@ These are still correct but do not yet benefit from scheduler-mediated caching/n
   - Message includes observer kind, cluster name, and old/new state.
 - When the nodes observer enters backoff, a log entry records the new interval.
 - These logs appear in the existing Activity Panel logs view.
+
+### "not_loaded" and deferred lifecycle behavior
+
+- Some dataplane surfaces may describe a plane or projection as `not_loaded` or equivalent when:
+  - No observers have ever been started for the active context.
+  - No snapshots have yet been taken for that plane.
+- There is intentionally **no** automatic background initialization of all planes today:
+  - Planes are created lazily when first accessed.
+  - Observers start only when relevant endpoints (like `/api/namespaces`) are hit.
+- Future stages may introduce:
+  - More explicit plane lifecycle controls (start/stop per cluster).
+  - Background warm-up for selected clusters or profiles.
+  - Configuration for which profiles/discovery modes to use.
 
 ---
 

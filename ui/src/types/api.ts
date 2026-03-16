@@ -15,6 +15,13 @@ export type ApiContextsResponse = { contexts?: Array<{ name: string }> };
 /** /api/namespaces list response (list of namespace objects with name) */
 export type ApiNamespacesListResponse = {
   limited?: boolean;
+  meta?: {
+    freshness: string;
+    coverage: string;
+    degradation: string;
+    completeness: string;
+    state: string;
+  };
   items?: Array<{ name: string }>;
 };
 

@@ -544,11 +544,36 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
+			state := "unknown"
+			if snap.Err != nil {
+				switch snap.Err.Class {
+				case dataplane.NormalizedErrorClassAccessDenied, dataplane.NormalizedErrorClassUnauthorized:
+					state = "denied"
+				case dataplane.NormalizedErrorClassProxyFailure, dataplane.NormalizedErrorClassConnectivity:
+					state = "partial_proxy"
+				case dataplane.NormalizedErrorClassRateLimited, dataplane.NormalizedErrorClassTimeout, dataplane.NormalizedErrorClassTransient:
+					state = "degraded"
+				default:
+					state = "degraded"
+				}
+			} else if len(snap.Items) == 0 {
+				state = "empty"
+			} else {
+				state = "ok"
+			}
+
 			writeJSON(w, http.StatusOK, map[string]any{
 				"active":   active,
 				"limited":  false,
 				"items":    snap.Items,
 				"observed": snap.Meta.ObservedAt,
+				"meta": map[string]any{
+					"freshness":    snap.Meta.Freshness,
+					"coverage":     snap.Meta.Coverage,
+					"degradation":  snap.Meta.Degradation,
+					"completeness": snap.Meta.Completeness,
+					"state":        state,
+				},
 			})
 		})
 

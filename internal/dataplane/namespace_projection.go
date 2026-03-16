@@ -17,8 +17,12 @@ type NamespaceSummaryProjection struct {
 	Err       *NormalizedError
 }
 
-// NamespaceSummaryProjection builds a namespace summary projection for the given cluster/namespace
-// using dataplane-owned snapshots for first-wave resources (pods, deployments).
+// NamespaceSummaryProjection builds a namespace summary projection for the given cluster/namespace.
+// It starts from the legacy kube summary (to preserve non-first-wave sections such as networking,
+// storage, Helm, etc.) and then overlays dataplane-owned snapshots for first-wave resources
+// (pods and deployments). In other words:
+//   - Pods and deployments are dataplane-backed in this projection.
+//   - Other sections remain legacy direct-read today.
 func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (NamespaceSummaryProjection, error) {
 	var out NamespaceSummaryProjection
 
