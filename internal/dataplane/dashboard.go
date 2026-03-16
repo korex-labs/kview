@@ -30,8 +30,11 @@ type ClusterDashboardNodes struct {
 
 // DashboardSummary builds a minimal dashboard summary from cached snapshots.
 func (m *manager) DashboardSummary(ctx context.Context, clusterName string) ClusterDashboardSummary {
-	nsSnap, _ := m.NamespacesSnapshot(ctx, clusterName)
-	nodesSnap, _ := m.NodesSnapshot(ctx, clusterName)
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+
+	nsSnap, _ := plane.NamespacesSnapshot(ctx, m.scheduler, m.clients)
+	nodesSnap, _ := plane.NodesSnapshot(ctx, m.scheduler, m.clients)
 
 	var nsTotal, nsUnhealthy int
 	for _, ns := range nsSnap.Items {

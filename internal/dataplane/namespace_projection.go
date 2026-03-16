@@ -20,8 +20,18 @@ type NamespaceSummaryProjection struct {
 func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (NamespaceSummaryProjection, error) {
 	var out NamespaceSummaryProjection
 
-	clients, active, err := m.clusterMgr.GetClients(ctx)
-	_ = active
+	if m.clients == nil {
+		out.Meta = SnapshotMetadata{
+			ObservedAt:  time.Now().UTC(),
+			Freshness:   FreshnessClassUnknown,
+			Coverage:    CoverageClassUnknown,
+			Degradation: DegradationClassSevere,
+			Completeness: CompletenessClassUnknown,
+		}
+		return out, nil
+	}
+
+	clients, _, err := m.clients.GetClientsForContext(ctx, clusterName)
 	if err != nil {
 		n := NormalizeError(err)
 		out.Err = &n

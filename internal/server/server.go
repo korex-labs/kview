@@ -531,6 +531,9 @@ func (s *Server) Router() http.Handler {
 
 			active := s.mgr.ActiveContext()
 
+			// Warm dataplane observers for the active cluster so snapshots stay reasonably fresh.
+			s.dp.EnsureObservers(ctx, active)
+
 			snap, err := s.dp.NamespacesSnapshot(ctx, active)
 			if err != nil {
 				status := http.StatusInternalServerError

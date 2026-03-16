@@ -83,11 +83,23 @@ type ManagerConfig struct {
 	DiscoveryMode DiscoveryMode
 }
 
+// ClientsProvider exposes per-context Kubernetes clients to the dataplane.
+type ClientsProvider interface {
+	GetClientsForContext(ctx context.Context, contextName string) (*cluster.Clients, string, error)
+}
+
+type managerClients struct {
+	m *cluster.Manager
+}
+
+func (mc managerClients) GetClientsForContext(ctx context.Context, name string) (*cluster.Clients, string, error) {
+	return mc.m.GetClientsForContext(ctx, name)
+}
+
 // manager is the foundational implementation of DataPlaneManager.
 // Stage 5B keeps this intentionally narrow and synchronous.
 type manager struct {
-	clusterMgr *cluster.Manager
-	rt         runtime.RuntimeManager
+	rt runtime.RuntimeManager
 
 	defaultProfile       Profile
 	defaultDiscoveryMode DiscoveryMode
@@ -95,18 +107,8 @@ type manager struct {
 	mu     sync.RWMutex
 	planes map[string]*clusterPlane
 
-	scheduler   *simpleScheduler
-	capRegistry *CapabilityRegistry
-
-	// First-wave raw snapshots.
-	nsMu            sync.RWMutex
-	namespaceCaches map[string]NamespaceSnapshot
-
-	nodesMu      sync.RWMutex
-	nodesCaches  map[string]NodesSnapshot
-
-	obsMu      sync.Mutex
-	observers  map[string]*clusterObservers
+	scheduler *simpleScheduler
+	clients   ClientsProvider
 }
 
 // NewManager creates a new DataPlaneManager with default configuration.
@@ -120,17 +122,18 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		mode = DiscoveryModeTargeted
 	}
 
+	var cp ClientsProvider
+	if cfg.ClusterManager != nil {
+		cp = managerClients{m: cfg.ClusterManager}
+	}
+
 	return &manager{
-		clusterMgr:           cfg.ClusterManager,
 		rt:                   cfg.Runtime,
 		defaultProfile:       profile,
 		defaultDiscoveryMode: mode,
 		planes:               map[string]*clusterPlane{},
 		scheduler:            newSimpleScheduler(4),
-		capRegistry:          NewCapabilityRegistry(),
-		namespaceCaches:      make(map[string]NamespaceSnapshot),
-		nodesCaches:          make(map[string]NodesSnapshot),
-		observers:            make(map[string]*clusterObservers),
+		clients:              cp,
 	}
 }
 
@@ -161,28 +164,48 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 		Namespaces:    nil,
 		ResourceKinds: nil,
 	}
-	p := &clusterPlane{
-		clusterName:   clusterName,
-		profile:       m.defaultProfile,
-		discoveryMode: m.defaultDiscoveryMode,
-		scope:         scope,
-		health:        PlaneHealthUnknown,
-	}
+	p := newClusterPlane(clusterName, m.defaultProfile, m.defaultDiscoveryMode, scope)
 	m.planes[clusterName] = p
 	return p, nil
 }
 
-// clusterPlane is a simple, metadata-only implementation of ClusterPlane for Stage 5B.
 type clusterPlane struct {
-	clusterName   string
+	name          string
 	profile       Profile
 	discoveryMode DiscoveryMode
 	scope         ObservationScope
-	health        PlaneHealth
+
+	healthMu sync.RWMutex
+	health   PlaneHealth
+
+	// Per-cluster capability registry.
+	capRegistry *CapabilityRegistry
+
+	// First-wave raw snapshots.
+	nsMu sync.RWMutex
+	ns   NamespaceSnapshot
+
+	nodesMu sync.RWMutex
+	nodes   NodesSnapshot
+
+	// Observers state for this cluster.
+	obsMu     sync.Mutex
+	observers *clusterObservers
+}
+
+func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope ObservationScope) *clusterPlane {
+	return &clusterPlane{
+		name:        name,
+		profile:     profile,
+		discoveryMode: mode,
+		scope:       scope,
+		health:      PlaneHealthUnknown,
+		capRegistry: NewCapabilityRegistry(),
+	}
 }
 
 func (p *clusterPlane) ClusterName() string {
-	return p.clusterName
+	return p.name
 }
 
 func (p *clusterPlane) Profile() Profile {
@@ -198,6 +221,8 @@ func (p *clusterPlane) Scope() ObservationScope {
 }
 
 func (p *clusterPlane) Health() PlaneHealth {
+	p.healthMu.RLock()
+	defer p.healthMu.RUnlock()
 	return p.health
 }
 
@@ -215,28 +240,37 @@ type NodesSnapshot struct {
 	Err   *NormalizedError
 }
 
-func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
+// NamespacesSnapshot returns a raw snapshot for namespaces plus metadata and any normalized error.
+func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *simpleScheduler, clients ClientsProvider) (NamespaceSnapshot, error) {
 	key := workKey{
-		Cluster:   clusterName,
+		Cluster:   p.name,
 		Class:     WorkClassSnapshot,
 		Kind:      ResourceKindNamespaces,
 		Namespace: "",
 	}
 
-	// Fast path: return cached snapshot if still warm.
-	m.nsMu.RLock()
-	if snap, ok := m.namespaceCaches[clusterName]; ok {
-		if time.Since(snap.Meta.ObservedAt) < 15*time.Second {
-			m.nsMu.RUnlock()
-			return snap, nil
-		}
+	p.nsMu.RLock()
+	if time.Since(p.ns.Meta.ObservedAt) < 15*time.Second && !p.ns.Meta.ObservedAt.IsZero() {
+		snap := p.ns
+		p.nsMu.RUnlock()
+		return snap, nil
 	}
-	m.nsMu.RUnlock()
+	p.nsMu.RUnlock()
 
 	var out NamespaceSnapshot
-	runErr := m.scheduler.Run(ctx, key, func(runCtx context.Context) error {
-		clients, active, err := m.clusterMgr.GetClients(runCtx)
-		_ = active
+	runErr := sched.Run(ctx, key, func(runCtx context.Context) error {
+		if clients == nil {
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassUnknown,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassSevere,
+				Completeness: CompletenessClassUnknown,
+			}
+			return nil
+		}
+
+		c, _, err := clients.GetClientsForContext(runCtx, p.name)
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
@@ -250,13 +284,11 @@ func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (N
 			return err
 		}
 
-		items, err := kube.ListNamespaces(runCtx, clients)
+		items, err := kube.ListNamespaces(runCtx, c)
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
-			// Learn capabilities from this attempt.
-			m.capRegistry.LearnReadResult(clusterName, "", "namespaces", "", "list", CapabilityScopeCluster, err)
-
+			p.capRegistry.LearnReadResult(p.name, "", "namespaces", "", "list", CapabilityScopeCluster, err)
 			out.Meta = SnapshotMetadata{
 				ObservedAt:  time.Now().UTC(),
 				Freshness:   FreshnessClassCold,
@@ -267,8 +299,7 @@ func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (N
 			return err
 		}
 
-		// Successful read: learn as allowed.
-		m.capRegistry.LearnReadResult(clusterName, "", "namespaces", "", "list", CapabilityScopeCluster, nil)
+		p.capRegistry.LearnReadResult(p.name, "", "namespaces", "", "list", CapabilityScopeCluster, nil)
 
 		out.Items = items
 		out.Meta = SnapshotMetadata{
@@ -281,35 +312,44 @@ func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (N
 		return nil
 	})
 
-	// Cache outcome (including errors) for a short period to dedupe repeated callers.
-	m.nsMu.Lock()
-	m.namespaceCaches[clusterName] = out
-	m.nsMu.Unlock()
+	p.nsMu.Lock()
+	p.ns = out
+	p.nsMu.Unlock()
 
 	return out, runErr
 }
 
-func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error) {
+// NodesSnapshot returns a raw snapshot for nodes plus metadata and any normalized error.
+func (p *clusterPlane) NodesSnapshot(ctx context.Context, sched *simpleScheduler, clients ClientsProvider) (NodesSnapshot, error) {
 	key := workKey{
-		Cluster:   clusterName,
+		Cluster:   p.name,
 		Class:     WorkClassSnapshot,
 		Kind:      ResourceKindNodes,
 		Namespace: "",
 	}
 
-	m.nodesMu.RLock()
-	if snap, ok := m.nodesCaches[clusterName]; ok {
-		if time.Since(snap.Meta.ObservedAt) < 30*time.Second {
-			m.nodesMu.RUnlock()
-			return snap, nil
-		}
+	p.nodesMu.RLock()
+	if time.Since(p.nodes.Meta.ObservedAt) < 30*time.Second && !p.nodes.Meta.ObservedAt.IsZero() {
+		snap := p.nodes
+		p.nodesMu.RUnlock()
+		return snap, nil
 	}
-	m.nodesMu.RUnlock()
+	p.nodesMu.RUnlock()
 
 	var out NodesSnapshot
-	runErr := m.scheduler.Run(ctx, key, func(runCtx context.Context) error {
-		clients, active, err := m.clusterMgr.GetClients(runCtx)
-		_ = active
+	runErr := sched.Run(ctx, key, func(runCtx context.Context) error {
+		if clients == nil {
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassUnknown,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassSevere,
+				Completeness: CompletenessClassUnknown,
+			}
+			return nil
+		}
+
+		c, _, err := clients.GetClientsForContext(runCtx, p.name)
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
@@ -323,12 +363,11 @@ func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesS
 			return err
 		}
 
-		items, err := kube.ListNodes(runCtx, clients)
+		items, err := kube.ListNodes(runCtx, c)
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
-			m.capRegistry.LearnReadResult(clusterName, "", "nodes", "", "list", CapabilityScopeCluster, err)
-
+			p.capRegistry.LearnReadResult(p.name, "", "nodes", "", "list", CapabilityScopeCluster, err)
 			out.Meta = SnapshotMetadata{
 				ObservedAt:  time.Now().UTC(),
 				Freshness:   FreshnessClassCold,
@@ -339,7 +378,7 @@ func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesS
 			return err
 		}
 
-		m.capRegistry.LearnReadResult(clusterName, "", "nodes", "", "list", CapabilityScopeCluster, nil)
+		p.capRegistry.LearnReadResult(p.name, "", "nodes", "", "list", CapabilityScopeCluster, nil)
 
 		out.Items = items
 		out.Meta = SnapshotMetadata{
@@ -352,11 +391,29 @@ func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesS
 		return nil
 	})
 
-	m.nodesMu.Lock()
-	m.nodesCaches[clusterName] = out
-	m.nodesMu.Unlock()
+	p.nodesMu.Lock()
+	p.nodes = out
+	p.nodesMu.Unlock()
 
 	return out, runErr
+}
+
+func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.NamespacesSnapshot(ctx, m.scheduler, m.clients)
+}
+
+func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.NodesSnapshot(ctx, m.scheduler, m.clients)
+}
+
+func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	plane.EnsureObservers(ctx, m.scheduler, m.clients, m.rt)
 }
 
 

@@ -18,56 +18,35 @@ const (
 )
 
 type clusterObservers struct {
-	cluster string
-
 	namespacesState ObserverState
 	nodesState      ObserverState
 	podsState       ObserverState
 	deployState     ObserverState
 }
 
-func (m *manager) log(level runtime.LogLevel, msg string) {
-	if m.rt == nil {
-		return
-	}
-	m.rt.Log(level, "dataplane", msg)
-}
-
-func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {
-	m.obsMu.Lock()
-	if _, ok := m.observers[clusterName]; ok {
-		m.obsMu.Unlock()
-		return
-	}
-	co := &clusterObservers{cluster: clusterName}
-	m.observers[clusterName] = co
-	m.obsMu.Unlock()
-
-	go m.runNamespaceObserver(ctx, co)
-	go m.runNodeObserver(ctx, co)
-	// Pods and deployments observers will be wired to scope in later steps.
-}
-
-func (m *manager) setObserverState(co *clusterObservers, kind observerKind, state ObserverState) {
+func (p *clusterPlane) setObserverState(kind observerKind, state ObserverState, rt runtime.RuntimeManager) {
 	var prev ObserverState
 
 	switch kind {
 	case observerKindNamespaces:
-		prev = co.namespacesState
-		co.namespacesState = state
+		prev = p.observers.namespacesState
+		p.observers.namespacesState = state
 	case observerKindNodes:
-		prev = co.nodesState
-		co.nodesState = state
+		prev = p.observers.nodesState
+		p.observers.nodesState = state
 	case observerKindPods:
-		prev = co.podsState
-		co.podsState = state
+		prev = p.observers.podsState
+		p.observers.podsState = state
 	case observerKindDeployments:
-		prev = co.deployState
-		co.deployState = state
+		prev = p.observers.deployState
+		p.observers.deployState = state
 	}
 
 	if prev != state {
-		m.log(runtime.LogLevelInfo, fmt.Sprintf("observer %s for cluster %s transitioned %s -> %s", kind, co.cluster, prev, state))
+		if rt != nil {
+			rt.Log(runtime.LogLevelInfo, "dataplane",
+				fmt.Sprintf("observer %s for cluster %s transitioned %s -> %s", kind, p.name, prev, state))
+		}
 	}
 }
 
@@ -86,11 +65,23 @@ func observerStateForError(n NormalizedError) ObserverState {
 	}
 }
 
-func (m *manager) runNamespaceObserver(ctx context.Context, co *clusterObservers) {
-	clusterName := co.cluster
+func (p *clusterPlane) EnsureObservers(ctx context.Context, sched *simpleScheduler, clients ClientsProvider, rt runtime.RuntimeManager) {
+	p.obsMu.Lock()
+	if p.observers != nil {
+		p.obsMu.Unlock()
+		return
+	}
+	p.observers = &clusterObservers{}
+	p.obsMu.Unlock()
+
+	go p.runNamespaceObserver(ctx, sched, clients, rt)
+	go p.runNodeObserver(ctx, sched, clients, rt)
+}
+
+func (p *clusterPlane) runNamespaceObserver(ctx context.Context, sched *simpleScheduler, clients ClientsProvider, rt runtime.RuntimeManager) {
 	interval := 30 * time.Second
 
-	m.setObserverState(co, observerKindNamespaces, ObserverStateStarting)
+	p.setObserverState(observerKindNamespaces, ObserverStateStarting, rt)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -98,33 +89,32 @@ func (m *manager) runNamespaceObserver(ctx context.Context, co *clusterObservers
 	for {
 		select {
 		case <-ctx.Done():
-			m.setObserverState(co, observerKindNamespaces, ObserverStateStopped)
+			p.setObserverState(observerKindNamespaces, ObserverStateStopped, rt)
 			return
 		case <-ticker.C:
 			// Drive snapshot refresh via scheduler-mediated read.
-			snap, err := m.NamespacesSnapshot(ctx, clusterName)
+			snap, err := p.NamespacesSnapshot(ctx, sched, clients)
 			if err != nil {
 				if snap.Err != nil {
 					state := observerStateForError(*snap.Err)
-					m.setObserverState(co, observerKindNamespaces, state)
+					p.setObserverState(observerKindNamespaces, state, rt)
 				} else {
-					m.setObserverState(co, observerKindNamespaces, ObserverStateUncertain)
+					p.setObserverState(observerKindNamespaces, ObserverStateUncertain, rt)
 				}
 				continue
 			}
 
-			_ = snap // populated cache is used by HTTP handlers
-			m.setObserverState(co, observerKindNamespaces, ObserverStateActive)
+			_ = snap
+			p.setObserverState(observerKindNamespaces, ObserverStateActive, rt)
 		}
 	}
 }
 
-func (m *manager) runNodeObserver(ctx context.Context, co *clusterObservers) {
-	clusterName := co.cluster
+func (p *clusterPlane) runNodeObserver(ctx context.Context, sched *simpleScheduler, clients ClientsProvider, rt runtime.RuntimeManager) {
 	baseInterval := 60 * time.Second
 	interval := baseInterval
 
-	m.setObserverState(co, observerKindNodes, ObserverStateStarting)
+	p.setObserverState(observerKindNodes, ObserverStateStarting, rt)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -132,14 +122,14 @@ func (m *manager) runNodeObserver(ctx context.Context, co *clusterObservers) {
 	for {
 		select {
 		case <-ctx.Done():
-			m.setObserverState(co, observerKindNodes, ObserverStateStopped)
+			p.setObserverState(observerKindNodes, ObserverStateStopped, rt)
 			return
 		case <-ticker.C:
-			snap, err := m.NodesSnapshot(ctx, clusterName)
+			snap, err := p.NodesSnapshot(ctx, sched, clients)
 			if err != nil {
 				if snap.Err != nil {
 					state := observerStateForError(*snap.Err)
-					m.setObserverState(co, observerKindNodes, state)
+					p.setObserverState(observerKindNodes, state, rt)
 
 					// Simple backoff when access is blocked or upstream is degraded.
 					switch state {
@@ -147,11 +137,14 @@ func (m *manager) runNodeObserver(ctx context.Context, co *clusterObservers) {
 						if interval < 5*baseInterval {
 							interval *= 2
 							ticker.Reset(interval)
-							m.log(runtime.LogLevelInfo, fmt.Sprintf("node observer for cluster %s entering backoff (%s)", clusterName, interval))
+							if rt != nil {
+								rt.Log(runtime.LogLevelInfo, "dataplane",
+									fmt.Sprintf("node observer for cluster %s entering backoff (%s)", p.name, interval))
+							}
 						}
 					}
 				} else {
-					m.setObserverState(co, observerKindNodes, ObserverStateUncertain)
+					p.setObserverState(observerKindNodes, ObserverStateUncertain, rt)
 				}
 				continue
 			}
@@ -159,7 +152,7 @@ func (m *manager) runNodeObserver(ctx context.Context, co *clusterObservers) {
 			_ = snap
 			interval = baseInterval
 			ticker.Reset(interval)
-			m.setObserverState(co, observerKindNodes, ObserverStateActive)
+			p.setObserverState(observerKindNodes, ObserverStateActive, rt)
 		}
 	}
 }
