@@ -117,3 +117,13 @@ The codebase should prioritize:
 - explicit architecture
 - minimal duplication
 - predictable structure
+
+---
+
+# Data Plane Boundary
+
+Read-side cluster observation, capabilities, and projection metadata belong to the data plane subsystem.
+
+- The data plane lives under `internal/dataplane`.
+- Mutation logic continues to use the shared action framework.
+- Data plane contracts must use explicit enums and structured types for capabilities, errors, and freshness.

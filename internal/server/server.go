@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"kview/internal/cluster"
+	"kview/internal/dataplane"
 	"kview/internal/kube"
 	"kview/internal/runtime"
 	"kview/internal/session"
@@ -30,17 +31,23 @@ type Server struct {
 	token          string
 	actions        *kube.ActionRegistry
 	rt             runtime.RuntimeManager
+	dp             dataplane.DataPlaneManager
 	sessions       session.Manager
 	deniedLogMu    sync.Mutex
 	deniedLogUntil map[string]time.Time
 }
 
 func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server {
+	dpMgr := dataplane.NewManager(dataplane.ManagerConfig{
+		ClusterManager: mgr,
+	})
+
 	s := &Server{
 		mgr:            mgr,
 		token:          token,
 		actions:        kube.NewActionRegistry(),
 		rt:             rt,
+		dp:             dpMgr,
 		sessions:       session.NewInMemoryManager(rt.Registry()),
 		deniedLogUntil: map[string]time.Time{},
 	}

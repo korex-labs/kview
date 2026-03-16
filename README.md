@@ -53,6 +53,7 @@ Runtime features:
 - Session management
 - Terminal sessions
 - Port-forward sessions
+- Read-side data plane for cluster views and projections
 
 ---
 
