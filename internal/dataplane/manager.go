@@ -3,8 +3,11 @@ package dataplane
 import (
 	"context"
 	"sync"
+	"time"
 
 	"kview/internal/cluster"
+	"kview/internal/kube"
+	"kview/internal/kube/dto"
 )
 
 // SchedulerWorkType is a marker for the type of work a scheduler might own.
@@ -56,6 +59,9 @@ type DataPlaneManager interface {
 
 	// DefaultDiscoveryMode reports the system-wide default discovery mode.
 	DefaultDiscoveryMode() DiscoveryMode
+
+	// NamespacesSnapshot returns a raw snapshot for namespaces in the given cluster.
+	NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error)
 }
 
 // ManagerConfig describes construction-time parameters for the data plane manager.
@@ -78,6 +84,13 @@ type manager struct {
 
 	mu     sync.RWMutex
 	planes map[string]*clusterPlane
+
+	scheduler   *simpleScheduler
+	capRegistry *CapabilityRegistry
+
+	// First-wave raw snapshots.
+	nsMu            sync.RWMutex
+	namespaceCaches map[string]NamespaceSnapshot
 }
 
 // NewManager creates a new DataPlaneManager with default configuration.
@@ -92,10 +105,13 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 	}
 
 	return &manager{
-		clusterMgr:          cfg.ClusterManager,
-		defaultProfile:      profile,
+		clusterMgr:           cfg.ClusterManager,
+		defaultProfile:       profile,
 		defaultDiscoveryMode: mode,
-		planes:              map[string]*clusterPlane{},
+		planes:               map[string]*clusterPlane{},
+		scheduler:            newSimpleScheduler(4),
+		capRegistry:          NewCapabilityRegistry(),
+		namespaceCaches:      make(map[string]NamespaceSnapshot),
 	}
 }
 
@@ -165,4 +181,86 @@ func (p *clusterPlane) Scope() ObservationScope {
 func (p *clusterPlane) Health() PlaneHealth {
 	return p.health
 }
+
+// NamespaceSnapshot is a raw snapshot of namespaces plus metadata and any normalized error.
+type NamespaceSnapshot struct {
+	Items []dto.NamespaceListItemDTO
+	Meta  SnapshotMetadata
+	Err   *NormalizedError
+}
+
+func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
+	key := workKey{
+		Cluster:   clusterName,
+		Class:     WorkClassSnapshot,
+		Kind:      ResourceKindNamespaces,
+		Namespace: "",
+	}
+
+	// Fast path: return cached snapshot if still warm.
+	m.nsMu.RLock()
+	if snap, ok := m.namespaceCaches[clusterName]; ok {
+		if time.Since(snap.Meta.ObservedAt) < 15*time.Second {
+			m.nsMu.RUnlock()
+			return snap, nil
+		}
+	}
+	m.nsMu.RUnlock()
+
+	var out NamespaceSnapshot
+	runErr := m.scheduler.Run(ctx, key, func(runCtx context.Context) error {
+		clients, active, err := m.clusterMgr.GetClients(runCtx)
+		_ = active
+		if err != nil {
+			n := NormalizeError(err)
+			out.Err = &n
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassUnknown,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassSevere,
+				Completeness: CompletenessClassUnknown,
+			}
+			return err
+		}
+
+		items, err := kube.ListNamespaces(runCtx, clients)
+		if err != nil {
+			n := NormalizeError(err)
+			out.Err = &n
+			// Learn capabilities from this attempt.
+			m.capRegistry.LearnReadResult(clusterName, "", "namespaces", "", "list", CapabilityScopeCluster, err)
+
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassCold,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassMinor,
+				Completeness: CompletenessClassUnknown,
+			}
+			return err
+		}
+
+		// Successful read: learn as allowed.
+		m.capRegistry.LearnReadResult(clusterName, "", "namespaces", "", "list", CapabilityScopeCluster, nil)
+
+		out.Items = items
+		out.Meta = SnapshotMetadata{
+			ObservedAt:  time.Now().UTC(),
+			Freshness:   FreshnessClassHot,
+			Coverage:    CoverageClassFull,
+			Degradation: DegradationClassNone,
+			Completeness: CompletenessClassComplete,
+		}
+		return nil
+	})
+
+	// Cache outcome (including errors) for a short period to dedupe repeated callers.
+	m.nsMu.Lock()
+	m.namespaceCaches[clusterName] = out
+	m.nsMu.Unlock()
+
+	return out, runErr
+}
+
 

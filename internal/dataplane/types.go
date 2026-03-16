@@ -34,11 +34,13 @@ type ObservationScope struct {
 type CapabilityState string
 
 const (
-	CapabilityStateUnknown   CapabilityState = "unknown"
-	CapabilityStateAllowed   CapabilityState = "allowed"
-	CapabilityStateDenied    CapabilityState = "denied"
-	CapabilityStateDegraded  CapabilityState = "degraded"
-	CapabilityStateUnsupported CapabilityState = "unsupported"
+	CapabilityStateUnknown          CapabilityState = "unknown"
+	CapabilityStateAllowed          CapabilityState = "allowed"
+	CapabilityStateDenied           CapabilityState = "denied"
+	CapabilityStatePartiallyAllowed CapabilityState = "partially_allowed"
+	CapabilityStateDegraded         CapabilityState = "degraded"
+	CapabilityStateNotApplicable    CapabilityState = "not_applicable"
+	CapabilityStateUnsupported      CapabilityState = "unsupported"
 )
 
 // CapabilityConfidence describes how confident the system is in the capability assessment.
@@ -98,15 +100,18 @@ type CapabilityRecord struct {
 type NormalizedErrorClass string
 
 const (
-	NormalizedErrorClassUnknown          NormalizedErrorClass = "unknown"
-	NormalizedErrorClassNotFound         NormalizedErrorClass = "not_found"
-	NormalizedErrorClassUnauthorized     NormalizedErrorClass = "unauthorized"
-	NormalizedErrorClassForbidden        NormalizedErrorClass = "forbidden"
-	NormalizedErrorClassTimeout          NormalizedErrorClass = "timeout"
-	NormalizedErrorClassThrottled        NormalizedErrorClass = "throttled"
-	NormalizedErrorClassServerError      NormalizedErrorClass = "server_error"
-	NormalizedErrorClassConnectivity     NormalizedErrorClass = "connectivity"
-	NormalizedErrorClassInvalidRequest   NormalizedErrorClass = "invalid_request"
+	NormalizedErrorClassUnknown        NormalizedErrorClass = "unknown"
+	NormalizedErrorClassAccessDenied   NormalizedErrorClass = "access_denied"
+	NormalizedErrorClassUnauthorized   NormalizedErrorClass = "unauthorized"
+	NormalizedErrorClassNotFound       NormalizedErrorClass = "not_found"
+	NormalizedErrorClassConflict       NormalizedErrorClass = "conflict"
+	NormalizedErrorClassRateLimited    NormalizedErrorClass = "rate_limited"
+	NormalizedErrorClassTransient      NormalizedErrorClass = "transient_upstream"
+	NormalizedErrorClassProxyFailure   NormalizedErrorClass = "proxy_failure"
+	NormalizedErrorClassTimeout        NormalizedErrorClass = "timeout"
+	NormalizedErrorClassCanceled       NormalizedErrorClass = "canceled"
+	NormalizedErrorClassConnectivity   NormalizedErrorClass = "connectivity"
+	NormalizedErrorClassInvalidRequest NormalizedErrorClass = "invalid_request"
 )
 
 // ErrorConsequenceHint provides hints to policies about likely impact.

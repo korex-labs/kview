@@ -512,13 +512,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
+			active := s.mgr.ActiveContext()
 
-			nss, err := kube.ListNamespaces(ctx, clients)
+			snap, err := s.dp.NamespacesSnapshot(ctx, active)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -529,9 +525,10 @@ func (s *Server) Router() http.Handler {
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{
-				"active":  active,
-				"limited": false,
-				"items":   nss,
+				"active":   active,
+				"limited":  false,
+				"items":    snap.Items,
+				"observed": snap.Meta.ObservedAt,
 			})
 		})
 
