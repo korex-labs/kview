@@ -6,6 +6,7 @@ export type AccessReviewResource = {
 };
 
 export type ListResourceKey =
+  | "dashboard"
   | "pods"
   | "deployments"
   | "daemonsets"
@@ -42,6 +43,7 @@ export type SidebarGroup = {
 };
 
 export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
+  dashboard: { label: "Dashboard", clusterScoped: true },
   pods: { label: "Pods", clusterScoped: false },
   deployments: { label: "Deployments", clusterScoped: false },
   daemonsets: { label: "Daemon Sets", clusterScoped: false },
@@ -101,7 +103,7 @@ export const sidebarGroups: SidebarGroup[] = [
   {
     id: "cluster",
     label: "Cluster",
-    items: ["nodes", "namespaces", "customresourcedefinitions"],
+    items: ["dashboard", "nodes", "namespaces", "customresourcedefinitions"],
   },
 ];
 
@@ -121,6 +123,7 @@ export function isClusterScopedSection(section: Section): boolean {
 }
 
 export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> = {
+  dashboard: { group: "", resource: "namespaces" },
   pods: { group: "", resource: "pods" },
   deployments: { group: "apps", resource: "deployments" },
   daemonsets: { group: "apps", resource: "daemonsets" },

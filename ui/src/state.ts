@@ -1,4 +1,5 @@
 export type Section =
+  | "dashboard"
   | "pods"
   | "nodes"
   | "namespaces"

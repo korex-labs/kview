@@ -32,6 +32,7 @@ import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api
 import { loadState, saveState, toggleFavouriteNamespace, type Section } from "./state";
 import { useConnectionState } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
+import DashboardView from "./components/resources/dashboard/DashboardView";
 import ActivityPanel from "./components/activity/ActivityPanel";
 import { ActiveContextProvider } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
@@ -237,6 +238,7 @@ function AppInner() {
           >
             <ConnectionBanner />
             <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {section === "dashboard" ? <DashboardView token={token} /> : null}
               {section === "nodes" ? <NodesTable token={token} /> : null}
               {section === "namespaces" ? (
                 <NamespacesTable

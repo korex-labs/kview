@@ -17,6 +17,7 @@ type ClusterDashboardNamespaces struct {
 	Degradation      string `json:"degradation"`
 	Completeness     string `json:"completeness"`
 	State            string `json:"state"`
+	ObserverState    string `json:"observerState"`
 }
 
 type ClusterDashboardNodes struct {
@@ -26,6 +27,7 @@ type ClusterDashboardNodes struct {
 	Degradation  string `json:"degradation"`
 	Completeness string `json:"completeness"`
 	State        string `json:"state"`
+	ObserverState string `json:"observerState"`
 }
 
 // DashboardSummary builds a minimal dashboard summary from cached snapshots.
@@ -35,6 +37,20 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 
 	nsSnap, _ := plane.NamespacesSnapshot(ctx, m.scheduler, m.clients)
 	nodesSnap, _ := plane.NodesSnapshot(ctx, m.scheduler, m.clients)
+
+	// Observer states default to not_loaded when observers haven't started yet.
+	nsObs := "not_loaded"
+	nodeObs := "not_loaded"
+	plane.obsMu.Lock()
+	if plane.observers != nil {
+		if plane.observers.namespacesState != "" {
+			nsObs = string(plane.observers.namespacesState)
+		}
+		if plane.observers.nodesState != "" {
+			nodeObs = string(plane.observers.nodesState)
+		}
+	}
+	plane.obsMu.Unlock()
 
 	var nsTotal, nsUnhealthy int
 	for _, ns := range nsSnap.Items {
@@ -90,6 +106,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 			Degradation:  string(nsSnap.Meta.Degradation),
 			Completeness: string(nsSnap.Meta.Completeness),
 			State:        nsState,
+			ObserverState: nsObs,
 		},
 		Nodes: ClusterDashboardNodes{
 			Total:        nodeTotal,
@@ -98,6 +115,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 			Degradation:  string(nodesSnap.Meta.Degradation),
 			Completeness: string(nodesSnap.Meta.Completeness),
 			State:        nodeState,
+			ObserverState: nodeObs,
 		},
 	}
 }

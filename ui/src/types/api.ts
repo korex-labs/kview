@@ -18,6 +18,32 @@ export type ApiNamespacesListResponse = {
   items?: Array<{ name: string }>;
 };
 
+/** /api/dashboard/cluster response */
+export type ApiDashboardClusterResponse = {
+  active?: string;
+  item?: {
+    namespaces: {
+      total: number;
+      unhealthy: number;
+      freshness: string;
+      coverage: string;
+      degradation: string;
+      completeness: string;
+      state: string;
+      observerState: string;
+    };
+    nodes: {
+      total: number;
+      freshness: string;
+      coverage: string;
+      degradation: string;
+      completeness: string;
+      state: string;
+      observerState: string;
+    };
+  };
+};
+
 /** Event shape returned by .../events endpoints; used by EventsList and drawers */
 export type EventDTO = {
   type: string;
