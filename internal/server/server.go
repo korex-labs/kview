@@ -40,6 +40,7 @@ type Server struct {
 func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server {
 	dpMgr := dataplane.NewManager(dataplane.ManagerConfig{
 		ClusterManager: mgr,
+		Runtime:        rt,
 	})
 
 	s := &Server{

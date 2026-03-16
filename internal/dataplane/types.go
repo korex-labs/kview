@@ -210,11 +210,18 @@ const (
 type ObserverState string
 
 const (
-	ObserverStateIdle       ObserverState = "idle"
-	ObserverStateStarting   ObserverState = "starting"
-	ObserverStateRunning    ObserverState = "running"
-	ObserverStateStopping   ObserverState = "stopping"
-	ObserverStateStopped    ObserverState = "stopped"
-	ObserverStateFailed     ObserverState = "failed"
+	ObserverStateIdle            ObserverState = "idle"
+	ObserverStateStarting        ObserverState = "starting"
+	ObserverStateRunning         ObserverState = "running"
+	ObserverStateStopping        ObserverState = "stopping"
+	ObserverStateStopped         ObserverState = "stopped"
+	ObserverStateFailed          ObserverState = "failed"
+	ObserverStateActive          ObserverState = "active"
+	ObserverStatePaused          ObserverState = "paused"
+	ObserverStateDegraded        ObserverState = "degraded"
+	ObserverStateBackoff         ObserverState = "backoff"
+	ObserverStateBlockedByAccess ObserverState = "blocked_by_access"
+	ObserverStateWaitingForScope ObserverState = "waiting_for_scope"
+	ObserverStateUncertain       ObserverState = "uncertain"
 )
 

@@ -8,6 +8,7 @@ import (
 	"kview/internal/cluster"
 	"kview/internal/kube"
 	"kview/internal/kube/dto"
+	"kview/internal/runtime"
 )
 
 // SchedulerWorkType is a marker for the type of work a scheduler might own.
@@ -62,11 +63,16 @@ type DataPlaneManager interface {
 
 	// NamespacesSnapshot returns a raw snapshot for namespaces in the given cluster.
 	NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error)
+
+	// EnsureObservers makes sure observers are running for the given cluster.
+	EnsureObservers(ctx context.Context, clusterName string)
 }
 
 // ManagerConfig describes construction-time parameters for the data plane manager.
 type ManagerConfig struct {
 	ClusterManager *cluster.Manager
+
+	Runtime runtime.RuntimeManager
 
 	// Profile is the system-wide default profile. If empty, ProfileFocused is used.
 	Profile Profile
@@ -78,6 +84,7 @@ type ManagerConfig struct {
 // Stage 5B keeps this intentionally narrow and synchronous.
 type manager struct {
 	clusterMgr *cluster.Manager
+	rt         runtime.RuntimeManager
 
 	defaultProfile       Profile
 	defaultDiscoveryMode DiscoveryMode
@@ -91,6 +98,12 @@ type manager struct {
 	// First-wave raw snapshots.
 	nsMu            sync.RWMutex
 	namespaceCaches map[string]NamespaceSnapshot
+
+	nodesMu      sync.RWMutex
+	nodesCaches  map[string]NodesSnapshot
+
+	obsMu      sync.Mutex
+	observers  map[string]*clusterObservers
 }
 
 // NewManager creates a new DataPlaneManager with default configuration.
@@ -106,12 +119,15 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 
 	return &manager{
 		clusterMgr:           cfg.ClusterManager,
+		rt:                   cfg.Runtime,
 		defaultProfile:       profile,
 		defaultDiscoveryMode: mode,
 		planes:               map[string]*clusterPlane{},
 		scheduler:            newSimpleScheduler(4),
 		capRegistry:          NewCapabilityRegistry(),
 		namespaceCaches:      make(map[string]NamespaceSnapshot),
+		nodesCaches:          make(map[string]NodesSnapshot),
+		observers:            make(map[string]*clusterObservers),
 	}
 }
 
@@ -189,6 +205,13 @@ type NamespaceSnapshot struct {
 	Err   *NormalizedError
 }
 
+// NodesSnapshot is a raw snapshot of nodes plus metadata and any normalized error.
+type NodesSnapshot struct {
+	Items []dto.NodeListItemDTO
+	Meta  SnapshotMetadata
+	Err   *NormalizedError
+}
+
 func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
 	key := workKey{
 		Cluster:   clusterName,
@@ -259,6 +282,76 @@ func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (N
 	m.nsMu.Lock()
 	m.namespaceCaches[clusterName] = out
 	m.nsMu.Unlock()
+
+	return out, runErr
+}
+
+func (m *manager) NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error) {
+	key := workKey{
+		Cluster:   clusterName,
+		Class:     WorkClassSnapshot,
+		Kind:      ResourceKindNodes,
+		Namespace: "",
+	}
+
+	m.nodesMu.RLock()
+	if snap, ok := m.nodesCaches[clusterName]; ok {
+		if time.Since(snap.Meta.ObservedAt) < 30*time.Second {
+			m.nodesMu.RUnlock()
+			return snap, nil
+		}
+	}
+	m.nodesMu.RUnlock()
+
+	var out NodesSnapshot
+	runErr := m.scheduler.Run(ctx, key, func(runCtx context.Context) error {
+		clients, active, err := m.clusterMgr.GetClients(runCtx)
+		_ = active
+		if err != nil {
+			n := NormalizeError(err)
+			out.Err = &n
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassUnknown,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassSevere,
+				Completeness: CompletenessClassUnknown,
+			}
+			return err
+		}
+
+		items, err := kube.ListNodes(runCtx, clients)
+		if err != nil {
+			n := NormalizeError(err)
+			out.Err = &n
+			m.capRegistry.LearnReadResult(clusterName, "", "nodes", "", "list", CapabilityScopeCluster, err)
+
+			out.Meta = SnapshotMetadata{
+				ObservedAt:  time.Now().UTC(),
+				Freshness:   FreshnessClassCold,
+				Coverage:    CoverageClassUnknown,
+				Degradation: DegradationClassMinor,
+				Completeness: CompletenessClassUnknown,
+			}
+			return err
+		}
+
+		m.capRegistry.LearnReadResult(clusterName, "", "nodes", "", "list", CapabilityScopeCluster, nil)
+
+		out.Items = items
+		out.Meta = SnapshotMetadata{
+			ObservedAt:  time.Now().UTC(),
+			Freshness:   FreshnessClassHot,
+			Coverage:    CoverageClassFull,
+			Degradation: DegradationClassNone,
+			Completeness: CompletenessClassComplete,
+		}
+		return nil
+	})
+
+	m.nodesMu.Lock()
+	m.nodesCaches[clusterName] = out
+	m.nodesMu.Unlock()
 
 	return out, runErr
 }
