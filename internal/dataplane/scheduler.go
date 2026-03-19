@@ -21,6 +21,11 @@ const (
 	ResourceKindPods        ResourceKind = "pods"
 	ResourceKindDeployments ResourceKind = "deployments"
 	ResourceKindNodes       ResourceKind = "nodes"
+	ResourceKindServices    ResourceKind = "services"
+	ResourceKindIngresses   ResourceKind = "ingresses"
+	ResourceKindPVCs        ResourceKind = "persistentvolumeclaims"
+	ResourceKindConfigMaps  ResourceKind = "configmaps"
+	ResourceKindSecrets     ResourceKind = "secrets"
 )
 
 type workKey struct {
@@ -163,4 +168,3 @@ func (s *simpleScheduler) Run(ctx context.Context, key workKey, fn func(context.
 	inf.err = context.DeadlineExceeded
 	return inf.err
 }
-

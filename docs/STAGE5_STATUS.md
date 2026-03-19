@@ -16,6 +16,11 @@ This document describes what the Stage 5 dataplane currently owns in code, what 
     - Cluster-wide nodes
     - Namespaced pods
     - Namespaced deployments
+    - Namespaced services
+    - Namespaced ingresses
+    - Namespaced persistentvolumeclaims
+    - Namespaced configmaps
+    - Namespaced secrets
   - **Observer state**:
     - Namespaces observer
     - Nodes observer
@@ -31,7 +36,7 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
   - Bounded retry/backoff for transient/proxy errors.
 - Snapshots are cached on the plane, with TTLs:
   - Namespaces: ~15s
-  - Pods / Deployments: ~15s
+  - Namespace-scoped reads (pods/deployments/services/ingresses/pvcs/configmaps/secrets): ~15s
   - Nodes: ~30s
 
 ### Namespace summary projection
@@ -43,10 +48,10 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
     - Storage/config counts
     - Helm counts and release list
     - Problematic resources (jobs/other kinds)
-  - Overlays dataplane snapshots for **pods and deployments**:
-    - Recomputes pod/deployment counts and health from snapshots.
-    - Rebuilds pod/deployment problematic entries from snapshots, keeping legacy non-pod/deployment problematic entries.
-    - Pods and deployments in this view are considered **dataplane-owned**.
+  - Overlays dataplane snapshots for:
+    - pods and deployments (counts, health, problematic entries)
+    - services, ingresses, PVCs, configmaps, secrets (counts)
+    - These sections are now dataplane-owned in this summary contract.
   - Attaches projection metadata (`NamespaceSummaryMetaDTO`) for:
     - `freshness`, `coverage`, `degradation`, `completeness`, `state`.
 
@@ -63,17 +68,12 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
 
 The following remain direct `kube` reads today and are **not yet** backed by dataplane snapshots:
 
-- Most resource list/detail handlers (except the namespace list and summary).
+- Most detail handlers remain direct reads.
 - Parts of namespace summary beyond pods/deployments:
   - Jobs
   - StatefulSets
   - DaemonSets
   - CronJobs
-  - Services
-  - Ingresses
-  - PVCs
-  - ConfigMaps
-  - Secrets
   - Helm summary internals
 
 These are still correct but do not yet benefit from scheduler-mediated caching/normalization.
@@ -188,4 +188,18 @@ Response:
 - Expand projection-backed views beyond namespace summary.
 - Standardize a metadata envelope for all dataplane-backed responses (including `/api/namespaces`) and increase UI surfacing of state/freshness when useful.
 - Extend observers and snapshots for more resource types while keeping scope and API budgets bounded.
+
+## Stage 5B migration wave now active
+
+Dataplane-backed list endpoints now include:
+
+- `/api/namespaces/{ns}/pods`
+- `/api/namespaces/{ns}/deployments`
+- `/api/namespaces/{ns}/services`
+- `/api/namespaces/{ns}/ingresses`
+- `/api/namespaces/{ns}/persistentvolumeclaims`
+- `/api/namespaces/{ns}/configmaps`
+- `/api/namespaces/{ns}/secrets`
+
+These list endpoints now return dataplane metadata (`observed`, `meta.freshness`, `meta.coverage`, `meta.degradation`, `meta.completeness`, `meta.state`) and no longer call direct kube list reads in handlers.
 

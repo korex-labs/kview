@@ -171,6 +171,28 @@ The following work is intentionally deferred:
 - broader projection-backed views beyond the current namespace summary and dashboard surfaces
 - a uniform metadata envelope for all API responses
 
+## Stage 5B progress note
+
+Stage 5B begins the first legacy-read reduction wave by moving additional namespace-scoped list paths behind dataplane snapshots.
+
+Now dataplane-backed:
+
+- `/api/namespaces/{ns}/pods`
+- `/api/namespaces/{ns}/deployments`
+- `/api/namespaces/{ns}/services`
+- `/api/namespaces/{ns}/ingresses`
+- `/api/namespaces/{ns}/persistentvolumeclaims`
+- `/api/namespaces/{ns}/configmaps`
+- `/api/namespaces/{ns}/secrets`
+
+Namespace summary ownership is also expanded for count overlays of services, ingresses, PVCs, configmaps, and secrets, while keeping the summary contract explicitly partial/inexact.
+
+Still intentionally deferred:
+
+- broad watch coverage for all kinds
+- full detail endpoint migration
+- jobs/cronjobs/statefulsets/daemonsets list migration
+
 ## Stage 5A Closure Judgment
 
 Stage 5A should be considered closable when reviewed against the intended scope above:

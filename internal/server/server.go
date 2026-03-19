@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -376,8 +377,8 @@ func (s *Server) Router() http.Handler {
 			clients, active, err := s.mgr.GetClients(ctx)
 			if err != nil {
 				logStructured(s.rt, runtime.LogLevelError, "portforward", "failure",
-				fmt.Sprintf("failed to get clients for port-forward session %s: %v", created.ID, err),
-				"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
+					fmt.Sprintf("failed to get clients for port-forward session %s: %v", created.ID, err),
+					"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
@@ -433,8 +434,8 @@ func (s *Server) Router() http.Handler {
 			}
 			if err != nil {
 				logStructured(s.rt, runtime.LogLevelError, "portforward", "failure",
-				fmt.Sprintf("failed to start port-forward for session %s: %v", created.ID, err),
-				"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
+					fmt.Sprintf("failed to start port-forward for session %s: %v", created.ID, err),
+					"session_id", created.ID, "kind", "portforward", "namespace", ns, "name", targetResource)
 				created.Status = session.StatusFailed
 				created.ConnectionState = session.ConnectionDisconnected
 				created.UpdatedAt = time.Now().UTC()
@@ -498,8 +499,8 @@ func (s *Server) Router() http.Handler {
 
 			summary := s.dp.DashboardSummary(ctx, active)
 			writeJSON(w, http.StatusOK, map[string]any{
-				"active":  active,
-				"item":    summary,
+				"active": active,
+				"item":   summary,
 			})
 		})
 
@@ -544,23 +545,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			state := "unknown"
-			if snap.Err != nil {
-				switch snap.Err.Class {
-				case dataplane.NormalizedErrorClassAccessDenied, dataplane.NormalizedErrorClassUnauthorized:
-					state = "denied"
-				case dataplane.NormalizedErrorClassProxyFailure, dataplane.NormalizedErrorClassConnectivity:
-					state = "partial_proxy"
-				case dataplane.NormalizedErrorClassRateLimited, dataplane.NormalizedErrorClassTimeout, dataplane.NormalizedErrorClassTransient:
-					state = "degraded"
-				default:
-					state = "degraded"
-				}
-			} else if len(snap.Items) == 0 {
-				state = "empty"
-			} else {
-				state = "ok"
-			}
+			state := dataplane.CoarseState(snap.Err, len(snap.Items))
 
 			writeJSON(w, http.StatusOK, map[string]any{
 				"active":   active,
@@ -1207,13 +1192,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			pods, err := kube.ListPods(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.PodsSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1222,8 +1203,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": pods})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/pods/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1317,13 +1297,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListDeployments(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.DeploymentsSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1332,8 +1308,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/deployments/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1855,13 +1830,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListServices(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.ServicesSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1870,8 +1841,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/services/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1962,13 +1932,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListConfigMaps(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.ConfigMapsSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1977,8 +1943,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/configmaps/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -2390,13 +2355,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListPersistentVolumeClaims(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.PVCsSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2405,8 +2366,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/persistentvolumeclaims/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -2497,13 +2457,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListSecrets(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.SecretsSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2512,8 +2468,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -2656,13 +2611,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-
-			items, err := kube.ListIngresses(ctx, clients, ns)
+			active := s.mgr.ActiveContext()
+			s.dp.EnsureObservers(ctx, active)
+			snap, err := s.dp.IngressesSnapshot(ctx, active, ns)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2671,8 +2622,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Get("/namespaces/{ns}/ingresses/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -3099,6 +3049,30 @@ func contentTypeByPath(p string) string {
 // Use {"message": msg} so the frontend can extract it consistently (see api.ts extractJsonMessage).
 func writeErrorResponse(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"message": message})
+}
+
+func writeDataplaneListResponse(w http.ResponseWriter, active string, items any, meta dataplane.SnapshotMetadata, nerr *dataplane.NormalizedError) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"active":   active,
+		"items":    items,
+		"observed": meta.ObservedAt,
+		"meta": map[string]any{
+			"freshness":    meta.Freshness,
+			"coverage":     meta.Coverage,
+			"degradation":  meta.Degradation,
+			"completeness": meta.Completeness,
+			"state":        dataplane.CoarseState(nerr, listLength(items)),
+		},
+	})
+}
+
+func listLength(items any) int {
+	// Handles strongly typed DTO slices without endpoint-specific assertions.
+	rv := reflect.ValueOf(items)
+	if rv.Kind() == reflect.Slice {
+		return rv.Len()
+	}
+	return 0
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

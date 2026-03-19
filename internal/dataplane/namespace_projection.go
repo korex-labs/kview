@@ -29,10 +29,10 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	// Start from the legacy kube summary so we preserve all existing fields (networking, storage, Helm, etc.).
 	if m.clients == nil {
 		out.Meta = SnapshotMetadata{
-			ObservedAt:  time.Now().UTC(),
-			Freshness:   FreshnessClassUnknown,
-			Coverage:    CoverageClassUnknown,
-			Degradation: DegradationClassSevere,
+			ObservedAt:   time.Now().UTC(),
+			Freshness:    FreshnessClassUnknown,
+			Coverage:     CoverageClassUnknown,
+			Degradation:  DegradationClassSevere,
 			Completeness: CompletenessClassUnknown,
 		}
 		return out, nil
@@ -43,10 +43,10 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		n := NormalizeError(err)
 		out.Err = &n
 		out.Meta = SnapshotMetadata{
-			ObservedAt:  time.Now().UTC(),
-			Freshness:   FreshnessClassUnknown,
-			Coverage:    CoverageClassUnknown,
-			Degradation: DegradationClassSevere,
+			ObservedAt:   time.Now().UTC(),
+			Freshness:    FreshnessClassUnknown,
+			Coverage:     CoverageClassUnknown,
+			Degradation:  DegradationClassSevere,
 			Completeness: CompletenessClassUnknown,
 		}
 		return out, err
@@ -58,10 +58,10 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		out.Err = &n
 
 		meta := SnapshotMetadata{
-			ObservedAt:  time.Now().UTC(),
-			Freshness:   FreshnessClassCold,
-			Coverage:    CoverageClassPartial,
-			Degradation: DegradationClassMinor,
+			ObservedAt:   time.Now().UTC(),
+			Freshness:    FreshnessClassCold,
+			Coverage:     CoverageClassPartial,
+			Degradation:  DegradationClassMinor,
 			Completeness: CompletenessClassInexact,
 		}
 		out.Meta = meta
@@ -78,23 +78,28 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 			state = "degraded"
 		}
 		base.Meta = &dto.NamespaceSummaryMetaDTO{
-			Freshness:   string(meta.Freshness),
-			Coverage:    string(meta.Coverage),
-			Degradation: string(meta.Degradation),
+			Freshness:    string(meta.Freshness),
+			Coverage:     string(meta.Coverage),
+			Degradation:  string(meta.Degradation),
 			Completeness: string(meta.Completeness),
-			State:       state,
+			State:        state,
 		}
 
 		out.Resources = *base
 		return out, err
 	}
 
-	// Overlay dataplane-owned first-wave snapshots for pods and deployments.
+	// Overlay dataplane-owned snapshots for namespace-scoped resources.
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 
 	podsSnap, podsErr := plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace)
 	depsSnap, depsErr := plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	svcsSnap, svcsErr := plane.ServicesSnapshot(ctx, m.scheduler, m.clients, namespace)
+	ingSnap, ingErr := plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace)
+	pvcsSnap, pvcsErr := plane.PVCsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	cmsSnap, cmsErr := plane.ConfigMapsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	secsSnap, secsErr := plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace)
 
 	// Start from the legacy summary DTO to preserve networking/storage/Helm/etc.
 	res := *base
@@ -105,6 +110,21 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	}
 	if depsErr == nil {
 		res.Counts.Deployments = len(depsSnap.Items)
+	}
+	if svcsErr == nil {
+		res.Counts.Services = len(svcsSnap.Items)
+	}
+	if ingErr == nil {
+		res.Counts.Ingresses = len(ingSnap.Items)
+	}
+	if pvcsErr == nil {
+		res.Counts.PVCs = len(pvcsSnap.Items)
+	}
+	if cmsErr == nil {
+		res.Counts.ConfigMaps = len(cmsSnap.Items)
+	}
+	if secsErr == nil {
+		res.Counts.Secrets = len(secsSnap.Items)
 	}
 
 	// Pod health and problematic pods.
@@ -203,46 +223,30 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	}
 	res.Problematic = newProblems
 
-	// Combine metadata (first-wave only => partial/inexact).
+	// Combine metadata. Namespace summary remains mixed, so coverage/completeness stay partial/inexact.
 	meta := SnapshotMetadata{
-		ObservedAt:  mostRecent(podsSnap.Meta.ObservedAt, depsSnap.Meta.ObservedAt),
-		Freshness:   minFreshness(podsSnap.Meta.Freshness, depsSnap.Meta.Freshness),
-		Coverage:    CoverageClassPartial,
-		Degradation: maxDegradation(podsSnap.Meta.Degradation, depsSnap.Meta.Degradation),
+		ObservedAt:   mostRecentAll(podsSnap.Meta.ObservedAt, depsSnap.Meta.ObservedAt, svcsSnap.Meta.ObservedAt, ingSnap.Meta.ObservedAt, pvcsSnap.Meta.ObservedAt, cmsSnap.Meta.ObservedAt, secsSnap.Meta.ObservedAt),
+		Freshness:    minFreshnessAll(podsSnap.Meta.Freshness, depsSnap.Meta.Freshness, svcsSnap.Meta.Freshness, ingSnap.Meta.Freshness, pvcsSnap.Meta.Freshness, cmsSnap.Meta.Freshness, secsSnap.Meta.Freshness),
+		Coverage:     CoverageClassPartial,
+		Degradation:  maxDegradationAll(podsSnap.Meta.Degradation, depsSnap.Meta.Degradation, svcsSnap.Meta.Degradation, ingSnap.Meta.Degradation, pvcsSnap.Meta.Degradation, cmsSnap.Meta.Degradation, secsSnap.Meta.Degradation),
 		Completeness: CompletenessClassInexact,
 	}
 	out.Meta = meta
 
-	// Determine state.
-	state := "ok"
-	if podsErr != nil || depsErr != nil {
-		if n := firstNonNilNormalized(podsSnap.Err, depsSnap.Err); n != nil {
-			switch n.Class {
-			case NormalizedErrorClassAccessDenied, NormalizedErrorClassUnauthorized:
-				state = "denied"
-			case NormalizedErrorClassProxyFailure, NormalizedErrorClassConnectivity:
-				state = "partial_proxy"
-			case NormalizedErrorClassRateLimited, NormalizedErrorClassTimeout, NormalizedErrorClassTransient:
-				state = "degraded"
-			default:
-				state = "degraded"
-			}
-		}
-	} else if res.Counts.Pods == 0 && res.Counts.Deployments == 0 {
-		state = "empty"
-	}
+	firstErr := firstNonNilNormalized(podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err)
+	state := CoarseState(firstErr, res.Counts.Pods+res.Counts.Deployments+res.Counts.Services+res.Counts.Ingresses+res.Counts.PVCs+res.Counts.ConfigMaps+res.Counts.Secrets)
 
 	res.Meta = &dto.NamespaceSummaryMetaDTO{
-		Freshness:   string(meta.Freshness),
-		Coverage:    string(meta.Coverage),
-		Degradation: string(meta.Degradation),
+		Freshness:    string(meta.Freshness),
+		Coverage:     string(meta.Coverage),
+		Degradation:  string(meta.Degradation),
 		Completeness: string(meta.Completeness),
-		State:       state,
+		State:        state,
 	}
 
 	out.Resources = res
-	out.Err = firstNonNilNormalized(podsSnap.Err, depsSnap.Err)
-	return out, firstError(podsErr, depsErr)
+	out.Err = firstErr
+	return out, firstError(podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr)
 }
 
 func mostRecent(a, b time.Time) time.Time {
@@ -258,19 +262,38 @@ func mostRecent(a, b time.Time) time.Time {
 	return b
 }
 
+func mostRecentAll(items ...time.Time) time.Time {
+	var out time.Time
+	for _, t := range items {
+		out = mostRecent(out, t)
+	}
+	return out
+}
+
 func minFreshness(a, b FreshnessClass) FreshnessClass {
 	// Simple ordering: hot < warm < cold < stale < unknown (worst).
 	order := map[FreshnessClass]int{
-		FreshnessClassHot:      0,
-		FreshnessClassWarm:     1,
-		FreshnessClassCold:     2,
-		FreshnessClassStale:    3,
-		FreshnessClassUnknown:  4,
+		FreshnessClassHot:     0,
+		FreshnessClassWarm:    1,
+		FreshnessClassCold:    2,
+		FreshnessClassStale:   3,
+		FreshnessClassUnknown: 4,
 	}
 	if order[a] >= order[b] {
 		return a
 	}
 	return b
+}
+
+func minFreshnessAll(items ...FreshnessClass) FreshnessClass {
+	if len(items) == 0 {
+		return FreshnessClassUnknown
+	}
+	out := items[0]
+	for _, f := range items[1:] {
+		out = minFreshness(out, f)
+	}
+	return out
 }
 
 func maxDegradation(a, b DegradationClass) DegradationClass {
@@ -285,17 +308,28 @@ func maxDegradation(a, b DegradationClass) DegradationClass {
 	return b
 }
 
-func firstNonNilNormalized(a, b *NormalizedError) *NormalizedError {
-	if a != nil {
-		return a
+func maxDegradationAll(items ...DegradationClass) DegradationClass {
+	out := DegradationClassNone
+	for _, d := range items {
+		out = maxDegradation(out, d)
 	}
-	return b
+	return out
 }
 
-func firstError(a, b error) error {
-	if a != nil {
-		return a
+func firstNonNilNormalized(items ...*NormalizedError) *NormalizedError {
+	for _, n := range items {
+		if n != nil {
+			return n
+		}
 	}
-	return b
+	return nil
 }
 
+func firstError(items ...error) error {
+	for _, err := range items {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
