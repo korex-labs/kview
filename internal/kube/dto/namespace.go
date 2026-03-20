@@ -8,10 +8,10 @@ type NamespaceListItemDTO struct {
 }
 
 type NamespaceDetailsDTO struct {
-	Summary    NamespaceSummaryDTO    `json:"summary"`
-	Metadata   NamespaceMetadataDTO   `json:"metadata"`
+	Summary    NamespaceSummaryDTO     `json:"summary"`
+	Metadata   NamespaceMetadataDTO    `json:"metadata"`
 	Conditions []NamespaceConditionDTO `json:"conditions"`
-	YAML       string                 `json:"yaml"`
+	YAML       string                  `json:"yaml"`
 }
 
 type NamespaceSummaryDTO struct {
@@ -40,7 +40,40 @@ type NamespaceSummaryResourcesDTO struct {
 	DeployHealth NamespaceDeploymentHealth `json:"deploymentHealth"`
 	Problematic  []ProblematicResource     `json:"problematic"`
 	HelmReleases []NamespaceHelmRelease    `json:"helmReleases,omitempty"`
-	Meta         *NamespaceSummaryMetaDTO  `json:"meta,omitempty"`
+	// RestartHotspots is a bounded, severity-sorted view from dataplane pod snapshots (Stage 5C).
+	RestartHotspots []PodRestartHotspotDTO `json:"restartHotspots,omitempty"`
+	// WorkloadByKind rolls up coarse health from dataplane workload list snapshots (Stage 5C).
+	WorkloadByKind *NamespaceWorkloadHealthRollupDTO `json:"workloadByKind,omitempty"`
+	Meta           *NamespaceSummaryMetaDTO          `json:"meta,omitempty"`
+}
+
+// PodRestartHotspotDTO surfaces restart-heavy pods for operator attention.
+type PodRestartHotspotDTO struct {
+	Namespace       string `json:"namespace"`
+	Name            string `json:"name"`
+	Restarts        int32  `json:"restarts"`
+	Phase           string `json:"phase"`
+	Node            string `json:"node,omitempty"`
+	LastEventReason string `json:"lastEventReason,omitempty"`
+	Severity        string `json:"severity"` // high | medium | low
+}
+
+// WorkloadKindHealthRollupDTO is a simple healthy / progressing / degraded partition per kind.
+type WorkloadKindHealthRollupDTO struct {
+	Total       int `json:"total"`
+	Healthy     int `json:"healthy"`
+	Progressing int `json:"progressing"`
+	Degraded    int `json:"degraded"`
+}
+
+// NamespaceWorkloadHealthRollupDTO aggregates workload health for a namespace from list snapshots.
+type NamespaceWorkloadHealthRollupDTO struct {
+	Deployments  WorkloadKindHealthRollupDTO `json:"deployments"`
+	DaemonSets   WorkloadKindHealthRollupDTO `json:"daemonSets"`
+	StatefulSets WorkloadKindHealthRollupDTO `json:"statefulSets"`
+	Jobs         WorkloadKindHealthRollupDTO `json:"jobs"`
+	CronJobs     WorkloadKindHealthRollupDTO `json:"cronJobs"`
+	ReplicaSets  WorkloadKindHealthRollupDTO `json:"replicaSets"`
 }
 
 type NamespaceResourceCounts struct {
@@ -86,9 +119,9 @@ type NamespaceHelmRelease struct {
 
 // NamespaceSummaryMetaDTO describes projection metadata for the namespace summary.
 type NamespaceSummaryMetaDTO struct {
-	Freshness   string `json:"freshness"`
-	Coverage    string `json:"coverage"`
-	Degradation string `json:"degradation"`
+	Freshness    string `json:"freshness"`
+	Coverage     string `json:"coverage"`
+	Degradation  string `json:"degradation"`
 	Completeness string `json:"completeness"`
 	// State is a coarse overall state for the current summary contract.
 	// Stage 5A currently returns values like:

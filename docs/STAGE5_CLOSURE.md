@@ -84,26 +84,19 @@ Frontend surfaces currently showing dataplane state:
 
 ## Namespace Summary Ownership
 
-`/api/namespaces/{name}/summary` is intentionally mixed in Stage 5A.
+`/api/namespaces/{name}/summary` is **projection-led** in Stage 5C: the dataplane assembles counts, health, hotspots, and workload rollups from namespace-scoped snapshots only.
 
-Dataplane-derived today (via projection overlays on top of `kube.GetNamespaceSummary`):
+Dataplane-derived today:
 
-- pod counts
-- deployment counts
-- services, ingresses, PVCs, configmaps, secrets counts
-- pod health
-- deployment health
-- problematic pod entries
-- problematic deployment entries
-- summary metadata describing freshness, coverage, degradation, completeness, and coarse state
+- All snapshot-owned namespaced list kinds (pods through cronjobs, etc.)
+- `restartHotspots` and `workloadByKind` additive summaries
+- summary metadata (freshness, coverage, degradation, completeness, state)
 
-Still legacy direct-read today (within the mixed summary contract):
+Still not snapshot-backed (honest gap until a Helm snapshot exists):
 
-- daemonset, statefulset, job, and cronjob counts (not yet overlaid from dataplane workload snapshots)
-- Helm summary internals
-- non-pod and non-deployment problematic entries (from the legacy base pass)
+- Helm releases list and helm release count (return empty; use `/api/namespaces/{ns}/helmreleases` for direct reads)
 
-This mixed ownership is accepted for Stage 5A. The API and UI must remain explicit about it rather than implying that the whole summary is snapshot-backed.
+The summary contract stays **partial / inexact** in metadata while Helm remains outside the dataplane.
 
 ## State Semantics In Stage 5A
 

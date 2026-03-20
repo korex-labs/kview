@@ -46,17 +46,10 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
 
 ### Namespace summary projection
 
-- `/api/namespaces/{name}/summary` is now projection-backed:
-  - Starts from `kube.GetNamespaceSummary` to preserve existing behavior:
-    - Workload counts
-    - Networking counts
-    - Storage/config counts
-    - Helm counts and release list
-    - Problematic resources (jobs/other kinds)
-  - Overlays dataplane snapshots for:
-    - pods and deployments (counts, health, problematic entries)
-    - services, ingresses, PVCs, configmaps, secrets (counts)
-    - These sections are now dataplane-owned in this summary contract.
+- `/api/namespaces/{name}/summary` is **projection-led** (Stage 5C): built from dataplane namespace-scoped snapshots only (no `kube.GetNamespaceSummary`).
+  - Counts and health for pods, deployments, services, ingresses, PVCs, configmaps, secrets, daemonsets, statefulsets, jobs, cronjobs; replica set rollups in `workloadByKind`.
+  - Additive: `restartHotspots` (bounded), `workloadByKind` (healthy/progressing/degraded per kind).
+  - **Helm** is not snapshot-owned yet: helm list/count stay empty; metadata stays partial/inexact.
   - Attaches projection metadata (`NamespaceSummaryMetaDTO`) for:
     - `freshness`, `coverage`, `degradation`, `completeness`, `state`.
 
@@ -66,6 +59,7 @@ All of this is keyed by **context name**, using `cluster.Manager.GetClientsForCo
   - Namespace counts and “unhealthy” marker (from `HasUnhealthyConditions`).
   - Node counts.
   - Freshness/coverage/degradation/completeness/state for both.
+  - **Workload hints** (bounded): merged top pod restart hotspots from the first N namespaces (alphabetical), elevated-restart counts in that sample, and sample freshness/degradation — not cluster-complete.
 
 ---
 

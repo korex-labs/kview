@@ -6,8 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"kview/internal/kube"
 	"kview/internal/kube/dto"
+)
+
+const (
+	namespaceSummaryMaxProblematic = 10
+	namespaceSummaryHotspotLimit   = 15
 )
 
 // NamespaceSummaryProjection is a projection-backed view of namespace resources plus metadata.
@@ -17,16 +21,12 @@ type NamespaceSummaryProjection struct {
 	Err       *NormalizedError
 }
 
-// NamespaceSummaryProjection builds a namespace summary projection for the given cluster/namespace.
-// It starts from the legacy kube summary (to preserve non-first-wave sections such as networking,
-// storage, Helm, etc.) and then overlays dataplane-owned snapshots for first-wave resources
-// (pods and deployments). In other words:
-//   - Pods and deployments are dataplane-backed in this projection.
-//   - Other sections remain legacy direct-read today.
+// NamespaceSummaryProjection builds a namespace summary from dataplane snapshots (projection-led).
+// Helm releases are not snapshot-owned yet: counts stay zero and releases list empty unless a later
+// stage adds a dataplane/Helm snapshot. Coverage/completeness metadata stays partial/inexact.
 func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (NamespaceSummaryProjection, error) {
 	var out NamespaceSummaryProjection
 
-	// Start from the legacy kube summary so we preserve all existing fields (networking, storage, Helm, etc.).
 	if m.clients == nil {
 		out.Meta = SnapshotMetadata{
 			ObservedAt:   time.Now().UTC(),
@@ -38,8 +38,7 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		return out, nil
 	}
 
-	clients, _, err := m.clients.GetClientsForContext(ctx, clusterName)
-	if err != nil {
+	if _, _, err := m.clients.GetClientsForContext(ctx, clusterName); err != nil {
 		n := NormalizeError(err)
 		out.Err = &n
 		out.Meta = SnapshotMetadata{
@@ -52,44 +51,6 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		return out, err
 	}
 
-	base, err := kube.GetNamespaceSummary(ctx, clients, namespace)
-	if err != nil {
-		n := NormalizeError(err)
-		out.Err = &n
-
-		meta := SnapshotMetadata{
-			ObservedAt:   time.Now().UTC(),
-			Freshness:    FreshnessClassCold,
-			Coverage:     CoverageClassPartial,
-			Degradation:  DegradationClassMinor,
-			Completeness: CompletenessClassInexact,
-		}
-		out.Meta = meta
-
-		state := "degraded"
-		switch n.Class {
-		case NormalizedErrorClassAccessDenied, NormalizedErrorClassUnauthorized:
-			state = "denied"
-		case NormalizedErrorClassProxyFailure, NormalizedErrorClassConnectivity:
-			state = "partial_proxy"
-		case NormalizedErrorClassRateLimited, NormalizedErrorClassTimeout, NormalizedErrorClassTransient:
-			state = "degraded"
-		default:
-			state = "degraded"
-		}
-		base.Meta = &dto.NamespaceSummaryMetaDTO{
-			Freshness:    string(meta.Freshness),
-			Coverage:     string(meta.Coverage),
-			Degradation:  string(meta.Degradation),
-			Completeness: string(meta.Completeness),
-			State:        state,
-		}
-
-		out.Resources = *base
-		return out, err
-	}
-
-	// Overlay dataplane-owned snapshots for namespace-scoped resources.
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 
@@ -100,11 +61,16 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	pvcsSnap, pvcsErr := plane.PVCsSnapshot(ctx, m.scheduler, m.clients, namespace)
 	cmsSnap, cmsErr := plane.ConfigMapsSnapshot(ctx, m.scheduler, m.clients, namespace)
 	secsSnap, secsErr := plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	dsSnap, dsErr := plane.DaemonSetsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	stsSnap, stsErr := plane.StatefulSetsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	rsSnap, rsErr := plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	jobsSnap, jobsErr := plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace)
+	cjSnap, cjErr := plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace)
 
-	// Start from the legacy summary DTO to preserve networking/storage/Helm/etc.
-	res := *base
+	res := dto.NamespaceSummaryResourcesDTO{
+		Problematic: []dto.ProblematicResource{},
+	}
 
-	// If snapshots succeeded, override counts for pods/deployments.
 	if podsErr == nil {
 		res.Counts.Pods = len(podsSnap.Items)
 	}
@@ -126,104 +92,58 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	if secsErr == nil {
 		res.Counts.Secrets = len(secsSnap.Items)
 	}
-
-	// Pod health and problematic pods.
-	// Reset pod/deployment health if we have snapshots; otherwise keep legacy values.
-	if podsErr == nil {
-		res.PodHealth = dto.NamespacePodHealth{}
-		for _, p := range podsSnap.Items {
-			switch p.Phase {
-			case "Running":
-				res.PodHealth.Running++
-			case "Pending":
-				res.PodHealth.Pending++
-			case "Failed":
-				res.PodHealth.Failed++
-			case "Succeeded":
-				res.PodHealth.Succeeded++
-			default:
-				res.PodHealth.Unknown++
-			}
-		}
+	if dsErr == nil {
+		res.Counts.DaemonSets = len(dsSnap.Items)
 	}
-
-	if depsErr == nil {
-		res.DeployHealth = dto.NamespaceDeploymentHealth{}
-		for _, d := range depsSnap.Items {
-			switch d.Status {
-			case "Available":
-				res.DeployHealth.Healthy++
-			case "Progressing":
-				res.DeployHealth.Progressing++
-			default:
-				if d.Ready != "" && d.Ready != "0/0" {
-					res.DeployHealth.Degraded++
-				}
-			}
-		}
+	if stsErr == nil {
+		res.Counts.StatefulSets = len(stsSnap.Items)
 	}
-
-	// Problematic resources: keep legacy non-pod/deployment entries, rebuild pod/deployment from snapshots.
-	baseProblems := base.Problematic
-	kept := make([]dto.ProblematicResource, 0, len(baseProblems))
-	for _, pr := range baseProblems {
-		if pr.Kind != "Pod" && pr.Kind != "Deployment" {
-			kept = append(kept, pr)
-		}
+	if jobsErr == nil {
+		res.Counts.Jobs = len(jobsSnap.Items)
 	}
-	newProblems := kept
+	if cjErr == nil {
+		res.Counts.CronJobs = len(cjSnap.Items)
+	}
+	// Helm: not snapshot-backed in dataplane yet
+	res.Counts.HelmReleases = 0
+	res.HelmReleases = nil
 
 	if podsErr == nil {
-		for _, p := range podsSnap.Items {
-			isProblematic := false
-			reason := p.Phase
-			if p.Phase == "Failed" || p.Phase == "Pending" {
-				isProblematic = true
-			} else if p.Ready != "" {
-				if parts := strings.Split(p.Ready, "/"); len(parts) == 2 {
-					if ready, err1 := strconv.Atoi(parts[0]); err1 == nil {
-						if total, err2 := strconv.Atoi(parts[1]); err2 == nil && total > 0 && ready < total {
-							isProblematic = true
-							reason = "NotReady"
-						}
-					}
-				}
-			}
-			if isProblematic {
-				if p.LastEvent != nil && p.LastEvent.Reason != "" {
-					reason = p.LastEvent.Reason
-				}
-				newProblems = append(newProblems, dto.ProblematicResource{
-					Kind:   "Pod",
-					Name:   p.Name,
-					Reason: reason,
-				})
-			}
-		}
+		res.PodHealth = podPhaseRollup(podsSnap.Items)
 	}
-
 	if depsErr == nil {
-		for _, d := range depsSnap.Items {
-			isProblematic := false
-			reason := d.Status
-			if d.Status != "Available" && d.UpToDate > 0 && d.Available < d.UpToDate {
-				isProblematic = true
-				if d.LastEvent != nil && d.LastEvent.Reason != "" {
-					reason = d.LastEvent.Reason
-				}
-			}
-			if isProblematic {
-				newProblems = append(newProblems, dto.ProblematicResource{
-					Kind:   "Deployment",
-					Name:   d.Name,
-					Reason: reason,
-				})
-			}
-		}
+		res.DeployHealth = deploymentHealthRollup(depsSnap.Items)
 	}
-	res.Problematic = newProblems
 
-	// Combine metadata. Namespace summary remains mixed, so coverage/completeness stay partial/inexact.
+	wh := ProjectWorkloadHealthFromNamespaceSnapshots(
+		depsSnap, depsErr,
+		dsSnap, dsErr,
+		stsSnap, stsErr,
+		rsSnap, rsErr,
+		jobsSnap, jobsErr,
+		cjSnap, cjErr,
+	)
+	res.WorkloadByKind = &wh.Rollup
+
+	if podsErr == nil {
+		hot := ProjectRestartHotspotsFromPods(namespace, podsSnap, namespaceSummaryHotspotLimit)
+		res.RestartHotspots = hot.Items
+	}
+
+	workloadProblems := WorkloadProblematicCandidates(
+		depsSnap.Items,
+		dsSnap.Items,
+		stsSnap.Items,
+		jobsSnap.Items,
+		cjSnap.Items,
+		namespaceSummaryMaxProblematic,
+	)
+	var podProblems []dto.ProblematicResource
+	if podsErr == nil {
+		podProblems = podProblematicFromList(podsSnap.Items, namespaceSummaryMaxProblematic)
+	}
+	res.Problematic = mergeProblematicUnique(namespaceSummaryMaxProblematic, workloadProblems, podProblems)
+
 	meta := composeNamespaceSummaryProjectionMeta(
 		podsSnap.Meta,
 		depsSnap.Meta,
@@ -232,11 +152,23 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		pvcsSnap.Meta,
 		cmsSnap.Meta,
 		secsSnap.Meta,
+		dsSnap.Meta,
+		stsSnap.Meta,
+		rsSnap.Meta,
+		jobsSnap.Meta,
+		cjSnap.Meta,
 	)
 	out.Meta = meta
 
-	firstErr := FirstNonNilNormalizedError(podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err)
-	state := ProjectionCoarseState(firstErr, res.Counts.Pods+res.Counts.Deployments+res.Counts.Services+res.Counts.Ingresses+res.Counts.PVCs+res.Counts.ConfigMaps+res.Counts.Secrets)
+	firstNorm := FirstNonNilNormalizedError(
+		podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err,
+		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err,
+	)
+
+	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
+		res.Counts.Ingresses + res.Counts.PVCs + res.Counts.ConfigMaps + res.Counts.Secrets +
+		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs
+	state := ProjectionCoarseState(firstNorm, meaningful)
 
 	res.Meta = &dto.NamespaceSummaryMetaDTO{
 		Freshness:    string(meta.Freshness),
@@ -247,6 +179,108 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	}
 
 	out.Resources = res
-	out.Err = firstErr
-	return out, FirstError(podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr)
+	out.Err = firstNorm
+	return out, FirstError(
+		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
+		dsErr, stsErr, rsErr, jobsErr, cjErr,
+	)
+}
+
+func podPhaseRollup(items []dto.PodListItemDTO) dto.NamespacePodHealth {
+	var h dto.NamespacePodHealth
+	for _, p := range items {
+		switch p.Phase {
+		case "Running":
+			h.Running++
+		case "Pending":
+			h.Pending++
+		case "Failed":
+			h.Failed++
+		case "Succeeded":
+			h.Succeeded++
+		default:
+			h.Unknown++
+		}
+	}
+	return h
+}
+
+func deploymentHealthRollup(items []dto.DeploymentListItemDTO) dto.NamespaceDeploymentHealth {
+	var h dto.NamespaceDeploymentHealth
+	for _, d := range items {
+		switch d.Status {
+		case "Available":
+			h.Healthy++
+		case "Progressing":
+			h.Progressing++
+		default:
+			if d.Ready != "" && d.Ready != "0/0" {
+				h.Degraded++
+			}
+		}
+	}
+	return h
+}
+
+func podProblematicFromList(items []dto.PodListItemDTO, limit int) []dto.ProblematicResource {
+	if limit <= 0 {
+		limit = namespaceSummaryMaxProblematic
+	}
+	var out []dto.ProblematicResource
+	for _, p := range items {
+		if len(out) >= limit {
+			break
+		}
+		isProblematic := false
+		reason := p.Phase
+		if p.Phase == "Failed" || p.Phase == "Pending" {
+			isProblematic = true
+		} else if p.Ready != "" {
+			if parts := strings.Split(p.Ready, "/"); len(parts) == 2 {
+				if ready, err1 := strconv.Atoi(parts[0]); err1 == nil {
+					if total, err2 := strconv.Atoi(parts[1]); err2 == nil && total > 0 && ready < total {
+						isProblematic = true
+						reason = "NotReady"
+					}
+				}
+			}
+		}
+		if p.Restarts >= 10 {
+			isProblematic = true
+			reason = "HighRestarts"
+		}
+		if isProblematic {
+			if p.LastEvent != nil && p.LastEvent.Reason != "" {
+				reason = p.LastEvent.Reason
+			}
+			out = append(out, dto.ProblematicResource{
+				Kind:   "Pod",
+				Name:   p.Name,
+				Reason: reason,
+			})
+		}
+	}
+	return out
+}
+
+func mergeProblematicUnique(limit int, parts ...[]dto.ProblematicResource) []dto.ProblematicResource {
+	if limit <= 0 {
+		limit = namespaceSummaryMaxProblematic
+	}
+	seen := make(map[string]struct{})
+	var out []dto.ProblematicResource
+	for _, part := range parts {
+		for _, pr := range part {
+			if len(out) >= limit {
+				return out
+			}
+			key := pr.Kind + "\x00" + pr.Name
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, pr)
+		}
+	}
+	return out
 }
