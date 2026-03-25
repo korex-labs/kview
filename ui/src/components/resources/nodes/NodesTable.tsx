@@ -79,10 +79,10 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function NodesTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: Node[] }>("/api/nodes", token);
     const items = res.items || [];
-    return items.map((n) => ({ ...n, id: n.name }));
+    return { rows: items.map((n) => ({ ...n, id: n.name })) };
   }, [token]);
 
   const filterPredicate = useCallback((row: Row, q: string) => {

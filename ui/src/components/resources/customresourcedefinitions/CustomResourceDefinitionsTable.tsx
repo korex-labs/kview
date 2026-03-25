@@ -69,10 +69,10 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function CustomResourceDefinitionsTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: CRDItem[] }>("/api/customresourcedefinitions", token);
     const items = res.items || [];
-    return items.map((c) => ({ ...c, id: c.name }));
+    return { rows: items.map((c) => ({ ...c, id: c.name })) };
   }, [token]);
 
   const filterPredicate = useCallback(

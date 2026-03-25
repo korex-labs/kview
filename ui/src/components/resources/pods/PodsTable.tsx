@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
 import { eventChipColor, listHealthHintColor, phaseChipColor } from "../../../utils/k8sUi";
@@ -87,13 +88,16 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function PodsTable({ token, namespace }: { token: string; namespace: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: Pod[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<Pod>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/pods`,
       token,
     );
     const items = res.items || [];
-    return items.map((p) => ({ ...p, id: `${p.namespace}/${p.name}` }));
+    return {
+      rows: items.map((p) => ({ ...p, id: `${p.namespace}/${p.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback((row: Row, q: string) => {

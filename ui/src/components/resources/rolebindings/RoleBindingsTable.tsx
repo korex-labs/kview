@@ -55,13 +55,13 @@ export default function RoleBindingsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: RoleBinding[] }>(
       `/api/namespaces/${encodeURIComponent(namespace)}/rolebindings`,
       token,
     );
     const items = res.items || [];
-    return items.map((rb) => ({ ...rb, id: `${rb.namespace}/${rb.name}` }));
+    return { rows: items.map((rb) => ({ ...rb, id: `${rb.namespace}/${rb.name}` })) };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

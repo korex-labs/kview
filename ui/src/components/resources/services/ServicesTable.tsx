@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceDrawer from "./ServiceDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -67,13 +68,16 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function ServicesTable({ token, namespace }: { token: string; namespace: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: Service[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<Service>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/services`,
       token,
     );
     const items = res.items || [];
-    return items.map((s) => ({ ...s, id: `${s.namespace}/${s.name}` }));
+    return {
+      rows: items.map((s) => ({ ...s, id: `${s.namespace}/${s.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback((row: Row, q: string) => {

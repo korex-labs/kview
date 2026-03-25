@@ -9,18 +9,16 @@ import (
 )
 
 const (
-	clusterDashboardMaxNamespacesPodSample = 5
-	clusterDashboardMergedHotspotLimit     = 10
-	restartElevatedThreshold               = int32(3)
+	restartElevatedThreshold = int32(3)
 )
 
-// ClusterDashboardSummary is a minimal, operator-focused dashboard view.
-// It is intentionally small and derived from existing snapshots.
+// ClusterDashboardSummary is a bounded Stage 5C operator overview derived from dataplane snapshots.
 type ClusterDashboardSummary struct {
-	Plane         ClusterDashboardPlane         `json:"plane"`
-	Namespaces    ClusterDashboardNamespaces    `json:"namespaces"`
-	Nodes         ClusterDashboardNodes         `json:"nodes"`
-	WorkloadHints ClusterDashboardWorkloadHints `json:"workloadHints"`
+	Plane         ClusterDashboardPlane             `json:"plane"`
+	Visibility    ClusterDashboardVisibilityPanel   `json:"visibility"`
+	Resources     ClusterDashboardResourcesPanel    `json:"resources"`
+	Hotspots      ClusterDashboardHotspotsPanel     `json:"hotspots"`
+	WorkloadHints ClusterDashboardWorkloadHints     `json:"workloadHints"`
 }
 
 type ClusterDashboardPlane struct {
@@ -58,8 +56,54 @@ type ClusterDashboardNodes struct {
 	ObserverState string `json:"observerState"`
 }
 
+// ClusterDashboardVisibilityPanel groups namespace/node observation with snapshot timestamps.
+type ClusterDashboardVisibilityPanel struct {
+	Namespaces           ClusterDashboardNamespaces `json:"namespaces"`
+	Nodes                ClusterDashboardNodes      `json:"nodes"`
+	NamespacesObservedAt string                     `json:"namespacesObservedAt,omitempty"`
+	NodesObservedAt      string                     `json:"nodesObservedAt,omitempty"`
+	TrustNote            string                     `json:"trustNote,omitempty"`
+}
+
+// ClusterDashboardResourcesPanel is summed from a bounded alphabetical namespace sample (see Partial/Note).
+type ClusterDashboardResourcesPanel struct {
+	Pods                   int    `json:"pods"`
+	Deployments            int    `json:"deployments"`
+	Services               int    `json:"services"`
+	Ingresses              int    `json:"ingresses"`
+	PersistentVolumeClaims int    `json:"persistentVolumeClaims"`
+	SampledNamespaces      int    `json:"sampledNamespaces"`
+	TotalNamespaces        int    `json:"totalNamespaces"`
+	Partial                bool   `json:"partial"`
+	Note                   string `json:"note,omitempty"`
+	SampleFreshness        string `json:"sampleFreshness,omitempty"`
+	SampleDegradation      string `json:"sampleDegradation,omitempty"`
+}
+
+// ClusterDashboardProblematicNamespace ranks namespaces by in-sample problematic resource count.
+type ClusterDashboardProblematicNamespace struct {
+	Namespace string `json:"namespace"`
+	Score     int    `json:"score"`
+}
+
+// ClusterDashboardHotspotsPanel is derived from the same bounded sample as Resources (not cluster-complete when Partial).
+type ClusterDashboardHotspotsPanel struct {
+	UnhealthyNamespaces        int                                    `json:"unhealthyNamespaces"`
+	SampledNamespaces          int                                    `json:"sampledNamespaces"`
+	DegradedDeployments        int                                    `json:"degradedDeployments"`
+	PodsWithElevatedRestarts   int                                    `json:"podsWithElevatedRestarts"`
+	ProblematicResources       int                                    `json:"problematicResources"`
+	TopProblematicNamespaces   []ClusterDashboardProblematicNamespace `json:"topProblematicNamespaces,omitempty"`
+	TopPodRestartHotspots      []dto.PodRestartHotspotDTO             `json:"topPodRestartHotspots,omitempty"`
+	Partial                    bool                                   `json:"partial"`
+	Note                       string                                 `json:"note,omitempty"`
+	SampleFreshness            string                                 `json:"sampleFreshness,omitempty"`
+	SampleDegradation          string                                 `json:"sampleDegradation,omitempty"`
+	HighSeverityHotspotsInTopN int                                    `json:"highSeverityHotspotsInTopN"`
+}
+
 // ClusterDashboardWorkloadHints is a bounded, visibility-aware workload signal from pod snapshots.
-// Pod lists are namespace-scoped; only a small alphabetical sample of namespaces is queried.
+// Populated from the same aggregate pass as Hotspots for backward compatibility with older UI chips.
 type ClusterDashboardWorkloadHints struct {
 	TotalNamespacesVisible int `json:"totalNamespacesVisible"`
 	NamespacesPodSampled   int `json:"namespacesPodSampled"`
@@ -74,7 +118,7 @@ type ClusterDashboardWorkloadHints struct {
 	SampleDegradation          string `json:"sampleDegradation,omitempty"`
 }
 
-// DashboardSummary builds a minimal dashboard summary from cached snapshots.
+// DashboardSummary builds a bounded cluster dashboard from cached snapshots.
 func (m *manager) DashboardSummary(ctx context.Context, clusterName string) ClusterDashboardSummary {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
@@ -82,7 +126,6 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 	nsSnap, _ := plane.NamespacesSnapshot(ctx, m.scheduler, m.clients)
 	nodesSnap, _ := plane.NodesSnapshot(ctx, m.scheduler, m.clients)
 
-	// Observer states default to not_loaded when observers haven't started yet.
 	nsObs := "not_loaded"
 	nodeObs := "not_loaded"
 	plane.obsMu.Lock()
@@ -107,42 +150,9 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 	}
 	sort.Strings(nsNames)
 
-	nsState := "unknown"
-	if nsSnap.Err != nil {
-		switch nsSnap.Err.Class {
-		case NormalizedErrorClassAccessDenied, NormalizedErrorClassUnauthorized:
-			nsState = "denied"
-		case NormalizedErrorClassRateLimited, NormalizedErrorClassTimeout, NormalizedErrorClassTransient:
-			nsState = "degraded"
-		case NormalizedErrorClassProxyFailure, NormalizedErrorClassConnectivity:
-			nsState = "partial_proxy"
-		default:
-			nsState = "degraded"
-		}
-	} else if nsTotal == 0 {
-		nsState = "empty"
-	} else {
-		nsState = "ok"
-	}
-
+	nsState := CoarseState(nsSnap.Err, nsTotal)
 	nodeTotal := len(nodesSnap.Items)
-	nodeState := "unknown"
-	if nodesSnap.Err != nil {
-		switch nodesSnap.Err.Class {
-		case NormalizedErrorClassAccessDenied, NormalizedErrorClassUnauthorized:
-			nodeState = "denied"
-		case NormalizedErrorClassRateLimited, NormalizedErrorClassTimeout, NormalizedErrorClassTransient:
-			nodeState = "degraded"
-		case NormalizedErrorClassProxyFailure, NormalizedErrorClassConnectivity:
-			nodeState = "partial_proxy"
-		default:
-			nodeState = "degraded"
-		}
-	} else if nodeTotal == 0 {
-		nodeState = "empty"
-	} else {
-		nodeState = "ok"
-	}
+	nodeState := CoarseState(nodesSnap.Err, nodeTotal)
 
 	scope := plane.Scope()
 	namespaceScope := "all_namespaces"
@@ -154,7 +164,12 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	workloadHints := m.buildClusterWorkloadHints(ctx, plane, nsNames, nsTotal)
+	resPanel, hotPanel, wh := m.aggregateClusterDashboard(ctx, plane, nsNames, nsTotal, nsUnhealthy)
+
+	trust := "Namespace and node blocks reflect cluster-wide list snapshots. Resource totals and hotspot rollups use a bounded alphabetical namespace sample (see resources.partial / resources.note)."
+	if resPanel.Partial {
+		trust += " Overview is not cluster-complete for workload aggregates."
+	}
 
 	return ClusterDashboardSummary{
 		Plane: ClusterDashboardPlane{
@@ -168,74 +183,32 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 				ResourceKinds: resourceScope,
 			},
 		},
-		Namespaces: ClusterDashboardNamespaces{
-			Total:         nsTotal,
-			Unhealthy:     nsUnhealthy,
-			Freshness:     string(nsSnap.Meta.Freshness),
-			Coverage:      string(nsSnap.Meta.Coverage),
-			Degradation:   string(nsSnap.Meta.Degradation),
-			Completeness:  string(nsSnap.Meta.Completeness),
-			State:         nsState,
-			ObserverState: nsObs,
+		Visibility: ClusterDashboardVisibilityPanel{
+			Namespaces: ClusterDashboardNamespaces{
+				Total:         nsTotal,
+				Unhealthy:     nsUnhealthy,
+				Freshness:     string(nsSnap.Meta.Freshness),
+				Coverage:      string(nsSnap.Meta.Coverage),
+				Degradation:   string(nsSnap.Meta.Degradation),
+				Completeness:  string(nsSnap.Meta.Completeness),
+				State:         nsState,
+				ObserverState: nsObs,
+			},
+			Nodes: ClusterDashboardNodes{
+				Total:         nodeTotal,
+				Freshness:     string(nodesSnap.Meta.Freshness),
+				Coverage:      string(nodesSnap.Meta.Coverage),
+				Degradation:   string(nodesSnap.Meta.Degradation),
+				Completeness:  string(nodesSnap.Meta.Completeness),
+				State:         nodeState,
+				ObserverState: nodeObs,
+			},
+			NamespacesObservedAt: formatSnapshotTime(nsSnap.Meta.ObservedAt),
+			NodesObservedAt:      formatSnapshotTime(nodesSnap.Meta.ObservedAt),
+			TrustNote:            trust,
 		},
-		Nodes: ClusterDashboardNodes{
-			Total:         nodeTotal,
-			Freshness:     string(nodesSnap.Meta.Freshness),
-			Coverage:      string(nodesSnap.Meta.Coverage),
-			Degradation:   string(nodesSnap.Meta.Degradation),
-			Completeness:  string(nodesSnap.Meta.Completeness),
-			State:         nodeState,
-			ObserverState: nodeObs,
-		},
-		WorkloadHints: workloadHints,
+		Resources:     resPanel,
+		Hotspots:      hotPanel,
+		WorkloadHints: wh,
 	}
-}
-
-func (m *manager) buildClusterWorkloadHints(ctx context.Context, plane *clusterPlane, nsNamesSorted []string, nsTotal int) ClusterDashboardWorkloadHints {
-	h := ClusterDashboardWorkloadHints{
-		TotalNamespacesVisible: nsTotal,
-		SampleCoverageNote:     "pod_hotspots_sampled_first_namespaces_alphabetical",
-	}
-	if nsTotal == 0 || plane == nil {
-		return h
-	}
-
-	nSample := clusterDashboardMaxNamespacesPodSample
-	if len(nsNamesSorted) < nSample {
-		nSample = len(nsNamesSorted)
-	}
-	h.NamespacesPodSampled = nSample
-
-	var hotspotLists [][]dto.PodRestartHotspotDTO
-	var podMetas []SnapshotMetadata
-	elevated := 0
-
-	for i := 0; i < nSample; i++ {
-		ns := nsNamesSorted[i]
-		snap, err := plane.PodsSnapshot(ctx, m.scheduler, m.clients, ns)
-		if err != nil {
-			continue
-		}
-		podMetas = append(podMetas, snap.Meta)
-		elevated += CountPodsWithRestartThreshold(snap, restartElevatedThreshold)
-		hList := ProjectRestartHotspotsFromPods(ns, snap, defaultRestartHotspotLimit)
-		if len(hList.Items) > 0 {
-			hotspotLists = append(hotspotLists, hList.Items)
-		}
-	}
-
-	h.PodsWithElevatedRestarts = elevated
-	h.TopPodRestartHotspots = MergeRestartHotspots(clusterDashboardMergedHotspotLimit, hotspotLists...)
-	for _, item := range h.TopPodRestartHotspots {
-		if item.Severity == restartSeverityHigh {
-			h.HighSeverityHotspotsInTopN++
-		}
-	}
-
-	if len(podMetas) > 0 {
-		h.SampleFreshness = string(WorstFreshnessFromSnapshots(podMetas...))
-		h.SampleDegradation = string(WorstDegradationFromSnapshots(podMetas...))
-	}
-
-	return h
 }

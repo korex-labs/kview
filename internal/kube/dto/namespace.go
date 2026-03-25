@@ -5,6 +5,23 @@ type NamespaceListItemDTO struct {
 	Phase                  string `json:"phase"`
 	AgeSec                 int64  `json:"ageSec"`
 	HasUnhealthyConditions bool   `json:"hasUnhealthyConditions"`
+	// Row projection (namespaces list, Stage 5C): compact metrics from dataplane pods+deployments
+	// snapshots per namespace. When RowEnriched is false, counts/signals below are unset (zero/false).
+	RowEnriched        bool   `json:"rowEnriched,omitempty"`
+	SummaryState       string `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
+	PodCount           int    `json:"podCount,omitempty"`
+	DeploymentCount    int    `json:"deploymentCount,omitempty"`
+	ProblematicCount   int    `json:"problematicCount,omitempty"`
+	PodsWithRestarts   int    `json:"podsWithRestarts,omitempty"`
+	RestartHotspot     bool   `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+}
+
+// NamespaceListRowProjectionMetaDTO describes bounded row enrichment on GET /api/namespaces.
+type NamespaceListRowProjectionMetaDTO struct {
+	EnrichedRows int    `json:"enrichedRows"`
+	TotalRows    int    `json:"totalRows"`
+	Cap          int    `json:"cap"`
+	Note         string `json:"note,omitempty"`
 }
 
 type NamespaceDetailsDTO struct {

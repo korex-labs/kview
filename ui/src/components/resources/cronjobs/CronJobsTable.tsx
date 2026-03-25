@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import CronJobDrawer from "./CronJobDrawer";
 import { fmtAge, fmtTs } from "../../../utils/format";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -77,13 +78,16 @@ export default function CronJobsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: CronJob[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<CronJob>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/cronjobs`,
       token,
     );
     const items = res.items || [];
-    return items.map((cj) => ({ ...cj, id: `${cj.namespace}/${cj.name}` }));
+    return {
+      rows: items.map((cj) => ({ ...cj, id: `${cj.namespace}/${cj.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

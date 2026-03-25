@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import ReplicaSetDrawer from "./ReplicaSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -54,13 +55,16 @@ export default function ReplicaSetsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: ReplicaSet[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<ReplicaSet>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/replicasets`,
       token,
     );
     const items = res.items || [];
-    return items.map((rs) => ({ ...rs, id: `${rs.namespace}/${rs.name}` }));
+    return {
+      rows: items.map((rs) => ({ ...rs, id: `${rs.namespace}/${rs.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

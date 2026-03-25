@@ -59,13 +59,15 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function HelmChartsTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: HelmChart[] }>("/api/helmcharts", token);
     const items = res.items || [];
-    return items.map((c) => ({
-      ...c,
-      id: `${c.chartName}/${c.chartVersion}`,
-    }));
+    return {
+      rows: items.map((c) => ({
+        ...c,
+        id: `${c.chartName}/${c.chartVersion}`,
+      })),
+    };
   }, [token]);
 
   const filterPredicate = useCallback(

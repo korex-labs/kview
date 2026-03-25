@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { pvcPhaseChipColor } from "../../../utils/k8sUi";
 import PersistentVolumeClaimDrawer from "./PersistentVolumeClaimDrawer";
@@ -92,13 +93,16 @@ export default function PersistentVolumeClaimsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: PersistentVolumeClaim[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<PersistentVolumeClaim>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/persistentvolumeclaims`,
       token,
     );
     const items = res.items || [];
-    return items.map((pvc) => ({ ...pvc, id: `${pvc.namespace}/${pvc.name}` }));
+    return {
+      rows: items.map((pvc) => ({ ...pvc, id: `${pvc.namespace}/${pvc.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

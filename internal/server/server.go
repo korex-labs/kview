@@ -531,7 +531,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/namespaces", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 			defer cancel()
 
 			active := s.mgr.ActiveContext()
@@ -551,11 +551,14 @@ func (s *Server) Router() http.Handler {
 
 			state := dataplane.CoarseState(snap.Err, len(snap.Items))
 
+			items, rowProj := s.dp.EnrichNamespaceListItems(ctx, active, snap.Items)
+
 			writeJSON(w, http.StatusOK, map[string]any{
-				"active":   active,
-				"limited":  false,
-				"items":    snap.Items,
-				"observed": snap.Meta.ObservedAt,
+				"active":        active,
+				"limited":       false,
+				"items":         items,
+				"rowProjection": rowProj,
+				"observed":      snap.Meta.ObservedAt,
 				"meta": map[string]any{
 					"freshness":    snap.Meta.Freshness,
 					"coverage":     snap.Meta.Coverage,
@@ -607,10 +610,7 @@ func (s *Server) Router() http.Handler {
 
 			active := s.mgr.ActiveContext()
 
-			// The dataplane manager is constructed by this package, so the concrete type is known.
-			proj, err := s.dp.(interface {
-				NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (dataplane.NamespaceSummaryProjection, error)
-			}).NamespaceSummaryProjection(ctx, active, name)
+			proj, err := s.dp.NamespaceSummaryProjection(ctx, active, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1369,6 +1369,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
+		// Namespaced workload list routes below (daemonsets, statefulsets, replicasets, jobs, cronjobs) are
+		// dataplane-backed: s.dp.*Snapshot + writeDataplaneListResponse. kube.List* for these kinds runs only
+		// inside internal/dataplane snapshot executors, not in handlers. Detail/events/yaml stay direct-read.
 		api.Get("/namespaces/{ns}/daemonsets", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
 			if ns == "" {

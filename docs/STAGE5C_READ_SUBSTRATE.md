@@ -39,8 +39,8 @@ Underlying list IO is still `kube.List*` **inside** the dataplane snapshot execu
 
 | Route | Behavior |
 |-------|----------|
-| `GET /api/namespaces` | `NamespacesSnapshot`; returns `items`, `observed`, and top-level `meta` (same semantic fields as list envelope). |
-| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`—aggregates namespace/node snapshot metadata and optional workload hints. |
+| `GET /api/namespaces` | `NamespacesSnapshot` for base rows; then `EnrichNamespaceListItems` adds bounded per-namespace workload metrics from **pods + deployments** snapshots (alphabetical cap, parallel fetch). Response includes `rowProjection` (`NamespaceListRowProjectionMetaDTO`) and optional row fields on each item (`rowEnriched`, `summaryState`, counts, `problematicCount`, restart signals). |
+| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`: `visibility` (namespaces/nodes snapshots + observed-at), `resources` and `hotspots` (bounded alphabetical namespace sample — pods/deployments/services/ingresses/PVCs), plus `workloadHints` alias for chips. |
 
 ---
 

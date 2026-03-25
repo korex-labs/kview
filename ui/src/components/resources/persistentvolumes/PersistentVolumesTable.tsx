@@ -72,10 +72,10 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function PersistentVolumesTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: PersistentVolume[] }>("/api/persistentvolumes", token);
     const items = res.items || [];
-    return items.map((pv) => ({ ...pv, id: pv.name }));
+    return { rows: items.map((pv) => ({ ...pv, id: pv.name })) };
   }, [token]);
 
   const filterPredicate = useCallback(

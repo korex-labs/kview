@@ -2,6 +2,8 @@
 
 This document summarizes dataplane ownership, projections, and what remains **direct-read by explicit exception**. The **route-by-route** map lives in **`docs/STAGE5C_READ_SUBSTRATE.md`** (maintain both when behavior changes).
 
+**Final punchlist (pre–5D):** `docs/STAGE5C_FINAL_PUNCHLIST.md` — Prompt 01 (daemonsets/statefulsets/jobs/cronjobs/replicasets **list** migration) is verified **done** in-tree; remaining deferred namespaced lists are documented in the read-substrate doc.
+
 ---
 
 ## Owned by `internal/dataplane` today
@@ -50,8 +52,8 @@ These use `*Snapshot` + `writeDataplaneListResponse` (or namespaces’ equivalen
 
 Also:
 
-- `/api/namespaces` — namespaces list + `meta`
-- `/api/dashboard/cluster` — summary from dataplane
+- `/api/namespaces` — namespaces list + `meta` + bounded **row projection** (`rowProjection` + per-item workload fields from pods/deployments snapshots).
+- `/api/dashboard/cluster` — structured overview: `plane`, `visibility` (ns/node snapshots + trust copy), `resources` + `hotspots` (same bounded namespace sample for rollups), `workloadHints` (backward-compatible hotspot fields).
 
 ---
 

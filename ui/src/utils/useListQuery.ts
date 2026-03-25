@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiError } from "../api";
 import { toApiError } from "../api";
+import type { DataplaneListMeta, ResourceListFetchResult } from "../types/api";
 import { useConnectionState } from "../connectionState";
 
 type UseListQueryOptions<T> = {
   enabled?: boolean;
   refreshSec: number;
-  fetchItems: () => Promise<T[]>;
+  fetchItems: () => Promise<ResourceListFetchResult<T>>;
   onInitialResult?: () => void;
 };
 
 type UseListQueryResult<T> = {
   items: T[];
+  dataplaneMeta: DataplaneListMeta | null;
   error: ApiError | null;
   loading: boolean;
   lastRefresh: Date | null;
@@ -25,6 +27,7 @@ export default function useListQuery<T>({
   onInitialResult,
 }: UseListQueryOptions<T>): UseListQueryResult<T> {
   const [items, setItems] = useState<T[]>([]);
+  const [dataplaneMeta, setDataplaneMeta] = useState<DataplaneListMeta | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -41,11 +44,13 @@ export default function useListQuery<T>({
     setError(null);
     try {
       const next = await fetchItems();
-      setItems(next);
+      setItems(next.rows);
+      setDataplaneMeta(next.dataplaneMeta ?? null);
       setLastRefresh(new Date());
       onInitialResultRef.current?.();
     } catch (err) {
       setItems([]);
+      setDataplaneMeta(null);
       onInitialResultRef.current?.();
       setError(toApiError(err));
     } finally {
@@ -63,7 +68,8 @@ export default function useListQuery<T>({
     const t = setInterval(async () => {
       try {
         const next = await fetchItems();
-        setItems(next);
+        setItems(next.rows);
+        setDataplaneMeta(next.dataplaneMeta ?? null);
         setLastRefresh(new Date());
         setError(null);
       } catch {
@@ -73,5 +79,5 @@ export default function useListQuery<T>({
     return () => clearInterval(t);
   }, [enabled, refreshSec, fetchItems]);
 
-  return { items, error, loading, lastRefresh, refetch: loadInitial };
+  return { items, dataplaneMeta, error, loading, lastRefresh, refetch: loadInitial };
 }

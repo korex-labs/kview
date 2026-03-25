@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import IngressDrawer from "./IngressDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -80,13 +81,16 @@ export default function IngressesTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: Ingress[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<Ingress>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/ingresses`,
       token,
     );
     const items = res.items || [];
-    return items.map((i) => ({ ...i, id: `${i.namespace}/${i.name}` }));
+    return {
+      rows: items.map((i) => ({ ...i, id: `${i.namespace}/${i.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

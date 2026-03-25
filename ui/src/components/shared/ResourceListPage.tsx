@@ -5,8 +5,10 @@ import useListQuery from "../../utils/useListQuery";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
 import type { AccessReviewResource } from "../../utils/k8sResources";
+import type { ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
 import ResourceTableToolbar, { type ResourceTableToolbarProps } from "./ResourceTableToolbar";
+import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
@@ -21,7 +23,10 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   token: string;
   title: React.ReactNode;
   columns: GridColDef<TRow>[];
-  fetchRows: () => Promise<TRow[]>;
+  /** Return rows plus optional dataplane list metadata for the shared meta strip. */
+  fetchRows: () => Promise<ResourceListFetchResult<TRow>>;
+  /** Optional line above dataplane meta (e.g. namespace row-projection cap note). */
+  dataplaneMetaPrefix?: React.ReactNode;
   enabled?: boolean;
   filterPredicate: (row: TRow, query: string) => boolean;
   filterLabel: string;
@@ -55,6 +60,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   namespace = null,
   defaultSortField = "name",
   initialRefreshSec = 10,
+  dataplaneMetaPrefix,
   renderDrawer,
   renderFooterExtra,
   getRowHeight,
@@ -72,7 +78,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const fetchRowsStable = useCallback(() => fetchRows(), [fetchRows]);
 
-  const { items: rows, error, loading, lastRefresh, refetch } = useListQuery<TRow>({
+  const { items: rows, dataplaneMeta, error, loading, lastRefresh, refetch } = useListQuery<TRow>({
     enabled,
     refreshSec,
     fetchItems: fetchRowsStable,
@@ -121,9 +127,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>
+      <Typography variant="h6" sx={{ mb: 0.5 }}>
         {title}
       </Typography>
+      <DataplaneListMetaStrip meta={dataplaneMeta} prefix={dataplaneMetaPrefix} />
 
       <div style={{ height: "100%", width: "100%", minHeight: 0 }}>
         <DataGrid<TRow>

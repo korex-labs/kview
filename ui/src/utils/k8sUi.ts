@@ -77,6 +77,28 @@ export function deploymentHealthBucketColor(bucket?: string | null): ChipColor {
   }
 }
 
+/** Namespace list row projection: dataplane coarse state family */
+export function namespaceRowSummaryStateColor(state?: string | null): ChipColor {
+  return dataplaneCoarseStateChipColor(state);
+}
+
+/** Coarse dataplane / list state (ok, empty, denied, partial_proxy, degraded) for chips */
+export function dataplaneCoarseStateChipColor(state?: string | null): ChipColor {
+  switch (state) {
+    case "ok":
+      return "success";
+    case "empty":
+      return "default";
+    case "denied":
+      return "error";
+    case "partial_proxy":
+    case "degraded":
+      return "warning";
+    default:
+      return "default";
+  }
+}
+
 export function jobStatusChipColor(status?: string | null): ChipColor {
   switch (status) {
     case "Complete":

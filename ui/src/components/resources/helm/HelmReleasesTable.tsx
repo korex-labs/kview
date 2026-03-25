@@ -95,13 +95,13 @@ export default function HelmReleasesTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: HelmRelease[] }>(
       `/api/namespaces/${encodeURIComponent(namespace)}/helmreleases`,
       token,
     );
     const items = res.items || [];
-    return items.map((r) => ({ ...r, id: `${r.namespace}/${r.name}` }));
+    return { rows: items.map((r) => ({ ...r, id: `${r.namespace}/${r.name}` })) };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

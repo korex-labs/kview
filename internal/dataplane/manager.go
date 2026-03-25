@@ -64,6 +64,8 @@ type DataPlaneManager interface {
 
 	// NamespacesSnapshot returns a raw snapshot for namespaces in the given cluster.
 	NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error)
+	// EnrichNamespaceListItems adds bounded per-row workload metrics from pods/deployments snapshots.
+	EnrichNamespaceListItems(ctx context.Context, clusterName string, items []dto.NamespaceListItemDTO) ([]dto.NamespaceListItemDTO, dto.NamespaceListRowProjectionMetaDTO)
 	// NodesSnapshot returns a raw snapshot for nodes in the given cluster.
 	NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error)
 	// PodsSnapshot returns a raw snapshot for pods in the given namespace.
@@ -96,6 +98,9 @@ type DataPlaneManager interface {
 
 	// DashboardSummary returns a minimal cluster dashboard backed by dataplane snapshots.
 	DashboardSummary(ctx context.Context, clusterName string) ClusterDashboardSummary
+
+	// NamespaceSummaryProjection builds namespace summary from dataplane snapshots (projection-led).
+	NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (NamespaceSummaryProjection, error)
 }
 
 // ManagerConfig describes construction-time parameters for the data plane manager.
@@ -123,9 +128,8 @@ func (mc managerClients) GetClientsForContext(ctx context.Context, name string) 
 	return mc.m.GetClientsForContext(ctx, name)
 }
 
-// manager is the foundational implementation of DataPlaneManager.
-// Stage 5A keeps it intentionally narrow: per-cluster planes, scheduler-mediated
-// snapshot reads, namespace summary projection, and observer lifecycle tracking.
+// manager is the foundational implementation of DataPlaneManager: per-cluster planes,
+// scheduler-mediated snapshot reads, namespace summary projection, dashboard aggregate, and observers.
 type manager struct {
 	rt runtime.RuntimeManager
 

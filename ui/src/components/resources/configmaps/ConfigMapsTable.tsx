@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ConfigMapDrawer from "./ConfigMapDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -53,13 +54,16 @@ export default function ConfigMapsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: ConfigMap[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<ConfigMap>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/configmaps`,
       token,
     );
     const items = res.items || [];
-    return items.map((cm) => ({ ...cm, id: `${cm.namespace}/${cm.name}` }));
+    return {
+      rows: items.map((cm) => ({ ...cm, id: `${cm.namespace}/${cm.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback((row: Row, q: string) => row.name.toLowerCase().includes(q), []);

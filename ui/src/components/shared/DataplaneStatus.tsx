@@ -2,25 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Box, Chip, CircularProgress, Typography } from "@mui/material";
 import { apiGet } from "../../api";
 import type { ApiDashboardClusterResponse } from "../../types/api";
+import { dataplaneCoarseStateChipColor } from "../../utils/k8sUi";
 
 type Props = {
   token: string;
 };
-
-function chipColorForState(state: string): "success" | "warning" | "error" | "default" {
-  switch (state) {
-    case "ok":
-      return "success";
-    case "empty":
-      return "default";
-    case "denied":
-    case "partial_proxy":
-    case "degraded":
-      return "error";
-    default:
-      return "warning";
-  }
-}
 
 export default function DataplaneStatus(props: Props) {
   const [loading, setLoading] = useState(false);
@@ -69,8 +55,8 @@ export default function DataplaneStatus(props: Props) {
     return null;
   }
 
-  const ns = data.item.namespaces;
-  const nodes = data.item.nodes;
+  const ns = data.item.visibility.namespaces;
+  const nodes = data.item.visibility.nodes;
   const plane = data.item.plane;
   const wh = data.item.workloadHints;
 
@@ -93,12 +79,12 @@ export default function DataplaneStatus(props: Props) {
       <Chip
         size="small"
         label={`Namespaces: ${ns.state} (${ns.freshness}, cov=${ns.coverage})`}
-        color={chipColorForState(ns.state)}
+        color={dataplaneCoarseStateChipColor(ns.state)}
       />
       <Chip
         size="small"
         label={`Nodes: ${nodes.state} (${nodes.freshness}, cov=${nodes.coverage})`}
-        color={chipColorForState(nodes.state)}
+        color={dataplaneCoarseStateChipColor(nodes.state)}
       />
       <Chip
         size="small"

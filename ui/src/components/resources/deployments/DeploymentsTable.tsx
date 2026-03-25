@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import DeploymentDrawer from "./DeploymentDrawer";
 import { fmtAge } from "../../../utils/format";
 import { deploymentHealthBucketColor, eventChipColor, statusChipColor } from "../../../utils/k8sUi";
@@ -86,13 +87,16 @@ export default function DeploymentsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: Deployment[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<Deployment>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/deployments`,
       token,
     );
     const items = res.items || [];
-    return items.map((d) => ({ ...d, id: `${d.namespace}/${d.name}` }));
+    return {
+      rows: items.map((d) => ({ ...d, id: `${d.namespace}/${d.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import JobDrawer from "./JobDrawer";
 import { fmtAge } from "../../../utils/format";
 import { jobStatusChipColor } from "../../../utils/k8sUi";
@@ -57,13 +58,16 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function JobsTable({ token, namespace }: { token: string; namespace: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: Job[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<Job>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/jobs`,
       token,
     );
     const items = res.items || [];
-    return items.map((j) => ({ ...j, id: `${j.namespace}/${j.name}` }));
+    return {
+      rows: items.map((j) => ({ ...j, id: `${j.namespace}/${j.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
+import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import StatefulSetDrawer from "./StatefulSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -49,13 +50,16 @@ export default function StatefulSetsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
-    const res = await apiGet<{ items: StatefulSet[] }>(
+  const fetchRows = useCallback(async () => {
+    const res = await apiGet<ApiDataplaneListResponse<StatefulSet>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/statefulsets`,
       token,
     );
     const items = res.items || [];
-    return items.map((d) => ({ ...d, id: `${d.namespace}/${d.name}` }));
+    return {
+      rows: items.map((d) => ({ ...d, id: `${d.namespace}/${d.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

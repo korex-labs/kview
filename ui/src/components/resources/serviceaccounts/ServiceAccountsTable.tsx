@@ -51,13 +51,13 @@ export default function ServiceAccountsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: ServiceAccount[] }>(
       `/api/namespaces/${encodeURIComponent(namespace)}/serviceaccounts`,
       token,
     );
     const items = res.items || [];
-    return items.map((sa) => ({ ...sa, id: `${sa.namespace}/${sa.name}` }));
+    return { rows: items.map((sa) => ({ ...sa, id: `${sa.namespace}/${sa.name}` })) };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

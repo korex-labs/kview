@@ -42,13 +42,13 @@ export default function RolesTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: Role[] }>(
       `/api/namespaces/${encodeURIComponent(namespace)}/roles`,
       token,
     );
     const items = res.items || [];
-    return items.map((role) => ({ ...role, id: `${role.namespace}/${role.name}` }));
+    return { rows: items.map((role) => ({ ...role, id: `${role.namespace}/${role.name}` })) };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(

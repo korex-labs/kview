@@ -17,7 +17,7 @@ import { apiGet, toApiError } from "../../../api";
 import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
-import { namespacePhaseChipColor, helmStatusChipColor } from "../../../utils/k8sUi";
+import { namespacePhaseChipColor, helmStatusChipColor, dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
 import type { ChipColor } from "../../../utils/k8sUi";
 import KeyValueTable from "../../shared/KeyValueTable";
 import AccessDeniedState from "../../shared/AccessDeniedState";
@@ -412,7 +412,11 @@ export default function NamespaceDrawer(props: {
                     <Section title="Summary status (dataplane)">
                       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
-                          <Chip size="small" label={`state: ${summaryMeta.state || "unknown"}`} color="default" />
+                          <Chip
+                            size="small"
+                            label={`state: ${summaryMeta.state || "unknown"}`}
+                            color={dataplaneCoarseStateChipColor(summaryMeta.state)}
+                          />
                           <Chip size="small" label={`freshness: ${summaryMeta.freshness || "?"}`} variant="outlined" />
                           <Chip size="small" label={`coverage: ${summaryMeta.coverage || "?"}`} variant="outlined" />
                           <Chip size="small" label={`degradation: ${summaryMeta.degradation || "?"}`} variant="outlined" />

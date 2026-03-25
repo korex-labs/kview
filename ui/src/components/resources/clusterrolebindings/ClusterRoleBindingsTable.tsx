@@ -48,10 +48,10 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function ClusterRoleBindingsTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (): Promise<Row[]> => {
+  const fetchRows = useCallback(async () => {
     const res = await apiGet<{ items: ClusterRoleBinding[] }>("/api/clusterrolebindings", token);
     const items = res.items || [];
-    return items.map((rb) => ({ ...rb, id: rb.name }));
+    return { rows: items.map((rb) => ({ ...rb, id: rb.name })) };
   }, [token]);
 
   const filterPredicate = useCallback(
