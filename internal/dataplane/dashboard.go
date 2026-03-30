@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	"kview/internal/kube/dto"
 )
@@ -14,11 +15,12 @@ const (
 
 // ClusterDashboardSummary is a bounded Stage 5C operator overview derived from dataplane snapshots.
 type ClusterDashboardSummary struct {
-	Plane         ClusterDashboardPlane             `json:"plane"`
-	Visibility    ClusterDashboardVisibilityPanel   `json:"visibility"`
-	Resources     ClusterDashboardResourcesPanel    `json:"resources"`
-	Hotspots      ClusterDashboardHotspotsPanel     `json:"hotspots"`
-	WorkloadHints ClusterDashboardWorkloadHints     `json:"workloadHints"`
+	Plane         ClusterDashboardPlane           `json:"plane"`
+	Visibility    ClusterDashboardVisibilityPanel `json:"visibility"`
+	Coverage      ClusterDashboardCoverage        `json:"coverage"`
+	Resources     ClusterDashboardResourcesPanel  `json:"resources"`
+	Hotspots      ClusterDashboardHotspotsPanel   `json:"hotspots"`
+	WorkloadHints ClusterDashboardWorkloadHints   `json:"workloadHints"`
 }
 
 type ClusterDashboardPlane struct {
@@ -65,57 +67,63 @@ type ClusterDashboardVisibilityPanel struct {
 	TrustNote            string                     `json:"trustNote,omitempty"`
 }
 
-// ClusterDashboardResourcesPanel is summed from a bounded alphabetical namespace sample (see Partial/Note).
+// ClusterDashboardCoverage describes namespace visibility, row-enrichment progress, and workload-total scope.
+type ClusterDashboardCoverage struct {
+	VisibleNamespaces            int    `json:"visibleNamespaces"`
+	ListOnlyNamespaces           int    `json:"listOnlyNamespaces"`
+	DetailEnrichedNamespaces     int    `json:"detailEnrichedNamespaces"`
+	RelatedEnrichedNamespaces    int    `json:"relatedEnrichedNamespaces"`
+	AwaitingRelatedRowProjection int    `json:"awaitingRelatedRowProjection"`
+	EnrichmentTargets            int    `json:"enrichmentTargets,omitempty"`
+	HasActiveEnrichmentSession   bool   `json:"hasActiveEnrichmentSession,omitempty"`
+	ResourceTotalsCompleteness   string `json:"resourceTotalsCompleteness"`
+	NamespacesInResourceTotals   int    `json:"namespacesInResourceTotals"`
+	ResourceTotalsNote           string `json:"resourceTotalsNote,omitempty"`
+	Note                         string `json:"note,omitempty"`
+}
+
+// ClusterDashboardResourcesPanel sums workloads only for namespaces with cached dataplane list snapshots.
 type ClusterDashboardResourcesPanel struct {
 	Pods                   int    `json:"pods"`
 	Deployments            int    `json:"deployments"`
 	Services               int    `json:"services"`
 	Ingresses              int    `json:"ingresses"`
 	PersistentVolumeClaims int    `json:"persistentVolumeClaims"`
-	SampledNamespaces      int    `json:"sampledNamespaces"`
 	TotalNamespaces        int    `json:"totalNamespaces"`
-	Partial                bool   `json:"partial"`
 	Note                   string `json:"note,omitempty"`
-	SampleFreshness        string `json:"sampleFreshness,omitempty"`
-	SampleDegradation      string `json:"sampleDegradation,omitempty"`
+	AggregateFreshness     string `json:"aggregateFreshness,omitempty"`
+	AggregateDegradation   string `json:"aggregateDegradation,omitempty"`
 }
 
-// ClusterDashboardProblematicNamespace ranks namespaces by in-sample problematic resource count.
+// ClusterDashboardProblematicNamespace ranks namespaces by problematic resource count within the cached workload scope.
 type ClusterDashboardProblematicNamespace struct {
 	Namespace string `json:"namespace"`
 	Score     int    `json:"score"`
 }
 
-// ClusterDashboardHotspotsPanel is derived from the same bounded sample as Resources (not cluster-complete when Partial).
+// ClusterDashboardHotspotsPanel is derived from the same cached-namespace scope as Resources.
 type ClusterDashboardHotspotsPanel struct {
 	UnhealthyNamespaces        int                                    `json:"unhealthyNamespaces"`
-	SampledNamespaces          int                                    `json:"sampledNamespaces"`
 	DegradedDeployments        int                                    `json:"degradedDeployments"`
 	PodsWithElevatedRestarts   int                                    `json:"podsWithElevatedRestarts"`
 	ProblematicResources       int                                    `json:"problematicResources"`
 	TopProblematicNamespaces   []ClusterDashboardProblematicNamespace `json:"topProblematicNamespaces,omitempty"`
 	TopPodRestartHotspots      []dto.PodRestartHotspotDTO             `json:"topPodRestartHotspots,omitempty"`
-	Partial                    bool                                   `json:"partial"`
 	Note                       string                                 `json:"note,omitempty"`
-	SampleFreshness            string                                 `json:"sampleFreshness,omitempty"`
-	SampleDegradation          string                                 `json:"sampleDegradation,omitempty"`
+	AggregateFreshness         string                                 `json:"aggregateFreshness,omitempty"`
+	AggregateDegradation       string                                 `json:"aggregateDegradation,omitempty"`
 	HighSeverityHotspotsInTopN int                                    `json:"highSeverityHotspotsInTopN"`
 }
 
-// ClusterDashboardWorkloadHints is a bounded, visibility-aware workload signal from pod snapshots.
-// Populated from the same aggregate pass as Hotspots for backward compatibility with older UI chips.
+// ClusterDashboardWorkloadHints mirrors Hotspots for compact UI chips.
 type ClusterDashboardWorkloadHints struct {
-	TotalNamespacesVisible int `json:"totalNamespacesVisible"`
-	NamespacesPodSampled   int `json:"namespacesPodSampled"`
-	// TopPodRestartHotspots merges hotspots from sampled namespaces (global sort by restarts).
-	TopPodRestartHotspots []dto.PodRestartHotspotDTO `json:"topPodRestartHotspots,omitempty"`
-	// PodsWithElevatedRestarts counts pods with restarts >= 3 across sampled namespaces only.
-	PodsWithElevatedRestarts int `json:"podsWithElevatedRestarts"`
-	// HighSeverityHotspotsInTopN counts how many entries in TopPodRestartHotspots have severity "high".
-	HighSeverityHotspotsInTopN int    `json:"highSeverityHotspotsInTopN"`
-	SampleCoverageNote         string `json:"sampleCoverageNote,omitempty"`
-	SampleFreshness            string `json:"sampleFreshness,omitempty"`
-	SampleDegradation          string `json:"sampleDegradation,omitempty"`
+	TotalNamespacesVisible      int                        `json:"totalNamespacesVisible"`
+	NamespacesWithWorkloadCache int                        `json:"namespacesWithWorkloadCache"`
+	TopPodRestartHotspots       []dto.PodRestartHotspotDTO `json:"topPodRestartHotspots,omitempty"`
+	PodsWithElevatedRestarts    int                        `json:"podsWithElevatedRestarts"`
+	HighSeverityHotspotsInTopN  int                        `json:"highSeverityHotspotsInTopN"`
+	AggregateFreshness          string                     `json:"aggregateFreshness,omitempty"`
+	AggregateDegradation        string                     `json:"aggregateDegradation,omitempty"`
 }
 
 // DashboardSummary builds a bounded cluster dashboard from cached snapshots.
@@ -164,12 +172,9 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	resPanel, hotPanel, wh := m.aggregateClusterDashboard(ctx, plane, nsNames, nsTotal, nsUnhealthy)
+	resPanel, hotPanel, wh, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nsUnhealthy)
 
-	trust := "Namespace and node blocks reflect cluster-wide list snapshots. Resource totals and hotspot rollups use a bounded alphabetical namespace sample (see resources.partial / resources.note)."
-	if resPanel.Partial {
-		trust += " Overview is not cluster-complete for workload aggregates."
-	}
+	trust := "Namespace and node blocks reflect cluster-wide list snapshots. Workload totals and hotspots use only namespaces where the dataplane already has cached list snapshots (see coverage.resourceTotalsCompleteness and coverage.namespacesInResourceTotals)."
 
 	return ClusterDashboardSummary{
 		Plane: ClusterDashboardPlane{
@@ -207,8 +212,17 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string) Clus
 			NodesObservedAt:      formatSnapshotTime(nodesSnap.Meta.ObservedAt),
 			TrustNote:            trust,
 		},
+		Coverage:      cov,
 		Resources:     resPanel,
 		Hotspots:      hotPanel,
 		WorkloadHints: wh,
 	}
+}
+
+// formatSnapshotTime returns RFC3339 or empty when unset.
+func formatSnapshotTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }

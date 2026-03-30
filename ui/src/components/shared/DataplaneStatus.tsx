@@ -66,13 +66,12 @@ export default function DataplaneStatus(props: Props) {
         Cluster data · context {data.active || "-"}
       </Typography>
 
-      {wh && wh.namespacesPodSampled > 0 && (
+      {wh && wh.namespacesWithWorkloadCache > 0 && (
         <Chip
           size="small"
           variant="outlined"
           color={wh.highSeverityHotspotsInTopN > 0 ? "warning" : "default"}
-          label={`Pod sample: ${wh.namespacesPodSampled}/${wh.totalNamespacesVisible} ns · elevated restarts: ${wh.podsWithElevatedRestarts}`}
-          title={wh.sampleCoverageNote || ""}
+          label={`Workload cache: ${wh.namespacesWithWorkloadCache}/${wh.totalNamespacesVisible} ns · elevated restarts: ${wh.podsWithElevatedRestarts}`}
         />
       )}
 

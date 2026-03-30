@@ -26,10 +26,21 @@ function stateChipColor(state: string): "success" | "warning" | "error" | "defau
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <TableRow>
-      <TableCell sx={{ border: 0, py: 0.5, pl: 0, color: "text.secondary", width: 200 }}>{label}</TableCell>
+      <TableCell sx={{ border: 0, py: 0.5, pl: 0, color: "text.secondary", width: 220 }}>{label}</TableCell>
       <TableCell sx={{ border: 0, py: 0.5, fontWeight: 600 }}>{value}</TableCell>
     </TableRow>
   );
+}
+
+function completenessExplanation(v: string): string {
+  switch (v) {
+    case "complete":
+      return "Workload totals cover every visible namespace that has a cached pod list in the dataplane.";
+    case "partial":
+      return "Workload totals cover only namespaces with cached pod lists; some visible namespaces are not included yet.";
+    default:
+      return "Workload totals are not available until the dataplane has cached pod lists for at least one visible namespace.";
+  }
 }
 
 export default function DashboardView(props: Props) {
@@ -61,7 +72,8 @@ export default function DashboardView(props: Props) {
       <Box sx={{ px: 2, pt: 1 }}>
         <Typography variant="h6">Cluster overview</Typography>
         <Typography variant="body2" color="text.secondary">
-          Cached lists and a sample of namespaces — useful for a quick pulse, not a full inventory of the cluster.
+          Dataplane-backed snapshot of namespace and node lists, row-enrichment coverage, and workload rollups from cached
+          namespace data only — no inferred cluster-wide totals.
         </Typography>
       </Box>
 
@@ -83,18 +95,19 @@ export default function DashboardView(props: Props) {
       {!loading && !err && data?.item && (
         <Box sx={{ px: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           {(() => {
-            const { plane, visibility, resources, hotspots } = data.item;
+            const { plane, visibility, coverage, resources, hotspots } = data.item;
             const ns = visibility.namespaces;
             const nodes = visibility.nodes;
+            const cov = coverage;
 
             return (
               <>
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="subtitle2" color="primary" gutterBottom>
-                    1 · How data is collected
+                    1 · Dataplane scope
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Settings that control which namespaces and resource types are watched, and how often lists refresh.
+                    Which namespaces and resource kinds the dataplane observes, and observer wiring for list refreshes.
                   </Typography>
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                     <Chip size="small" label={`View: ${plane.profile}`} variant="outlined" />
@@ -118,10 +131,10 @@ export default function DashboardView(props: Props) {
 
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="subtitle2" color="primary" gutterBottom>
-                    2 · Lists and freshness
+                    2 · List health and freshness
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Cluster-wide namespace and node lists — how current they are and how much of the cluster they cover.
+                    Cluster-wide namespace and node lists: coarse state, metadata signals, and last observation time.
                   </Typography>
                   {visibility.trustNote && (
                     <Typography variant="caption" color="warning.main" display="block" sx={{ mb: 1 }}>
@@ -148,27 +161,80 @@ export default function DashboardView(props: Props) {
                       />
                       <StatCell label="Nodes (total)" value={nodes.total} />
                       <StatCell
-                        label="Namespaces · scope / issues / detail"
+                        label="Namespaces · scope / degradation / completeness"
                         value={`${ns.coverage} · ${ns.degradation} · ${ns.completeness}`}
                       />
                       <StatCell
-                        label="Nodes · scope / issues / detail"
+                        label="Nodes · scope / degradation / completeness"
                         value={`${nodes.coverage} · ${nodes.degradation} · ${nodes.completeness}`}
                       />
-                      <StatCell label="Namespaces last checked" value={visibility.namespacesObservedAt || "—"} />
-                      <StatCell label="Nodes last checked" value={visibility.nodesObservedAt || "—"} />
+                      <StatCell label="Namespaces last observed" value={visibility.namespacesObservedAt || "—"} />
+                      <StatCell label="Nodes last observed" value={visibility.nodesObservedAt || "—"} />
                     </TableBody>
                   </Table>
                 </Paper>
 
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="subtitle2" color="primary" gutterBottom>
-                    3 · Resource totals (sample)
+                    3 · Coverage
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Pods, deployments, services, ingresses, and PVCs counted across the first {resources.sampledNamespaces}{" "}
-                    namespaces (alphabetically)
-                    {resources.partial ? ` — out of ${resources.totalNamespaces} visible namespaces, not the whole cluster` : ""}.
+                    Namespace visibility, optional row-enrichment progress, and how complete workload totals are relative
+                    to visible namespaces.
+                  </Typography>
+                  {cov.note && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                      {cov.note}
+                    </Typography>
+                  )}
+                  {cov.resourceTotalsNote && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                      {cov.resourceTotalsNote}
+                    </Typography>
+                  )}
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color={cov.resourceTotalsCompleteness === "unknown" ? "warning" : "default"}
+                      label={`Workload totals: ${cov.resourceTotalsCompleteness}`}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`Namespaces in workload totals: ${cov.namespacesInResourceTotals} / ${cov.visibleNamespaces}`}
+                    />
+                    {cov.hasActiveEnrichmentSession && (
+                      <Chip size="small" variant="outlined" label="Row enrichment session active" />
+                    )}
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                    {completenessExplanation(cov.resourceTotalsCompleteness)}
+                  </Typography>
+                  <Table size="small">
+                    <TableBody>
+                      <StatCell label="Visible namespaces" value={cov.visibleNamespaces} />
+                      <StatCell
+                        label="Not targeted for background row enrichment"
+                        value={cov.listOnlyNamespaces}
+                      />
+                      <StatCell label="Detail fetches completed (session)" value={cov.detailEnrichedNamespaces} />
+                      <StatCell label="Related row projections (pods/deployments)" value={cov.relatedEnrichedNamespaces} />
+                      <StatCell label="Awaiting related projection" value={cov.awaitingRelatedRowProjection} />
+                      {cov.enrichmentTargets != null && cov.enrichmentTargets > 0 && (
+                        <StatCell label="Enrichment target namespaces" value={cov.enrichmentTargets} />
+                      )}
+                    </TableBody>
+                  </Table>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" color="primary" gutterBottom>
+                    4 · Resource totals (known namespaces)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Pods, deployments, services, ingresses, and PVCs summed only from namespaces where the dataplane already
+                    has cached list snapshots (typically from visiting those namespaces or enrichment).
                   </Typography>
                   {resources.note && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
@@ -176,16 +242,15 @@ export default function DashboardView(props: Props) {
                     </Typography>
                   )}
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                    {resources.partial && <Chip size="small" color="warning" label="Partial aggregate" variant="outlined" />}
-                    {resources.sampleFreshness && (
-                      <Chip size="small" variant="outlined" label={`Sample age: ${resources.sampleFreshness}`} />
+                    {resources.aggregateFreshness && (
+                      <Chip size="small" variant="outlined" label={`Aggregate freshness: ${resources.aggregateFreshness}`} />
                     )}
-                    {resources.sampleDegradation && resources.sampleDegradation !== "none" && (
+                    {resources.aggregateDegradation && resources.aggregateDegradation !== "none" && (
                       <Chip
                         size="small"
                         color="warning"
                         variant="outlined"
-                        label={`Sample issues: ${resources.sampleDegradation}`}
+                        label={`Aggregate degradation: ${resources.aggregateDegradation}`}
                       />
                     )}
                   </Box>
@@ -202,11 +267,11 @@ export default function DashboardView(props: Props) {
 
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="subtitle2" color="primary" gutterBottom>
-                    4 · Hotspots (same sample)
+                    5 · Hotspots (known namespaces)
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Highlights from the same namespaces as section 3. Pods with at least 3 container restarts are flagged;
-                    top lists are merged and capped.
+                    Same cached-namespace scope as resource totals. Pods with at least 3 container restarts are flagged;
+                    merged top lists are capped.
                   </Typography>
                   {hotspots.note && hotspots.note !== resources.note && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
@@ -214,24 +279,34 @@ export default function DashboardView(props: Props) {
                     </Typography>
                   )}
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                    {hotspots.partial && <Chip size="small" color="warning" label="Partial rollup" variant="outlined" />}
                     {hotspots.highSeverityHotspotsInTopN > 0 && (
                       <Chip size="small" color="error" label={`High-severity hotspots: ${hotspots.highSeverityHotspotsInTopN}`} />
+                    )}
+                    {hotspots.aggregateFreshness && (
+                      <Chip size="small" variant="outlined" label={`Aggregate freshness: ${hotspots.aggregateFreshness}`} />
+                    )}
+                    {hotspots.aggregateDegradation && hotspots.aggregateDegradation !== "none" && (
+                      <Chip
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        label={`Aggregate degradation: ${hotspots.aggregateDegradation}`}
+                      />
                     )}
                   </Box>
                   <Table size="small">
                     <TableBody>
                       <StatCell label="Unhealthy namespaces (from cluster list)" value={hotspots.unhealthyNamespaces} />
-                      <StatCell label="Deployments needing attention (in sample)" value={hotspots.degradedDeployments} />
-                      <StatCell label="Pods with many restarts (≥3, in sample)" value={hotspots.podsWithElevatedRestarts} />
-                      <StatCell label="Other flagged resources (in sample, per namespace)" value={hotspots.problematicResources} />
+                      <StatCell label="Deployments needing attention (cached scope)" value={hotspots.degradedDeployments} />
+                      <StatCell label="Pods with many restarts (≥3, cached scope)" value={hotspots.podsWithElevatedRestarts} />
+                      <StatCell label="Other flagged resources (cached scope)" value={hotspots.problematicResources} />
                     </TableBody>
                   </Table>
                   {hotspots.topProblematicNamespaces && hotspots.topProblematicNamespaces.length > 0 && (
                     <>
                       <Divider sx={{ my: 1.5 }} />
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                        Namespaces with the most flagged resources (sample)
+                        Namespaces with the most flagged resources (cached scope)
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {hotspots.topProblematicNamespaces.map((t) => (

@@ -60,6 +60,20 @@ func (s *namespacedSnapshotStore[T]) getFresh(namespace string, ttl time.Duratio
 	return snap, true
 }
 
+// getCached returns the latest stored snapshot for the namespace when ObservedAt is set,
+// ignoring TTL (dashboard and other read paths that must not trigger list fetches).
+func (s *namespacedSnapshotStore[T]) getCached(namespace string) (T, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	snap, ok := s.snaps[namespace]
+	if !ok || snap.ObservedAt().IsZero() {
+		var zero T
+		return zero, false
+	}
+	return snap, true
+}
+
 func (s *namespacedSnapshotStore[T]) set(namespace string, snap T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

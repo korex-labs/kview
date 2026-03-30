@@ -1,26 +1,39 @@
 package dataplane
 
 import (
-	"context"
 	"sort"
-	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"kview/internal/kube/dto"
 )
 
 const (
-	// clusterDashboardAggregateSampleNamespaces bounds how many namespaces contribute to
-	// resource totals and hotspot rollups on the cluster dashboard (alphabetical order).
-	clusterDashboardAggregateSampleNamespaces = 12
-	clusterDashboardHotspotMergeLimit         = 10
-	dashboardAggregateParallel                = 6
+	clusterDashboardHotspotMergeLimit = 10
 )
 
-// aggregateClusterDashboard samples up to clusterDashboardAggregateSampleNamespaces namespaces
-// (alphabetical) and aggregates pods, deployments, services, ingresses, and PVCs snapshots.
-func (m *manager) aggregateClusterDashboard(ctx context.Context, plane *clusterPlane, nsNamesSorted []string, nsTotal int, nsUnhealthy int) (ClusterDashboardResourcesPanel, ClusterDashboardHotspotsPanel, ClusterDashboardWorkloadHints) {
+// resourceTotalsCompletenessLabel returns complete | partial | unknown for visible vs cached pod-list namespaces.
+func resourceTotalsCompletenessLabel(visible, withCachedPods int) string {
+	if visible <= 0 {
+		return "unknown"
+	}
+	if withCachedPods <= 0 {
+		return "unknown"
+	}
+	if withCachedPods >= visible {
+		return "complete"
+	}
+	return "partial"
+}
+
+// aggregateClusterDashboard rolls up workload totals and hotspots only from namespaces that already
+// have cached dataplane list snapshots (typically from visiting those namespaces or row enrichment),
+// intersected with the current namespace list snapshot. No alphabetical sampling and no implicit cluster-wide totals.
+func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nsUnhealthy int) (ClusterDashboardResourcesPanel, ClusterDashboardHotspotsPanel, ClusterDashboardWorkloadHints, ClusterDashboardCoverage) {
+	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
+
+	knownNS := visibleNamespacesWithCachedPods(plane, nsNamesSorted)
+	cov.NamespacesInResourceTotals = len(knownNS)
+	cov.ResourceTotalsCompleteness = resourceTotalsCompletenessLabel(nsTotal, len(knownNS))
+
 	res := ClusterDashboardResourcesPanel{
 		TotalNamespaces: nsTotal,
 	}
@@ -28,69 +41,30 @@ func (m *manager) aggregateClusterDashboard(ctx context.Context, plane *clusterP
 		UnhealthyNamespaces: nsUnhealthy,
 	}
 	wh := ClusterDashboardWorkloadHints{
-		TotalNamespacesVisible: nsTotal,
-		SampleCoverageNote:     "aggregated_first_namespaces_alphabetical",
+		TotalNamespacesVisible:      nsTotal,
+		NamespacesWithWorkloadCache: len(knownNS),
 	}
 
-	nSample := clusterDashboardAggregateSampleNamespaces
-	if len(nsNamesSorted) < nSample {
-		nSample = len(nsNamesSorted)
-	}
-	res.SampledNamespaces = nSample
-	hot.SampledNamespaces = nSample
-	wh.NamespacesPodSampled = nSample
-
-	if nsTotal == 0 || nSample == 0 || plane == nil {
-		res.Note = "No namespaces visible in snapshot; resource totals are zero."
-		hot.Note = res.Note
-		return res, hot, wh
+	if nsTotal == 0 || len(knownNS) == 0 || plane == nil {
+		if nsTotal > 0 && len(knownNS) == 0 {
+			res.Note = "No cached workload list snapshots yet for visible namespaces; totals stay at zero until namespaces are opened or row enrichment fills caches."
+			hot.Note = res.Note
+			cov.ResourceTotalsNote = res.Note
+		} else if nsTotal == 0 {
+			res.Note = "No namespaces visible in snapshot; resource totals are zero."
+			hot.Note = res.Note
+		}
+		return res, hot, wh, cov
 	}
 
-	partial := nsTotal > nSample
-	res.Partial = partial
-	hot.Partial = partial
-	if partial {
-		trust := "Resource totals and hotspot rollups aggregate only the first namespaces alphabetically (see sampledNamespaces vs totalNamespaces); not cluster-complete."
-		res.Note = trust
-		hot.Note = trust
+	if cov.ResourceTotalsCompleteness == "partial" {
+		t := "Resource totals and hotspots sum only namespaces where the dataplane already has cached workload lists; some visible namespaces are not included yet."
+		res.Note = t
+		hot.Note = t
+		cov.ResourceTotalsNote = t
+	} else {
+		cov.ResourceTotalsNote = "Totals include every visible namespace that has a cached pod list snapshot."
 	}
-
-	type sample struct {
-		ns   string
-		pods PodsSnapshot
-		deps DeploymentsSnapshot
-		svcs ServicesSnapshot
-		ings IngressesSnapshot
-		pvcs PVCsSnapshot
-	}
-	samples := make([]sample, nSample)
-
-	sem := make(chan struct{}, dashboardAggregateParallel)
-	g, gctx := errgroup.WithContext(ctx)
-
-	for i := 0; i < nSample; i++ {
-		i := i
-		ns := nsNamesSorted[i]
-		g.Go(func() error {
-			select {
-			case <-gctx.Done():
-				return gctx.Err()
-			case sem <- struct{}{}:
-			}
-			defer func() { <-sem }()
-
-			ps, _ := plane.PodsSnapshot(gctx, m.scheduler, m.clients, ns, WorkPriorityMedium)
-			ds, _ := plane.DeploymentsSnapshot(gctx, m.scheduler, m.clients, ns, WorkPriorityMedium)
-			sv, _ := plane.ServicesSnapshot(gctx, m.scheduler, m.clients, ns, WorkPriorityMedium)
-			ing, _ := plane.IngressesSnapshot(gctx, m.scheduler, m.clients, ns, WorkPriorityMedium)
-			pvc, _ := plane.PVCsSnapshot(gctx, m.scheduler, m.clients, ns, WorkPriorityMedium)
-
-			samples[i] = sample{ns: ns, pods: ps, deps: ds, svcs: sv, ings: ing, pvcs: pvc}
-			return nil
-		})
-	}
-
-	_ = g.Wait()
 
 	var podMetas []SnapshotMetadata
 	var hotspotLists [][]dto.PodRestartHotspotDTO
@@ -98,55 +72,58 @@ func (m *manager) aggregateClusterDashboard(ctx context.Context, plane *clusterP
 		ns    string
 		score int
 	}
-	scores := make([]nsScore, 0, nSample)
+	scores := make([]nsScore, 0, len(knownNS))
 
-	for _, s := range samples {
-		if s.ns == "" {
-			continue
-		}
-		if s.pods.Err == nil {
-			res.Pods += len(s.pods.Items)
-			hot.PodsWithElevatedRestarts += CountPodsWithRestartThreshold(s.pods, restartElevatedThreshold)
-			podMetas = append(podMetas, s.pods.Meta)
-			hList := ProjectRestartHotspotsFromPods(s.ns, s.pods, defaultRestartHotspotLimit)
+	for _, ns := range knownNS {
+		podsSnap, podsOK := plane.podsStore.getCached(ns)
+		depsSnap, depsOK := plane.depsStore.getCached(ns)
+		svcsSnap, svcsOK := plane.svcsStore.getCached(ns)
+		ingsSnap, ingsOK := plane.ingStore.getCached(ns)
+		pvcSnap, pvcOK := plane.pvcsStore.getCached(ns)
+
+		if podsOK && podsSnap.Err == nil {
+			res.Pods += len(podsSnap.Items)
+			hot.PodsWithElevatedRestarts += CountPodsWithRestartThreshold(podsSnap, restartElevatedThreshold)
+			podMetas = append(podMetas, podsSnap.Meta)
+			hList := ProjectRestartHotspotsFromPods(ns, podsSnap, defaultRestartHotspotLimit)
 			if len(hList.Items) > 0 {
 				hotspotLists = append(hotspotLists, hList.Items)
 			}
 		}
-		if s.deps.Err == nil {
-			res.Deployments += len(s.deps.Items)
-			enriched := EnrichDeploymentListItemsForAPI(s.deps.Items)
+		if depsOK && depsSnap.Err == nil {
+			res.Deployments += len(depsSnap.Items)
+			enriched := EnrichDeploymentListItemsForAPI(depsSnap.Items)
 			for _, d := range enriched {
 				if d.HealthBucket == deployBucketDegraded || d.RolloutNeedsAttention {
 					hot.DegradedDeployments++
 				}
 			}
 		}
-		if s.svcs.Err == nil {
-			res.Services += len(s.svcs.Items)
-			podMetas = append(podMetas, s.svcs.Meta)
+		if svcsOK && svcsSnap.Err == nil {
+			res.Services += len(svcsSnap.Items)
+			podMetas = append(podMetas, svcsSnap.Meta)
 		}
-		if s.ings.Err == nil {
-			res.Ingresses += len(s.ings.Items)
-			podMetas = append(podMetas, s.ings.Meta)
+		if ingsOK && ingsSnap.Err == nil {
+			res.Ingresses += len(ingsSnap.Items)
+			podMetas = append(podMetas, ingsSnap.Meta)
 		}
-		if s.pvcs.Err == nil {
-			res.PersistentVolumeClaims += len(s.pvcs.Items)
-			podMetas = append(podMetas, s.pvcs.Meta)
+		if pvcOK && pvcSnap.Err == nil {
+			res.PersistentVolumeClaims += len(pvcSnap.Items)
+			podMetas = append(podMetas, pvcSnap.Meta)
 		}
 
 		var probPods []dto.ProblematicResource
-		if s.pods.Err == nil {
-			probPods = podProblematicFromListUnbounded(s.pods.Items)
+		if podsOK && podsSnap.Err == nil {
+			probPods = podProblematicFromListUnbounded(podsSnap.Items)
 		}
 		var probDeps []dto.ProblematicResource
-		if s.deps.Err == nil {
-			probDeps = deploymentProblematicListUnbounded(s.deps.Items)
+		if depsOK && depsSnap.Err == nil {
+			probDeps = deploymentProblematicListUnbounded(depsSnap.Items)
 		}
 		pc := countUniqueProblematic(probPods, probDeps)
 		hot.ProblematicResources += pc
 		if pc > 0 {
-			scores = append(scores, nsScore{ns: s.ns, score: pc})
+			scores = append(scores, nsScore{ns: ns, score: pc})
 		}
 	}
 
@@ -173,29 +150,83 @@ func (m *manager) aggregateClusterDashboard(ctx context.Context, plane *clusterP
 	if len(podMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(podMetas...))
 		wd := string(WorstDegradationFromSnapshots(podMetas...))
-		res.SampleFreshness = wf
-		res.SampleDegradation = wd
-		hot.SampleFreshness = wf
-		hot.SampleDegradation = wd
+		res.AggregateFreshness = wf
+		res.AggregateDegradation = wd
+		hot.AggregateFreshness = wf
+		hot.AggregateDegradation = wd
 	}
 
-	// Backward-compatible workloadHints block (same data as hotspots merge).
 	wh.TopPodRestartHotspots = hot.TopPodRestartHotspots
 	wh.PodsWithElevatedRestarts = hot.PodsWithElevatedRestarts
 	wh.HighSeverityHotspotsInTopN = hot.HighSeverityHotspotsInTopN
-	wh.SampleFreshness = hot.SampleFreshness
-	wh.SampleDegradation = hot.SampleDegradation
-	if partial {
-		wh.SampleCoverageNote = "pod_hotspots_and_resource_totals_sampled_first_namespaces_alphabetical_not_cluster_complete"
-	}
+	wh.AggregateFreshness = hot.AggregateFreshness
+	wh.AggregateDegradation = hot.AggregateDegradation
 
-	return res, hot, wh
+	return res, hot, wh, cov
 }
 
-// formatSnapshotTime returns RFC3339 or empty when unset.
-func formatSnapshotTime(t time.Time) string {
-	if t.IsZero() {
-		return ""
+func visibleNamespacesWithCachedPods(plane *clusterPlane, visibleSorted []string) []string {
+	if plane == nil || len(visibleSorted) == 0 {
+		return nil
 	}
-	return t.UTC().Format(time.RFC3339Nano)
+	out := make([]string, 0, len(visibleSorted))
+	for _, ns := range visibleSorted {
+		if _, ok := plane.podsStore.getCached(ns); ok {
+			out = append(out, ns)
+		}
+	}
+	return out
+}
+
+func (m *manager) buildDashboardCoverage(cluster string, visibleSorted []string, visibleCount int) ClusterDashboardCoverage {
+	cov := ClusterDashboardCoverage{
+		VisibleNamespaces: visibleCount,
+	}
+	if visibleCount == 0 {
+		cov.ListOnlyNamespaces = 0
+		cov.Note = "No namespace list snapshot."
+		return cov
+	}
+
+	m.nsEnrich.mu.Lock()
+	sess, ok := m.nsEnrich.byCluster[cluster]
+	m.nsEnrich.mu.Unlock()
+	if !ok || sess == nil {
+		cov.ListOnlyNamespaces = visibleCount
+		cov.Note = "No active namespace row-enrichment session; list-only counts assume the namespace list snapshot until enrichment runs."
+		return cov
+	}
+
+	sess.mu.Lock()
+	workSet := make(map[string]struct{}, len(sess.workNames))
+	for _, n := range sess.workNames {
+		workSet[n] = struct{}{}
+	}
+	detailDone := sess.detailDone
+	relatedEnriched := 0
+	listOnlyNeverQueued := 0
+	for _, name := range visibleSorted {
+		if _, w := workSet[name]; !w {
+			listOnlyNeverQueued++
+			continue
+		}
+		if row, ok := sess.merged[name]; ok && row.RowEnriched {
+			relatedEnriched++
+		}
+	}
+	sess.mu.Unlock()
+
+	cov.HasActiveEnrichmentSession = true
+	cov.EnrichmentTargets = len(workSet)
+	cov.DetailEnrichedNamespaces = detailDone
+	if detailDone > cov.EnrichmentTargets {
+		cov.DetailEnrichedNamespaces = cov.EnrichmentTargets
+	}
+	cov.RelatedEnrichedNamespaces = relatedEnriched
+	cov.ListOnlyNamespaces = listOnlyNeverQueued
+	cov.AwaitingRelatedRowProjection = visibleCount - listOnlyNeverQueued - relatedEnriched
+	if cov.AwaitingRelatedRowProjection < 0 {
+		cov.AwaitingRelatedRowProjection = 0
+	}
+	return cov
 }
