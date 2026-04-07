@@ -36,7 +36,7 @@ export type MutationDialogProps = {
   token: string;
   onSuccess?: () => void;
   /** Pre-populated values for paramSpecs fields (keyed by spec.key). */
-  initialParams?: Record<string, string>;
+  initialParams?: Record<string, string | boolean>;
 };
 
 const RISK_CHIP_COLOR: Record<string, "default" | "warning" | "error"> = {
@@ -47,6 +47,7 @@ const RISK_CHIP_COLOR: Record<string, "default" | "warning" | "error"> = {
 
 /** Returns true if the given value is valid for the param spec. */
 function isParamValid(spec: ParamSpec, value: string): boolean {
+  if (spec.kind === "boolean") return true;
   const trimmed = value.trim();
   if (spec.kind === "numeric") {
     if (trimmed === "") return !spec.required;
@@ -76,7 +77,7 @@ export default function MutationDialog({
   const [simpleChecked, setSimpleChecked] = useState(false);
   const [result, setResult] = useState<ExecuteActionResult | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [params, setParams] = useState<Record<string, string>>({});
+  const [params, setParams] = useState<Record<string, string | boolean>>({});
 
   // Reset all state each time the dialog opens.
   useEffect(() => {
@@ -87,10 +88,12 @@ export default function MutationDialog({
       setResult(null);
       setDetailsOpen(false);
       // Initialize params from initialParams, falling back to defaultValue from spec.
-      const initial: Record<string, string> = {};
+      const initial: Record<string, string | boolean> = {};
       for (const spec of descriptor.paramSpecs ?? []) {
         if (initialParams && initialParams[spec.key] !== undefined) {
           initial[spec.key] = initialParams[spec.key];
+        } else if (spec.kind === "boolean") {
+          initial[spec.key] = spec.defaultValue ?? false;
         } else if (spec.defaultValue !== undefined) {
           initial[spec.key] = String(spec.defaultValue);
         } else {
@@ -105,7 +108,7 @@ export default function MutationDialog({
   const confirmSpec = descriptor.confirmSpec;
 
   const paramsValid = (descriptor.paramSpecs ?? []).every((spec) =>
-    isParamValid(spec, params[spec.key] ?? "")
+    isParamValid(spec, String(params[spec.key] ?? ""))
   );
 
   const canExecute =
@@ -125,14 +128,17 @@ export default function MutationDialog({
     if (descriptor.paramSpecs && descriptor.paramSpecs.length > 0) {
       execParams = {};
       for (const spec of descriptor.paramSpecs) {
+        const value = params[spec.key];
         if (spec.kind === "numeric") {
-          execParams[spec.key] = parseInt((params[spec.key] ?? "").trim(), 10);
+          execParams[spec.key] = parseInt(String(value ?? "").trim(), 10);
+        } else if (spec.kind === "boolean") {
+          execParams[spec.key] = value === true;
         } else if (spec.kind === "textarea") {
           // Preserve raw value (e.g. YAML indentation must not be trimmed).
-          execParams[spec.key] = params[spec.key] ?? "";
+          execParams[spec.key] = String(value ?? "");
         } else {
           // string: trim whitespace
-          execParams[spec.key] = (params[spec.key] ?? "").trim();
+          execParams[spec.key] = String(value ?? "").trim();
         }
       }
     }
@@ -271,7 +277,8 @@ export default function MutationDialog({
               <Divider sx={{ mb: 2 }} />
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                 {descriptor.paramSpecs.map((spec) => {
-                  const val = params[spec.key] ?? "";
+                  const rawValue = params[spec.key];
+                  const val = String(rawValue ?? "");
 
                   if (spec.kind === "numeric") {
                     const showError = val !== "" && !isParamValid(spec, val);
@@ -337,6 +344,37 @@ export default function MutationDialog({
                             sx: { fontFamily: "monospace", fontSize: "0.85rem" },
                           }}
                         />
+                      </Box>
+                    );
+                  }
+
+                  if (spec.kind === "boolean") {
+                    return (
+                      <Box key={spec.key}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={rawValue === true}
+                              onChange={(e) =>
+                                setParams((prev) => ({
+                                  ...prev,
+                                  [spec.key]: e.target.checked,
+                                }))
+                              }
+                              disabled={phase === "running" || offline}
+                            />
+                          }
+                          label={spec.label}
+                        />
+                        {spec.helperText ? (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block", ml: 4 }}
+                          >
+                            {spec.helperText}
+                          </Typography>
+                        ) : null}
                       </Box>
                     );
                   }

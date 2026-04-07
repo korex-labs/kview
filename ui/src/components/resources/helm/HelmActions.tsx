@@ -56,6 +56,16 @@ export function HelmReleaseActions({
           confirmSpec: { mode: "simple" },
           group: "",
           resource: "helmreleases",
+          paramSpecs: [
+            {
+              kind: "boolean",
+              key: "force",
+              label: "Force resource updates",
+              helperText:
+                "Uses Helm force replacement. Use only when resources are stuck or immutable fields block reinstall.",
+              defaultValue: false,
+            },
+          ],
         }}
         targetRef={targetRef}
         token={token}
@@ -92,6 +102,14 @@ export function HelmReleaseActions({
               label: "Values YAML (optional)",
               placeholder: "key: value",
               minRows: 4,
+            },
+            {
+              kind: "boolean",
+              key: "force",
+              label: "Force resource updates",
+              helperText:
+                "Uses Helm force replacement. Use only when resources are stuck or immutable fields block upgrade.",
+              defaultValue: false,
             },
           ],
         }}

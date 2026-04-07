@@ -79,8 +79,27 @@ export type TextAreaParamSpec = {
   minRows?: number;
 };
 
+/**
+ * Specification for a boolean checkbox rendered inside the mutation dialog.
+ */
+export type BooleanParamSpec = {
+  kind: "boolean";
+  /** Key used in the params dict sent to the backend. */
+  key: string;
+  /** Human-readable label shown next to the checkbox. */
+  label: string;
+  /** Optional helper text shown below the checkbox. */
+  helperText?: string;
+  /** Default/initial value. */
+  defaultValue?: boolean;
+};
+
 /** Union of all supported param spec kinds. */
-export type ParamSpec = NumericParamSpec | StringParamSpec | TextAreaParamSpec;
+export type ParamSpec =
+  | NumericParamSpec
+  | StringParamSpec
+  | TextAreaParamSpec
+  | BooleanParamSpec;
 
 /**
  * Describes a mutation action that can be opened in the MutationDialog.

@@ -44,11 +44,11 @@ func (g *staticRESTClientGetter) ToRESTConfig() (*rest.Config, error) {
 }
 
 func (g *staticRESTClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
-    dc, err := discovery.NewDiscoveryClientForConfig(g.restConfig)
-    if err != nil {
-        return nil, err
-    }
-    return memory.NewMemCacheClient(dc), nil
+	dc, err := discovery.NewDiscoveryClientForConfig(g.restConfig)
+	if err != nil {
+		return nil, err
+	}
+	return memory.NewMemCacheClient(dc), nil
 }
 
 func (g *staticRESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
@@ -135,6 +135,7 @@ type HelmUpgradeRequest struct {
 	Chart      string `json:"chart"`
 	Version    string `json:"version"`
 	ValuesYaml string `json:"valuesYaml"`
+	Force      bool   `json:"force"`
 }
 
 func HelmUpgrade(_ context.Context, c *cluster.Clients, req HelmUpgradeRequest) (*HelmActionResult, error) {
@@ -145,6 +146,7 @@ func HelmUpgrade(_ context.Context, c *cluster.Clients, req HelmUpgradeRequest) 
 
 	upgrade := action.NewUpgrade(cfg)
 	upgrade.Namespace = req.Namespace
+	upgrade.Force = req.Force
 	if req.Version != "" {
 		upgrade.Version = req.Version
 	}
@@ -176,6 +178,7 @@ func HelmUpgrade(_ context.Context, c *cluster.Clients, req HelmUpgradeRequest) 
 			"release":  rel.Name,
 			"revision": rel.Version,
 			"status":   releaseStatus(rel),
+			"force":    req.Force,
 		},
 	}, nil
 }
@@ -241,6 +244,7 @@ func HelmInstall(_ context.Context, c *cluster.Clients, req HelmInstallRequest) 
 type HelmReinstallRequest struct {
 	Namespace string `json:"namespace"`
 	Release   string `json:"release"`
+	Force     bool   `json:"force"`
 }
 
 func HelmReinstall(ctx context.Context, c *cluster.Clients, req HelmReinstallRequest) (*HelmActionResult, error) {
@@ -287,7 +291,7 @@ func HelmReinstall(ctx context.Context, c *cluster.Clients, req HelmReinstallReq
 	upgrade.Namespace = req.Namespace
 	upgrade.ReuseValues = true
 	upgrade.ResetValues = false
-	upgrade.Force = false
+	upgrade.Force = req.Force
 	upgrade.Wait = true
 	upgrade.Atomic = true
 	upgrade.Timeout = 5 * time.Minute
@@ -314,6 +318,7 @@ func HelmReinstall(ctx context.Context, c *cluster.Clients, req HelmReinstallReq
 			"release":  res.Name,
 			"revision": res.Version,
 			"status":   releaseStatus(res),
+			"force":    req.Force,
 		},
 	}, nil
 }
@@ -341,9 +346,14 @@ func HandleHelmReinstall(ctx context.Context, c *cluster.Clients, req ActionRequ
 	if req.Namespace == "" || req.Name == "" {
 		return &ActionResult{Status: "error", Message: "namespace and release name are required"}, nil
 	}
+	force, forceResult := boolParam(req.Params, "force")
+	if forceResult != nil {
+		return forceResult, nil
+	}
 	result, err := HelmReinstall(ctx, c, HelmReinstallRequest{
 		Namespace: req.Namespace,
 		Release:   req.Name,
+		Force:     force,
 	})
 	if err != nil {
 		return nil, err
@@ -362,12 +372,17 @@ func HandleHelmUpgrade(ctx context.Context, c *cluster.Clients, req ActionReques
 	}
 	version, _ := req.Params["version"].(string)
 	valuesYaml, _ := req.Params["valuesYaml"].(string)
+	force, forceResult := boolParam(req.Params, "force")
+	if forceResult != nil {
+		return forceResult, nil
+	}
 	result, err := HelmUpgrade(ctx, c, HelmUpgradeRequest{
 		Namespace:  req.Namespace,
 		Release:    req.Name,
 		Chart:      chart,
 		Version:    version,
 		ValuesYaml: valuesYaml,
+		Force:      force,
 	})
 	if err != nil {
 		return nil, err

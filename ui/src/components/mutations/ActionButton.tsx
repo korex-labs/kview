@@ -18,8 +18,8 @@ export type ActionButtonProps = {
   disabled?: boolean;
   /** Shown as a tooltip when disabled (e.g. "Not permitted by RBAC"). */
   disabledReason?: string;
-  /** Pre-populated values for paramSpecs fields (keyed by NumericParamSpec.key). */
-  initialParams?: Record<string, string>;
+  /** Pre-populated values for paramSpecs fields. */
+  initialParams?: Record<string, string | boolean>;
 };
 
 /**

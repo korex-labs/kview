@@ -20,6 +20,16 @@ export function buildDeleteDescriptor(opts: {
     confirmSpec: { mode: "typed", requiredValue: opts.requiredValue },
     group: opts.group,
     resource: opts.resource,
+    paramSpecs: [
+      {
+        kind: "boolean",
+        key: "force",
+        label: "Force delete immediately",
+        helperText:
+          "Uses grace period 0, similar to kubectl --force --grace-period=0. Use only when normal deletion is stuck.",
+        defaultValue: false,
+      },
+    ],
   };
 }
 

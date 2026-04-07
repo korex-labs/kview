@@ -33,6 +33,14 @@ func validateNamespacedTarget(req ActionRequest, expectedGroup, expectedResource
 // it returns a non-nil *ActionResult that the caller should return immediately.
 func buildDeleteOptions(req ActionRequest) (metav1.DeleteOptions, *ActionResult) {
 	opts := metav1.DeleteOptions{}
+	force, result := boolParam(req.Params, "force")
+	if result != nil {
+		return opts, result
+	}
+	if force {
+		zero := int64(0)
+		opts.GracePeriodSeconds = &zero
+	}
 	if raw, ok := req.Params["propagationPolicy"]; ok {
 		policyStr, ok := raw.(string)
 		if !ok {
@@ -50,6 +58,18 @@ func buildDeleteOptions(req ActionRequest) (metav1.DeleteOptions, *ActionResult)
 		opts.PropagationPolicy = &policy
 	}
 	return opts, nil
+}
+
+func boolParam(params map[string]any, key string) (bool, *ActionResult) {
+	raw, ok := params[key]
+	if !ok {
+		return false, nil
+	}
+	value, ok := raw.(bool)
+	if !ok {
+		return false, &ActionResult{Status: "error", Message: fmt.Sprintf("params.%s must be a boolean", key)}
+	}
+	return value, nil
 }
 
 // handleNamespacedDelete is the shared helper for simple namespaced-delete
@@ -74,12 +94,18 @@ func handleNamespacedDelete(
 		return nil, err
 	}
 
+	force := opts.GracePeriodSeconds != nil && *opts.GracePeriodSeconds == 0
+	message := fmt.Sprintf("Deleted %s %s/%s", kindLabel, req.Namespace, req.Name)
+	if force {
+		message = fmt.Sprintf("Requested force delete for %s %s/%s", kindLabel, req.Namespace, req.Name)
+	}
 	return &ActionResult{
 		Status:  "ok",
-		Message: fmt.Sprintf("Deleted %s %s/%s", kindLabel, req.Namespace, req.Name),
+		Message: message,
 		Details: map[string]any{
 			"namespace": req.Namespace,
 			"name":      req.Name,
+			"force":     force,
 		},
 	}, nil
 }
@@ -193,11 +219,17 @@ func handleClusterDelete(
 		return nil, err
 	}
 
+	force := opts.GracePeriodSeconds != nil && *opts.GracePeriodSeconds == 0
+	message := fmt.Sprintf("Deleted %s %s", kindLabel, req.Name)
+	if force {
+		message = fmt.Sprintf("Requested force delete for %s %s", kindLabel, req.Name)
+	}
 	return &ActionResult{
 		Status:  "ok",
-		Message: fmt.Sprintf("Deleted %s %s", kindLabel, req.Name),
+		Message: message,
 		Details: map[string]any{
-			"name": req.Name,
+			"name":  req.Name,
+			"force": force,
 		},
 	}, nil
 }

@@ -5,12 +5,19 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import useListQuery from "./useListQuery";
 import React from "react";
 
-vi.mock("./connectionState", () => ({
-  useConnectionState: () => ({ retryNonce: 0 }),
+const mockConnection = vi.hoisted(() => ({
+  health: "healthy",
+  retryNonce: 0,
+}));
+
+vi.mock("../connectionState", () => ({
+  useConnectionState: () => mockConnection,
 }));
 
 describe("useListQuery revision polling", () => {
   beforeEach(() => {
+    mockConnection.health = "healthy";
+    mockConnection.retryNonce = 0;
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
   afterEach(() => {
@@ -107,6 +114,36 @@ describe("useListQuery revision polling", () => {
     });
 
     expect(fetchItems).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses dataplane refresh while connection health is unhealthy", async () => {
+    mockConnection.health = "unhealthy";
+    const fetchItems = vi.fn().mockResolvedValue({ rows: [{ id: "1", name: "a" }] });
+    const fetchRevision = vi.fn().mockResolvedValue("5");
+
+    const { result } = renderHook(() =>
+      useListQuery({
+        enabled: true,
+        refreshSec: 0,
+        fetchItems,
+        fetchRevision,
+        revisionPollSec: 1,
+        dataplaneRefreshSec: 10,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fetchItems).toHaveBeenCalledTimes(1);
+
+    fetchItems.mockClear();
+    fetchRevision.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_500);
+    });
+
+    expect(fetchRevision).not.toHaveBeenCalled();
+    expect(fetchItems).not.toHaveBeenCalled();
   });
 
   it("reloads when the query key changes", async () => {

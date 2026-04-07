@@ -9,8 +9,8 @@ export type OpenMutationParams = {
   token: string;
   /** Called immediately after a successful execution (before user closes). */
   onSuccess?: () => void;
-  /** Pre-populated values for paramSpecs fields (keyed by NumericParamSpec.key). */
-  initialParams?: Record<string, string>;
+  /** Pre-populated values for paramSpecs fields. */
+  initialParams?: Record<string, string | boolean>;
 };
 
 export type MutationContextValue = {
