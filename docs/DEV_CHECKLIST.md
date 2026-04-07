@@ -80,7 +80,7 @@ If architecture changes → update documentation.
 
 Check that:
 
-- UI actions respect `/api/capabilities`
+- UI actions respect `POST /api/capabilities`
 - forbidden actions are hidden or disabled
 - denial reasons are visible when needed
 

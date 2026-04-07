@@ -64,6 +64,8 @@ Design constraints (see `internal/dataplane` for implementation):
 - Enrichment targets are chosen from **hint-driven scoring** (focus namespace, favourites, recency), not a full alphabetical cluster walk.
 - **Cap** on how many namespaces get enrichment and **limited parallelism**.
 - **Idle gate:** enrichment starts only after API **user activity** has been quiet for a short window; polling the enrichment endpoint **does not** reset that timer.
+- **Stable refresh:** a repeated namespace list refresh reuses the active enrichment revision when the list order and target set are unchanged. Refreshed base rows keep any already-enriched pod/deployment counts and restart signals.
+- **Activity identity:** namespace row enrichment uses one stable activity ID per cluster instead of revision-numbered activity rows.
 
 List rows for **pods**, **deployments**, and workload controllers can include small **projection-derived** fields from snapshot DTOs in the list handler (`Enrich*ListItemsForAPI`) without extra kube calls.
 
@@ -82,6 +84,7 @@ List rows for **pods**, **deployments**, and workload controllers can include sm
 Dataplane-backed **list** handlers use a shared envelope pattern (`active`, `items`, `observed`, `meta` with `freshness`, `coverage`, `degradation`, `completeness`, `state`). Tests in `internal/server` cover response shaping where applicable.
 These read handlers accept optional `X-Kview-Context` so the UI can pin list and dashboard reads to the context that was active when the request was issued; missing headers fall back to the current active context.
 When a snapshot returns usable items with a normalized transient/proxy/degraded error, handlers preserve the items and return the metadata state rather than discarding the payload.
+The UI performs periodic background refresh for dataplane-backed list views and the cluster dashboard; this advances snapshots/projections while keeping the toolbar refresh mode off by default.
 
 ---
 

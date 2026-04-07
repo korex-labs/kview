@@ -90,7 +90,7 @@ Actions must respect RBAC capabilities.
 
 The UI queries:
 
-/api/capabilities
+POST /api/capabilities
 
 Actions must:
 

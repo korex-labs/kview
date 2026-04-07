@@ -76,7 +76,7 @@ and be registered via ActionRegistry.
 
 UI actions must respect:
 
-/api/capabilities
+POST /api/capabilities
 
 Never bypass capability checks.
 

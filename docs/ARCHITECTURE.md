@@ -33,7 +33,7 @@ Lists stay visible while a **drawer** shows resource context. Navigation is list
 - HTTP API (chi), embedded static UI
 - `client-go` for Kubernetes
 - Generic mutations: `POST /api/actions` via a central **ActionRegistry**
-- Capability detection: `GET /api/capabilities`
+- Capability detection: `POST /api/capabilities` and read access checks via `POST /api/auth/can-i`
 - **Read-side dataplane** under `internal/dataplane`: snapshots, scheduler, observers, projections (see [DATAPLANE.md](DATAPLANE.md))
 - **Runtime**: activities, sessions, terminals, port-forwards, structured logs
 
@@ -55,13 +55,13 @@ Repeated UI patterns should be **extracted** (tables, drawers, mutation dialogs,
 
 ## Action framework
 
-All mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capabilities.
+All mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capability checks.
 
 ---
 
 ## RBAC awareness
 
-The UI must not surface actions the cluster forbids. Use `/api/capabilities` and show denial reasons when useful.
+The UI must not surface actions the cluster forbids. Use `POST /api/capabilities` for resource actions and `POST /api/auth/can-i` for targeted read/access checks; show denial reasons when useful.
 
 ---
 
@@ -81,7 +81,7 @@ Prefer **clear** errors, activity timeline, and runtime logs for operator visibi
 
 - **Dataplane** owns scheduler-mediated **list snapshots** and **projections** built only from those snapshots (no hidden live kube calls inside projection builders).
 - **Handlers** use snapshots/projections for the surfaces documented in [API_READ_OWNERSHIP.md](API_READ_OWNERSHIP.md).
-- **Direct `kube` reads** in handlers are **intentional exceptions** (detail, events, YAML, relations, deferred list families, cluster-scoped APIs, etc.). Keep them obvious in `internal/server/server.go`.
+- **Direct `kube` reads** in handlers are **intentional exceptions** (detail, events, YAML, relations, selected namespace helpers, cluster-scoped APIs, Helm chart catalog, etc.). Keep them obvious in `internal/server/server.go`.
 
 When you add or change a user-facing **GET** (or read-shaped) route under `/api`, update **API_READ_OWNERSHIP.md** in the same change.
 
@@ -89,4 +89,4 @@ When you add or change a user-facing **GET** (or read-shaped) route under `/api`
 
 ## Maintainability
 
-Favor readable code, explicit boundaries, and minimal duplication. Documentation should describe **current behavior**, not migration history (history lives under [archive/](archive/README.md)).
+Favor readable code, explicit boundaries, and minimal duplication. Documentation should describe **current behavior**, not migration history.

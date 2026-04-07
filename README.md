@@ -1,91 +1,69 @@
 # kview
 
-kview is a **local, single-binary, view-first Kubernetes UI** inspired by tools like Lens and k9s.
+kview is a **local, single-binary Kubernetes UI** for fast, view-first cluster exploration.
 
-It embeds a **React + MUI frontend inside a Go backend** and runs as a standalone binary.
+It embeds a **React + MUI frontend** inside a **Go backend**, uses the operator's kubeconfig, and keeps normal operation local: no external service is required.
 
 The project focuses on:
 
 - operational clarity
-- strict RBAC awareness
+- RBAC-aware actions and reads
 - deep cross-resource navigation
-- consistent UI contracts
+- drawer-based inspection
+- truthful read metadata
 - predictable operator workflows
 
-kview is designed to be **fast, local, and automation-friendly**.
+---
+
+## Current State
+
+kview now has read-side dataplane in place for the main list surfaces. The UI uses scheduler-mediated snapshots and projections for high-frequency reads, while intentional direct reads remain visible and documented for details, events, YAML, relation lookups, resource quotas, cluster-scoped catalog/RBAC/storage families, and Helm chart catalog reads.
+
+Important current behaviors:
+
+- Dataplane-backed list responses include `freshness`, `coverage`, `degradation`, `completeness`, and coarse `state` metadata.
+- List views and the cluster dashboard refresh in the background without requiring a page reload.
+- Namespace summaries are projection-backed from dataplane snapshots and return usable partial/degraded payloads instead of hard-failing when only part of the namespace is visible.
+- Namespace list row enrichment is scoped to current, recent, and favourite namespaces; it is idle-gated and preserves previously enriched rows across refreshes.
+- Dataplane-backed read APIs accept optional `X-Kview-Context` so the UI can pin reads to the context that was active when the request was issued.
+- Mutations remain on the shared action framework and are not part of the dataplane.
+
+See [docs/DATAPLANE.md](docs/DATAPLANE.md) and [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) for the precise read ownership contract.
 
 ---
 
-# Philosophy
+## Architecture
 
-kview follows several core principles:
+### Backend
 
-- **Local-first**
-- **View-first UI**
-- **RBAC-aware operations**
-- **Cross-resource navigation**
-- **Consistent UI architecture**
-- **Minimal operational friction**
-
-The UI prioritizes **clarity, density, and operator efficiency** over visual noise.
-
----
-
-# Architecture
-
-## Backend
-
-Written in Go.
-
-Key components:
+The backend is written in Go and includes:
 
 - `client-go` Kubernetes integration
-- REST API (`chi`)
-- Embedded UI (`go:embed`)
-- Generic mutation endpoint (`/api/actions`)
-- Centralized **ActionRegistry**
-- RBAC-aware capability detection (`/api/capabilities`)
-- Shared mutation helpers
+- REST API via `chi`
+- embedded UI via `go:embed`
+- generic mutation endpoint: `POST /api/actions`
+- central `ActionRegistry`
+- RBAC capability checks: `POST /api/capabilities` and `POST /api/auth/can-i`
+- read-side dataplane: snapshots, scheduler, observers, projections
+- runtime activity system
+- terminal and port-forward sessions
 
-Runtime features:
+### Frontend
 
-- Activity runtime
-- Session management
-- Terminal sessions
-- Port-forward sessions
-- Read-side data plane for cluster views and projections
-
----
-
-## Frontend
-
-Built with:
+The frontend is built with:
 
 - React
 - Vite
-- MUI (Material UI)
 - TypeScript
+- MUI
 
-Key UI architecture concepts:
-
-- **Drawer-based navigation**
-- **Shared component system**
-- **UI tokens for styling**
-- **Capability-aware action rendering**
-- **Reusable resource table patterns**
-- **Generic mutation dialogs**
-
-UI design strongly favors:
-
-- component reuse
-- layout consistency
-- minimal duplication
+The UI uses shared resource list and drawer patterns, capability-aware actions, typed API responses, and reusable design tokens for consistent operator-focused screens.
 
 ---
 
-# Supported Resources
+## Supported Resource Areas
 
-## Workloads
+### Workloads
 
 - Pods
 - Deployments
@@ -95,148 +73,135 @@ UI design strongly favors:
 - Jobs
 - CronJobs
 
-## Networking
+### Networking
 
 - Services
 - Ingresses
 
-## Storage
+### Storage
 
 - PersistentVolumeClaims
 - PersistentVolumes
 
-## Configuration
+### Configuration
 
 - ConfigMaps
 - Secrets
 
-## Access Control
+### Access Control
 
+- ServiceAccounts
 - Roles
 - RoleBindings
 - ClusterRoles
 - ClusterRoleBindings
 
-## Cluster
+### Cluster
 
 - Nodes
 - Namespaces
 - ResourceQuotas
 - CustomResourceDefinitions
 
-## Helm
+### Helm
 
+- Helm charts
 - Helm releases
 - Values
-- Manifest
+- Manifests
 - History
 - Notes
+- Managed resources
 
 ---
 
-# Core Features
+## Core Features
 
-## Resource Exploration
+### Resource Exploration
 
-- High-density resource tables
-- Drawer-based inspection
-- Deep cross-resource navigation
-- Metadata-rich views
+- dense resource tables with filtering and sorting
+- drawer-based detail inspection
+- cross-resource links and nested drawers
+- resource-specific actions where supported
+- YAML, events, related resources, and status-focused summaries where available
 
-## Mutation Framework
+### Read-Side Dataplane
 
-kview implements a **generic mutation framework**:
+- cached list snapshots per Kubernetes context
+- scheduler-mediated list reads with bounded concurrency
+- namespace and node observers
+- dataplane metadata in migrated list envelopes
+- projection-only namespace summaries
+- dashboard totals from cached dataplane-owned namespace snapshots
+- partial/degraded responses when useful data is still available
 
-- delete
-- scale
-- restart
-- Helm operations
-- future resource mutations
+### Mutation Framework
 
-Mutations use a shared API:
+Mutations use:
 
+```text
 POST /api/actions
+```
 
-Actions are registered in the backend ActionRegistry.
+Supported action families include delete, restart, scale, selected workload and RBAC operations, and Helm operations. Handlers are registered in the backend `ActionRegistry`; the UI checks capabilities before surfacing actions.
 
----
+### Activity Panel
 
-## Activity Panel
+The Activity Panel shows runtime and operational activity, including:
 
-The Activity Panel provides visibility into runtime operations.
-
-Features:
-
-- activity timeline
-- session tracking
 - terminal sessions
 - port-forward sessions
-- mutation execution logs
+- runtime/system status
+- namespace row enrichment activity
+- dataplane snapshot work that exceeds the configured long-run threshold
 
 ---
 
-# Launch Modes
+## Launch Modes
 
-kview supports two launch modes.
+### Browser Mode
 
-## Browser mode
-
-Default mode.
-
-Starts local server and opens UI in browser.
-
-```
+```bash
 kview
 ```
 
----
+Starts the local server and opens the UI in a browser.
 
-## Webview mode
+### Webview Mode
 
-kview can launch its UI inside a **native desktop webview window**.
-
-This mode runs:
-
-- embedded HTTP server
-- native webview window
-- local UI instance
-
-Useful for:
-
-- desktop usage
-- kiosk environments
-- tightly scoped operator tooling
-
----
-
-# Build
-
+```bash
+kview --webview
 ```
+
+Runs the same embedded HTTP server and UI inside a native desktop webview window.
+
+---
+
+## Build
+
+```bash
 make build
 ```
 
-or, for embeded webview
+For the embedded webview build:
 
-```
+```bash
 make build-webview
 ```
 
+The build regenerates embedded UI assets under `internal/server/ui_dist`.
+
 ---
 
-# Documentation
-
-Important documents:
+## Documentation
 
 | Document | Purpose |
-|--------|--------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | core architecture and principles |
-| [docs/DATAPLANE.md](docs/DATAPLANE.md) | read-side dataplane behavior |
-| [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) | GET / read API source map (keep in sync with routes) |
+|----------|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Product architecture and boundaries |
+| [docs/DATAPLANE.md](docs/DATAPLANE.md) | Read-side dataplane, snapshots, projections, metadata |
+| [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) | Route-by-route read ownership map |
 | [docs/UI_UX_GUIDE.md](docs/UI_UX_GUIDE.md) | UI architecture and UX contracts |
-| [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md) | development rules for AI agents |
+| [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md) | Review checklist for changes |
+| [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md) | Execution rules for AI-assisted development |
 
-Stage-era notes live under [docs/archive/](docs/archive/README.md) for history only.
-
-Documentation acts as a **contract**.
-
-Code should follow documented architecture unless the documentation is intentionally updated.
+Documentation is a contract. Update it in the same change whenever architecture, read ownership, UI contracts, or operator-visible behavior changes.
