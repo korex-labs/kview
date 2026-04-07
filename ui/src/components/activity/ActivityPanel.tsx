@@ -140,7 +140,10 @@ export default function ActivityPanel({ token }: Props) {
       >
         <Tabs
           value={tab}
-          onChange={(_, v) => setTab(v)}
+          onChange={(_, v) => {
+            setTab(v);
+            setOpen(true);
+          }}
           sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0 } }}
         >
           <Tab label={`Activities (${tabCounts.activities})`} />
@@ -182,4 +185,3 @@ export default function ActivityPanel({ token }: Props) {
     </Box>
   );
 }
-

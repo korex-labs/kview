@@ -60,7 +60,7 @@ export default function Sidebar(props: Props) {
         [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: "border-box", pt: 10, px: 2 },
       }}
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         <FormControl fullWidth size="small">
           <InputLabel id="ctx-label">Context</InputLabel>
           <Select
@@ -128,11 +128,15 @@ export default function Sidebar(props: Props) {
           />
         )}
 
-        <Divider />
+        <Divider sx={{ my: 0.25 }} />
 
         {sidebarGroups.map((group, index) => (
           <Box key={group.id}>
-            <Typography variant="overline" color="text.secondary">
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ display: "block", lineHeight: 1.5, mb: 0.25 }}
+            >
               {group.label}
             </Typography>
             <List dense disablePadding>
@@ -141,16 +145,20 @@ export default function Sidebar(props: Props) {
                   key={item}
                   selected={props.section === item}
                   onClick={() => props.onSelectSection(item)}
+                  sx={{ minHeight: 30, py: 0.25 }}
                 >
-                  <ListItemText primary={getResourceLabel(item)} />
+                  <ListItemText
+                    primary={getResourceLabel(item)}
+                    primaryTypographyProps={{ variant: "body2" }}
+                    sx={{ my: 0 }}
+                  />
                 </ListItemButton>
               ))}
             </List>
-            {index < sidebarGroups.length - 1 ? <Divider sx={{ my: 1 }} /> : null}
+            {index < sidebarGroups.length - 1 ? <Divider sx={{ my: 0.5 }} /> : null}
           </Box>
         ))}
       </Box>
     </Drawer>
   );
 }
-
