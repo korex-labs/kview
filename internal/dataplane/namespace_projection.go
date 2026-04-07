@@ -68,6 +68,9 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	rsSnap, rsErr := plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	jobsSnap, jobsErr := plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	cjSnap, cjErr := plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	saSnap, saErr := plane.ServiceAccountsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	rolesSnap, rolesErr := plane.RolesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	roleBindingsSnap, roleBindingsErr := plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	helmSnap, helmErr := plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 
 	res := dto.NamespaceSummaryResourcesDTO{
@@ -94,6 +97,15 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	}
 	if secsErr == nil {
 		res.Counts.Secrets = len(secsSnap.Items)
+	}
+	if saErr == nil {
+		res.Counts.ServiceAccounts = len(saSnap.Items)
+	}
+	if rolesErr == nil {
+		res.Counts.Roles = len(rolesSnap.Items)
+	}
+	if roleBindingsErr == nil {
+		res.Counts.RoleBindings = len(roleBindingsSnap.Items)
 	}
 	if dsErr == nil {
 		res.Counts.DaemonSets = len(dsSnap.Items)
@@ -161,19 +173,28 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		rsSnap.Meta,
 		jobsSnap.Meta,
 		cjSnap.Meta,
+		saSnap.Meta,
+		rolesSnap.Meta,
+		roleBindingsSnap.Meta,
 		helmSnap.Meta,
 	)
 	out.Meta = meta
 
 	firstNorm := FirstNonNilNormalizedError(
 		podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err,
-		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err, helmSnap.Err,
+		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err,
+		saSnap.Err, rolesSnap.Err, roleBindingsSnap.Err, helmSnap.Err,
 	)
 
 	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
 		res.Counts.Ingresses + res.Counts.PVCs + res.Counts.ConfigMaps + res.Counts.Secrets +
 		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs +
-		res.Counts.HelmReleases
+		res.Counts.ServiceAccounts + res.Counts.Roles + res.Counts.RoleBindings + res.Counts.HelmReleases
+	usable := namespaceSummaryHasUsableSnapshot(
+		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
+		dsErr, stsErr, rsErr, jobsErr, cjErr,
+		saErr, rolesErr, roleBindingsErr, helmErr,
+	)
 	state := ProjectionCoarseState(firstNorm, meaningful)
 
 	res.Meta = &dto.NamespaceSummaryMetaDTO{
@@ -186,10 +207,28 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 
 	out.Resources = res
 	out.Err = firstNorm
-	return out, FirstError(
+	err := FirstError(
 		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
-		dsErr, stsErr, rsErr, jobsErr, cjErr, helmErr,
+		dsErr, stsErr, rsErr, jobsErr, cjErr,
+		saErr, rolesErr, roleBindingsErr, helmErr,
 	)
+	return out, namespaceSummaryProjectionError(err, usable)
+}
+
+func namespaceSummaryHasUsableSnapshot(errs ...error) bool {
+	for _, err := range errs {
+		if err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func namespaceSummaryProjectionError(err error, hasUsableSnapshot bool) error {
+	if hasUsableSnapshot {
+		return nil
+	}
+	return err
 }
 
 func namespaceHelmReleasesFromSnapshot(items []dto.HelmReleaseDTO) []dto.NamespaceHelmRelease {

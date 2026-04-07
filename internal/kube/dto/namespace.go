@@ -7,13 +7,13 @@ type NamespaceListItemDTO struct {
 	HasUnhealthyConditions bool   `json:"hasUnhealthyConditions"`
 	// Row projection (namespaces list, Stage 5C): compact metrics from dataplane pods+deployments
 	// snapshots per namespace. When RowEnriched is false, counts/signals below are unset (zero/false).
-	RowEnriched        bool   `json:"rowEnriched,omitempty"`
-	SummaryState       string `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
-	PodCount           int    `json:"podCount,omitempty"`
-	DeploymentCount    int    `json:"deploymentCount,omitempty"`
-	ProblematicCount   int    `json:"problematicCount,omitempty"`
-	PodsWithRestarts   int    `json:"podsWithRestarts,omitempty"`
-	RestartHotspot     bool   `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+	RowEnriched      bool   `json:"rowEnriched,omitempty"`
+	SummaryState     string `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
+	PodCount         int    `json:"podCount,omitempty"`
+	DeploymentCount  int    `json:"deploymentCount,omitempty"`
+	ProblematicCount int    `json:"problematicCount,omitempty"`
+	PodsWithRestarts int    `json:"podsWithRestarts,omitempty"`
+	RestartHotspot   bool   `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
 }
 
 // NamespaceListRowProjectionMetaDTO describes progressive row enrichment on GET /api/namespaces.
@@ -104,18 +104,21 @@ type NamespaceWorkloadHealthRollupDTO struct {
 }
 
 type NamespaceResourceCounts struct {
-	Pods         int `json:"pods"`
-	Deployments  int `json:"deployments"`
-	StatefulSets int `json:"statefulSets"`
-	DaemonSets   int `json:"daemonSets"`
-	Jobs         int `json:"jobs"`
-	CronJobs     int `json:"cronJobs"`
-	Services     int `json:"services"`
-	Ingresses    int `json:"ingresses"`
-	PVCs         int `json:"pvcs"`
-	ConfigMaps   int `json:"configMaps"`
-	Secrets      int `json:"secrets"`
-	HelmReleases int `json:"helmReleases"`
+	Pods            int `json:"pods"`
+	Deployments     int `json:"deployments"`
+	StatefulSets    int `json:"statefulSets"`
+	DaemonSets      int `json:"daemonSets"`
+	Jobs            int `json:"jobs"`
+	CronJobs        int `json:"cronJobs"`
+	Services        int `json:"services"`
+	Ingresses       int `json:"ingresses"`
+	PVCs            int `json:"pvcs"`
+	ConfigMaps      int `json:"configMaps"`
+	Secrets         int `json:"secrets"`
+	ServiceAccounts int `json:"serviceAccounts"`
+	Roles           int `json:"roles"`
+	RoleBindings    int `json:"roleBindings"`
+	HelmReleases    int `json:"helmReleases"`
 }
 
 type NamespacePodHealth struct {

@@ -2776,9 +2776,11 @@ func dataplaneClusterListHandler[I any](
 		defer cancel()
 
 		active := s.readContextName(r)
-		s.dp.EnsureObservers(ctx, active)
+		if s.dp != nil {
+			s.dp.EnsureObservers(ctx, active)
+		}
 		snap, err := fetch(ctx, active)
-		if err != nil {
+		if err != nil && listLength(snap.Items) == 0 {
 			writeDataplaneListError(w, active, err)
 			return
 		}
@@ -2802,9 +2804,11 @@ func dataplaneNamespacedListHandler[I any](
 		defer cancel()
 
 		active := s.readContextName(r)
-		s.dp.EnsureObservers(ctx, active)
+		if s.dp != nil {
+			s.dp.EnsureObservers(ctx, active)
+		}
 		snap, err := fetch(ctx, active, ns)
-		if err != nil {
+		if err != nil && listLength(snap.Items) == 0 {
 			writeDataplaneListError(w, active, err)
 			return
 		}

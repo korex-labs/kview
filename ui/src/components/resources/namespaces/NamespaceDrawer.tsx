@@ -117,6 +117,9 @@ type ResourceCounts = {
   pvcs: number;
   configMaps: number;
   secrets: number;
+  serviceAccounts: number;
+  roles: number;
+  roleBindings: number;
   helmReleases: number;
 };
 
@@ -516,6 +519,16 @@ export default function NamespaceDrawer(props: {
                           {countChip("Secrets", counts.secrets, "secrets")}
                         </Box>
                       </Section>
+
+                      {(counts.serviceAccounts > 0 || counts.roles > 0 || counts.roleBindings > 0) && (
+                        <Section title="RBAC">
+                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+                            {countChip("ServiceAccounts", counts.serviceAccounts, "serviceaccounts")}
+                            {countChip("Roles", counts.roles, "roles")}
+                            {countChip("RoleBindings", counts.roleBindings, "rolebindings")}
+                          </Box>
+                        </Section>
+                      )}
 
                       {counts.helmReleases > 0 && (
                         <Section title="Helm">

@@ -49,3 +49,47 @@ func TestFirstHelpers(t *testing.T) {
 		t.Fatalf("expected first error")
 	}
 }
+
+func TestNamespaceSummaryProjectionError_PreservesPartialRBAC(t *testing.T) {
+	err := apierrors.NewForbidden(schema.GroupResource{Group: "rbac.authorization.k8s.io", Resource: "roles"}, "role", errors.New("forbidden"))
+	if got := namespaceSummaryProjectionError(err, true); got != nil {
+		t.Fatalf("expected usable partial namespace summary to avoid hard failure, got %v", got)
+	}
+}
+
+func TestNamespaceSummaryProjectionError_FailsWithoutUsableSnapshot(t *testing.T) {
+	err := errors.New("proxy unavailable")
+	if got := namespaceSummaryProjectionError(err, false); got != err {
+		t.Fatalf("expected hard failure without any usable snapshot, got %v", got)
+	}
+}
+
+func TestNamespaceSummaryProjectionState_TransientAndProxyDegradedButUsable(t *testing.T) {
+	tests := []struct {
+		name  string
+		nerr  *NormalizedError
+		want  string
+		items int
+	}{
+		{
+			name:  "proxy partial",
+			nerr:  &NormalizedError{Class: NormalizedErrorClassProxyFailure},
+			want:  "partial_proxy",
+			items: 2,
+		},
+		{
+			name:  "transient degraded",
+			nerr:  &NormalizedError{Class: NormalizedErrorClassTransient},
+			want:  "degraded",
+			items: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ProjectionCoarseState(tc.nerr, tc.items); got != tc.want {
+				t.Fatalf("state: got %q want %q", got, tc.want)
+			}
+		})
+	}
+}

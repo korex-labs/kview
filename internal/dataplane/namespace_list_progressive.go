@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,12 @@ func (m *manager) BeginNamespaceListProgressiveEnrichment(cluster string, items 
 
 	m.nsEnrich.mu.Lock()
 	if old, ok := m.nsEnrich.byCluster[cluster]; ok {
+		if sameStringSlice(old.order, order) && sameStringSlice(old.workNames, workNames) {
+			old.updateBaseRows(order, merged)
+			rev := old.rev
+			m.nsEnrich.mu.Unlock()
+			return rev
+		}
 		old.cancel()
 		delete(m.nsEnrich.byCluster, cluster)
 	}
@@ -111,7 +118,7 @@ func (m *manager) BeginNamespaceListProgressiveEnrichment(cluster string, items 
 		workNames:  workNames,
 		merged:     merged,
 		total:      len(workNames),
-		activityID: fmt.Sprintf("ns-enrich-%s-%d", cluster, rev),
+		activityID: namespaceEnrichActivityID(cluster),
 	}
 	m.nsEnrich.byCluster[cluster] = sess
 	m.nsEnrich.mu.Unlock()
@@ -143,6 +150,64 @@ func (m *manager) BeginNamespaceListProgressiveEnrichment(cluster string, items 
 	return rev
 }
 
+func (s *nsEnrichSession) updateBaseRows(order []string, base map[string]dto.NamespaceListItemDTO) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	merged := make(map[string]dto.NamespaceListItemDTO, len(base))
+	for _, name := range order {
+		next := base[name]
+		if cur, ok := s.merged[name]; ok && cur.RowEnriched {
+			mergeNamespaceRowInto(&next, cur)
+		}
+		merged[name] = next
+	}
+	s.order = append(s.order[:0], order...)
+	s.merged = merged
+}
+
+func namespaceEnrichActivityID(cluster string) string {
+	return "ns-enrich-" + activityIDComponent(cluster)
+}
+
+func activityIDComponent(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "default"
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9'
+		if ok {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "default"
+	}
+	return out
+}
+
+func sameStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *manager) patchNsEnrichActivity(actID string, mut func(*runtime.Activity)) {
 	reg := m.activityReg()
 	if reg == nil || actID == "" {
@@ -164,6 +229,9 @@ func (m *manager) finalizeNsEnrichActivity(actID string, sess *nsEnrichSession, 
 	}
 	a, ok, _ := reg.Get(context.Background(), actID)
 	if !ok {
+		return
+	}
+	if a.Metadata != nil && a.Metadata["revision"] != strconv.FormatUint(sess.rev, 10) {
 		return
 	}
 	now := time.Now().UTC()

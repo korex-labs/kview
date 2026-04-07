@@ -70,7 +70,7 @@ Background row enrichment is **narrow and user-aligned**:
 
 | Route | Behavior |
 |-------|----------|
-| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, Helm release count/list, `restartHotspots`, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. |
+| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, `restartHotspots`, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. Returns a degraded/partial usable payload when at least one contributing snapshot is usable. |
 
 ---
 
@@ -125,7 +125,7 @@ For resources that have them, these remain **direct** `kube` reads:
 
 ## 5. Design summary
 
-For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, deferred lists, cluster-scoped families, Helm, quotas).
+For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, deferred catalog reads, cluster-scoped families, quotas).
 
 ---
 
