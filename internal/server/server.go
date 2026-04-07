@@ -769,23 +769,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"allowed": res.Allowed, "reason": res.Reason})
 		})
 
-		api.Get("/nodes", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.NodesSnapshot(ctx, active)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/nodes", dataplaneClusterListHandler(s, s.dp.NodesSnapshot))
 
 		api.Get("/nodes/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
@@ -1256,30 +1240,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/pods", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.PodsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			items := dataplane.EnrichPodListItemsForAPI(snap.Items)
-			writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/pods", dataplaneNamespacedListHandler(s, s.dp.PodsSnapshot, func(items []dto.PodListItemDTO) any {
+			return dataplane.EnrichPodListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/pods/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1362,30 +1325,9 @@ func (s *Server) Router() http.Handler {
 		api.Get("/namespaces/{ns}/pods/{name}/logs/ws", (&stream.LogsWS{Mgr: s.mgr}).ServeHTTP)
 		api.Get("/sessions/{id}/terminal/ws", (&stream.TerminalWS{Mgr: s.mgr, Sessions: s.sessions}).ServeHTTP)
 
-		api.Get("/namespaces/{ns}/deployments", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.DeploymentsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			items := dataplane.EnrichDeploymentListItemsForAPI(snap.Items)
-			writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/deployments", dataplaneNamespacedListHandler(s, s.dp.DeploymentsSnapshot, func(items []dto.DeploymentListItemDTO) any {
+			return dataplane.EnrichDeploymentListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/deployments/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1442,29 +1384,7 @@ func (s *Server) Router() http.Handler {
 		// Namespaced workload list routes below (daemonsets, statefulsets, replicasets, jobs, cronjobs) are
 		// dataplane-backed: s.dp.*Snapshot + writeDataplaneListResponse. kube.List* for these kinds runs only
 		// inside internal/dataplane snapshot executors, not in handlers. Detail/events/yaml stay direct-read.
-		api.Get("/namespaces/{ns}/daemonsets", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.DaemonSetsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/daemonsets", dataplaneNamespacedListHandler(s, s.dp.DaemonSetsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/daemonsets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1544,29 +1464,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/statefulsets", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.StatefulSetsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/statefulsets", dataplaneNamespacedListHandler(s, s.dp.StatefulSetsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/statefulsets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1646,29 +1544,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/replicasets", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.ReplicaSetsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/replicasets", dataplaneNamespacedListHandler(s, s.dp.ReplicaSetsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/replicasets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1722,29 +1598,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/jobs", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.JobsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/jobs", dataplaneNamespacedListHandler(s, s.dp.JobsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/jobs/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1798,29 +1652,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/cronjobs", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.CronJobsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/cronjobs", dataplaneNamespacedListHandler(s, s.dp.CronJobsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/cronjobs/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1874,29 +1706,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/services", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.ServicesSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/services", dataplaneNamespacedListHandler(s, s.dp.ServicesSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/services/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1976,29 +1786,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 		})
 
-		api.Get("/namespaces/{ns}/configmaps", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.ConfigMapsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/configmaps", dataplaneNamespacedListHandler(s, s.dp.ConfigMapsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/configmaps/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2052,29 +1840,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/serviceaccounts", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.ServiceAccountsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/serviceaccounts", dataplaneNamespacedListHandler(s, s.dp.ServiceAccountsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/serviceaccounts/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2180,29 +1946,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 		})
 
-		api.Get("/namespaces/{ns}/roles", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.RolesSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/roles", dataplaneNamespacedListHandler(s, s.dp.RolesSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/roles/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2282,29 +2026,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/rolebindings", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.RoleBindingsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/rolebindings", dataplaneNamespacedListHandler(s, s.dp.RoleBindingsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/rolebindings/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2384,29 +2106,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/persistentvolumeclaims", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.PVCsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/persistentvolumeclaims", dataplaneNamespacedListHandler(s, s.dp.PVCsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/persistentvolumeclaims/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2486,29 +2186,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/secrets", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.SecretsSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/secrets", dataplaneNamespacedListHandler(s, s.dp.SecretsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2562,29 +2240,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/helmreleases", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.HelmReleasesSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/helmreleases", dataplaneNamespacedListHandler(s, s.dp.HelmReleasesSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/helmreleases/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2635,29 +2291,7 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 		})
 
-		api.Get("/namespaces/{ns}/ingresses", func(w http.ResponseWriter, r *http.Request) {
-			ns := chi.URLParam(r, "ns")
-			if ns == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			defer cancel()
-
-			active := s.mgr.ActiveContext()
-			s.dp.EnsureObservers(ctx, active)
-			snap, err := s.dp.IngressesSnapshot(ctx, active, ns)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
-				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
-			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
-		})
+		api.Get("/namespaces/{ns}/ingresses", dataplaneNamespacedListHandler(s, s.dp.IngressesSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/ingresses/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -3114,6 +2748,63 @@ func writeDataplaneListResponse(w http.ResponseWriter, active string, items any,
 			"state":        dataplane.CoarseState(nerr, listLength(items)),
 		},
 	})
+}
+
+func dataplaneClusterListHandler[I any](
+	s *Server,
+	fetch func(context.Context, string) (dataplane.Snapshot[I], error),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		active := s.mgr.ActiveContext()
+		s.dp.EnsureObservers(ctx, active)
+		snap, err := fetch(ctx, active)
+		if err != nil {
+			writeDataplaneListError(w, active, err)
+			return
+		}
+		writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
+	}
+}
+
+func dataplaneNamespacedListHandler[I any](
+	s *Server,
+	fetch func(context.Context, string, string) (dataplane.Snapshot[I], error),
+	transform func([]I) any,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ns := chi.URLParam(r, "ns")
+		if ns == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		active := s.mgr.ActiveContext()
+		s.dp.EnsureObservers(ctx, active)
+		snap, err := fetch(ctx, active, ns)
+		if err != nil {
+			writeDataplaneListError(w, active, err)
+			return
+		}
+		items := any(snap.Items)
+		if transform != nil {
+			items = transform(snap.Items)
+		}
+		writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
+	}
+}
+
+func writeDataplaneListError(w http.ResponseWriter, active string, err error) {
+	status := http.StatusInternalServerError
+	if apierrors.IsForbidden(err) {
+		status = http.StatusForbidden
+	}
+	writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 }
 
 func listLength(items any) int {
