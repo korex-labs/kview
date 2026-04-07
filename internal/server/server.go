@@ -2940,6 +2940,7 @@ func (s *Server) buildStatus(parent context.Context, contextName string) statusD
 		clusterStatus.Message = err.Error()
 	}
 
+	s.updateConnectivityActivity(clusterStatus)
 	s.logClusterStatusTransition(clusterStatus)
 
 	return statusDTO{
@@ -2949,6 +2950,71 @@ func (s *Server) buildStatus(parent context.Context, contextName string) statusD
 		Cluster:       clusterStatus,
 		CheckedAt:     checkedAt,
 	}
+}
+
+func (s *Server) updateConnectivityActivity(clusterStatus statusClusterDTO) {
+	contextName := clusterStatus.Context
+	if contextName == "" {
+		contextName = "(none)"
+	}
+
+	now := time.Now().UTC()
+	id := fmt.Sprintf("connectivity:%s", contextName)
+	status := runtime.ActivityStatusRunning
+	if !clusterStatus.OK {
+		status = runtime.ActivityStatusFailed
+	}
+
+	metadata := map[string]string{
+		"context": contextName,
+		"state":   "connected",
+	}
+	if clusterStatus.Cluster != "" {
+		metadata["cluster"] = clusterStatus.Cluster
+	}
+	if clusterStatus.AuthInfo != "" {
+		metadata["authInfo"] = clusterStatus.AuthInfo
+	}
+	if clusterStatus.Namespace != "" {
+		metadata["namespace"] = clusterStatus.Namespace
+	}
+	if clusterStatus.ServerVersion != "" {
+		metadata["version"] = clusterStatus.ServerVersion
+	}
+	if !clusterStatus.OK {
+		metadata["state"] = "disconnected"
+		if clusterStatus.Message != "" {
+			msg := clusterStatus.Message
+			if len(msg) > 240 {
+				msg = msg[:240] + "..."
+			}
+			metadata["message"] = msg
+		}
+	}
+
+	existing, ok, _ := s.rt.Registry().Get(context.Background(), id)
+	if ok && !existing.CreatedAt.IsZero() {
+		existing.Status = status
+		existing.UpdatedAt = now
+		existing.Title = fmt.Sprintf("Cluster connectivity · %s", contextName)
+		existing.ResourceType = "cluster:connectivity"
+		existing.Metadata = metadata
+		_ = s.rt.Registry().Update(context.Background(), existing)
+		return
+	}
+
+	_ = s.rt.Registry().Register(context.Background(), runtime.Activity{
+		ID:           id,
+		Kind:         runtime.ActivityKindWorker,
+		Type:         runtime.ActivityTypeConnectivity,
+		Title:        fmt.Sprintf("Cluster connectivity · %s", contextName),
+		Status:       status,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		StartedAt:    now,
+		ResourceType: "cluster:connectivity",
+		Metadata:     metadata,
+	})
 }
 
 func (s *Server) logClusterStatusTransition(clusterStatus statusClusterDTO) {

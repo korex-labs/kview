@@ -91,6 +91,7 @@ function genericChipTone(value: string): ChipTone {
       return "primary";
     case "namespace-list-enrich":
     case "dataplane-snapshot":
+    case "connectivity":
       return "info";
     case "rbac":
       return "warning";
@@ -164,4 +165,3 @@ export function chipSxForValue(value: string, category: ChipCategory = "status")
   const tone = chipToneForValue(value, category);
   return [badgeChipSx, chipToneSx[tone]] as SxProps<Theme>;
 }
-

@@ -17,6 +17,7 @@ const (
 	ActivityTypePortForward         ActivityType = "portforward"
 	ActivityTypeAnalyticsPoller     ActivityType = "analytics-poller"
 	ActivityTypeRuntimeLog          ActivityType = "runtime-log"
+	ActivityTypeConnectivity        ActivityType = "connectivity"
 	ActivityTypeNamespaceListEnrich ActivityType = "namespace-list-enrich"
 	ActivityTypeDataplaneSnapshot   ActivityType = "dataplane-snapshot"
 )
@@ -44,10 +45,9 @@ type Activity struct {
 	ResourceType string `json:"resourceType,omitempty"`
 	// ExecutionMs is wall time from StartedAt (or CreatedAt) to now while running, or to UpdatedAt when stopped/failed.
 	// Populated when listing activities via WithDerivedTiming.
-	ExecutionMs int64 `json:"executionMs,omitempty"`
+	ExecutionMs int64             `json:"executionMs,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 // RuntimeActivityID is the well-known ID for the runtime/system activity.
 const RuntimeActivityID = "runtime"
-

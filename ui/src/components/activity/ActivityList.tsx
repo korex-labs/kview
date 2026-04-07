@@ -52,6 +52,8 @@ function activityTypeDisplayLabel(type: string): string {
     case "runtime-log":
     case "runtime_log":
       return "System log";
+    case "connectivity":
+      return "Connectivity";
     case "analytics-poller":
       return "Analytics";
     default:
@@ -213,4 +215,3 @@ export default function ActivityList({
     </Box>
   );
 }
-
