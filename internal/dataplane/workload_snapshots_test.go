@@ -37,6 +37,10 @@ func TestWorkloadSnapshots_NoClients_UnknownFreshness(t *testing.T) {
 			s, err := dp.CronJobsSnapshot(ctx, cluster, ns)
 			return s.Meta, err
 		}},
+		{"serviceaccounts", func() (SnapshotMetadata, error) {
+			s, err := dp.ServiceAccountsSnapshot(ctx, cluster, ns)
+			return s.Meta, err
+		}},
 	}
 
 	for _, tc := range tests {

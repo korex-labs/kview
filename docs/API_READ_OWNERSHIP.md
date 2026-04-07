@@ -32,6 +32,7 @@ These routes use `DataPlaneManager.*Snapshot` and `writeDataplaneListResponse`. 
 | `GET /api/namespaces/{ns}/persistentvolumeclaims` | `PVCsSnapshot` |
 | `GET /api/namespaces/{ns}/configmaps` | `ConfigMapsSnapshot` |
 | `GET /api/namespaces/{ns}/secrets` | `SecretsSnapshot` |
+| `GET /api/namespaces/{ns}/serviceaccounts` | `ServiceAccountsSnapshot` |
 
 ---
 
@@ -81,7 +82,6 @@ Background row enrichment is **narrow and user-aligned**:
 
 | Route | Reason |
 |-------|--------|
-| `GET /api/namespaces/{ns}/serviceaccounts` | Deferred list migration. |
 | `GET /api/namespaces/{ns}/roles` | Deferred list migration. |
 | `GET /api/namespaces/{ns}/rolebindings` | Deferred list migration. |
 | `GET /api/namespaces/{ns}/helmreleases` | Deferred (Helm snapshot ownership TBD). |

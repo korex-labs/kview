@@ -87,6 +87,8 @@ type DataPlaneManager interface {
 	ConfigMapsSnapshot(ctx context.Context, clusterName, namespace string) (ConfigMapsSnapshot, error)
 	// SecretsSnapshot returns a raw snapshot for secrets in the given namespace.
 	SecretsSnapshot(ctx context.Context, clusterName, namespace string) (SecretsSnapshot, error)
+	// ServiceAccountsSnapshot returns a raw snapshot for serviceaccounts in the given namespace.
+	ServiceAccountsSnapshot(ctx context.Context, clusterName, namespace string) (ServiceAccountsSnapshot, error)
 	// DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace.
 	DaemonSetsSnapshot(ctx context.Context, clusterName, namespace string) (DaemonSetsSnapshot, error)
 	// StatefulSetsSnapshot returns a raw snapshot for statefulsets in the given namespace.
@@ -250,6 +252,7 @@ type clusterPlane struct {
 	pvcsStore namespacedSnapshotStore[PVCsSnapshot]
 	cmsStore  namespacedSnapshotStore[ConfigMapsSnapshot]
 	secsStore namespacedSnapshotStore[SecretsSnapshot]
+	saStore   namespacedSnapshotStore[ServiceAccountsSnapshot]
 	dsStore   namespacedSnapshotStore[DaemonSetsSnapshot]
 	stsStore  namespacedSnapshotStore[StatefulSetsSnapshot]
 	rsStore   namespacedSnapshotStore[ReplicaSetsSnapshot]
@@ -276,6 +279,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		pvcsStore:     newNamespacedSnapshotStore[PVCsSnapshot](),
 		cmsStore:      newNamespacedSnapshotStore[ConfigMapsSnapshot](),
 		secsStore:     newNamespacedSnapshotStore[SecretsSnapshot](),
+		saStore:       newNamespacedSnapshotStore[ServiceAccountsSnapshot](),
 		dsStore:       newNamespacedSnapshotStore[DaemonSetsSnapshot](),
 		stsStore:      newNamespacedSnapshotStore[StatefulSetsSnapshot](),
 		rsStore:       newNamespacedSnapshotStore[ReplicaSetsSnapshot](),
@@ -325,6 +329,7 @@ type IngressesSnapshot = Snapshot[dto.IngressListItemDTO]
 type PVCsSnapshot = Snapshot[dto.PersistentVolumeClaimDTO]
 type ConfigMapsSnapshot = Snapshot[dto.ConfigMapDTO]
 type SecretsSnapshot = Snapshot[dto.SecretDTO]
+type ServiceAccountsSnapshot = Snapshot[dto.ServiceAccountListItemDTO]
 type DaemonSetsSnapshot = Snapshot[dto.DaemonSetDTO]
 type StatefulSetsSnapshot = Snapshot[dto.StatefulSetDTO]
 type ReplicaSetsSnapshot = Snapshot[dto.ReplicaSetDTO]
@@ -448,6 +453,19 @@ func (p *clusterPlane) SecretsSnapshot(ctx context.Context, sched *workScheduler
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.secsStore, desc)
 }
 
+// ServiceAccountsSnapshot returns a raw snapshot for serviceaccounts in the given namespace plus metadata and any normalized error.
+func (p *clusterPlane) ServiceAccountsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ServiceAccountsSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.ServiceAccountListItemDTO]{
+		kind:        ResourceKindServiceAccounts,
+		ttl:         15 * time.Second,
+		capGroup:    "",
+		capResource: "serviceaccounts",
+		capScope:    CapabilityScopeNamespace,
+		fetch:       kube.ListServiceAccounts,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.saStore, desc)
+}
+
 // DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) DaemonSetsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (DaemonSetsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.DaemonSetDTO]{
@@ -565,6 +583,12 @@ func (m *manager) SecretsSnapshot(ctx context.Context, clusterName, namespace st
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	return plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) ServiceAccountsSnapshot(ctx context.Context, clusterName, namespace string) (ServiceAccountsSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.ServiceAccountsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
 }
 
 func (m *manager) DaemonSetsSnapshot(ctx context.Context, clusterName, namespace string) (DaemonSetsSnapshot, error) {

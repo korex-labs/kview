@@ -18,20 +18,21 @@ const (
 type ResourceKind string
 
 const (
-	ResourceKindNamespaces   ResourceKind = "namespaces"
-	ResourceKindPods         ResourceKind = "pods"
-	ResourceKindDeployments  ResourceKind = "deployments"
-	ResourceKindNodes        ResourceKind = "nodes"
-	ResourceKindServices     ResourceKind = "services"
-	ResourceKindIngresses    ResourceKind = "ingresses"
-	ResourceKindPVCs         ResourceKind = "persistentvolumeclaims"
-	ResourceKindConfigMaps   ResourceKind = "configmaps"
-	ResourceKindSecrets      ResourceKind = "secrets"
-	ResourceKindDaemonSets   ResourceKind = "daemonsets"
-	ResourceKindStatefulSets ResourceKind = "statefulsets"
-	ResourceKindReplicaSets  ResourceKind = "replicasets"
-	ResourceKindJobs         ResourceKind = "jobs"
-	ResourceKindCronJobs     ResourceKind = "cronjobs"
+	ResourceKindNamespaces      ResourceKind = "namespaces"
+	ResourceKindPods            ResourceKind = "pods"
+	ResourceKindDeployments     ResourceKind = "deployments"
+	ResourceKindNodes           ResourceKind = "nodes"
+	ResourceKindServices        ResourceKind = "services"
+	ResourceKindIngresses       ResourceKind = "ingresses"
+	ResourceKindPVCs            ResourceKind = "persistentvolumeclaims"
+	ResourceKindConfigMaps      ResourceKind = "configmaps"
+	ResourceKindSecrets         ResourceKind = "secrets"
+	ResourceKindServiceAccounts ResourceKind = "serviceaccounts"
+	ResourceKindDaemonSets      ResourceKind = "daemonsets"
+	ResourceKindStatefulSets    ResourceKind = "statefulsets"
+	ResourceKindReplicaSets     ResourceKind = "replicasets"
+	ResourceKindJobs            ResourceKind = "jobs"
+	ResourceKindCronJobs        ResourceKind = "cronjobs"
 )
 
 // WorkPriority orders dataplane snapshot work. Smaller value = higher priority.

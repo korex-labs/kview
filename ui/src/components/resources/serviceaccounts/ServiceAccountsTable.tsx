@@ -5,6 +5,11 @@ import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceAccountDrawer from "./ServiceAccountDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
+import {
+  dataplaneListMetaFromResponse,
+  type ApiDataplaneListResponse,
+} from "../../../types/api";
+import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 
 type ServiceAccount = {
   name: string;
@@ -52,12 +57,15 @@ export default function ServiceAccountsTable({
   namespace: string;
 }) {
   const fetchRows = useCallback(async () => {
-    const res = await apiGet<{ items: ServiceAccount[] }>(
+    const res = await apiGet<ApiDataplaneListResponse<ServiceAccount>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/serviceaccounts`,
       token,
     );
     const items = res.items || [];
-    return { rows: items.map((sa) => ({ ...sa, id: `${sa.namespace}/${sa.name}` })) };
+    return {
+      rows: items.map((sa) => ({ ...sa, id: `${sa.namespace}/${sa.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(
@@ -71,6 +79,10 @@ export default function ServiceAccountsTable({
       title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
+      dataplaneRevisionPoll={{
+        fetchRevision: dataplaneRevisionFetcher(token, "serviceaccounts", namespace),
+        pollSec: defaultRevisionPollSec,
+      }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
       filterLabel="Filter (name)"
