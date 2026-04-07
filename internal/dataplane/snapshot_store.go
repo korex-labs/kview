@@ -10,8 +10,8 @@ type observedAtGetter interface {
 }
 
 type snapshotStore[T observedAtGetter] struct {
-	mu  sync.RWMutex
-	rev uint64
+	mu   sync.RWMutex
+	rev  uint64
 	snap T
 }
 
@@ -116,6 +116,19 @@ func setNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], names
 	s.nsRev[namespace]++
 	snap.Meta.Revision = s.nsRev[namespace]
 	s.snaps[namespace] = snap
+}
+
+func clearNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], namespace string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.snaps == nil {
+		s.snaps = make(map[string]Snapshot[I])
+	}
+	if s.nsRev == nil {
+		s.nsRev = make(map[string]uint64)
+	}
+	s.nsRev[namespace]++
+	delete(s.snaps, namespace)
 }
 
 func peekNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], namespace string) (snap Snapshot[I], ok bool) {

@@ -30,6 +30,7 @@ const (
 	ResourceKindServiceAccounts ResourceKind = "serviceaccounts"
 	ResourceKindRoles           ResourceKind = "roles"
 	ResourceKindRoleBindings    ResourceKind = "rolebindings"
+	ResourceKindHelmReleases    ResourceKind = "helmreleases"
 	ResourceKindDaemonSets      ResourceKind = "daemonsets"
 	ResourceKindStatefulSets    ResourceKind = "statefulsets"
 	ResourceKindReplicaSets     ResourceKind = "replicasets"
@@ -54,6 +55,7 @@ func dataplaneNamespacedListResourceKinds() []ResourceKind {
 		ResourceKindServiceAccounts,
 		ResourceKindRoles,
 		ResourceKindRoleBindings,
+		ResourceKindHelmReleases,
 	}
 }
 

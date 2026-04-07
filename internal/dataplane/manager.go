@@ -93,6 +93,10 @@ type DataPlaneManager interface {
 	RolesSnapshot(ctx context.Context, clusterName, namespace string) (RolesSnapshot, error)
 	// RoleBindingsSnapshot returns a raw snapshot for rolebindings in the given namespace.
 	RoleBindingsSnapshot(ctx context.Context, clusterName, namespace string) (RoleBindingsSnapshot, error)
+	// HelmReleasesSnapshot returns a raw snapshot for Helm releases in the given namespace.
+	HelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) (HelmReleasesSnapshot, error)
+	// InvalidateHelmReleasesSnapshot drops the cached Helm release list for a namespace after a Helm mutation.
+	InvalidateHelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) error
 	// DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace.
 	DaemonSetsSnapshot(ctx context.Context, clusterName, namespace string) (DaemonSetsSnapshot, error)
 	// StatefulSetsSnapshot returns a raw snapshot for statefulsets in the given namespace.
@@ -259,6 +263,7 @@ type clusterPlane struct {
 	saStore           namespacedSnapshotStore[ServiceAccountsSnapshot]
 	rolesStore        namespacedSnapshotStore[RolesSnapshot]
 	roleBindingsStore namespacedSnapshotStore[RoleBindingsSnapshot]
+	helmReleasesStore namespacedSnapshotStore[HelmReleasesSnapshot]
 	dsStore           namespacedSnapshotStore[DaemonSetsSnapshot]
 	stsStore          namespacedSnapshotStore[StatefulSetsSnapshot]
 	rsStore           namespacedSnapshotStore[ReplicaSetsSnapshot]
@@ -288,6 +293,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		saStore:           newNamespacedSnapshotStore[ServiceAccountsSnapshot](),
 		rolesStore:        newNamespacedSnapshotStore[RolesSnapshot](),
 		roleBindingsStore: newNamespacedSnapshotStore[RoleBindingsSnapshot](),
+		helmReleasesStore: newNamespacedSnapshotStore[HelmReleasesSnapshot](),
 		dsStore:           newNamespacedSnapshotStore[DaemonSetsSnapshot](),
 		stsStore:          newNamespacedSnapshotStore[StatefulSetsSnapshot](),
 		rsStore:           newNamespacedSnapshotStore[ReplicaSetsSnapshot](),
@@ -340,6 +346,7 @@ type SecretsSnapshot = Snapshot[dto.SecretDTO]
 type ServiceAccountsSnapshot = Snapshot[dto.ServiceAccountListItemDTO]
 type RolesSnapshot = Snapshot[dto.RoleListItemDTO]
 type RoleBindingsSnapshot = Snapshot[dto.RoleBindingListItemDTO]
+type HelmReleasesSnapshot = Snapshot[dto.HelmReleaseDTO]
 type DaemonSetsSnapshot = Snapshot[dto.DaemonSetDTO]
 type StatefulSetsSnapshot = Snapshot[dto.StatefulSetDTO]
 type ReplicaSetsSnapshot = Snapshot[dto.ReplicaSetDTO]
@@ -502,6 +509,19 @@ func (p *clusterPlane) RoleBindingsSnapshot(ctx context.Context, sched *workSche
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.roleBindingsStore, desc)
 }
 
+// HelmReleasesSnapshot returns a raw snapshot for Helm releases in the given namespace plus metadata and any normalized error.
+func (p *clusterPlane) HelmReleasesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (HelmReleasesSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.HelmReleaseDTO]{
+		kind:        ResourceKindHelmReleases,
+		ttl:         15 * time.Second,
+		capGroup:    "",
+		capResource: "secrets",
+		capScope:    CapabilityScopeNamespace,
+		fetch:       kube.ListHelmReleases,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.helmReleasesStore, desc)
+}
+
 // DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) DaemonSetsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (DaemonSetsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.DaemonSetDTO]{
@@ -637,6 +657,22 @@ func (m *manager) RoleBindingsSnapshot(ctx context.Context, clusterName, namespa
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	return plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) HelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) (HelmReleasesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) InvalidateHelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) error {
+	planeAny, err := m.PlaneForCluster(ctx, clusterName)
+	if err != nil {
+		return err
+	}
+	plane := planeAny.(*clusterPlane)
+	clearNamespacedSnapshot(&plane.helmReleasesStore, namespace)
+	return nil
 }
 
 func (m *manager) DaemonSetsSnapshot(ctx context.Context, clusterName, namespace string) (DaemonSetsSnapshot, error) {

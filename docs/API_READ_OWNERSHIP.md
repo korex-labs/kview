@@ -8,7 +8,7 @@ This document maps how **GET** and read-shaped **`/api`** routes source data. It
 
 1. **Dataplane snapshots** are the default substrate for the main **namespaced list** surfaces the UI uses as anchors.
 2. **Projections** assemble answers from those snapshots (and metadata composition only)—**no** hidden live `kube` calls inside projection builders.
-3. **Direct cluster reads** in handlers are **explicit exceptions**: details, events, YAML (where present), relation lookups, deferred list families, cluster-scoped RBAC/storage APIs, and selected namespace helpers.
+3. **Direct cluster reads** in handlers are **explicit exceptions**: details, events, YAML (where present), relation lookups, cluster-scoped catalog/RBAC/storage APIs, and selected namespace helpers.
 
 Underlying **list IO** for snapshot-backed routes is still `kube.List*` **inside** dataplane snapshot executors (scheduler, cache, normalization)—not in the HTTP handler.
 
@@ -35,6 +35,7 @@ These routes use `DataPlaneManager.*Snapshot` and `writeDataplaneListResponse`. 
 | `GET /api/namespaces/{ns}/serviceaccounts` | `ServiceAccountsSnapshot` |
 | `GET /api/namespaces/{ns}/roles` | `RolesSnapshot` |
 | `GET /api/namespaces/{ns}/rolebindings` | `RoleBindingsSnapshot` |
+| `GET /api/namespaces/{ns}/helmreleases` | `HelmReleasesSnapshot`; backed by Helm's Secret storage in the namespace. |
 
 ---
 
@@ -67,7 +68,7 @@ Background row enrichment is **narrow and user-aligned**:
 
 | Route | Behavior |
 |-------|----------|
-| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, `restartHotspots`, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. **Helm** fields stay empty until a Helm snapshot exists. |
+| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, Helm release count/list, `restartHotspots`, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. |
 
 ---
 
@@ -80,11 +81,10 @@ Background row enrichment is **narrow and user-aligned**:
 | `GET /api/namespaces/{name}` | Namespace **detail** (intentional direct read). |
 | `GET /api/namespaces/{name}/resourcequotas` | Not owned by dataplane; low-frequency surface. |
 
-### 4.2 Namespaced lists deferred
+### 4.2 Deferred catalog reads
 
 | Route | Reason |
 |-------|--------|
-| `GET /api/namespaces/{ns}/helmreleases` | Deferred (Helm snapshot ownership TBD). |
 | `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. |
 
 ### 4.3 Cluster-scoped families (not dataplane list–backed)

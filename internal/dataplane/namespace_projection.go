@@ -23,8 +23,6 @@ type NamespaceSummaryProjection struct {
 
 // NamespaceSummaryProjection builds a namespace summary from dataplane snapshots (projection-led).
 // It must not perform ad hoc kube client reads; only DataPlaneManager snapshot entrypoints.
-// Helm releases are not snapshot-owned yet: counts stay zero and releases list empty unless a later
-// stage adds a dataplane/Helm snapshot. Coverage/completeness metadata stays partial/inexact.
 func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, namespace string) (NamespaceSummaryProjection, error) {
 	var out NamespaceSummaryProjection
 
@@ -70,6 +68,7 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	rsSnap, rsErr := plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	jobsSnap, jobsErr := plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	cjSnap, cjErr := plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	helmSnap, helmErr := plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 
 	res := dto.NamespaceSummaryResourcesDTO{
 		Problematic: []dto.ProblematicResource{},
@@ -108,9 +107,10 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	if cjErr == nil {
 		res.Counts.CronJobs = len(cjSnap.Items)
 	}
-	// Helm: not snapshot-backed in dataplane yet
-	res.Counts.HelmReleases = 0
-	res.HelmReleases = nil
+	if helmErr == nil {
+		res.Counts.HelmReleases = len(helmSnap.Items)
+		res.HelmReleases = namespaceHelmReleasesFromSnapshot(helmSnap.Items)
+	}
 
 	if podsErr == nil {
 		res.PodHealth = podPhaseRollup(podsSnap.Items)
@@ -161,17 +161,19 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		rsSnap.Meta,
 		jobsSnap.Meta,
 		cjSnap.Meta,
+		helmSnap.Meta,
 	)
 	out.Meta = meta
 
 	firstNorm := FirstNonNilNormalizedError(
 		podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err,
-		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err,
+		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err, helmSnap.Err,
 	)
 
 	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
 		res.Counts.Ingresses + res.Counts.PVCs + res.Counts.ConfigMaps + res.Counts.Secrets +
-		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs
+		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs +
+		res.Counts.HelmReleases
 	state := ProjectionCoarseState(firstNorm, meaningful)
 
 	res.Meta = &dto.NamespaceSummaryMetaDTO{
@@ -186,8 +188,20 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	out.Err = firstNorm
 	return out, FirstError(
 		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
-		dsErr, stsErr, rsErr, jobsErr, cjErr,
+		dsErr, stsErr, rsErr, jobsErr, cjErr, helmErr,
 	)
+}
+
+func namespaceHelmReleasesFromSnapshot(items []dto.HelmReleaseDTO) []dto.NamespaceHelmRelease {
+	out := make([]dto.NamespaceHelmRelease, 0, len(items))
+	for _, r := range items {
+		out = append(out, dto.NamespaceHelmRelease{
+			Name:     r.Name,
+			Status:   r.Status,
+			Revision: r.Revision,
+		})
+	}
+	return out
 }
 
 func podPhaseRollup(items []dto.PodListItemDTO) dto.NamespacePodHealth {

@@ -54,6 +54,8 @@ func ParseListRevisionResourceKind(s string) (ResourceKind, bool) {
 		return ResourceKindRoles, true
 	case string(ResourceKindRoleBindings):
 		return ResourceKindRoleBindings, true
+	case string(ResourceKindHelmReleases):
+		return ResourceKindHelmReleases, true
 	case string(ResourceKindDaemonSets):
 		return ResourceKindDaemonSets, true
 	case string(ResourceKindStatefulSets):
@@ -144,6 +146,12 @@ func (p *clusterPlane) listSnapshotRevision(kind ResourceKind, namespace string)
 		fillListRevisionEnvFromSnap(&env, snap, snap.Err)
 	case ResourceKindRoleBindings:
 		snap, ok := peekNamespacedSnapshot(&p.roleBindingsStore, namespace)
+		if !ok {
+			return env
+		}
+		fillListRevisionEnvFromSnap(&env, snap, snap.Err)
+	case ResourceKindHelmReleases:
+		snap, ok := peekNamespacedSnapshot(&p.helmReleasesStore, namespace)
 		if !ok {
 			return env
 		}

@@ -7,6 +7,11 @@ import HelmReleaseDrawer from "./HelmReleaseDrawer";
 import { HelmInstallButton } from "./HelmActions";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
+import {
+  dataplaneListMetaFromResponse,
+  type ApiDataplaneListResponse,
+} from "../../../types/api";
+import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 
 type HelmRelease = {
   name: string;
@@ -96,12 +101,15 @@ export default function HelmReleasesTable({
   namespace: string;
 }) {
   const fetchRows = useCallback(async () => {
-    const res = await apiGet<{ items: HelmRelease[] }>(
+    const res = await apiGet<ApiDataplaneListResponse<HelmRelease>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/helmreleases`,
       token,
     );
     const items = res.items || [];
-    return { rows: items.map((r) => ({ ...r, id: `${r.namespace}/${r.name}` })) };
+    return {
+      rows: items.map((r) => ({ ...r, id: `${r.namespace}/${r.name}` })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
+    };
   }, [token, namespace]);
 
   const filterPredicate = useCallback(
@@ -118,6 +126,10 @@ export default function HelmReleasesTable({
       title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
+      dataplaneRevisionPoll={{
+        fetchRevision: dataplaneRevisionFetcher(token, "helmreleases", namespace),
+        pollSec: defaultRevisionPollSec,
+      }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
       filterLabel="Filter (name / chart / version)"

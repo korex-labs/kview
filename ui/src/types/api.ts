@@ -210,6 +210,7 @@ export type ApiDashboardClusterResponse = {
       serviceAccounts: number;
       roles: number;
       roleBindings: number;
+      helmReleases: number;
       totalNamespaces: number;
       note?: string;
       aggregateFreshness?: string;

@@ -29,7 +29,7 @@ func TestVisibleNamespacesWithCachedDataplaneLists(t *testing.T) {
 	p := newClusterPlane("c", ProfileFocused, DiscoveryModeTargeted, ObservationScope{})
 	now := time.Now().UTC()
 	meta := SnapshotMetadata{ObservedAt: now}
-	setNamespacedSnapshot(&p.roleBindingsStore, "bravo", RoleBindingsSnapshot{Items: []dto.RoleBindingListItemDTO{{Name: "rb1"}}, Meta: meta})
+	setNamespacedSnapshot(&p.helmReleasesStore, "bravo", HelmReleasesSnapshot{Items: []dto.HelmReleaseDTO{{Name: "rel1"}}, Meta: meta})
 
 	vis := []string{"alpha", "bravo", "charlie"}
 	got := visibleNamespacesWithCachedDataplaneLists(p, vis)
@@ -67,6 +67,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	setNamespacedSnapshot(&plane.saStore, ns, ServiceAccountsSnapshot{Meta: meta, Items: []dto.ServiceAccountListItemDTO{{Name: "sa", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.rolesStore, ns, RolesSnapshot{Meta: meta, Items: []dto.RoleListItemDTO{{Name: "role", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.roleBindingsStore, ns, RoleBindingsSnapshot{Meta: meta, Items: []dto.RoleBindingListItemDTO{{Name: "rb", Namespace: ns}}})
+	setNamespacedSnapshot(&plane.helmReleasesStore, ns, HelmReleasesSnapshot{Meta: meta, Items: []dto.HelmReleaseDTO{{Name: "rel", Namespace: ns}}})
 
 	res, hot, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0)
 	if res.Pods != 1 {
@@ -75,7 +76,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	if res.DaemonSets != 1 || res.StatefulSets != 1 || res.ReplicaSets != 1 || res.Jobs != 1 || res.CronJobs != 1 {
 		t.Fatalf("workload totals: %+v", res)
 	}
-	if res.ConfigMaps != 1 || res.Secrets != 1 || res.ServiceAccounts != 1 || res.Roles != 1 || res.RoleBindings != 1 {
+	if res.ConfigMaps != 1 || res.Secrets != 1 || res.ServiceAccounts != 1 || res.Roles != 1 || res.RoleBindings != 1 || res.HelmReleases != 1 {
 		t.Fatalf("config/access totals: %+v", res)
 	}
 	if hot.PodsWithElevatedRestarts < 1 {

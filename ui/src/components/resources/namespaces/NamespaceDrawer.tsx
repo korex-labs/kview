@@ -423,8 +423,8 @@ export default function NamespaceDrawer(props: {
                           <Chip size="small" label={`completeness: ${summaryMeta.completeness || "?"}`} variant="outlined" />
                         </Box>
                         <Typography variant="caption" color="text.secondary">
-                          Built from dataplane snapshots. Coverage is partial and completeness inexact while Helm (and
-                          other non-snapshot slices) are omitted here — use the Helm list for releases.
+                          Built from dataplane snapshots. Coverage is partial and completeness inexact for this compact
+                          namespace summary.
                         </Typography>
                       </Box>
                     </Section>

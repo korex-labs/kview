@@ -25,7 +25,7 @@ Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dat
 
 **Cluster-scoped snapshot kinds:** namespaces, nodes.
 
-**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings.
+**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases.
 
 Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values).
 
@@ -45,7 +45,7 @@ Operators can inspect **running and queued** snapshot work via `GET /api/datapla
 
 Notable projection:
 
-- **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, bounded hotspots, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`). **Helm** is not snapshot-owned yet: Helm list/count fields stay empty until a Helm snapshot exists; metadata may be partial where Helm is part of the product contract.
+- **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, Helm release count/list, bounded hotspots, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`).
 
 ---
 
@@ -88,7 +88,7 @@ Dataplane-backed **list** handlers use a shared envelope pattern (`active`, `ite
 These are **intentional** current limits, not bugs:
 
 - **`GET /api/nodes`** (node list) is still a **direct** handler read; the **dashboard** uses the dataplane **nodes snapshot** for summary metadata. Aligning the node list API with snapshots would be follow-up work.
-- **Deferred namespaced lists** (helmreleases) and **`GET /api/helmcharts`** remain direct reads until snapshot semantics exist.
+- **`GET /api/helmcharts`** remains a direct read until cluster-scoped Helm catalog snapshot semantics exist.
 - **Namespace detail** (`GET /api/namespaces/{name}`) and **resource quotas** list are direct reads.
 - **Detail, events, YAML, relation** endpoints remain direct reads even when the **list** for that kind is dataplane-backed.
 - A **uniform metadata envelope on every API** (including legacy list routes) is not guaranteed; that would be a product-wide decision.
