@@ -118,3 +118,144 @@ func deploymentListSignals(d dto.DeploymentListItemDTO) (bucket string, needsAtt
 	}
 	return deployBucketUnknown, false
 }
+
+// EnrichDaemonSetListItemsForAPI returns a shallow copy with snapshot-derived rollout hints.
+func EnrichDaemonSetListItemsForAPI(items []dto.DaemonSetDTO) []dto.DaemonSetDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.DaemonSetDTO, len(items))
+	for i := range items {
+		ds := items[i]
+		ds.HealthBucket, ds.NeedsAttention = daemonSetListSignals(ds)
+		out[i] = ds
+	}
+	return out
+}
+
+func daemonSetListSignals(ds dto.DaemonSetDTO) (bucket string, needsAttention bool) {
+	switch {
+	case ds.Desired == 0:
+		return deployBucketHealthy, false
+	case ds.Ready == ds.Desired:
+		return deployBucketHealthy, false
+	case ds.Current < ds.Desired || ds.Updated < ds.Desired:
+		return deployBucketProgressing, false
+	default:
+		return deployBucketDegraded, true
+	}
+}
+
+// EnrichStatefulSetListItemsForAPI returns a shallow copy with snapshot-derived rollout hints.
+func EnrichStatefulSetListItemsForAPI(items []dto.StatefulSetDTO) []dto.StatefulSetDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.StatefulSetDTO, len(items))
+	for i := range items {
+		sts := items[i]
+		sts.HealthBucket, sts.NeedsAttention = statefulSetListSignals(sts)
+		out[i] = sts
+	}
+	return out
+}
+
+func statefulSetListSignals(sts dto.StatefulSetDTO) (bucket string, needsAttention bool) {
+	switch {
+	case sts.Desired == 0:
+		return deployBucketHealthy, false
+	case sts.Ready == sts.Desired && sts.Desired > 0:
+		return deployBucketHealthy, false
+	case sts.Current < sts.Desired || sts.Updated < sts.Desired:
+		return deployBucketProgressing, false
+	default:
+		return deployBucketDegraded, true
+	}
+}
+
+// EnrichReplicaSetListItemsForAPI returns a shallow copy with snapshot-derived readiness hints.
+func EnrichReplicaSetListItemsForAPI(items []dto.ReplicaSetDTO) []dto.ReplicaSetDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.ReplicaSetDTO, len(items))
+	for i := range items {
+		rs := items[i]
+		rs.HealthBucket, rs.NeedsAttention = replicaSetListSignals(rs)
+		out[i] = rs
+	}
+	return out
+}
+
+func replicaSetListSignals(rs dto.ReplicaSetDTO) (bucket string, needsAttention bool) {
+	switch {
+	case rs.Desired == 0:
+		return deployBucketHealthy, false
+	case rs.Ready == rs.Desired && rs.Desired > 0:
+		return deployBucketHealthy, false
+	case rs.Ready < rs.Desired:
+		return deployBucketProgressing, false
+	default:
+		return deployBucketDegraded, true
+	}
+}
+
+// EnrichJobListItemsForAPI returns a shallow copy with snapshot-derived status hints.
+func EnrichJobListItemsForAPI(items []dto.JobDTO) []dto.JobDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.JobDTO, len(items))
+	for i := range items {
+		j := items[i]
+		j.HealthBucket, j.NeedsAttention = jobListSignals(j)
+		out[i] = j
+	}
+	return out
+}
+
+func jobListSignals(j dto.JobDTO) (bucket string, needsAttention bool) {
+	switch j.Status {
+	case "Complete":
+		return deployBucketHealthy, false
+	case "Failed":
+		return deployBucketDegraded, true
+	case "Running":
+		return deployBucketProgressing, false
+	default:
+		if j.Failed > 0 {
+			return deployBucketDegraded, true
+		}
+		if j.Active > 0 {
+			return deployBucketProgressing, false
+		}
+		return deployBucketUnknown, false
+	}
+}
+
+// EnrichCronJobListItemsForAPI returns a shallow copy with snapshot-derived status hints.
+func EnrichCronJobListItemsForAPI(items []dto.CronJobDTO) []dto.CronJobDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.CronJobDTO, len(items))
+	for i := range items {
+		cj := items[i]
+		cj.HealthBucket, cj.NeedsAttention = cronJobListSignals(cj)
+		out[i] = cj
+	}
+	return out
+}
+
+func cronJobListSignals(cj dto.CronJobDTO) (bucket string, needsAttention bool) {
+	switch {
+	case cj.Suspend:
+		return deployBucketHealthy, false
+	case cj.Active >= 8:
+		return deployBucketDegraded, true
+	case cj.Active > 0:
+		return deployBucketProgressing, false
+	default:
+		return deployBucketHealthy, false
+	}
+}

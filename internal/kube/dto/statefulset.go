@@ -11,6 +11,8 @@ type StatefulSetDTO struct {
 	UpdateStrategy string `json:"updateStrategy,omitempty"`
 	Selector       string `json:"selector,omitempty"`
 	AgeSec         int64  `json:"ageSec"`
+	HealthBucket   string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
 }
 
 type StatefulSetDetailsDTO struct {

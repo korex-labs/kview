@@ -5,7 +5,7 @@ import { apiGet } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import JobDrawer from "./JobDrawer";
 import { fmtAge } from "../../../utils/format";
-import { jobStatusChipColor } from "../../../utils/k8sUi";
+import { jobStatusChipColor, workloadHealthBucketColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -19,6 +19,8 @@ type Job = {
   durationSec?: number;
   ageSec: number;
   status?: string;
+  healthBucket?: string;
+  needsAttention?: boolean;
 };
 
 type Row = Job & { id: string };
@@ -32,8 +34,15 @@ const columns: GridColDef<Row>[] = [
     headerName: "Status",
     width: 140,
     renderCell: (p) => {
+      const bucket = p.row.healthBucket || "";
       const status = String(p.value || "");
-      return <Chip size="small" label={status || "-"} color={jobStatusChipColor(status)} />;
+      return (
+        <Chip
+          size="small"
+          label={p.row.needsAttention ? "attention" : status || bucket || "-"}
+          color={bucket ? workloadHealthBucketColor(bucket) : jobStatusChipColor(status)}
+        />
+      );
     },
   },
   { field: "active", headerName: "Active", width: 110, type: "number" },

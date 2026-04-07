@@ -1,9 +1,11 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import ReplicaSetDrawer from "./ReplicaSetDrawer";
 import { fmtAge } from "../../../utils/format";
+import { workloadHealthBucketColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -16,6 +18,8 @@ type ReplicaSet = {
   ready: number;
   owner?: { kind: string; name: string };
   ageSec: number;
+  healthBucket?: string;
+  needsAttention?: boolean;
 };
 
 type Row = ReplicaSet & { id: string };
@@ -24,6 +28,15 @@ const resourceLabel = getResourceLabel("replicasets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "healthBucket",
+    headerName: "Status",
+    width: 140,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket || "unknown";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+  },
   {
     field: "revision",
     headerName: "Revision",

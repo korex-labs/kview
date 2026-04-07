@@ -23,11 +23,11 @@ These routes use `DataPlaneManager.*Snapshot` and `writeDataplaneListResponse`. 
 | `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. |
 | `GET /api/namespaces/{ns}/pods` | `PodsSnapshot`; rows may include projection-derived fields (`restartSeverity`, `listHealthHint`) from `EnrichPodListItemsForAPI`. |
 | `GET /api/namespaces/{ns}/deployments` | `DeploymentsSnapshot`; optional `EnrichDeploymentListItemsForAPI` fields. |
-| `GET /api/namespaces/{ns}/daemonsets` | `DaemonSetsSnapshot` |
-| `GET /api/namespaces/{ns}/statefulsets` | `StatefulSetsSnapshot` |
-| `GET /api/namespaces/{ns}/replicasets` | `ReplicaSetsSnapshot` |
-| `GET /api/namespaces/{ns}/jobs` | `JobsSnapshot` |
-| `GET /api/namespaces/{ns}/cronjobs` | `CronJobsSnapshot` |
+| `GET /api/namespaces/{ns}/daemonsets` | `DaemonSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
+| `GET /api/namespaces/{ns}/statefulsets` | `StatefulSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
+| `GET /api/namespaces/{ns}/replicasets` | `ReplicaSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
+| `GET /api/namespaces/{ns}/jobs` | `JobsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
+| `GET /api/namespaces/{ns}/cronjobs` | `CronJobsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
 | `GET /api/namespaces/{ns}/services` | `ServicesSnapshot` |
 | `GET /api/namespaces/{ns}/ingresses` | `IngressesSnapshot` |
 | `GET /api/namespaces/{ns}/persistentvolumeclaims` | `PVCsSnapshot` |

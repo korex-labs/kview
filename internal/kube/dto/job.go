@@ -1,24 +1,26 @@
 package dto
 
 type JobDTO struct {
-	Name        string `json:"name"`
-	Namespace   string `json:"namespace"`
-	Active      int32  `json:"active"`
-	Succeeded   int32  `json:"succeeded"`
-	Failed      int32  `json:"failed"`
-	DurationSec int64  `json:"durationSec,omitempty"`
-	AgeSec      int64  `json:"ageSec"`
-	Status      string `json:"status"`
+	Name           string `json:"name"`
+	Namespace      string `json:"namespace"`
+	Active         int32  `json:"active"`
+	Succeeded      int32  `json:"succeeded"`
+	Failed         int32  `json:"failed"`
+	DurationSec    int64  `json:"durationSec,omitempty"`
+	AgeSec         int64  `json:"ageSec"`
+	Status         string `json:"status"`
+	HealthBucket   string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
 }
 
 type JobDetailsDTO struct {
-	Summary    JobSummaryDTO       `json:"summary"`
-	Conditions []JobConditionDTO   `json:"conditions"`
-	Pods       []JobPodDTO         `json:"pods"`
-	LinkedPods JobPodsSummaryDTO   `json:"linkedPods"`
-	Metadata   JobMetadataDTO      `json:"metadata"`
-	Selector   string              `json:"selector,omitempty"`
-	YAML       string              `json:"yaml"`
+	Summary    JobSummaryDTO     `json:"summary"`
+	Conditions []JobConditionDTO `json:"conditions"`
+	Pods       []JobPodDTO       `json:"pods"`
+	LinkedPods JobPodsSummaryDTO `json:"linkedPods"`
+	Metadata   JobMetadataDTO    `json:"metadata"`
+	Selector   string            `json:"selector,omitempty"`
+	YAML       string            `json:"yaml"`
 }
 
 type JobSummaryDTO struct {

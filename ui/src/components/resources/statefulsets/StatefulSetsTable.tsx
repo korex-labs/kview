@@ -1,9 +1,11 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import StatefulSetDrawer from "./StatefulSetDrawer";
 import { fmtAge } from "../../../utils/format";
+import { workloadHealthBucketColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -19,6 +21,8 @@ type StatefulSet = {
   updateStrategy?: string;
   selector?: string;
   ageSec: number;
+  healthBucket?: string;
+  needsAttention?: boolean;
 };
 
 type Row = StatefulSet & { id: string };
@@ -27,6 +31,15 @@ const resourceLabel = getResourceLabel("statefulsets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "healthBucket",
+    headerName: "Status",
+    width: 140,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket || "unknown";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+  },
   {
     field: "ready",
     headerName: "Ready",

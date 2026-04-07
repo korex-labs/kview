@@ -65,7 +65,7 @@ Design constraints (see `internal/dataplane` for implementation):
 - **Cap** on how many namespaces get enrichment and **limited parallelism**.
 - **Idle gate:** enrichment starts only after API **user activity** has been quiet for a short window; polling the enrichment endpoint **does not** reset that timer.
 
-List rows for **pods** and **deployments** can include small **projection-derived** fields from snapshot DTOs in the list handler (`EnrichPodListItemsForAPI`, `EnrichDeploymentListItemsForAPI`) without extra kube calls.
+List rows for **pods**, **deployments**, and workload controllers can include small **projection-derived** fields from snapshot DTOs in the list handler (`Enrich*ListItemsForAPI`) without extra kube calls.
 
 ---
 

@@ -6,13 +6,15 @@ type OwnerReferenceDTO struct {
 }
 
 type ReplicaSetDTO struct {
-	Name      string             `json:"name"`
-	Namespace string             `json:"namespace"`
-	Revision  int32              `json:"revision"`
-	Desired   int32              `json:"desired"`
-	Ready     int32              `json:"ready"`
-	Owner     *OwnerReferenceDTO `json:"owner,omitempty"`
-	AgeSec    int64              `json:"ageSec"`
+	Name           string             `json:"name"`
+	Namespace      string             `json:"namespace"`
+	Revision       int32              `json:"revision"`
+	Desired        int32              `json:"desired"`
+	Ready          int32              `json:"ready"`
+	Owner          *OwnerReferenceDTO `json:"owner,omitempty"`
+	AgeSec         int64              `json:"ageSec"`
+	HealthBucket   string             `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention bool               `json:"needsAttention,omitempty"`
 }
 
 type ReplicaSetDetailsDTO struct {

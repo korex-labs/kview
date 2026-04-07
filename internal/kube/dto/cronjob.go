@@ -9,16 +9,18 @@ type CronJobDTO struct {
 	LastScheduleTime   int64  `json:"lastScheduleTime,omitempty"`
 	LastSuccessfulTime int64  `json:"lastSuccessfulTime,omitempty"`
 	AgeSec             int64  `json:"ageSec"`
+	HealthBucket       string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
 }
 
 type CronJobDetailsDTO struct {
-	Summary       CronJobSummaryDTO     `json:"summary"`
-	Policy        CronJobPolicyDTO      `json:"policy"`
-	AllJobs       []CronJobJobDTO       `json:"allJobs,omitempty"`
-	JobsForbidden bool                  `json:"jobsForbidden,omitempty"`
-	Spec          CronJobSpecDTO        `json:"spec"`
-	Metadata      CronJobMetadataDTO    `json:"metadata"`
-	YAML          string                `json:"yaml"`
+	Summary       CronJobSummaryDTO  `json:"summary"`
+	Policy        CronJobPolicyDTO   `json:"policy"`
+	AllJobs       []CronJobJobDTO    `json:"allJobs,omitempty"`
+	JobsForbidden bool               `json:"jobsForbidden,omitempty"`
+	Spec          CronJobSpecDTO     `json:"spec"`
+	Metadata      CronJobMetadataDTO `json:"metadata"`
+	YAML          string             `json:"yaml"`
 }
 
 type CronJobSummaryDTO struct {

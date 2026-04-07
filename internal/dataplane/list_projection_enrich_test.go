@@ -58,3 +58,46 @@ func TestEnrichDeploymentListItemsForAPI(t *testing.T) {
 		t.Fatalf("row2 %+v", out[2])
 	}
 }
+
+func TestEnrichWorkloadListItemsForAPI(t *testing.T) {
+	ds := EnrichDaemonSetListItemsForAPI([]dto.DaemonSetDTO{
+		{Desired: 3, Ready: 3},
+		{Desired: 3, Current: 2, Updated: 2, Ready: 1},
+		{Desired: 3, Current: 3, Updated: 3, Ready: 1},
+	})
+	if ds[0].HealthBucket != deployBucketHealthy || ds[1].HealthBucket != deployBucketProgressing {
+		t.Fatalf("daemonset healthy/progressing: %+v", ds)
+	}
+	if ds[2].HealthBucket != deployBucketDegraded || !ds[2].NeedsAttention {
+		t.Fatalf("daemonset degraded: %+v", ds[2])
+	}
+
+	sts := EnrichStatefulSetListItemsForAPI([]dto.StatefulSetDTO{{Desired: 2, Current: 2, Updated: 2, Ready: 1}})
+	if sts[0].HealthBucket != deployBucketDegraded || !sts[0].NeedsAttention {
+		t.Fatalf("statefulset degraded: %+v", sts[0])
+	}
+
+	rs := EnrichReplicaSetListItemsForAPI([]dto.ReplicaSetDTO{{Desired: 2, Ready: 1}})
+	if rs[0].HealthBucket != deployBucketProgressing || rs[0].NeedsAttention {
+		t.Fatalf("replicaset progressing: %+v", rs[0])
+	}
+
+	jobs := EnrichJobListItemsForAPI([]dto.JobDTO{{Status: "Failed", Failed: 1}, {Status: "Running", Active: 1}})
+	if jobs[0].HealthBucket != deployBucketDegraded || !jobs[0].NeedsAttention {
+		t.Fatalf("job degraded: %+v", jobs[0])
+	}
+	if jobs[1].HealthBucket != deployBucketProgressing || jobs[1].NeedsAttention {
+		t.Fatalf("job progressing: %+v", jobs[1])
+	}
+
+	cjs := EnrichCronJobListItemsForAPI([]dto.CronJobDTO{{Active: 9}, {Suspend: true}, {Active: 1}})
+	if cjs[0].HealthBucket != deployBucketDegraded || !cjs[0].NeedsAttention {
+		t.Fatalf("cronjob degraded: %+v", cjs[0])
+	}
+	if cjs[1].HealthBucket != deployBucketHealthy || cjs[1].NeedsAttention {
+		t.Fatalf("cronjob suspended: %+v", cjs[1])
+	}
+	if cjs[2].HealthBucket != deployBucketProgressing || cjs[2].NeedsAttention {
+		t.Fatalf("cronjob progressing: %+v", cjs[2])
+	}
+}

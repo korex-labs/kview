@@ -77,6 +77,11 @@ export function deploymentHealthBucketColor(bucket?: string | null): ChipColor {
   }
 }
 
+/** Workload list API enrichment: healthy | progressing | degraded | unknown */
+export function workloadHealthBucketColor(bucket?: string | null): ChipColor {
+  return deploymentHealthBucketColor(bucket);
+}
+
 /** Namespace list row projection: dataplane coarse state family */
 export function namespaceRowSummaryStateColor(state?: string | null): ChipColor {
   return dataplaneCoarseStateChipColor(state);

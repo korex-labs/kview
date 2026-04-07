@@ -1384,7 +1384,9 @@ func (s *Server) Router() http.Handler {
 		// Namespaced workload list routes below (daemonsets, statefulsets, replicasets, jobs, cronjobs) are
 		// dataplane-backed: s.dp.*Snapshot + writeDataplaneListResponse. kube.List* for these kinds runs only
 		// inside internal/dataplane snapshot executors, not in handlers. Detail/events/yaml stay direct-read.
-		api.Get("/namespaces/{ns}/daemonsets", dataplaneNamespacedListHandler(s, s.dp.DaemonSetsSnapshot, nil))
+		api.Get("/namespaces/{ns}/daemonsets", dataplaneNamespacedListHandler(s, s.dp.DaemonSetsSnapshot, func(items []dto.DaemonSetDTO) any {
+			return dataplane.EnrichDaemonSetListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/daemonsets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1464,7 +1466,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/statefulsets", dataplaneNamespacedListHandler(s, s.dp.StatefulSetsSnapshot, nil))
+		api.Get("/namespaces/{ns}/statefulsets", dataplaneNamespacedListHandler(s, s.dp.StatefulSetsSnapshot, func(items []dto.StatefulSetDTO) any {
+			return dataplane.EnrichStatefulSetListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/statefulsets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1544,7 +1548,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/replicasets", dataplaneNamespacedListHandler(s, s.dp.ReplicaSetsSnapshot, nil))
+		api.Get("/namespaces/{ns}/replicasets", dataplaneNamespacedListHandler(s, s.dp.ReplicaSetsSnapshot, func(items []dto.ReplicaSetDTO) any {
+			return dataplane.EnrichReplicaSetListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/replicasets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1598,7 +1604,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/jobs", dataplaneNamespacedListHandler(s, s.dp.JobsSnapshot, nil))
+		api.Get("/namespaces/{ns}/jobs", dataplaneNamespacedListHandler(s, s.dp.JobsSnapshot, func(items []dto.JobDTO) any {
+			return dataplane.EnrichJobListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/jobs/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1652,7 +1660,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/cronjobs", dataplaneNamespacedListHandler(s, s.dp.CronJobsSnapshot, nil))
+		api.Get("/namespaces/{ns}/cronjobs", dataplaneNamespacedListHandler(s, s.dp.CronJobsSnapshot, func(items []dto.CronJobDTO) any {
+			return dataplane.EnrichCronJobListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/cronjobs/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")

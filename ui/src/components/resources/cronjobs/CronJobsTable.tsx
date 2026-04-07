@@ -5,6 +5,7 @@ import { apiGet } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import CronJobDrawer from "./CronJobDrawer";
 import { fmtAge, fmtTs } from "../../../utils/format";
+import { workloadHealthBucketColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -18,6 +19,8 @@ type CronJob = {
   lastScheduleTime?: number;
   lastSuccessfulTime?: number;
   ageSec: number;
+  healthBucket?: string;
+  needsAttention?: boolean;
 };
 
 type Row = CronJob & { id: string };
@@ -26,6 +29,15 @@ const resourceLabel = getResourceLabel("cronjobs");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "healthBucket",
+    headerName: "Status",
+    width: 140,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket || "healthy";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+  },
   { field: "schedule", headerName: "Schedule", flex: 1, minWidth: 200 },
   {
     field: "suspend",
