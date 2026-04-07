@@ -160,6 +160,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, []);
 
   const emptyMessage = `No ${resourceLabel} found.`;
+  const filteredEmptyMessage = `No ${resourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
 
   const sortModel = useMemo(
     () => [{ field: defaultSortField, sort: "asc" as const }],
@@ -224,6 +225,9 @@ export default function ResourceListPage<TRow extends { id: string }>({
               error,
               accessDenied,
               emptyMessage,
+              filteredEmptyMessage,
+              rowCount: rows.length,
+              filter,
               resourceLabel,
             } as Record<string, unknown>,
           }}
