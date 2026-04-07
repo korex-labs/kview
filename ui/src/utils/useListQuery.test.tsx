@@ -81,4 +81,68 @@ describe("useListQuery revision polling", () => {
 
     await waitFor(() => expect(fetchItems).toHaveBeenCalledTimes(1));
   });
+
+  it("reloads when the query key changes", async () => {
+    const fetchItems = vi.fn(async (id: string) => ({ rows: [{ id, name: id }] }));
+
+    const { result, rerender } = renderHook(
+      ({ id }) =>
+        useListQuery({
+          enabled: true,
+          queryKey: [id],
+          refreshSec: 0,
+          fetchItems: () => fetchItems(id),
+        }),
+      { initialProps: { id: "namespace-a" } },
+    );
+
+    await waitFor(() => expect(result.current.items[0]?.id).toBe("namespace-a"));
+
+    rerender({ id: "namespace-b" });
+
+    await waitFor(() => expect(result.current.items[0]?.id).toBe("namespace-b"));
+    expect(fetchItems).toHaveBeenCalledWith("namespace-a");
+    expect(fetchItems).toHaveBeenCalledWith("namespace-b");
+  });
+
+  it("ignores stale list results after the query key changes", async () => {
+    let resolveA: (value: { rows: Array<{ id: string }> }) => void = () => {};
+    let resolveB: (value: { rows: Array<{ id: string }> }) => void = () => {};
+    const fetchItems = vi.fn((id: string) => {
+      if (id === "namespace-a") {
+        return new Promise<{ rows: Array<{ id: string }> }>((resolve) => {
+          resolveA = resolve;
+        });
+      }
+      return new Promise<{ rows: Array<{ id: string }> }>((resolve) => {
+        resolveB = resolve;
+      });
+    });
+
+    const { result, rerender } = renderHook(
+      ({ id }) =>
+        useListQuery({
+          enabled: true,
+          queryKey: [id],
+          refreshSec: 0,
+          fetchItems: () => fetchItems(id),
+        }),
+      { initialProps: { id: "namespace-a" } },
+    );
+
+    await waitFor(() => expect(fetchItems).toHaveBeenCalledWith("namespace-a"));
+    rerender({ id: "namespace-b" });
+    await waitFor(() => expect(fetchItems).toHaveBeenCalledWith("namespace-b"));
+
+    await act(async () => {
+      resolveB({ rows: [{ id: "namespace-b" }] });
+    });
+    await waitFor(() => expect(result.current.items[0]?.id).toBe("namespace-b"));
+
+    await act(async () => {
+      resolveA({ rows: [{ id: "namespace-a" }] });
+    });
+
+    expect(result.current.items[0]?.id).toBe("namespace-b");
+  });
 });

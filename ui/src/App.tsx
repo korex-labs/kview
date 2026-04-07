@@ -35,6 +35,7 @@ import {
   recordRecentNamespace,
   saveState,
   toggleFavouriteNamespace,
+  type AppStateV1,
   type Section,
 } from "./state";
 import { useConnectionState } from "./connectionState";
@@ -186,7 +187,7 @@ function AppInner() {
     setFavourites(fav);
 
     setAppState((s) => {
-      let next = { ...s, activeContext: name, activeNamespace: chosenNs };
+      let next: AppStateV1 = { ...s, activeContext: name, activeNamespace: chosenNs };
       if (name && chosenNs) next = recordRecentNamespace(next, name, chosenNs);
       return next;
     });
@@ -195,7 +196,7 @@ function AppInner() {
   function onSelectNamespace(ns: string) {
     setNamespace(ns);
     setAppState((s) => {
-      let next = { ...s, activeNamespace: ns };
+      let next: AppStateV1 = { ...s, activeNamespace: ns };
       if (activeContext) next = recordRecentNamespace(next, activeContext, ns);
       return next;
     });
@@ -368,4 +369,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-

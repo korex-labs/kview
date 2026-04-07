@@ -10,6 +10,7 @@ import type { ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
 import ResourceTableToolbar, { type ResourceTableToolbarProps } from "./ResourceTableToolbar";
 import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
+import { useActiveContext } from "../../activeContext";
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
@@ -94,11 +95,13 @@ export default function ResourceListPage<TRow extends { id: string }>({
   /** Id of the row shown in the drawer (set when opening via Open or double-click). */
   const [drawerSelectedId, setDrawerSelectedId] = useState<string | null>(null);
   const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec);
+  const activeContext = useActiveContext();
 
   const fetchRowsStable = useCallback(() => fetchRows(), [fetchRows]);
 
   const { items: rows, dataplaneMeta, error, loading, lastRefresh, refetch } = useListQuery<TRow>({
     enabled,
+    queryKey: [activeContext, namespace ?? "", resourceLabel, fetchRows],
     refreshSec,
     fetchItems: fetchRowsStable,
     onInitialResult: () => setSelectionModel([]),

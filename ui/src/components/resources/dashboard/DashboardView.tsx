@@ -14,6 +14,7 @@ import {
 import { apiGet } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { namespaceRowSummaryStateColor } from "../../../utils/k8sUi";
+import { useActiveContext } from "../../../activeContext";
 
 type Props = {
   token: string;
@@ -47,11 +48,13 @@ export default function DashboardView(props: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const activeContext = useActiveContext();
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr(null);
+    setData(null);
     (async () => {
       try {
         const res = await apiGet<ApiDashboardClusterResponse>("/api/dashboard/cluster", props.token);
@@ -65,7 +68,7 @@ export default function DashboardView(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [props.token]);
+  }, [activeContext, props.token]);
 
   return (
     <Box

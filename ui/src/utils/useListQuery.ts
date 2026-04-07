@@ -6,6 +6,8 @@ import { useConnectionState } from "../connectionState";
 
 type UseListQueryOptions<T> = {
   enabled?: boolean;
+  /** Inputs that identify the backing list; changes trigger a fresh load and discard stale in-flight results. */
+  queryKey?: unknown[];
   /** Poll interval in seconds for full list refetch. When > 0, overrides revision-based polling. */
   refreshSec: number;
   fetchItems: () => Promise<ResourceListFetchResult<T>>;
@@ -34,6 +36,7 @@ type UseListQueryResult<T> = {
 
 export default function useListQuery<T>({
   enabled = true,
+  queryKey,
   refreshSec,
   fetchItems,
   onInitialResult,
@@ -65,12 +68,15 @@ export default function useListQuery<T>({
   }, [fetchRevision]);
 
   const lastRevisionRef = useRef<string | null>(null);
+  const generationRef = useRef(0);
 
   const loadInitial = useCallback(async () => {
+    const generation = generationRef.current;
     setLoading(true);
     setError(null);
     try {
       const next = await fetchItemsRef.current();
+      if (generation !== generationRef.current) return;
       setFetchedRows(next.rows);
       setDataplaneMeta(next.dataplaneMeta ?? null);
       setLastRefresh(new Date());
@@ -78,21 +84,27 @@ export default function useListQuery<T>({
       const fr = fetchRevisionRef.current;
       if (fr) {
         try {
-          lastRevisionRef.current = await fr();
+          const rev = await fr();
+          if (generation !== generationRef.current) return;
+          lastRevisionRef.current = rev;
         } catch {
+          if (generation !== generationRef.current) return;
           lastRevisionRef.current = null;
         }
       } else {
         lastRevisionRef.current = null;
       }
     } catch (err) {
+      if (generation !== generationRef.current) return;
       setFetchedRows([]);
       setDataplaneMeta(null);
       onInitialResultRef.current?.();
       lastRevisionRef.current = null;
       setError(toApiError(err));
     } finally {
-      setLoading(false);
+      if (generation === generationRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -110,14 +122,23 @@ export default function useListQuery<T>({
 
   useEffect(() => {
     if (!enabled) return;
+    generationRef.current += 1;
+    setFetchedRows([]);
+    setDataplaneMeta(null);
+    setError(null);
+    setLastRefresh(null);
+    lastRevisionRef.current = null;
     void loadInitial();
-  }, [enabled, loadInitial, retryNonce]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryKey is the caller-provided list identity
+  }, [enabled, loadInitial, retryNonce, ...(queryKey ?? [])]);
 
   useEffect(() => {
     if (!enabled || refreshSec <= 0) return;
     const t = setInterval(async () => {
+      const generation = generationRef.current;
       try {
         const next = await fetchItemsRef.current();
+        if (generation !== generationRef.current) return;
         setFetchedRows(next.rows);
         setDataplaneMeta(next.dataplaneMeta ?? null);
         setLastRefresh(new Date());
@@ -125,7 +146,9 @@ export default function useListQuery<T>({
         const fr = fetchRevisionRef.current;
         if (fr) {
           try {
-            lastRevisionRef.current = await fr();
+            const rev = await fr();
+            if (generation !== generationRef.current) return;
+            lastRevisionRef.current = rev;
           } catch {
             /* keep previous revision marker */
           }
@@ -144,8 +167,10 @@ export default function useListQuery<T>({
     if (!fr || revisionPollSec <= 0) return;
 
     const tick = async () => {
+      const generation = generationRef.current;
       try {
         const rev = await fr();
+        if (generation !== generationRef.current) return;
         const prev = lastRevisionRef.current;
         if (prev === null) {
           lastRevisionRef.current = rev;
@@ -154,6 +179,7 @@ export default function useListQuery<T>({
         if (prev !== rev) {
           lastRevisionRef.current = rev;
           const next = await fetchItemsRef.current();
+          if (generation !== generationRef.current) return;
           setFetchedRows(next.rows);
           setDataplaneMeta(next.dataplaneMeta ?? null);
           setLastRefresh(new Date());
