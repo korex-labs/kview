@@ -281,6 +281,8 @@ export type ApiDashboardClusterResponse = {
         severity: string;
         score: number;
         reason: string;
+        likelyCause?: string;
+        suggestedAction?: string;
         confidence?: string;
         section?: string;
       }>;
@@ -291,6 +293,8 @@ export type ApiDashboardClusterResponse = {
         severity: string;
         score: number;
         reason: string;
+        likelyCause?: string;
+        suggestedAction?: string;
         confidence?: string;
         section?: string;
       }>;

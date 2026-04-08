@@ -197,11 +197,29 @@ func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
 	if summary.Total != len(findings) || summary.High < 2 || summary.EmptyConfigMaps != 1 || summary.EmptySecrets != 1 {
 		t.Fatalf("summary %+v findings %+v", summary, findings)
 	}
-	if len(summary.Top) != 3 || summary.Top[0].Score < summary.Top[1].Score {
-		t.Fatalf("top not capped/sorted: %+v", summary.Top)
+	if len(summary.Top) != 3 {
+		t.Fatalf("top not capped: %+v", summary.Top)
+	}
+	if summary.Top[0].Kind != "HelmRelease" || summary.Top[1].Kind != "Job" || summary.Top[2].Kind != "CronJob" {
+		t.Fatalf("top not ordered by attention priority: %+v", summary.Top)
 	}
 	if len(summary.Items) != len(findings) {
 		t.Fatalf("items should keep all findings: got %d want %d", len(summary.Items), len(findings))
+	}
+}
+
+func TestSummarizeDashboardFindingsPrefersHigherValueKindsOverScore(t *testing.T) {
+	summary := summarizeDashboardFindings([]ClusterDashboardFinding{
+		{Kind: "Job", Severity: "high", Score: 95, Namespace: "ns", Name: "job-a"},
+		{Kind: "HelmRelease", Severity: "high", Score: 86, Namespace: "ns", Name: "rel-a"},
+		{Kind: "Secret", Severity: "high", Score: 99, Namespace: "ns", Name: "sec-a"},
+	}, 10)
+
+	if len(summary.Top) != 3 {
+		t.Fatalf("top len = %d", len(summary.Top))
+	}
+	if summary.Top[0].Kind != "HelmRelease" || summary.Top[1].Kind != "Job" || summary.Top[2].Kind != "Secret" {
+		t.Fatalf("unexpected attention ordering: %+v", summary.Top)
 	}
 }
 

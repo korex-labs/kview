@@ -14,6 +14,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
+import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { apiGet, apiGetWithContext } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
@@ -109,6 +111,28 @@ function PanelTitle({ title, hint }: { title: string; hint: string }) {
         {title}
       </Typography>
       <InfoHint title={hint} />
+    </Box>
+  );
+}
+
+function FindingHintIcons({ likelyCause, suggestedAction }: { likelyCause?: string; suggestedAction?: string }) {
+  if (!likelyCause && !suggestedAction) return null;
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: 0.5, verticalAlign: "middle" }}>
+      {likelyCause ? (
+        <Tooltip title={`Likely cause: ${likelyCause}`}>
+          <IconButton size="small" sx={{ p: 0.2 }}>
+            <HelpOutlineOutlinedIcon fontSize="inherit" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+      {suggestedAction ? (
+        <Tooltip title={`Next step: ${suggestedAction}`}>
+          <IconButton size="small" sx={{ p: 0.2 }}>
+            <BuildOutlinedIcon fontSize="inherit" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
     </Box>
   );
 }
@@ -451,135 +475,247 @@ export default function DashboardView(props: Props) {
                   />
                 </Box>
 
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <PanelTitle
-                    title="Attention"
-                    hint={findings?.note || "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope findings."}
-                  />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1.5 }}>
-                    <FindingFilterChip
-                      filter="top"
-                      count={topFindings.length}
-                      selected={findingFilter === "top"}
-                      onSelect={setFindingFilter}
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1.35fr) minmax(0, 1fr)" }, gap: 2 }}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <PanelTitle
+                      title="Attention"
+                      hint={findings?.note || "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope findings."}
                     />
-                    <FindingFilterChip
-                      filter="high"
-                      count={findings?.high ?? 0}
-                      color={(findings?.high || 0) > 0 ? "error" : "default"}
-                      selected={findingFilter === "high"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="medium"
-                      count={findings?.medium ?? 0}
-                      color={(findings?.medium || 0) > 0 ? "warning" : "default"}
-                      selected={findingFilter === "medium"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="low"
-                      count={findings?.low ?? 0}
-                      color={(findings?.low || 0) > 0 ? "info" : "default"}
-                      selected={findingFilter === "low"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="Namespace"
-                      count={findings?.emptyNamespaces ?? 0}
-                      selected={findingFilter === "Namespace"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="HelmRelease"
-                      count={findings?.stuckHelmReleases ?? 0}
-                      selected={findingFilter === "HelmRelease"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="Job"
-                      count={findings?.abnormalJobs ?? 0}
-                      selected={findingFilter === "Job"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="CronJob"
-                      count={findings?.abnormalCronJobs ?? 0}
-                      selected={findingFilter === "CronJob"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="ConfigMap"
-                      count={findings?.emptyConfigMaps ?? 0}
-                      selected={findingFilter === "ConfigMap"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="Secret"
-                      count={findings?.emptySecrets ?? 0}
-                      selected={findingFilter === "Secret"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="PersistentVolumeClaim"
-                      count={findings?.potentiallyUnusedPVCs ?? 0}
-                      selected={findingFilter === "PersistentVolumeClaim"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="ServiceAccount"
-                      count={findings?.potentiallyUnusedServiceAccounts ?? 0}
-                      selected={findingFilter === "ServiceAccount"}
-                      onSelect={setFindingFilter}
-                    />
-                    <FindingFilterChip
-                      filter="ResourceQuota"
-                      count={findings?.quotaWarnings ?? 0}
-                      color={(findings?.quotaWarnings || 0) > 0 ? "warning" : "default"}
-                      selected={findingFilter === "ResourceQuota"}
-                      onSelect={setFindingFilter}
-                    />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                    Showing {visibleFindings.length} {findingFilterLabel(findingFilter).toLowerCase()} finding
-                    {visibleFindings.length === 1 ? "" : "s"}.
-                  </Typography>
-                  {visibleFindings.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      No cached-scope findings for this filter.
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1.5 }}>
+                      <FindingFilterChip
+                        filter="top"
+                        count={topFindings.length}
+                        selected={findingFilter === "top"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="high"
+                        count={findings?.high ?? 0}
+                        color={(findings?.high || 0) > 0 ? "error" : "default"}
+                        selected={findingFilter === "high"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="medium"
+                        count={findings?.medium ?? 0}
+                        color={(findings?.medium || 0) > 0 ? "warning" : "default"}
+                        selected={findingFilter === "medium"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="low"
+                        count={findings?.low ?? 0}
+                        color={(findings?.low || 0) > 0 ? "info" : "default"}
+                        selected={findingFilter === "low"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="Namespace"
+                        count={findings?.emptyNamespaces ?? 0}
+                        selected={findingFilter === "Namespace"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="HelmRelease"
+                        count={findings?.stuckHelmReleases ?? 0}
+                        selected={findingFilter === "HelmRelease"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="Job"
+                        count={findings?.abnormalJobs ?? 0}
+                        selected={findingFilter === "Job"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="CronJob"
+                        count={findings?.abnormalCronJobs ?? 0}
+                        selected={findingFilter === "CronJob"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="ConfigMap"
+                        count={findings?.emptyConfigMaps ?? 0}
+                        selected={findingFilter === "ConfigMap"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="Secret"
+                        count={findings?.emptySecrets ?? 0}
+                        selected={findingFilter === "Secret"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="PersistentVolumeClaim"
+                        count={findings?.potentiallyUnusedPVCs ?? 0}
+                        selected={findingFilter === "PersistentVolumeClaim"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="ServiceAccount"
+                        count={findings?.potentiallyUnusedServiceAccounts ?? 0}
+                        selected={findingFilter === "ServiceAccount"}
+                        onSelect={setFindingFilter}
+                      />
+                      <FindingFilterChip
+                        filter="ResourceQuota"
+                        count={findings?.quotaWarnings ?? 0}
+                        color={(findings?.quotaWarnings || 0) > 0 ? "warning" : "default"}
+                        selected={findingFilter === "ResourceQuota"}
+                        onSelect={setFindingFilter}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                      Showing {visibleFindings.length} {findingFilterLabel(findingFilter).toLowerCase()} finding
+                      {visibleFindings.length === 1 ? "" : "s"}.
                     </Typography>
-                  ) : (
-                    <Table size="small">
-                      <TableBody>
-                        {visibleFindings.map((f) => (
-                          <TableRow key={`${f.kind}/${f.namespace || ""}/${f.name || ""}/${f.reason}`}>
-                            <TableCell sx={{ border: 0, py: 0.6, pl: 0, width: 118 }}>
-                              <Chip size="small" color={severityColor(f.severity)} label={f.severity} />
-                            </TableCell>
-                            <TableCell sx={{ border: 0, py: 0.6 }}>
+                    {visibleFindings.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No cached-scope findings for this filter.
+                      </Typography>
+                    ) : (
+                      <Table size="small">
+                        <TableBody>
+                          {visibleFindings.map((f) => (
+                            <TableRow key={`${f.kind}/${f.namespace || ""}/${f.name || ""}/${f.reason}`}>
+                              <TableCell sx={{ border: 0, py: 0.6, pl: 0, width: 118 }}>
+                                <Chip size="small" color={severityColor(f.severity)} label={f.severity} />
+                              </TableCell>
+                              <TableCell sx={{ border: 0, py: 0.6 }}>
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                 {f.kind} {findingTarget(f)}
+                                <FindingHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {f.reason} {f.confidence ? `Confidence: ${f.confidence}.` : ""}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ border: 0, py: 0.6, pr: 0, textAlign: "right", width: 110 }}>
-                              {inspectTargetFromFinding(f) ? (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => setInspectTarget(inspectTargetFromFinding(f))}
-                                >
-                                  Inspect
-                                </Button>
-                              ) : null}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                              <TableCell sx={{ border: 0, py: 0.6, pr: 0, textAlign: "right", width: 110 }}>
+                                {inspectTargetFromFinding(f) ? (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => setInspectTarget(inspectTargetFromFinding(f))}
+                                  >
+                                    Inspect
+                                  </Button>
+                                ) : null}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </Paper>
+
+                  {hotspotsEnabled && (hotspots.topProblematicNamespaces?.length || hotspots.topPodRestartHotspots?.length) ? (
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <PanelTitle
+                        title="Hotspots"
+                        hint="Compatibility view for restart-heavy pods and older problematic-resource scoring."
+                      />
+                      {hotspots.topProblematicNamespaces && hotspots.topProblematicNamespaces.length > 0 ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                            Namespaces with the most flagged resources
+                          </Typography>
+                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                            {hotspots.topProblematicNamespaces.map((t) => (
+                              <Chip
+                                key={t.namespace}
+                                size="small"
+                                label={`${t.namespace}: ${t.score}`}
+                                color="warning"
+                                variant="outlined"
+                                onClick={() => setInspectTarget({ kind: "Namespace", namespace: t.namespace, name: t.namespace })}
+                              />
+                            ))}
+                          </Box>
+                        </>
+                      ) : null}
+                      {hotspots.topPodRestartHotspots && hotspots.topPodRestartHotspots.length > 0 ? (
+                        <>
+                          {hotspots.topProblematicNamespaces && hotspots.topProblematicNamespaces.length > 0 ? <Divider sx={{ my: 1.5 }} /> : null}
+                          <Table size="small">
+                            <TableBody>
+                              {hotspots.topPodRestartHotspots.slice(0, 8).map((h) => (
+                                <TableRow key={`${h.namespace}/${h.name}`}>
+                                  <TableCell sx={{ border: 0, py: 0.35, pl: 0 }}>
+                                    {h.namespace}/{h.name}
+                                  </TableCell>
+                                  <TableCell sx={{ border: 0, py: 0.35 }}>
+                                    <Box sx={{ display: "flex", flexDirection: "column" }}>
+                                      <Typography variant="body2">
+                                        {h.restartRatePerDay ? formatRestartRatePerDay(h.restartRatePerDay) : `${h.restarts} restarts`}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {h.restarts} restarts
+                                        {h.ageSec ? ` · age ${formatAgeShort(h.ageSec)}` : ""}
+                                      </Typography>
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell sx={{ border: 0, py: 0.35 }}>
+                                    <Chip size="small" label={h.severity} color={h.severity === "high" ? "error" : "warning"} />
+                                  </TableCell>
+                                  <TableCell sx={{ border: 0, py: 0.35, pr: 0, textAlign: "right" }}>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={() => setInspectTarget({ kind: "Pod", namespace: h.namespace, name: h.name })}
+                                    >
+                                      Inspect
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </>
+                      ) : null}
+                    </Paper>
+                  ) : null}
+                </Box>
+
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <PanelTitle
+                    title="Known Resources"
+                    hint="Resource counts are not inferred cluster totals; they are summed from cached namespace list snapshots."
+                  />
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+                    {resources.aggregateFreshness ? <Chip size="small" variant="outlined" label={`Freshness ${resources.aggregateFreshness}`} /> : null}
+                    {resources.aggregateDegradation && resources.aggregateDegradation !== "none" ? (
+                      <Chip size="small" color="warning" variant="outlined" label={`Degradation ${resources.aggregateDegradation}`} />
+                    ) : null}
+                  </Box>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>
+                    {[
+                      ["Pods", resources.pods],
+                      ["Deployments", resources.deployments],
+                      ["DaemonSets", resources.daemonSets],
+                      ["StatefulSets", resources.statefulSets],
+                      ["ReplicaSets", resources.replicaSets],
+                      ["Jobs", resources.jobs],
+                      ["CronJobs", resources.cronJobs],
+                      ["Services", resources.services],
+                      ["Ingresses", resources.ingresses],
+                      ["PVCs", resources.persistentVolumeClaims],
+                      ["ConfigMaps", resources.configMaps],
+                      ["Secrets", resources.secrets],
+                      ["ServiceAccounts", resources.serviceAccounts],
+                      ["Roles", resources.roles],
+                      ["RoleBindings", resources.roleBindings],
+                      ["HelmReleases", resources.helmReleases],
+                      ["ResourceQuotas", resources.resourceQuotas],
+                      ["LimitRanges", resources.limitRanges],
+                    ].map(([label, value]) => (
+                      <Box key={label} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {label}
+                        </Typography>
+                        <Typography variant="h6">{value}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
                 </Paper>
 
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" }, gap: 2 }}>
@@ -631,115 +767,6 @@ export default function DashboardView(props: Props) {
                     </Table>
                   </Paper>
                 </Box>
-
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <PanelTitle
-                    title="Known Resources"
-                    hint="Resource counts are not inferred cluster totals; they are summed from cached namespace list snapshots."
-                  />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                    {resources.aggregateFreshness ? <Chip size="small" variant="outlined" label={`Freshness ${resources.aggregateFreshness}`} /> : null}
-                    {resources.aggregateDegradation && resources.aggregateDegradation !== "none" ? (
-                      <Chip size="small" color="warning" variant="outlined" label={`Degradation ${resources.aggregateDegradation}`} />
-                    ) : null}
-                  </Box>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>
-                    {[
-                      ["Pods", resources.pods],
-                      ["Deployments", resources.deployments],
-                      ["DaemonSets", resources.daemonSets],
-                      ["StatefulSets", resources.statefulSets],
-                      ["ReplicaSets", resources.replicaSets],
-                      ["Jobs", resources.jobs],
-                      ["CronJobs", resources.cronJobs],
-                      ["Services", resources.services],
-                      ["Ingresses", resources.ingresses],
-                      ["PVCs", resources.persistentVolumeClaims],
-                      ["ConfigMaps", resources.configMaps],
-                      ["Secrets", resources.secrets],
-                      ["ServiceAccounts", resources.serviceAccounts],
-                      ["Roles", resources.roles],
-                      ["RoleBindings", resources.roleBindings],
-                      ["HelmReleases", resources.helmReleases],
-                      ["ResourceQuotas", resources.resourceQuotas],
-                      ["LimitRanges", resources.limitRanges],
-                    ].map(([label, value]) => (
-                      <Box key={label} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          {label}
-                        </Typography>
-                        <Typography variant="h6">{value}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Paper>
-
-                {hotspotsEnabled && (hotspots.topProblematicNamespaces?.length || hotspots.topPodRestartHotspots?.length) ? (
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <PanelTitle
-                      title="Hotspots"
-                      hint="Compatibility view for restart-heavy pods and older problematic-resource scoring."
-                    />
-                    {hotspots.topProblematicNamespaces && hotspots.topProblematicNamespaces.length > 0 ? (
-                      <>
-                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                          Namespaces with the most flagged resources
-                        </Typography>
-                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                          {hotspots.topProblematicNamespaces.map((t) => (
-                            <Chip
-                              key={t.namespace}
-                              size="small"
-                              label={`${t.namespace}: ${t.score}`}
-                              color="warning"
-                              variant="outlined"
-                              onClick={() => setInspectTarget({ kind: "Namespace", namespace: t.namespace, name: t.namespace })}
-                            />
-                          ))}
-                        </Box>
-                      </>
-                    ) : null}
-                    {hotspots.topPodRestartHotspots && hotspots.topPodRestartHotspots.length > 0 ? (
-                      <>
-                        <Divider sx={{ my: 1.5 }} />
-                        <Table size="small">
-                          <TableBody>
-                            {hotspots.topPodRestartHotspots.slice(0, 8).map((h) => (
-                              <TableRow key={`${h.namespace}/${h.name}`}>
-                                <TableCell sx={{ border: 0, py: 0.35, pl: 0 }}>
-                                  {h.namespace}/{h.name}
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.35 }}>
-                                  <Box sx={{ display: "flex", flexDirection: "column" }}>
-                                    <Typography variant="body2">{h.restarts} restarts</Typography>
-                                    {h.restartRatePerDay ? (
-                                      <Typography variant="caption" color="text.secondary">
-                                        {formatRestartRatePerDay(h.restartRatePerDay)}
-                                        {h.ageSec ? ` · age ${formatAgeShort(h.ageSec)}` : ""}
-                                      </Typography>
-                                    ) : null}
-                                  </Box>
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.35 }}>
-                                  <Chip size="small" label={h.severity} color={h.severity === "high" ? "error" : "warning"} />
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.35, pr: 0, textAlign: "right" }}>
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => setInspectTarget({ kind: "Pod", namespace: h.namespace, name: h.name })}
-                                  >
-                                    Inspect
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </>
-                    ) : null}
-                  </Paper>
-                ) : null}
               </>
             );
           })()}

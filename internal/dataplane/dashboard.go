@@ -149,14 +149,16 @@ type ClusterDashboardFindingsPanel struct {
 }
 
 type ClusterDashboardFinding struct {
-	Kind       string `json:"kind"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Severity   string `json:"severity"`
-	Score      int    `json:"score"`
-	Reason     string `json:"reason"`
-	Confidence string `json:"confidence,omitempty"`
-	Section    string `json:"section,omitempty"`
+	Kind            string `json:"kind"`
+	Namespace       string `json:"namespace,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Severity        string `json:"severity"`
+	Score           int    `json:"score"`
+	Reason          string `json:"reason"`
+	LikelyCause     string `json:"likelyCause,omitempty"`
+	SuggestedAction string `json:"suggestedAction,omitempty"`
+	Confidence      string `json:"confidence,omitempty"`
+	Section         string `json:"section,omitempty"`
 }
 
 // ClusterDashboardWorkloadHints mirrors Hotspots for compact UI chips.

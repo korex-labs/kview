@@ -430,15 +430,56 @@ func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) [
 }
 
 func dashboardFinding(kind, namespace, name, severity string, score int, reason, confidence, section string) ClusterDashboardFinding {
+	likelyCause, suggestedAction := dashboardFindingAdvice(kind, severity)
 	return ClusterDashboardFinding{
-		Kind:       kind,
-		Namespace:  namespace,
-		Name:       name,
-		Severity:   severity,
-		Score:      score,
-		Reason:     reason,
-		Confidence: confidence,
-		Section:    section,
+		Kind:            kind,
+		Namespace:       namespace,
+		Name:            name,
+		Severity:        severity,
+		Score:           score,
+		Reason:          reason,
+		LikelyCause:     likelyCause,
+		SuggestedAction: suggestedAction,
+		Confidence:      confidence,
+		Section:         section,
+	}
+}
+
+func dashboardFindingAdvice(kind, severity string) (likelyCause string, suggestedAction string) {
+	switch kind {
+	case "Namespace":
+		return "The workload may have been removed earlier, or the namespace was created temporarily and never cleaned up.",
+			"Check recent ownership and deploy history. If it is no longer needed, remove the namespace after confirming no retained data or policies still depend on it."
+	case "HelmRelease":
+		return "A Helm upgrade, rollback, or uninstall likely stalled on hooks, failing resources, or an interrupted release operation.",
+			"Inspect the release status, recent Helm history, and related workload events. Resolve the blocking resource or hook, then finish or roll back the release cleanly."
+	case "Job":
+		if severity == "high" {
+			return "The job probably has failing pods, image/config problems, missing dependencies, or logic that exits unsuccessfully.",
+				"Open the job and pod logs, inspect events, and fix the failing input, dependency, or image issue before rerunning."
+		}
+		return "The job may be blocked on external work, stuck waiting on resources, or looping without making progress.",
+			"Inspect active pods, logs, and related dependencies. If it is intentionally long-running, consider moving it to a different workload type or adjusting expectations."
+	case "CronJob":
+		return "The schedule may be producing overlapping runs, repeatedly failing, or never completing successfully.",
+			"Review recent job history, concurrency policy, schedule, and pod failures. Reduce overlap or fix the underlying job failure before the backlog grows."
+	case "ConfigMap":
+		return "The object may be a placeholder, partially applied manifest, or leftover config no workload actually uses.",
+			"Confirm whether a workload mounts or references it. Populate the expected data or remove it if it is obsolete."
+	case "Secret":
+		return "The secret may be an incomplete rollout artifact, placeholder, or stale object left behind by an old deployment.",
+			"Verify whether anything references it. Restore the expected data or delete it if it is no longer used."
+	case "PersistentVolumeClaim":
+		return "The claim may belong to a removed workload, a failed rollout, or a namespace that no longer has active consumers.",
+			"Check what last mounted it and whether data must be kept. Delete or archive it only after confirming retention expectations."
+	case "ServiceAccount":
+		return "The service account may have been created for a workload that no longer runs in this namespace.",
+			"Verify whether any pods or controllers still reference it. Remove it if unused, especially if it carries extra permissions."
+	case "ResourceQuota":
+		return "The namespace is approaching its configured quota because workload growth or a runaway job is consuming the remaining budget.",
+			"Inspect which resource is close to the hard limit, then either scale usage back down or raise the quota if the growth is intentional."
+	default:
+		return "", ""
 	}
 }
 
@@ -489,6 +530,12 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int) C
 		limit = 10
 	}
 	sort.Slice(findings, func(i, j int) bool {
+		if si, sj := dashboardFindingSeverityPriority(findings[i].Severity), dashboardFindingSeverityPriority(findings[j].Severity); si != sj {
+			return si < sj
+		}
+		if pi, pj := dashboardFindingKindPriority(findings[i].Kind), dashboardFindingKindPriority(findings[j].Kind); pi != pj {
+			return pi < pj
+		}
 		if findings[i].Score != findings[j].Score {
 			return findings[i].Score > findings[j].Score
 		}
@@ -538,6 +585,42 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int) C
 	}
 	out.Items = append(out.Items, findings...)
 	return out
+}
+
+func dashboardFindingSeverityPriority(severity string) int {
+	switch severity {
+	case "high":
+		return 0
+	case "medium":
+		return 1
+	default:
+		return 2
+	}
+}
+
+func dashboardFindingKindPriority(kind string) int {
+	switch kind {
+	case "HelmRelease":
+		return 0
+	case "Deployment":
+		return 1
+	case "DaemonSet", "StatefulSet", "ReplicaSet":
+		return 2
+	case "Pod":
+		return 3
+	case "ResourceQuota":
+		return 4
+	case "Job", "CronJob":
+		return 5
+	case "PersistentVolumeClaim", "ServiceAccount":
+		return 6
+	case "ConfigMap", "Secret":
+		return 7
+	case "Namespace":
+		return 8
+	default:
+		return 9
+	}
 }
 
 func visibleNamespacesWithCachedDataplaneLists(plane *clusterPlane, visibleSorted []string) []string {
