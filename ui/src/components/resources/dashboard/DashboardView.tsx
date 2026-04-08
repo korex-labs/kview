@@ -78,6 +78,13 @@ function severityColor(severity: string): "error" | "warning" | "info" | "defaul
   return "default";
 }
 
+function formatRestartRatePerDay(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "";
+  if (value >= 100) return `${Math.round(value)}/day`;
+  if (value >= 10) return `${value.toFixed(1)}/day`;
+  return `${value.toFixed(1)}/day`;
+}
+
 function InfoHint({ title }: { title: string }) {
   return (
     <Tooltip title={title}>
@@ -695,7 +702,16 @@ export default function DashboardView(props: Props) {
                                 <TableCell sx={{ border: 0, py: 0.35, pl: 0 }}>
                                   {h.namespace}/{h.name}
                                 </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.35 }}>{h.restarts} restarts</TableCell>
+                                <TableCell sx={{ border: 0, py: 0.35 }}>
+                                  <Box sx={{ display: "flex", flexDirection: "column" }}>
+                                    <Typography variant="body2">{h.restarts} restarts</Typography>
+                                    {h.restartRatePerDay ? (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {formatRestartRatePerDay(h.restartRatePerDay)}
+                                      </Typography>
+                                    ) : null}
+                                  </Box>
+                                </TableCell>
                                 <TableCell sx={{ border: 0, py: 0.35 }}>
                                   <Chip size="small" label={h.severity} color={h.severity === "high" ? "error" : "warning"} />
                                 </TableCell>

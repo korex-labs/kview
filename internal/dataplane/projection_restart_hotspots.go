@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"math"
 	"sort"
 
 	"kview/internal/kube/dto"
@@ -64,13 +65,14 @@ func ProjectRestartHotspotsFromPods(namespace string, snap PodsSnapshot, limit i
 			reason = p.LastEvent.Reason
 		}
 		items = append(items, dto.PodRestartHotspotDTO{
-			Namespace:       namespace,
-			Name:            p.Name,
-			Restarts:        p.Restarts,
-			Phase:           p.Phase,
-			Node:            p.Node,
-			LastEventReason: reason,
-			Severity:        restartSeverityFromCount(p.Restarts),
+			Namespace:         namespace,
+			Name:              p.Name,
+			Restarts:          p.Restarts,
+			RestartRatePerDay: restartRatePerDay(p.Restarts, p.AgeSec),
+			Phase:             p.Phase,
+			Node:              p.Node,
+			LastEventReason:   reason,
+			Severity:          restartSeverityFromCount(p.Restarts),
 		})
 	}
 	out.Items = items
@@ -110,4 +112,12 @@ func CountPodsWithRestartThreshold(snap PodsSnapshot, threshold int32) int {
 		}
 	}
 	return int(n)
+}
+
+func restartRatePerDay(restarts int32, ageSec int64) float64 {
+	if restarts <= 0 || ageSec <= 0 {
+		return 0
+	}
+	rate := float64(restarts) * 86400 / float64(ageSec)
+	return math.Round(rate*10) / 10
 }

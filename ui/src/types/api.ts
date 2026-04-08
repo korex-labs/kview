@@ -163,6 +163,7 @@ export type PodRestartHotspotDTO = {
   namespace: string;
   name: string;
   restarts: number;
+  restartRatePerDay?: number;
   phase: string;
   node?: string;
   lastEventReason?: string;

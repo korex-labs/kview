@@ -21,10 +21,10 @@ func TestRestartSeverityFromCount(t *testing.T) {
 func TestProjectRestartHotspotsFromPods_SortAndLimit(t *testing.T) {
 	snap := PodsSnapshot{
 		Items: []dto.PodListItemDTO{
-			{Name: "a", Restarts: 2, Phase: "Running"},
-			{Name: "b", Restarts: 9, Phase: "Running"},
-			{Name: "c", Restarts: 9, Phase: "Running"},
-			{Name: "d", Restarts: 0, Phase: "Running"},
+			{Name: "a", Restarts: 2, Phase: "Running", AgeSec: 86400},
+			{Name: "b", Restarts: 9, Phase: "Running", AgeSec: 43200},
+			{Name: "c", Restarts: 9, Phase: "Running", AgeSec: 21600},
+			{Name: "d", Restarts: 0, Phase: "Running", AgeSec: 86400},
 		},
 	}
 	out := ProjectRestartHotspotsFromPods("ns", snap, 2)
@@ -38,6 +38,9 @@ func TestProjectRestartHotspotsFromPods_SortAndLimit(t *testing.T) {
 	if out.Items[0].Namespace != "ns" {
 		t.Fatalf("namespace")
 	}
+	if out.Items[0].RestartRatePerDay != 18 {
+		t.Fatalf("expected restart rate 18/day, got %v", out.Items[0].RestartRatePerDay)
+	}
 }
 
 func TestMergeRestartHotspots(t *testing.T) {
@@ -46,5 +49,20 @@ func TestMergeRestartHotspots(t *testing.T) {
 	m := MergeRestartHotspots(2, a, b)
 	if len(m) != 2 || m[0].Restarts != 10 {
 		t.Fatalf("merge order: %+v", m)
+	}
+}
+
+func TestRestartRatePerDay(t *testing.T) {
+	if got := restartRatePerDay(12, 86400); got != 12 {
+		t.Fatalf("expected 12, got %v", got)
+	}
+	if got := restartRatePerDay(3, 3600); got != 72 {
+		t.Fatalf("expected 72, got %v", got)
+	}
+	if got := restartRatePerDay(1, 172800); got != 0.5 {
+		t.Fatalf("expected 0.5, got %v", got)
+	}
+	if got := restartRatePerDay(0, 86400); got != 0 {
+		t.Fatalf("expected 0, got %v", got)
 	}
 }

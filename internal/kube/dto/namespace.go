@@ -7,17 +7,17 @@ type NamespaceListItemDTO struct {
 	HasUnhealthyConditions bool   `json:"hasUnhealthyConditions"`
 	// Row projection (namespaces list, Stage 5C): compact metrics from dataplane pods+deployments
 	// snapshots per namespace. When RowEnriched is false, counts/signals below are unset (zero/false).
-	RowEnriched      bool   `json:"rowEnriched,omitempty"`
-	SummaryState     string `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
-	PodCount         int    `json:"podCount,omitempty"`
-	DeploymentCount  int    `json:"deploymentCount,omitempty"`
-	ProblematicCount int    `json:"problematicCount,omitempty"`
-	PodsWithRestarts int    `json:"podsWithRestarts,omitempty"`
-	RestartHotspot   bool   `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
-	ResourceQuotaCount int    `json:"resourceQuotaCount,omitempty"`
-	LimitRangeCount    int    `json:"limitRangeCount,omitempty"`
-	QuotaWarning       bool   `json:"quotaWarning,omitempty"`
-	QuotaCritical      bool   `json:"quotaCritical,omitempty"`
+	RowEnriched        bool    `json:"rowEnriched,omitempty"`
+	SummaryState       string  `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
+	PodCount           int     `json:"podCount,omitempty"`
+	DeploymentCount    int     `json:"deploymentCount,omitempty"`
+	ProblematicCount   int     `json:"problematicCount,omitempty"`
+	PodsWithRestarts   int     `json:"podsWithRestarts,omitempty"`
+	RestartHotspot     bool    `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+	ResourceQuotaCount int     `json:"resourceQuotaCount,omitempty"`
+	LimitRangeCount    int     `json:"limitRangeCount,omitempty"`
+	QuotaWarning       bool    `json:"quotaWarning,omitempty"`
+	QuotaCritical      bool    `json:"quotaCritical,omitempty"`
 	QuotaMaxRatio      float64 `json:"quotaMaxRatio,omitempty"`
 }
 
@@ -81,13 +81,14 @@ type NamespaceSummaryResourcesDTO struct {
 
 // PodRestartHotspotDTO surfaces restart-heavy pods for operator attention.
 type PodRestartHotspotDTO struct {
-	Namespace       string `json:"namespace"`
-	Name            string `json:"name"`
-	Restarts        int32  `json:"restarts"`
-	Phase           string `json:"phase"`
-	Node            string `json:"node,omitempty"`
-	LastEventReason string `json:"lastEventReason,omitempty"`
-	Severity        string `json:"severity"` // high | medium | low
+	Namespace         string  `json:"namespace"`
+	Name              string  `json:"name"`
+	Restarts          int32   `json:"restarts"`
+	RestartRatePerDay float64 `json:"restartRatePerDay,omitempty"`
+	Phase             string  `json:"phase"`
+	Node              string  `json:"node,omitempty"`
+	LastEventReason   string  `json:"lastEventReason,omitempty"`
+	Severity          string  `json:"severity"` // high | medium | low
 }
 
 // WorkloadKindHealthRollupDTO is a simple healthy / progressing / degraded partition per kind.
