@@ -25,7 +25,7 @@ Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dat
 
 **Cluster-scoped snapshot kinds:** namespaces, nodes.
 
-**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases.
+**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges.
 
 Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values).
 
@@ -55,7 +55,7 @@ Notable projection:
 
 ## Dashboard summary
 
-`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **findings** for cached-scope attention signals, and optional **bounded** workload hints (cross-namespace sampling is not cluster-complete). Findings currently cover empty-looking namespaces, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. The response includes both a capped `findings.top` list for first-glance triage and `findings.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
+`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **findings** for cached-scope attention signals, and optional **bounded** workload hints (cross-namespace sampling is not cluster-complete). Findings currently cover empty-looking namespaces, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, quota pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. The response includes both a capped `findings.top` list for first-glance triage and `findings.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
 
 ---
 
@@ -118,6 +118,6 @@ The UI performs periodic background refresh for dataplane-backed list views and 
 These are **intentional** current limits, not bugs:
 
 - **`GET /api/helmcharts`** remains a direct read until cluster-scoped Helm catalog snapshot semantics exist.
-- **Namespace detail** (`GET /api/namespaces/{name}`) and **resource quotas** list are direct reads.
+- **Namespace detail** (`GET /api/namespaces/{name}`) remains a direct read.
 - **Detail, events, YAML, relation** endpoints remain direct reads even when the **list** for that kind is dataplane-backed.
 - A **uniform metadata envelope on every API** (including legacy list routes) is not guaranteed; that would be a product-wide decision.

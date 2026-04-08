@@ -109,6 +109,10 @@ type DataPlaneManager interface {
 	JobsSnapshot(ctx context.Context, clusterName, namespace string) (JobsSnapshot, error)
 	// CronJobsSnapshot returns a raw snapshot for cronjobs in the given namespace.
 	CronJobsSnapshot(ctx context.Context, clusterName, namespace string) (CronJobsSnapshot, error)
+	// ResourceQuotasSnapshot returns a raw snapshot for resource quotas in the given namespace.
+	ResourceQuotasSnapshot(ctx context.Context, clusterName, namespace string) (ResourceQuotasSnapshot, error)
+	// LimitRangesSnapshot returns a raw snapshot for limit ranges in the given namespace.
+	LimitRangesSnapshot(ctx context.Context, clusterName, namespace string) (LimitRangesSnapshot, error)
 
 	// EnsureObservers makes sure observers are running for the given cluster.
 	EnsureObservers(ctx context.Context, clusterName string)
@@ -383,6 +387,8 @@ type clusterPlane struct {
 	rsStore           namespacedSnapshotStore[ReplicaSetsSnapshot]
 	jobsStore         namespacedSnapshotStore[JobsSnapshot]
 	cjStore           namespacedSnapshotStore[CronJobsSnapshot]
+	rqStore           namespacedSnapshotStore[ResourceQuotasSnapshot]
+	lrStore           namespacedSnapshotStore[LimitRangesSnapshot]
 
 	// Observers state for this cluster.
 	obsMu     sync.Mutex
@@ -422,6 +428,8 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		rsStore:           newNamespacedSnapshotStore[ReplicaSetsSnapshot](),
 		jobsStore:         newNamespacedSnapshotStore[JobsSnapshot](),
 		cjStore:           newNamespacedSnapshotStore[CronJobsSnapshot](),
+		rqStore:           newNamespacedSnapshotStore[ResourceQuotasSnapshot](),
+		lrStore:           newNamespacedSnapshotStore[LimitRangesSnapshot](),
 		policy:            policy,
 		persistence:       persistence,
 	}
@@ -530,6 +538,10 @@ func (p *clusterPlane) hydratePersistedNamespacedSnapshot(kind ResourceKind, nam
 		return hydratePersistedNamespacedSnapshotInto(&p.jobsStore, namespace, payload, maxAge)
 	case ResourceKindCronJobs:
 		return hydratePersistedNamespacedSnapshotInto(&p.cjStore, namespace, payload, maxAge)
+	case ResourceKindResourceQuotas:
+		return hydratePersistedNamespacedSnapshotInto(&p.rqStore, namespace, payload, maxAge)
+	case ResourceKindLimitRanges:
+		return hydratePersistedNamespacedSnapshotInto(&p.lrStore, namespace, payload, maxAge)
 	}
 	return nil
 }
@@ -590,6 +602,8 @@ type StatefulSetsSnapshot = Snapshot[dto.StatefulSetDTO]
 type ReplicaSetsSnapshot = Snapshot[dto.ReplicaSetDTO]
 type JobsSnapshot = Snapshot[dto.JobDTO]
 type CronJobsSnapshot = Snapshot[dto.CronJobDTO]
+type ResourceQuotasSnapshot = Snapshot[dto.ResourceQuotaDTO]
+type LimitRangesSnapshot = Snapshot[dto.LimitRangeDTO]
 
 // NamespacesSnapshot returns a raw snapshot for namespaces plus metadata and any normalized error.
 func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (NamespaceSnapshot, error) {
@@ -825,6 +839,32 @@ func (p *clusterPlane) CronJobsSnapshot(ctx context.Context, sched *workSchedule
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.cjStore, desc)
 }
 
+// ResourceQuotasSnapshot returns a raw snapshot for resource quotas in the given namespace plus metadata and any normalized error.
+func (p *clusterPlane) ResourceQuotasSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ResourceQuotasSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.ResourceQuotaDTO]{
+		kind:        ResourceKindResourceQuotas,
+		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindResourceQuotas),
+		capGroup:    "",
+		capResource: "resourcequotas",
+		capScope:    CapabilityScopeNamespace,
+		fetch:       kube.ListResourceQuotaItems,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rqStore, desc)
+}
+
+// LimitRangesSnapshot returns a raw snapshot for limit ranges in the given namespace plus metadata and any normalized error.
+func (p *clusterPlane) LimitRangesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (LimitRangesSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.LimitRangeDTO]{
+		kind:        ResourceKindLimitRanges,
+		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindLimitRanges),
+		capGroup:    "",
+		capResource: "limitranges",
+		capScope:    CapabilityScopeNamespace,
+		fetch:       kube.ListLimitRanges,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.lrStore, desc)
+}
+
 func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
@@ -946,6 +986,18 @@ func (m *manager) CronJobsSnapshot(ctx context.Context, clusterName, namespace s
 	return plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
 }
 
+func (m *manager) ResourceQuotasSnapshot(ctx context.Context, clusterName, namespace string) (ResourceQuotasSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.ResourceQuotasSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) LimitRangesSnapshot(ctx context.Context, clusterName, namespace string) (LimitRangesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
 func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
@@ -971,11 +1023,7 @@ func (m *manager) SearchCachedResources(_ context.Context, clusterName string, q
 	if offset < 0 {
 		offset = 0
 	}
-	sp := m.currentPersistence()
-	if sp == nil {
-		return CachedResourceSearch{Active: clusterName, Query: q, Limit: limit, Offset: offset, Items: nil}, nil
-	}
-	rows, err := sp.SearchName(clusterName, q, limit+1, offset)
+	rows, err := m.cachedResourceSearchRows(clusterName, q, limit+1, offset)
 	if err != nil {
 		return CachedResourceSearch{}, err
 	}

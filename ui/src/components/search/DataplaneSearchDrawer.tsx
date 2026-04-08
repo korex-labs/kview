@@ -68,6 +68,9 @@ export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate
       return <PersistentVolumeClaimDrawer open={open} onClose={onClose} token={token} namespace={namespace} persistentVolumeClaimName={name} />;
     case "helmreleases":
       return <HelmReleaseDrawer open={open} onClose={onClose} token={token} namespace={namespace} releaseName={name} />;
+    case "resourcequotas":
+    case "limitranges":
+      return <NamespaceDrawer open={open} onClose={onClose} token={token} namespaceName={namespace || null} onNavigate={onNavigate} />;
     default:
       return null;
   }

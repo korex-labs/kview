@@ -113,6 +113,8 @@ func DefaultDataplanePolicy() DataplanePolicy {
 				string(ResourceKindRoles):           180,
 				string(ResourceKindRoleBindings):    180,
 				string(ResourceKindHelmReleases):    120,
+				string(ResourceKindResourceQuotas):  180,
+				string(ResourceKindLimitRanges):     180,
 			},
 			ManualRefreshBypassesTTL:   true,
 			InvalidateAfterKnownWrites: true,
@@ -142,7 +144,7 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			EnrichDetails:     true,
 			EnrichPods:        true,
 			EnrichDeployments: true,
-			WarmResourceKinds: []string{string(ResourceKindPods), string(ResourceKindDeployments)},
+			WarmResourceKinds: []string{string(ResourceKindPods), string(ResourceKindDeployments), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)},
 			PollMs:            1500,
 			Sweep: NamespaceSweepPolicy{
 				Enabled:                        false,

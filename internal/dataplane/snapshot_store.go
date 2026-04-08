@@ -140,3 +140,16 @@ func peekNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], name
 	}
 	return sn, true
 }
+
+func peekAllNamespacedSnapshots[I any](s *namespacedSnapshotStore[Snapshot[I]]) map[string]Snapshot[I] {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]Snapshot[I], len(s.snaps))
+	for namespace, snap := range s.snaps {
+		if snap.Meta.ObservedAt.IsZero() {
+			continue
+		}
+		out[namespace] = snap
+	}
+	return out
+}

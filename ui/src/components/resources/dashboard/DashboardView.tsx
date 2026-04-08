@@ -49,7 +49,8 @@ type FindingFilter =
   | "ConfigMap"
   | "Secret"
   | "PersistentVolumeClaim"
-  | "ServiceAccount";
+  | "ServiceAccount"
+  | "ResourceQuota";
 
 type InspectTarget = {
   kind:
@@ -164,6 +165,8 @@ function findingFilterLabel(filter: FindingFilter): string {
       return "Potentially unused PVCs";
     case "ServiceAccount":
       return "Potentially unused service accounts";
+    case "ResourceQuota":
+      return "Quota pressure";
     default:
       return filter;
   }
@@ -215,6 +218,8 @@ function inspectTargetFromFinding(f: Finding): InspectTarget | null {
     case "PersistentVolumeClaim":
     case "HelmRelease":
       return { kind: f.kind, namespace, name };
+    case "ResourceQuota":
+      return { kind: "Namespace", namespace, name: namespace };
     default:
       return null;
   }
@@ -513,6 +518,13 @@ export default function DashboardView(props: Props) {
                       selected={findingFilter === "ServiceAccount"}
                       onSelect={setFindingFilter}
                     />
+                    <FindingFilterChip
+                      filter="ResourceQuota"
+                      count={findings?.quotaWarnings ?? 0}
+                      color={(findings?.quotaWarnings || 0) > 0 ? "warning" : "default"}
+                      selected={findingFilter === "ResourceQuota"}
+                      onSelect={setFindingFilter}
+                    />
                   </Box>
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                     Showing {visibleFindings.length} {findingFilterLabel(findingFilter).toLowerCase()} finding
@@ -635,6 +647,8 @@ export default function DashboardView(props: Props) {
                       ["Roles", resources.roles],
                       ["RoleBindings", resources.roleBindings],
                       ["HelmReleases", resources.helmReleases],
+                      ["ResourceQuotas", resources.resourceQuotas],
+                      ["LimitRanges", resources.limitRanges],
                     ].map(([label, value]) => (
                       <Box key={label} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1 }}>
                         <Typography variant="caption" color="text.secondary">

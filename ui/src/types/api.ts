@@ -86,6 +86,11 @@ export type ApiNamespacesEnrichmentPoll = {
     problematicCount?: number;
     podsWithRestarts?: number;
     restartHotspot?: boolean;
+    resourceQuotaCount?: number;
+    limitRangeCount?: number;
+    quotaWarning?: boolean;
+    quotaCritical?: boolean;
+    quotaMaxRatio?: number;
   }>;
   active?: string;
 };
@@ -145,6 +150,11 @@ export type ApiNamespacesListResponse = {
     problematicCount?: number;
     podsWithRestarts?: number;
     restartHotspot?: boolean;
+    resourceQuotaCount?: number;
+    limitRangeCount?: number;
+    quotaWarning?: boolean;
+    quotaCritical?: boolean;
+    quotaMaxRatio?: number;
   }>;
 };
 
@@ -229,6 +239,8 @@ export type ApiDashboardClusterResponse = {
       roles: number;
       roleBindings: number;
       helmReleases: number;
+      resourceQuotas: number;
+      limitRanges: number;
       totalNamespaces: number;
       note?: string;
       aggregateFreshness?: string;
@@ -259,6 +271,7 @@ export type ApiDashboardClusterResponse = {
       emptySecrets: number;
       potentiallyUnusedPVCs: number;
       potentiallyUnusedServiceAccounts: number;
+      quotaWarnings: number;
       top?: Array<{
         kind: string;
         namespace?: string;

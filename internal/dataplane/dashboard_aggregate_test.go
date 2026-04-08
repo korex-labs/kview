@@ -68,6 +68,13 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	setNamespacedSnapshot(&plane.rolesStore, ns, RolesSnapshot{Meta: meta, Items: []dto.RoleListItemDTO{{Name: "role", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.roleBindingsStore, ns, RoleBindingsSnapshot{Meta: meta, Items: []dto.RoleBindingListItemDTO{{Name: "rb", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.helmReleasesStore, ns, HelmReleasesSnapshot{Meta: meta, Items: []dto.HelmReleaseDTO{{Name: "rel", Namespace: ns}}})
+	ratio := 0.93
+	setNamespacedSnapshot(&plane.rqStore, ns, ResourceQuotasSnapshot{Meta: meta, Items: []dto.ResourceQuotaDTO{{
+		Name:      "rq",
+		Namespace: ns,
+		Entries:   []dto.ResourceQuotaEntryDTO{{Key: "pods", Used: "9", Hard: "10", Ratio: &ratio}},
+	}}})
+	setNamespacedSnapshot(&plane.lrStore, ns, LimitRangesSnapshot{Meta: meta, Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: ns}}})
 
 	res, hot, find, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0)
 	if res.Pods != 1 {
@@ -78,6 +85,9 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}
 	if res.ConfigMaps != 1 || res.Secrets != 1 || res.ServiceAccounts != 1 || res.Roles != 1 || res.RoleBindings != 1 || res.HelmReleases != 1 {
 		t.Fatalf("config/access totals: %+v", res)
+	}
+	if res.ResourceQuotas != 1 || res.LimitRanges != 1 {
+		t.Fatalf("quota/limit totals: %+v", res)
 	}
 	if hot.PodsWithElevatedRestarts < 1 {
 		t.Fatalf("elevated: %d", hot.PodsWithElevatedRestarts)
@@ -90,6 +100,9 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}
 	if find.EmptyConfigMaps != 1 || find.EmptySecrets != 1 {
 		t.Fatalf("findings %+v", find)
+	}
+	if find.QuotaWarnings != 1 || find.High == 0 {
+		t.Fatalf("quota findings %+v", find)
 	}
 	if cov.ResourceTotalsCompleteness != "complete" || cov.NamespacesInResourceTotals != 1 {
 		t.Fatalf("cov %+v", cov)

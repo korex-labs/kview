@@ -98,6 +98,8 @@ type ClusterDashboardResourcesPanel struct {
 	Roles                  int    `json:"roles"`
 	RoleBindings           int    `json:"roleBindings"`
 	HelmReleases           int    `json:"helmReleases"`
+	ResourceQuotas         int    `json:"resourceQuotas"`
+	LimitRanges            int    `json:"limitRanges"`
 	TotalNamespaces        int    `json:"totalNamespaces"`
 	Note                   string `json:"note,omitempty"`
 	AggregateFreshness     string `json:"aggregateFreshness,omitempty"`
@@ -138,6 +140,7 @@ type ClusterDashboardFindingsPanel struct {
 	EmptySecrets          int                       `json:"emptySecrets"`
 	PotentiallyUnusedPVCs int                       `json:"potentiallyUnusedPVCs"`
 	PotentiallyUnusedSAs  int                       `json:"potentiallyUnusedServiceAccounts"`
+	QuotaWarnings         int                       `json:"quotaWarnings"`
 	Top                   []ClusterDashboardFinding `json:"top,omitempty"`
 	Items                 []ClusterDashboardFinding `json:"items,omitempty"`
 	Note                  string                    `json:"note,omitempty"`

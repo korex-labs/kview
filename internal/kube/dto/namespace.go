@@ -14,6 +14,11 @@ type NamespaceListItemDTO struct {
 	ProblematicCount int    `json:"problematicCount,omitempty"`
 	PodsWithRestarts int    `json:"podsWithRestarts,omitempty"`
 	RestartHotspot   bool   `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+	ResourceQuotaCount int    `json:"resourceQuotaCount,omitempty"`
+	LimitRangeCount    int    `json:"limitRangeCount,omitempty"`
+	QuotaWarning       bool   `json:"quotaWarning,omitempty"`
+	QuotaCritical      bool   `json:"quotaCritical,omitempty"`
+	QuotaMaxRatio      float64 `json:"quotaMaxRatio,omitempty"`
 }
 
 // NamespaceListRowProjectionMetaDTO describes progressive row enrichment on GET /api/namespaces.
@@ -119,6 +124,8 @@ type NamespaceResourceCounts struct {
 	Roles           int `json:"roles"`
 	RoleBindings    int `json:"roleBindings"`
 	HelmReleases    int `json:"helmReleases"`
+	ResourceQuotas  int `json:"resourceQuotas"`
+	LimitRanges     int `json:"limitRanges"`
 }
 
 type NamespacePodHealth struct {

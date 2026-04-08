@@ -38,6 +38,8 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | `GET /api/namespaces/{ns}/roles` | `RolesSnapshot` |
 | `GET /api/namespaces/{ns}/rolebindings` | `RoleBindingsSnapshot` |
 | `GET /api/namespaces/{ns}/helmreleases` | `HelmReleasesSnapshot`; backed by Helm's Secret storage in the namespace. |
+| `GET /api/namespaces/{ns}/resourcequotas` | `ResourceQuotasSnapshot`; also feeds namespace row quota pressure and dashboard findings. |
+| `GET /api/namespaces/{ns}/limitranges` | `LimitRangesSnapshot`; also feeds namespace row limit-range count and dashboard totals. |
 
 ---
 
@@ -84,7 +86,6 @@ Background row enrichment is **narrow and user-aligned**:
 | Route | Reason |
 |-------|--------|
 | `GET /api/namespaces/{name}` | Namespace **detail** (intentional direct read). |
-| `GET /api/namespaces/{name}/resourcequotas` | Not owned by dataplane; low-frequency surface. |
 
 ### 4.2 Deferred catalog reads
 
@@ -129,7 +130,7 @@ For resources that have them, these remain **direct** `kube` reads:
 
 ## 5. Design summary
 
-For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, cluster-scoped families, quotas).
+For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, and limit ranges), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, cluster-scoped families).
 
 ---
 

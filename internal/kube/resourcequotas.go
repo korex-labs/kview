@@ -13,26 +13,34 @@ import (
 
 // quotaKeySortOrder defines the priority order for common quota keys.
 var quotaKeySortOrder = map[string]int{
-	"pods":                     0,
-	"requests.cpu":             1,
-	"requests.memory":          2,
-	"limits.cpu":               3,
-	"limits.memory":            4,
-	"requests.storage":         5,
-	"services":                 6,
-	"services.loadbalancers":   7,
-	"services.nodeports":       8,
-	"configmaps":               9,
-	"secrets":                  10,
-	"persistentvolumeclaims":   11,
-	"replicationcontrollers":   12,
-	"resourcequotas":           13,
-	"requests.nvidia.com/gpu":  14,
+	"pods":                       0,
+	"requests.cpu":               1,
+	"requests.memory":            2,
+	"limits.cpu":                 3,
+	"limits.memory":              4,
+	"requests.storage":           5,
+	"services":                   6,
+	"services.loadbalancers":     7,
+	"services.nodeports":         8,
+	"configmaps":                 9,
+	"secrets":                    10,
+	"persistentvolumeclaims":     11,
+	"replicationcontrollers":     12,
+	"resourcequotas":             13,
+	"requests.nvidia.com/gpu":    14,
 	"requests.ephemeral-storage": 15,
-	"limits.ephemeral-storage": 16,
+	"limits.ephemeral-storage":   16,
 }
 
 func ListResourceQuotas(ctx context.Context, c *cluster.Clients, namespace string) (*dto.ResourceQuotaListDTO, error) {
+	items, err := ListResourceQuotaItems(ctx, c, namespace)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.ResourceQuotaListDTO{Items: items}, nil
+}
+
+func ListResourceQuotaItems(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ResourceQuotaDTO, error) {
 	rqList, err := c.Clientset.CoreV1().ResourceQuotas(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -102,5 +110,5 @@ func ListResourceQuotas(ctx context.Context, c *cluster.Clients, namespace strin
 		})
 	}
 
-	return &dto.ResourceQuotaListDTO{Items: items}, nil
+	return items, nil
 }

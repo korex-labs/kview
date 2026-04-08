@@ -97,6 +97,8 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		rolesSnap, rolesOK := plane.rolesStore.getCached(ns)
 		roleBindingsSnap, roleBindingsOK := plane.roleBindingsStore.getCached(ns)
 		helmReleasesSnap, helmReleasesOK := plane.helmReleasesStore.getCached(ns)
+		rqSnap, rqOK := plane.rqStore.getCached(ns)
+		lrSnap, lrOK := plane.lrStore.getCached(ns)
 
 		if podsOK && podsSnap.Err == nil {
 			res.Pods += len(podsSnap.Items)
@@ -176,35 +178,47 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			res.HelmReleases += len(helmReleasesSnap.Items)
 			aggregateMetas = append(aggregateMetas, helmReleasesSnap.Meta)
 		}
+		if rqOK && rqSnap.Err == nil {
+			res.ResourceQuotas += len(rqSnap.Items)
+			aggregateMetas = append(aggregateMetas, rqSnap.Meta)
+		}
+		if lrOK && lrSnap.Err == nil {
+			res.LimitRanges += len(lrSnap.Items)
+			aggregateMetas = append(aggregateMetas, lrSnap.Meta)
+		}
 		findings = append(findings, detectDashboardFindings(now, ns, dashboardSnapshotSet{
-			pods:         podsSnap,
-			podsOK:       podsOK && podsSnap.Err == nil,
-			deps:         depsSnap,
-			depsOK:       depsOK && depsSnap.Err == nil,
-			ds:           dsSnap,
-			dsOK:         dsOK && dsSnap.Err == nil,
-			sts:          stsSnap,
-			stsOK:        stsOK && stsSnap.Err == nil,
-			rs:           rsSnap,
-			rsOK:         rsOK && rsSnap.Err == nil,
-			jobs:         jobsSnap,
-			jobsOK:       jobsOK && jobsSnap.Err == nil,
-			cjs:          cjSnap,
-			cjsOK:        cjOK && cjSnap.Err == nil,
-			svcs:         svcsSnap,
-			svcsOK:       svcsOK && svcsSnap.Err == nil,
-			ings:         ingsSnap,
-			ingsOK:       ingsOK && ingsSnap.Err == nil,
-			pvcs:         pvcSnap,
-			pvcsOK:       pvcOK && pvcSnap.Err == nil,
-			cms:          cmSnap,
-			cmsOK:        cmOK && cmSnap.Err == nil,
-			secs:         secSnap,
-			secsOK:       secOK && secSnap.Err == nil,
-			sas:          saSnap,
-			sasOK:        saOK && saSnap.Err == nil,
-			helmReleases: helmReleasesSnap,
-			helmOK:       helmReleasesOK && helmReleasesSnap.Err == nil,
+			pods:           podsSnap,
+			podsOK:         podsOK && podsSnap.Err == nil,
+			deps:           depsSnap,
+			depsOK:         depsOK && depsSnap.Err == nil,
+			ds:             dsSnap,
+			dsOK:           dsOK && dsSnap.Err == nil,
+			sts:            stsSnap,
+			stsOK:          stsOK && stsSnap.Err == nil,
+			rs:             rsSnap,
+			rsOK:           rsOK && rsSnap.Err == nil,
+			jobs:           jobsSnap,
+			jobsOK:         jobsOK && jobsSnap.Err == nil,
+			cjs:            cjSnap,
+			cjsOK:          cjOK && cjSnap.Err == nil,
+			svcs:           svcsSnap,
+			svcsOK:         svcsOK && svcsSnap.Err == nil,
+			ings:           ingsSnap,
+			ingsOK:         ingsOK && ingsSnap.Err == nil,
+			pvcs:           pvcSnap,
+			pvcsOK:         pvcOK && pvcSnap.Err == nil,
+			cms:            cmSnap,
+			cmsOK:          cmOK && cmSnap.Err == nil,
+			secs:           secSnap,
+			secsOK:         secOK && secSnap.Err == nil,
+			sas:            saSnap,
+			sasOK:          saOK && saSnap.Err == nil,
+			helmReleases:   helmReleasesSnap,
+			helmOK:         helmReleasesOK && helmReleasesSnap.Err == nil,
+			resourceQuotas: rqSnap,
+			quotasOK:       rqOK && rqSnap.Err == nil,
+			limitRanges:    lrSnap,
+			limitRangesOK:  lrOK && lrSnap.Err == nil,
 		})...)
 
 		if policy.IncludeHotspots {
@@ -291,34 +305,38 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 }
 
 type dashboardSnapshotSet struct {
-	pods         PodsSnapshot
-	podsOK       bool
-	deps         DeploymentsSnapshot
-	depsOK       bool
-	ds           DaemonSetsSnapshot
-	dsOK         bool
-	sts          StatefulSetsSnapshot
-	stsOK        bool
-	rs           ReplicaSetsSnapshot
-	rsOK         bool
-	jobs         JobsSnapshot
-	jobsOK       bool
-	cjs          CronJobsSnapshot
-	cjsOK        bool
-	svcs         ServicesSnapshot
-	svcsOK       bool
-	ings         IngressesSnapshot
-	ingsOK       bool
-	pvcs         PVCsSnapshot
-	pvcsOK       bool
-	cms          ConfigMapsSnapshot
-	cmsOK        bool
-	secs         SecretsSnapshot
-	secsOK       bool
-	sas          ServiceAccountsSnapshot
-	sasOK        bool
-	helmReleases HelmReleasesSnapshot
-	helmOK       bool
+	pods           PodsSnapshot
+	podsOK         bool
+	deps           DeploymentsSnapshot
+	depsOK         bool
+	ds             DaemonSetsSnapshot
+	dsOK           bool
+	sts            StatefulSetsSnapshot
+	stsOK          bool
+	rs             ReplicaSetsSnapshot
+	rsOK           bool
+	jobs           JobsSnapshot
+	jobsOK         bool
+	cjs            CronJobsSnapshot
+	cjsOK          bool
+	svcs           ServicesSnapshot
+	svcsOK         bool
+	ings           IngressesSnapshot
+	ingsOK         bool
+	pvcs           PVCsSnapshot
+	pvcsOK         bool
+	cms            ConfigMapsSnapshot
+	cmsOK          bool
+	secs           SecretsSnapshot
+	secsOK         bool
+	sas            ServiceAccountsSnapshot
+	sasOK          bool
+	helmReleases   HelmReleasesSnapshot
+	helmOK         bool
+	resourceQuotas ResourceQuotasSnapshot
+	quotasOK       bool
+	limitRanges    LimitRangesSnapshot
+	limitRangesOK  bool
 }
 
 func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardFinding {
@@ -361,6 +379,22 @@ func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) [
 				if stale {
 					out = append(out, dashboardFinding("HelmRelease", ns, rel.Name, "high", 86, age, "medium", "helm"))
 				}
+			}
+		}
+	}
+	if s.quotasOK {
+		for _, quota := range s.resourceQuotas.Items {
+			for _, entry := range quota.Entries {
+				if entry.Ratio == nil || *entry.Ratio < 0.8 {
+					continue
+				}
+				severity := "medium"
+				score := 68
+				if *entry.Ratio >= 0.9 {
+					severity = "high"
+					score = 92
+				}
+				out = append(out, dashboardFinding("ResourceQuota", ns, quota.Name, severity, score, "Resource quota "+entry.Key+" is nearing its hard limit.", "high", "namespaces"))
 			}
 		}
 	}
@@ -425,7 +459,9 @@ func isEmptyLookingNamespace(s dashboardSnapshotSet) bool {
 		len(s.pvcs.Items) == 0 &&
 		nonSystemConfigMapCount(s.cms.Items) == 0 &&
 		len(s.secs.Items) == 0 &&
-		len(s.helmReleases.Items) == 0
+		len(s.helmReleases.Items) == 0 &&
+		(!s.quotasOK || len(s.resourceQuotas.Items) == 0) &&
+		(!s.limitRangesOK || len(s.limitRanges.Items) == 0)
 }
 
 func nonSystemConfigMapCount(items []dto.ConfigMapDTO) int {
@@ -491,6 +527,8 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int) C
 			out.PotentiallyUnusedPVCs++
 		case "ServiceAccount":
 			out.PotentiallyUnusedSAs++
+		case "ResourceQuota":
+			out.QuotaWarnings++
 		}
 	}
 	if len(findings) > limit {
@@ -564,6 +602,12 @@ func namespaceHasCachedDataplaneList(plane *clusterPlane, ns string) bool {
 	if _, ok := plane.helmReleasesStore.getCached(ns); ok {
 		return true
 	}
+	if _, ok := plane.rqStore.getCached(ns); ok {
+		return true
+	}
+	if _, ok := plane.lrStore.getCached(ns); ok {
+		return true
+	}
 	return false
 }
 
@@ -585,6 +629,12 @@ func namespaceHasCachedRowProjection(plane *clusterPlane, ns string) bool {
 		return true
 	}
 	if _, ok := plane.depsStore.getCached(ns); ok {
+		return true
+	}
+	if _, ok := plane.rqStore.getCached(ns); ok {
+		return true
+	}
+	if _, ok := plane.lrStore.getCached(ns); ok {
 		return true
 	}
 	return false

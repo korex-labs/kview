@@ -237,3 +237,40 @@ func TestManagerPersistenceDisabledByDefaultDoesNotOpenOrSearchCache(t *testing.
 		t.Fatalf("search with persistence disabled = %+v", got)
 	}
 }
+
+func TestManagerSearchCachedResourcesUsesInMemorySnapshotsWithoutPersistence(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	m := NewManager(ManagerConfig{}).(*manager)
+	planeAny, err := m.PlaneForCluster(context.Background(), "ctx")
+	if err != nil {
+		t.Fatalf("plane for cluster: %v", err)
+	}
+	plane := planeAny.(*clusterPlane)
+	now := time.Now().UTC()
+	meta := SnapshotMetadata{ObservedAt: now}
+	setClusterSnapshot(&plane.nsStore, NamespaceSnapshot{
+		Items: []dto.NamespaceListItemDTO{{Name: "app-prod"}},
+		Meta:  meta,
+	})
+	setNamespacedSnapshot(&plane.podsStore, "app-prod", PodsSnapshot{
+		Items: []dto.PodListItemDTO{{Name: "api-7f", Namespace: "app-prod"}},
+		Meta:  meta,
+	})
+
+	got, err := m.SearchCachedResources(context.Background(), "ctx", "app-prod", 10, 0)
+	if err != nil {
+		t.Fatalf("search namespace from memory: %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Kind != string(ResourceKindNamespaces) || got.Items[0].Name != "app-prod" {
+		t.Fatalf("namespace search from memory = %+v", got)
+	}
+
+	got, err = m.SearchCachedResources(context.Background(), "ctx", "API", 10, 0)
+	if err != nil {
+		t.Fatalf("search pod from memory: %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Kind != string(ResourceKindPods) || got.Items[0].Namespace != "app-prod" || got.Items[0].Name != "api-7f" {
+		t.Fatalf("pod search from memory = %+v", got)
+	}
+}

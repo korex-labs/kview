@@ -78,6 +78,8 @@ const dataplaneSearchSectionByKind: Record<string, Section> = {
   rolebindings: "rolebindings",
   persistentvolumeclaims: "persistentvolumeclaims",
   helmreleases: "helm",
+  resourcequotas: "namespaces",
+  limitranges: "namespaces",
 };
 
 function AppInner() {

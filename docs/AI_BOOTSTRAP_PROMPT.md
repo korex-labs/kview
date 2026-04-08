@@ -13,7 +13,7 @@ Current baseline:
 - Dataplane work is complete for the documented scope.
 - Main namespaced list anchors use dataplane snapshots and list metadata.
 - Namespace summary is projection-backed and must preserve usable partial/degraded payloads.
-- Details, events, YAML, relation lookups, resource quotas, Helm chart catalog, and cluster-scoped list families remain intentional direct-read exceptions unless explicitly migrated and documented.
+- Details, events, YAML, relation lookups, Helm chart catalog, and cluster-scoped list families remain intentional direct-read exceptions unless explicitly migrated and documented.
 - Mutations go through `POST /api/actions`; action capabilities use `POST /api/capabilities`.
 
 Development constraints:

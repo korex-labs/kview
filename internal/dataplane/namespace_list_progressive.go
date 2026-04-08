@@ -652,6 +652,10 @@ func (m *manager) warmNamespaceEnrichmentResourceKinds(ctx context.Context, plan
 			_, _ = plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
 		case ResourceKindHelmReleases:
 			_, _ = plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
+		case ResourceKindResourceQuotas:
+			_, _ = plane.ResourceQuotasSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
+		case ResourceKindLimitRanges:
+			_, _ = plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
 		}
 	}
 }

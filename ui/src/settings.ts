@@ -181,6 +181,8 @@ export const dataplaneTTLResourceKeys = [
   "roles",
   "rolebindings",
   "helmreleases",
+  "resourcequotas",
+  "limitranges",
 ] as const;
 
 export const dataplaneNamespaceWarmResourceKeys = dataplaneTTLResourceKeys.filter(
@@ -303,6 +305,8 @@ export function defaultDataplaneSettings(): DataplaneSettings {
         roles: 180,
         rolebindings: 180,
         helmreleases: 120,
+        resourcequotas: 180,
+        limitranges: 180,
       },
       manualRefreshBypassesTtl: true,
       invalidateAfterKnownMutations: true,
@@ -332,7 +336,7 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       enrichDetails: true,
       enrichPods: true,
       enrichDeployments: true,
-      warmResourceKinds: ["pods", "deployments"],
+      warmResourceKinds: ["pods", "deployments", "resourcequotas", "limitranges"],
       pollMs: 1500,
       sweep: {
         enabled: false,
@@ -375,7 +379,7 @@ export function dataplaneSettingsForProfile(profile: DataplaneProfile): Dataplan
     case "balanced":
       next.namespaceEnrichment.maxTargets = 48;
       next.namespaceEnrichment.maxParallel = 3;
-      next.namespaceEnrichment.warmResourceKinds = ["pods", "deployments", "services", "ingresses"];
+      next.namespaceEnrichment.warmResourceKinds = ["pods", "deployments", "services", "ingresses", "resourcequotas", "limitranges"];
       next.backgroundBudget.maxConcurrentPerCluster = 5;
       break;
     case "wide":
@@ -1020,4 +1024,6 @@ export const allListResourceKeys: ListResourceKey[] = [
   "customresourcedefinitions",
   "helm",
   "helmcharts",
+  "resourcequotas",
+  "limitranges",
 ];

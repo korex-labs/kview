@@ -30,6 +30,15 @@ function dashNum(row: Row, key: "podCount" | "deploymentCount" | "problematicCou
   return String(v);
 }
 
+function quotaLabel(row: Row): string {
+  if (!row.rowEnriched) return "—";
+  const count = row.resourceQuotaCount ?? 0;
+  if (!count) return "none";
+  const ratio = row.quotaMaxRatio;
+  if (ratio == null || ratio <= 0) return String(count);
+  return `${count} · ${Math.round(ratio * 100)}%`;
+}
+
 function mergeNamespaceProjection<T extends NamespaceProjectionUpdate>(base: T | undefined, patch: T): T {
   if (!base || !base.rowEnriched) return patch;
   if (!patch.rowEnriched) return base;
@@ -147,6 +156,46 @@ const columns: GridColDef<Row>[] = [
           </Typography>
           {row.restartHotspot && <Chip size="small" label="Δ" color="warning" title="Elevated pod restarts (≥5)" />}
         </Box>
+      );
+    },
+  },
+  {
+    field: "resourceQuotaCount",
+    headerName: "Quota",
+    width: 112,
+    sortable: false,
+    renderCell: (p) => {
+      const row = p.row;
+      return (
+        <Chip
+          size="small"
+          label={quotaLabel(row)}
+          color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
+          variant={row.rowEnriched && (row.resourceQuotaCount ?? 0) > 0 ? "outlined" : "filled"}
+        />
+      );
+    },
+  },
+  {
+    field: "limitRangeCount",
+    headerName: "Limits",
+    width: 88,
+    align: "right",
+    headerAlign: "right",
+    sortable: false,
+    renderCell: (p) => {
+      const row = p.row;
+      if (!row.rowEnriched) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            —
+          </Typography>
+        );
+      }
+      return (
+        <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          {row.limitRangeCount ?? 0}
+        </Typography>
       );
     },
   },

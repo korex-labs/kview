@@ -18,6 +18,11 @@ func mergeNamespaceRowInto(dst *dto.NamespaceListItemDTO, src dto.NamespaceListI
 	dst.ProblematicCount = src.ProblematicCount
 	dst.PodsWithRestarts = src.PodsWithRestarts
 	dst.RestartHotspot = src.RestartHotspot
+	dst.ResourceQuotaCount = src.ResourceQuotaCount
+	dst.LimitRangeCount = src.LimitRangeCount
+	dst.QuotaWarning = src.QuotaWarning
+	dst.QuotaCritical = src.QuotaCritical
+	dst.QuotaMaxRatio = src.QuotaMaxRatio
 }
 
 // buildNamespaceListRowProjection derives row fields from two snapshots (testable).
@@ -82,7 +87,9 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 	}
 	podsSnap, podsOK := plane.podsStore.getCached(namespace)
 	depsSnap, depsOK := plane.depsStore.getCached(namespace)
-	if !podsOK && !depsOK {
+	rqSnap, rqOK := plane.rqStore.getCached(namespace)
+	lrSnap, lrOK := plane.lrStore.getCached(namespace)
+	if !podsOK && !depsOK && !rqOK && !lrOK {
 		return dto.NamespaceListItemDTO{}, false
 	}
 
@@ -118,9 +125,47 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 			probDeps = deploymentProblematicListUnbounded(depsSnap.Items)
 		}
 	}
+	if rqOK {
+		firstErr = FirstNonNilNormalizedError(firstErr, rqSnap.Err)
+		if rqSnap.Err == nil {
+			out.ResourceQuotaCount = len(rqSnap.Items)
+			meaningful += out.ResourceQuotaCount
+			out.QuotaMaxRatio, out.QuotaWarning, out.QuotaCritical = quotaRiskFromSnapshot(rqSnap)
+		}
+	}
+	if lrOK {
+		firstErr = FirstNonNilNormalizedError(firstErr, lrSnap.Err)
+		if lrSnap.Err == nil {
+			out.LimitRangeCount = len(lrSnap.Items)
+			meaningful += out.LimitRangeCount
+		}
+	}
 	out.ProblematicCount = countUniqueProblematic(probPods, probDeps, nil)
 	out.SummaryState = ProjectionCoarseState(firstErr, meaningful)
 	return out, true
+}
+
+func quotaRiskFromSnapshot(snap ResourceQuotasSnapshot) (maxRatio float64, warning bool, critical bool) {
+	for _, quota := range snap.Items {
+		for _, entry := range quota.Entries {
+			if entry.Ratio == nil {
+				continue
+			}
+			ratio := *entry.Ratio
+			if ratio > maxRatio {
+				maxRatio = ratio
+			}
+			if ratio >= 0.9 {
+				critical = true
+				warning = true
+				continue
+			}
+			if ratio >= 0.8 {
+				warning = true
+			}
+		}
+	}
+	return maxRatio, warning, critical
 }
 
 func podProblematicFromListUnbounded(items []dto.PodListItemDTO) []dto.ProblematicResource {

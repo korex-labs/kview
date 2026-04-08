@@ -29,7 +29,9 @@ export type ListResourceKey =
   | "namespaces"
   | "customresourcedefinitions"
   | "helm"
-  | "helmcharts";
+  | "helmcharts"
+  | "resourcequotas"
+  | "limitranges";
 
 export type ResourceMeta = {
   label: string;
@@ -39,7 +41,7 @@ export type ResourceMeta = {
 export type SidebarGroup = {
   id: string;
   label: string;
-  items: ListResourceKey[];
+  items: Section[];
 };
 
 export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
@@ -67,6 +69,8 @@ export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
   customresourcedefinitions: { label: "Custom Resource Definitions", clusterScoped: true },
   helm: { label: "Helm Releases", clusterScoped: false },
   helmcharts: { label: "Helm Charts", clusterScoped: true },
+  resourcequotas: { label: "Resource Quotas", clusterScoped: false },
+  limitranges: { label: "Limit Ranges", clusterScoped: false },
 };
 
 export const sidebarGroups: SidebarGroup[] = [
@@ -147,4 +151,6 @@ export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> =
   customresourcedefinitions: { group: "apiextensions.k8s.io", resource: "customresourcedefinitions" },
   helm: { group: "", resource: "secrets" },
   helmcharts: { group: "", resource: "secrets" },
+  resourcequotas: { group: "", resource: "resourcequotas" },
+  limitranges: { group: "", resource: "limitranges" },
 };

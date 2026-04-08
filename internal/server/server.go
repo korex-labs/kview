@@ -821,13 +821,9 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-				return
-			}
+			active := s.readContextName(r)
 
-			result, err := kube.ListResourceQuotas(ctx, clients, name)
+			snap, err := s.dp.ResourceQuotasSnapshot(ctx, active, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -837,7 +833,31 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": result.Items})
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
+		})
+
+		api.Get("/namespaces/{name}/limitranges", func(w http.ResponseWriter, r *http.Request) {
+			name := chi.URLParam(r, "name")
+			if name == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace name"})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			defer cancel()
+
+			active := s.readContextName(r)
+			snap, err := s.dp.LimitRangesSnapshot(ctx, active, name)
+			if err != nil {
+				status := http.StatusInternalServerError
+				if apierrors.IsForbidden(err) {
+					status = http.StatusForbidden
+				}
+				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 		})
 
 		api.Post("/auth/can-i", func(w http.ResponseWriter, r *http.Request) {

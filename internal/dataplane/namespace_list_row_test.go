@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"testing"
+	"time"
 
 	"kview/internal/kube/dto"
 )
@@ -100,5 +101,30 @@ func TestMergeNamespaceRowIntoIgnoresListOnlyPatch(t *testing.T) {
 
 	if !dst.RowEnriched || dst.PodCount != 3 || dst.DeploymentCount != 2 || dst.SummaryState != "warning" || !dst.RestartHotspot {
 		t.Fatalf("list-only patch should not reset enriched fields: %+v", dst)
+	}
+}
+
+func TestBuildCachedNamespaceListRowProjection_QuotaAndLimits(t *testing.T) {
+	plane := newClusterPlane("ctx", ProfileFocused, DiscoveryModeTargeted, ObservationScope{}, nil, nil)
+	ratio := 0.91
+	setNamespacedSnapshot(&plane.rqStore, "app", ResourceQuotasSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.ResourceQuotaDTO{{
+			Name:      "rq",
+			Namespace: "app",
+			Entries:   []dto.ResourceQuotaEntryDTO{{Key: "pods", Used: "9", Hard: "10", Ratio: &ratio}},
+		}},
+	})
+	setNamespacedSnapshot(&plane.lrStore, "app", LimitRangesSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: "app"}},
+	})
+
+	got, ok := buildCachedNamespaceListRowProjection(plane, "app")
+	if !ok || !got.RowEnriched {
+		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
+	}
+	if got.ResourceQuotaCount != 1 || got.LimitRangeCount != 1 || !got.QuotaCritical || !got.QuotaWarning {
+		t.Fatalf("quota/limit fields: %+v", got)
 	}
 }
