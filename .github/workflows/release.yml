@@ -34,10 +34,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Restore build caches
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .cache
           key: ${{ runner.os }}-kview-${{ matrix.goos }}-${{ matrix.goarch }}-${{ hashFiles('Dockerfile', 'go.sum', 'ui/package-lock.json') }}
@@ -49,7 +49,7 @@ jobs:
         run: make build-docker-release GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} OUTPUT=dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kview-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Download binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
