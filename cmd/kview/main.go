@@ -10,6 +10,7 @@ import (
 
 	"kview/internal/cluster"
 	"kview/internal/kube"
+	kubeactions "kview/internal/kube/actions"
 	"kview/internal/launcher"
 	"kview/internal/runtime"
 	"kview/internal/server"
@@ -41,58 +42,58 @@ func main() {
 	token := randomToken(24)
 	srv := server.New(mgr, rt, token)
 
-	srv.Actions().Register("scale", kube.HandleDeploymentScale)
-	srv.Actions().Register("restart", kube.HandleDeploymentRestart)
-	srv.Actions().Register("delete", kube.HandleDeploymentDelete)
+	srv.Actions().Register("scale", kubeactions.HandleDeploymentScale)
+	srv.Actions().Register("restart", kubeactions.HandleDeploymentRestart)
+	srv.Actions().Register("delete", kubeactions.HandleDeploymentDelete)
 
 	srv.Actions().Register("helm.uninstall", kube.HandleHelmUninstall)
 	srv.Actions().Register("helm.upgrade", kube.HandleHelmUpgrade)
 	srv.Actions().Register("helm.reinstall", kube.HandleHelmReinstall)
 
-	srv.Actions().Register("pod.delete", kube.HandlePodDelete)
+	srv.Actions().Register("pod.delete", kubeactions.HandlePodDelete)
 
-	srv.Actions().Register("daemonset.restart", kube.HandleDaemonSetRestart)
-	srv.Actions().Register("daemonset.delete", kube.HandleDaemonSetDelete)
+	srv.Actions().Register("daemonset.restart", kubeactions.HandleDaemonSetRestart)
+	srv.Actions().Register("daemonset.delete", kubeactions.HandleDaemonSetDelete)
 
-	srv.Actions().Register("statefulset.scale", kube.HandleStatefulSetScale)
-	srv.Actions().Register("statefulset.restart", kube.HandleStatefulSetRestart)
-	srv.Actions().Register("statefulset.delete", kube.HandleStatefulSetDelete)
+	srv.Actions().Register("statefulset.scale", kubeactions.HandleStatefulSetScale)
+	srv.Actions().Register("statefulset.restart", kubeactions.HandleStatefulSetRestart)
+	srv.Actions().Register("statefulset.delete", kubeactions.HandleStatefulSetDelete)
 
-	srv.Actions().Register("replicaset.scale", kube.HandleReplicaSetScale)
-	srv.Actions().Register("replicaset.delete", kube.HandleReplicaSetDelete)
+	srv.Actions().Register("replicaset.scale", kubeactions.HandleReplicaSetScale)
+	srv.Actions().Register("replicaset.delete", kubeactions.HandleReplicaSetDelete)
 
-	srv.Actions().Register("job.delete", kube.HandleJobDelete)
+	srv.Actions().Register("job.delete", kubeactions.HandleJobDelete)
 
-	srv.Actions().Register("cronjob.delete", kube.HandleCronJobDelete)
+	srv.Actions().Register("cronjob.delete", kubeactions.HandleCronJobDelete)
 
-	srv.Actions().Register("service.delete", kube.HandleServiceDelete)
+	srv.Actions().Register("service.delete", kubeactions.HandleServiceDelete)
 
-	srv.Actions().Register("ingress.delete", kube.HandleIngressDelete)
+	srv.Actions().Register("ingress.delete", kubeactions.HandleIngressDelete)
 
-	srv.Actions().Register("configmap.delete", kube.HandleConfigMapDelete)
+	srv.Actions().Register("configmap.delete", kubeactions.HandleConfigMapDelete)
 
-	srv.Actions().Register("secret.delete", kube.HandleSecretDelete)
+	srv.Actions().Register("secret.delete", kubeactions.HandleSecretDelete)
 
-	srv.Actions().Register("serviceaccount.delete", kube.HandleServiceAccountDelete)
+	srv.Actions().Register("serviceaccount.delete", kubeactions.HandleServiceAccountDelete)
 
-	srv.Actions().Register("role.delete", kube.HandleRoleDelete)
+	srv.Actions().Register("role.delete", kubeactions.HandleRoleDelete)
 
-	srv.Actions().Register("rolebinding.delete", kube.HandleRoleBindingDelete)
+	srv.Actions().Register("rolebinding.delete", kubeactions.HandleRoleBindingDelete)
 
-	srv.Actions().Register("clusterrole.delete", kube.HandleClusterRoleDelete)
+	srv.Actions().Register("clusterrole.delete", kubeactions.HandleClusterRoleDelete)
 
-	srv.Actions().Register("clusterrolebinding.delete", kube.HandleClusterRoleBindingDelete)
+	srv.Actions().Register("clusterrolebinding.delete", kubeactions.HandleClusterRoleBindingDelete)
 
-	srv.Actions().Register("persistentvolumeclaims.delete", kube.HandlePVCDelete)
+	srv.Actions().Register("persistentvolumeclaims.delete", kubeactions.HandlePVCDelete)
 
-	srv.Actions().Register("persistentvolumes.delete", kube.HandlePVDelete)
+	srv.Actions().Register("persistentvolumes.delete", kubeactions.HandlePVDelete)
 
-	srv.Actions().Register("nodes.delete", kube.HandleNodeDelete)
+	srv.Actions().Register("nodes.delete", kubeactions.HandleNodeDelete)
 
-	srv.Actions().Register("namespaces.delete", kube.HandleNamespaceDelete)
+	srv.Actions().Register("namespaces.delete", kubeactions.HandleNamespaceDelete)
 
-	srv.Actions().Register("customresourcedefinitions.delete", kube.HandleCRDDelete)
-	srv.Actions().Register("custom.workload", kube.HandleCustomWorkloadAction)
+	srv.Actions().Register("customresourcedefinitions.delete", kubeactions.HandleCRDDelete)
+	srv.Actions().Register("custom.workload", kubeactions.HandleCustomWorkloadAction)
 
 	url := fmt.Sprintf("http://%s/?token=%s", *addr, token)
 	log.Printf("kview listening on http://%s", *addr)

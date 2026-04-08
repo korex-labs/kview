@@ -1,14 +1,21 @@
-package kube
+package actions
 
 import (
 	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
 	"kview/internal/cluster"
 )
+
+var crdGVR = schema.GroupVersionResource{
+	Group:    "apiextensions.k8s.io",
+	Version:  "v1",
+	Resource: "customresourcedefinitions",
+}
 
 // HandleCRDDelete deletes a customresourcedefinition (cluster-scoped).
 // CRDs live in the apiextensions.k8s.io group which is not part of the

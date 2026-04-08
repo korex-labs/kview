@@ -346,7 +346,7 @@ func HandleHelmReinstall(ctx context.Context, c *cluster.Clients, req ActionRequ
 	if req.Namespace == "" || req.Name == "" {
 		return &ActionResult{Status: "error", Message: "namespace and release name are required"}, nil
 	}
-	force, forceResult := boolParam(req.Params, "force")
+	force, forceResult := helmBoolParam(req.Params, "force")
 	if forceResult != nil {
 		return forceResult, nil
 	}
@@ -372,7 +372,7 @@ func HandleHelmUpgrade(ctx context.Context, c *cluster.Clients, req ActionReques
 	}
 	version, _ := req.Params["version"].(string)
 	valuesYaml, _ := req.Params["valuesYaml"].(string)
-	force, forceResult := boolParam(req.Params, "force")
+	force, forceResult := helmBoolParam(req.Params, "force")
 	if forceResult != nil {
 		return forceResult, nil
 	}
@@ -391,6 +391,18 @@ func HandleHelmUpgrade(ctx context.Context, c *cluster.Clients, req ActionReques
 }
 
 // ---------- helpers ----------
+
+func helmBoolParam(params map[string]any, key string) (bool, *ActionResult) {
+	raw, ok := params[key]
+	if !ok {
+		return false, nil
+	}
+	value, ok := raw.(bool)
+	if !ok {
+		return false, &ActionResult{Status: "error", Message: fmt.Sprintf("params.%s must be a boolean", key)}
+	}
+	return value, nil
+}
 
 func parseValuesYaml(raw string) (map[string]any, error) {
 	if raw == "" {

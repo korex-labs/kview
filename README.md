@@ -43,7 +43,7 @@ The backend is written in Go and includes:
 - REST API via `chi`
 - embedded UI via `go:embed`
 - generic mutation endpoint: `POST /api/actions`
-- central `ActionRegistry`
+- central `ActionRegistry` with resource mutation handlers grouped under `internal/kube/actions`
 - RBAC capability checks: `POST /api/capabilities` and `POST /api/auth/can-i`
 - read-side dataplane: snapshots, scheduler, observers, projections
 - runtime activity system
