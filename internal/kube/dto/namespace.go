@@ -85,6 +85,7 @@ type PodRestartHotspotDTO struct {
 	Name              string  `json:"name"`
 	Restarts          int32   `json:"restarts"`
 	RestartRatePerDay float64 `json:"restartRatePerDay,omitempty"`
+	AgeSec            int64   `json:"ageSec,omitempty"`
 	Phase             string  `json:"phase"`
 	Node              string  `json:"node,omitempty"`
 	LastEventReason   string  `json:"lastEventReason,omitempty"`

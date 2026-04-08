@@ -21,7 +21,7 @@ func TestRestartSeverityFromCount(t *testing.T) {
 func TestProjectRestartHotspotsFromPods_SortAndLimit(t *testing.T) {
 	snap := PodsSnapshot{
 		Items: []dto.PodListItemDTO{
-			{Name: "a", Restarts: 2, Phase: "Running", AgeSec: 86400},
+			{Name: "a", Restarts: 12, Phase: "Running", AgeSec: 86400},
 			{Name: "b", Restarts: 9, Phase: "Running", AgeSec: 43200},
 			{Name: "c", Restarts: 9, Phase: "Running", AgeSec: 21600},
 			{Name: "d", Restarts: 0, Phase: "Running", AgeSec: 86400},
@@ -31,23 +31,25 @@ func TestProjectRestartHotspotsFromPods_SortAndLimit(t *testing.T) {
 	if len(out.Items) != 2 {
 		t.Fatalf("len=%d", len(out.Items))
 	}
-	// Same restarts: stable sort by name → b then c
-	if out.Items[0].Name != "b" || out.Items[1].Name != "c" {
-		t.Fatalf("expected b,c got %q,%q", out.Items[0].Name, out.Items[1].Name)
+	if out.Items[0].Name != "c" || out.Items[1].Name != "b" {
+		t.Fatalf("expected c,b got %q,%q", out.Items[0].Name, out.Items[1].Name)
 	}
 	if out.Items[0].Namespace != "ns" {
 		t.Fatalf("namespace")
 	}
-	if out.Items[0].RestartRatePerDay != 18 {
-		t.Fatalf("expected restart rate 18/day, got %v", out.Items[0].RestartRatePerDay)
+	if out.Items[0].RestartRatePerDay != 36 {
+		t.Fatalf("expected restart rate 36/day, got %v", out.Items[0].RestartRatePerDay)
+	}
+	if out.Items[0].AgeSec != 21600 {
+		t.Fatalf("expected age 21600, got %d", out.Items[0].AgeSec)
 	}
 }
 
 func TestMergeRestartHotspots(t *testing.T) {
-	a := []dto.PodRestartHotspotDTO{{Namespace: "n1", Name: "p1", Restarts: 3}}
-	b := []dto.PodRestartHotspotDTO{{Namespace: "n2", Name: "p2", Restarts: 10}}
+	a := []dto.PodRestartHotspotDTO{{Namespace: "n1", Name: "p1", Restarts: 20, RestartRatePerDay: 10}}
+	b := []dto.PodRestartHotspotDTO{{Namespace: "n2", Name: "p2", Restarts: 10, RestartRatePerDay: 24}}
 	m := MergeRestartHotspots(2, a, b)
-	if len(m) != 2 || m[0].Restarts != 10 {
+	if len(m) != 2 || m[0].Name != "p2" {
 		t.Fatalf("merge order: %+v", m)
 	}
 }

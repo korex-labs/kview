@@ -35,7 +35,7 @@ func restartSeverityFromCount(restarts int32) string {
 }
 
 // ProjectRestartHotspotsFromPods builds restart hotspots for one namespace from a pods snapshot.
-// Pods with zero restarts are omitted. Results are sorted by restarts descending, then name.
+// Pods with zero restarts are omitted. Results are sorted by restart rate descending, then restarts, then name.
 func ProjectRestartHotspotsFromPods(namespace string, snap PodsSnapshot, limit int) RestartHotspotsProjection {
 	if limit <= 0 {
 		limit = defaultRestartHotspotLimit
@@ -49,6 +49,11 @@ func ProjectRestartHotspotsFromPods(namespace string, snap PodsSnapshot, limit i
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
+		ri := restartRatePerDay(candidates[i].Restarts, candidates[i].AgeSec)
+		rj := restartRatePerDay(candidates[j].Restarts, candidates[j].AgeSec)
+		if ri != rj {
+			return ri > rj
+		}
 		if candidates[i].Restarts != candidates[j].Restarts {
 			return candidates[i].Restarts > candidates[j].Restarts
 		}
@@ -69,6 +74,7 @@ func ProjectRestartHotspotsFromPods(namespace string, snap PodsSnapshot, limit i
 			Name:              p.Name,
 			Restarts:          p.Restarts,
 			RestartRatePerDay: restartRatePerDay(p.Restarts, p.AgeSec),
+			AgeSec:            p.AgeSec,
 			Phase:             p.Phase,
 			Node:              p.Node,
 			LastEventReason:   reason,
@@ -79,7 +85,7 @@ func ProjectRestartHotspotsFromPods(namespace string, snap PodsSnapshot, limit i
 	return out
 }
 
-// MergeRestartHotspots combines multiple namespace hotspot lists, sorts globally by restarts, truncates.
+// MergeRestartHotspots combines multiple namespace hotspot lists, sorts globally by restart rate, truncates.
 func MergeRestartHotspots(limit int, lists ...[]dto.PodRestartHotspotDTO) []dto.PodRestartHotspotDTO {
 	if limit <= 0 {
 		limit = defaultRestartHotspotLimit
@@ -89,6 +95,9 @@ func MergeRestartHotspots(limit int, lists ...[]dto.PodRestartHotspotDTO) []dto.
 		all = append(all, l...)
 	}
 	sort.Slice(all, func(i, j int) bool {
+		if all[i].RestartRatePerDay != all[j].RestartRatePerDay {
+			return all[i].RestartRatePerDay > all[j].RestartRatePerDay
+		}
 		if all[i].Restarts != all[j].Restarts {
 			return all[i].Restarts > all[j].Restarts
 		}

@@ -85,6 +85,13 @@ function formatRestartRatePerDay(value?: number): string {
   return `${value.toFixed(1)}/day`;
 }
 
+function formatAgeShort(ageSec?: number): string {
+  if (ageSec == null || !Number.isFinite(ageSec) || ageSec <= 0) return "";
+  if (ageSec < 3600) return `${Math.max(1, Math.round(ageSec / 60))}m`;
+  if (ageSec < 86400) return `${(ageSec / 3600).toFixed(1)}h`;
+  return `${(ageSec / 86400).toFixed(1)}d`;
+}
+
 function InfoHint({ title }: { title: string }) {
   return (
     <Tooltip title={title}>
@@ -708,6 +715,7 @@ export default function DashboardView(props: Props) {
                                     {h.restartRatePerDay ? (
                                       <Typography variant="caption" color="text.secondary">
                                         {formatRestartRatePerDay(h.restartRatePerDay)}
+                                        {h.ageSec ? ` · age ${formatAgeShort(h.ageSec)}` : ""}
                                       </Typography>
                                     ) : null}
                                   </Box>
