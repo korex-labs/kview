@@ -4,6 +4,7 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
 import ConstructionIcon from "@mui/icons-material/Construction";
+import logoUrl from "./assets/logo.svg";
 import Sidebar from "./components/Sidebar";
 import NodesTable from "./components/resources/nodes/NodesTable";
 import NamespacesTable from "./components/resources/namespaces/NamespacesTable";
@@ -295,6 +296,13 @@ function AppInner() {
           <CssBaseline />
           <AppBar position="fixed" sx={{ zIndex: 1201 }}>
             <Toolbar>
+              <Box
+                component="img"
+                src={logoUrl}
+                alt=""
+                aria-hidden="true"
+                sx={{ width: 42, height: 42, mr: 1.25, flex: "0 0 auto" }}
+              />
               <Typography variant="h6" noWrap component="div">
                 {settingsOpen ? "kview — Settings" : `kview — ${activeContext || "no context"}`}
               </Typography>
