@@ -128,3 +128,38 @@ func TestBuildCachedNamespaceListRowProjection_QuotaAndLimits(t *testing.T) {
 		t.Fatalf("quota/limit fields: %+v", got)
 	}
 }
+
+func TestMergeCachedNamespaceRowProjectionOverlaysItems(t *testing.T) {
+	m := &manager{
+		planes: map[string]*clusterPlane{},
+	}
+	plane := newClusterPlane("ctx", ProfileFocused, DiscoveryModeTargeted, ObservationScope{}, nil, nil)
+	m.planes["ctx"] = plane
+
+	setNamespacedSnapshot(&plane.podsStore, "app", PodsSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.PodListItemDTO{
+			{Name: "p1", Phase: "Running", Ready: "1/1", Restarts: 0},
+		},
+	})
+	setNamespacedSnapshot(&plane.depsStore, "app", DeploymentsSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.DeploymentListItemDTO{
+			{Name: "d1", Status: "Available", UpToDate: 1, Available: 1},
+		},
+	})
+
+	items, enriched := m.MergeCachedNamespaceRowProjection(t.Context(), "ctx", []dto.NamespaceListItemDTO{
+		{Name: "app", Phase: "Active"},
+		{Name: "plain", Phase: "Active"},
+	})
+	if enriched != 1 {
+		t.Fatalf("expected 1 enriched item, got %d", enriched)
+	}
+	if !items[0].RowEnriched || items[0].PodCount != 1 || items[0].DeploymentCount != 1 {
+		t.Fatalf("expected cached metrics on first row, got %+v", items[0])
+	}
+	if items[1].RowEnriched {
+		t.Fatalf("expected second row to remain list-only, got %+v", items[1])
+	}
+}

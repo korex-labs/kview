@@ -700,12 +700,14 @@ func (s *Server) Router() http.Handler {
 			state := dataplane.CoarseState(snap.Err, len(snap.Items))
 
 			items := snap.Items
+			cachedItems, cachedEnriched := s.dp.MergeCachedNamespaceRowProjection(ctx, active, items)
+			items = cachedItems
 			hints := dataplane.ParseNamespaceEnrichHints(r.URL.Query())
 			rev := s.dp.BeginNamespaceListProgressiveEnrichment(active, items, hints)
 			policy := s.dp.Policy().NamespaceEnrichment
 			rowProj := dto.NamespaceListRowProjectionMetaDTO{
 				TotalRows:    len(items),
-				EnrichedRows: 0,
+				EnrichedRows: cachedEnriched,
 				Cap:          policy.MaxTargets,
 				Revision:     rev,
 				Loading:      rev != 0,

@@ -73,6 +73,8 @@ type DataPlaneManager interface {
 	BeginNamespaceListProgressiveEnrichment(clusterName string, items []dto.NamespaceListItemDTO, hints NamespaceEnrichHints) uint64
 	// NamespaceListEnrichmentPoll returns merged rows for a revision (GET /api/namespaces/enrichment).
 	NamespaceListEnrichmentPoll(clusterName string, revision uint64) NamespaceListEnrichmentPoll
+	// MergeCachedNamespaceRowProjection overlays cached namespace row metrics onto list rows when available.
+	MergeCachedNamespaceRowProjection(ctx context.Context, clusterName string, items []dto.NamespaceListItemDTO) ([]dto.NamespaceListItemDTO, int)
 	// NodesSnapshot returns a raw snapshot for nodes in the given cluster.
 	NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error)
 	// PodsSnapshot returns a raw snapshot for pods in the given namespace.
@@ -1004,6 +1006,27 @@ func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	plane.EnsureObservers(ctx, m.scheduler, m.clients, m.rt)
+}
+
+func (m *manager) MergeCachedNamespaceRowProjection(ctx context.Context, clusterName string, items []dto.NamespaceListItemDTO) ([]dto.NamespaceListItemDTO, int) {
+	planeAny, err := m.PlaneForCluster(ctx, clusterName)
+	if err != nil {
+		return items, 0
+	}
+	plane := planeAny.(*clusterPlane)
+	out := make([]dto.NamespaceListItemDTO, 0, len(items))
+	enriched := 0
+	for _, item := range items {
+		next := item
+		if cached, ok := buildCachedNamespaceListRowProjection(plane, item.Name); ok {
+			mergeNamespaceRowInto(&next, cached)
+			if next.RowEnriched {
+				enriched++
+			}
+		}
+		out = append(out, next)
+	}
+	return out, enriched
 }
 
 func (m *manager) SchedulerRunStats() SchedulerRunStatsSnapshot {
