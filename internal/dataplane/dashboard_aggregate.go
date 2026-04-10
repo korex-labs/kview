@@ -270,7 +270,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		}
 		return scores[i].ns < scores[j].ns
 	})
-	for k := 0; k < len(scores) && k < 3; k++ {
+	for k := 0; k < len(scores) && k < 5; k++ {
 		hot.TopProblematicNamespaces = append(hot.TopProblematicNamespaces, ClusterDashboardProblematicNamespace{
 			Namespace: scores[k].ns,
 			Score:     scores[k].score,
@@ -664,6 +664,11 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int, o
 		out.Top = append(out.Top, findings...)
 	}
 	pageSource := filterDashboardFindings(findings, opts.FindingsFilter, opts.FindingsQuery)
+	if opts.FindingsFilter == "" || opts.FindingsFilter == "top" {
+		if len(pageSource) > limit {
+			pageSource = pageSource[:limit]
+		}
+	}
 	out.ItemsTotal = len(pageSource)
 	out.ItemsOffset = opts.FindingsOffset
 	out.ItemsLimit = opts.FindingsLimit

@@ -557,10 +557,10 @@ export default function DashboardView(props: Props) {
   const [findingFilter, setFindingFilter] = useState<FindingFilter>("top");
   const [findingsQuery, setFindingsQuery] = useState("");
   const [findingsPage, setFindingsPage] = useState(0);
-  const [findingsRowsPerPage, setFindingsRowsPerPage] = useState(25);
+  const [findingsRowsPerPage, setFindingsRowsPerPage] = useState(10);
   const [restartHotspotsQuery, setRestartHotspotsQuery] = useState("");
   const [restartHotspotsPage, setRestartHotspotsPage] = useState(0);
-  const [restartHotspotsRowsPerPage, setRestartHotspotsRowsPerPage] = useState(25);
+  const [restartHotspotsRowsPerPage, setRestartHotspotsRowsPerPage] = useState(10);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
@@ -740,7 +740,7 @@ export default function DashboardView(props: Props) {
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                         <FindingFilterChip
                           filter="top"
-                          count={findings?.total ?? topFindings.length}
+                          count={topFindings.length}
                           selected={findingFilter === "top"}
                           onSelect={selectFindingFilter}
                         />

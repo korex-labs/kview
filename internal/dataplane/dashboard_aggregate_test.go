@@ -202,7 +202,7 @@ func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
 		helmReleases:   HelmReleasesSnapshot{Items: []dto.HelmReleaseDTO{{Name: "rel", Namespace: ns, Status: "pending-upgrade", Updated: now.Add(-time.Hour).Unix()}}},
 		helmOK:         true,
 	})
-	summary := summarizeDashboardFindings(findings, 3, ClusterDashboardListOptions{FindingsLimit: len(findings)})
+	summary := summarizeDashboardFindings(findings, 3, ClusterDashboardListOptions{FindingsFilter: "top", FindingsLimit: len(findings)})
 	if summary.Total != len(findings) || summary.High < 2 || summary.EmptyConfigMaps != 1 || summary.EmptySecrets != 1 ||
 		summary.ServiceWarnings != 1 || summary.IngressWarnings != 1 || summary.PVCWarnings != 1 ||
 		summary.RoleWarnings != 1 || summary.RoleBindingWarnings != 1 {
@@ -214,8 +214,8 @@ func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
 	if summary.Top[0].Kind != "HelmRelease" || summary.Top[1].Kind != "Job" || summary.Top[2].Kind != "CronJob" {
 		t.Fatalf("top not ordered by attention priority: %+v", summary.Top)
 	}
-	if len(summary.Items) != len(findings) {
-		t.Fatalf("items should keep all findings: got %d want %d", len(summary.Items), len(findings))
+	if summary.ItemsTotal != 3 || len(summary.Items) != 3 || summary.ItemsHasMore {
+		t.Fatalf("top items should be capped: %+v", summary)
 	}
 }
 
