@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
@@ -16,6 +17,8 @@ type Role = {
   namespace: string;
   rulesCount: number;
   ageSec: number;
+  privilegeBreadth?: string;
+  needsAttention?: boolean;
 };
 
 type Row = Role & { id: string };
@@ -24,6 +27,17 @@ const resourceLabel = getResourceLabel("roles");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "privilegeBreadth",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const breadth = p.row.privilegeBreadth;
+      if (!breadth) return "-";
+      return <Chip size="small" label={breadth} color={breadth === "broad" || breadth === "empty" ? "warning" : "default"} />;
+    },
+    sortable: false,
+  },
   {
     field: "rulesCount",
     headerName: "Rules",
@@ -61,7 +75,7 @@ export default function RolesTable({
   }, [token, namespace]);
 
   const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q),
+    (row: Row, q: string) => row.name.toLowerCase().includes(q) || (row.privilegeBreadth || "").toLowerCase().includes(q),
     [],
   );
 
@@ -77,7 +91,7 @@ export default function RolesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="roles"
       accessResource={listResourceAccess.roles}

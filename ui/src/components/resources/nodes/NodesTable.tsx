@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import NodeDrawer from "./NodeDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
-import { nodeStatusChipColor } from "../../../utils/k8sUi";
+import { nodeStatusChipColor, workloadHealthBucketColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
@@ -23,6 +23,10 @@ type Node = {
   podsCount: number;
   kubeletVersion?: string;
   ageSec: number;
+  healthBucket?: string;
+  podDensityBucket?: string;
+  podDensityRatio?: number;
+  needsAttention?: boolean;
 };
 
 type Row = Node & { id: string };
@@ -39,6 +43,17 @@ const columns: GridColDef<Row>[] = [
       const status = String(p.value || "");
       return <Chip size="small" label={status || "-"} color={nodeStatusChipColor(status)} />;
     },
+  },
+  {
+    field: "healthBucket",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket;
+      if (!bucket) return "-";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+    sortable: false,
   },
   {
     field: "roles",
@@ -67,6 +82,18 @@ const columns: GridColDef<Row>[] = [
     headerName: "Pods",
     width: 110,
     type: "number",
+  },
+  {
+    field: "podDensityBucket",
+    headerName: "Density",
+    width: 130,
+    renderCell: (p) => {
+      const bucket = p.row.podDensityBucket;
+      if (!bucket || bucket === "unknown") return "-";
+      const pct = p.row.podDensityRatio != null ? `${Math.round(p.row.podDensityRatio * 100)}%` : bucket;
+      return <Chip size="small" label={`${pct} ${bucket}`} color={workloadHealthBucketColor(bucket)} />;
+    },
+    sortable: false,
   },
   {
     field: "kubeletVersion",
@@ -98,6 +125,8 @@ export default function NodesTable({ token }: { token: string }) {
     return (
       row.name.toLowerCase().includes(q) ||
       (row.status || "").toLowerCase().includes(q) ||
+      (row.healthBucket || "").toLowerCase().includes(q) ||
+      (row.podDensityBucket || "").toLowerCase().includes(q) ||
       roleText.includes(q)
     );
   }, []);
@@ -113,7 +142,7 @@ export default function NodesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/role/status)"
+      filterLabel="Filter (name/role/status/signal)"
       resourceLabel={resourceLabel}
       resourceKey="nodes"
       accessResource={listResourceAccess.nodes}

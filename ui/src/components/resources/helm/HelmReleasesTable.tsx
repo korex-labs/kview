@@ -3,6 +3,7 @@ import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtTs, valueOrDash } from "../../../utils/format";
+import { workloadHealthBucketColor } from "../../../utils/k8sUi";
 import HelmReleaseDrawer from "./HelmReleaseDrawer";
 import { HelmInstallButton } from "./HelmActions";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -25,6 +26,9 @@ type HelmRelease = {
   description: string;
   updated: number;
   storageBackend: string;
+  stabilityBucket?: string;
+  transitional?: boolean;
+  needsAttention?: boolean;
 };
 
 type Row = HelmRelease & { id: string };
@@ -54,6 +58,18 @@ const resourceLabel = getResourceLabel("helm");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
+  {
+    field: "stabilityBucket",
+    headerName: "Signal",
+    width: 140,
+    renderCell: (p) => {
+      const bucket = p.row.stabilityBucket;
+      if (!bucket) return "-";
+      const label = p.row.transitional ? "transitional" : p.row.needsAttention ? "attention" : bucket;
+      return <Chip size="small" label={label} color={workloadHealthBucketColor(bucket)} />;
+    },
+    sortable: false,
+  },
   {
     field: "status",
     headerName: "Status",
@@ -117,6 +133,8 @@ export default function HelmReleasesTable({
     (row: Row, q: string) =>
       row.name.toLowerCase().includes(q) ||
       row.chart.toLowerCase().includes(q) ||
+      (row.stabilityBucket || "").toLowerCase().includes(q) ||
+      (row.transitional ? "transitional" : "").includes(q) ||
       (row.appVersion || "").toLowerCase().includes(q),
     [],
   );
@@ -133,7 +151,7 @@ export default function HelmReleasesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name / chart / version)"
+      filterLabel="Filter (name / chart / signal / version)"
       resourceLabel={resourceLabel}
       resourceKey="helm"
       accessResource={listResourceAccess.helm}

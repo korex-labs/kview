@@ -87,7 +87,7 @@ func TestDataplaneClusterListHandler_ReturnsDegradedUsableSnapshot(t *testing.T)
 			Meta:  meta,
 			Err:   &nerr,
 		}, errors.New("transient upstream")
-	})
+	}, nil)
 
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	req.Header.Set("X-Kview-Context", "ctx")
@@ -111,7 +111,7 @@ func TestDataplaneClusterListHandler_FailsWithoutUsableSnapshot(t *testing.T) {
 	s := &Server{}
 	handler := dataplaneClusterListHandler(s, func(context.Context, string) (dataplane.Snapshot[string], error) {
 		return dataplane.Snapshot[string]{}, errors.New("proxy unavailable")
-	})
+	}, nil)
 
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	req.Header.Set("X-Kview-Context", "ctx")

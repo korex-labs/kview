@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
@@ -18,6 +19,9 @@ type ServiceAccount = {
   secretsCount: number;
   automountServiceAccountToken?: boolean;
   ageSec: number;
+  tokenMountPolicy?: string;
+  pullSecretHint?: string;
+  needsAttention?: boolean;
 };
 
 type Row = ServiceAccount & { id: string };
@@ -26,6 +30,26 @@ const resourceLabel = getResourceLabel("serviceaccounts");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "tokenMountPolicy",
+    headerName: "Token",
+    width: 130,
+    renderCell: (p) => {
+      const policy = p.row.tokenMountPolicy || "default";
+      return <Chip size="small" label={policy} color={policy === "disabled" ? "success" : policy === "enabled" ? "warning" : "default"} />;
+    },
+    sortable: false,
+  },
+  {
+    field: "pullSecretHint",
+    headerName: "Pull Secret",
+    width: 130,
+    renderCell: (p) => {
+      const hint = p.row.pullSecretHint || "none";
+      return <Chip size="small" variant="outlined" label={hint} />;
+    },
+    sortable: false,
+  },
   {
     field: "imagePullSecretsCount",
     headerName: "ImagePullSecrets",
@@ -70,7 +94,10 @@ export default function ServiceAccountsTable({
   }, [token, namespace]);
 
   const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q),
+    (row: Row, q: string) =>
+      row.name.toLowerCase().includes(q) ||
+      (row.tokenMountPolicy || "").toLowerCase().includes(q) ||
+      (row.pullSecretHint || "").toLowerCase().includes(q),
     [],
   );
 
@@ -86,7 +113,7 @@ export default function ServiceAccountsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/token/pullSecret)"
       resourceLabel={resourceLabel}
       resourceKey="serviceaccounts"
       accessResource={listResourceAccess.serviceaccounts}

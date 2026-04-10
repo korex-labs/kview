@@ -96,15 +96,15 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 	var out dto.NamespaceListItemDTO
 	out.RowEnriched = true
 
-	var firstErr *NormalizedError
-	meaningful := 0
+	var workloadErr *NormalizedError
+	workloadMeaningful := 0
 	var probPods []dto.ProblematicResource
 	var probDeps []dto.ProblematicResource
 	if podsOK {
-		firstErr = FirstNonNilNormalizedError(firstErr, podsSnap.Err)
+		workloadErr = FirstNonNilNormalizedError(workloadErr, podsSnap.Err)
 		if podsSnap.Err == nil {
 			out.PodCount = len(podsSnap.Items)
-			meaningful += out.PodCount
+			workloadMeaningful += out.PodCount
 			probPods = podProblematicFromListUnbounded(podsSnap.Items)
 			for _, p := range podsSnap.Items {
 				if p.Restarts > 0 {
@@ -118,30 +118,26 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 		}
 	}
 	if depsOK {
-		firstErr = FirstNonNilNormalizedError(firstErr, depsSnap.Err)
+		workloadErr = FirstNonNilNormalizedError(workloadErr, depsSnap.Err)
 		if depsSnap.Err == nil {
 			out.DeploymentCount = len(depsSnap.Items)
-			meaningful += out.DeploymentCount
+			workloadMeaningful += out.DeploymentCount
 			probDeps = deploymentProblematicListUnbounded(depsSnap.Items)
 		}
 	}
 	if rqOK {
-		firstErr = FirstNonNilNormalizedError(firstErr, rqSnap.Err)
 		if rqSnap.Err == nil {
 			out.ResourceQuotaCount = len(rqSnap.Items)
-			meaningful += out.ResourceQuotaCount
 			out.QuotaMaxRatio, out.QuotaWarning, out.QuotaCritical = quotaRiskFromSnapshot(rqSnap)
 		}
 	}
 	if lrOK {
-		firstErr = FirstNonNilNormalizedError(firstErr, lrSnap.Err)
 		if lrSnap.Err == nil {
 			out.LimitRangeCount = len(lrSnap.Items)
-			meaningful += out.LimitRangeCount
 		}
 	}
 	out.ProblematicCount = countUniqueProblematic(probPods, probDeps, nil)
-	out.SummaryState = ProjectionCoarseState(firstErr, meaningful)
+	out.SummaryState = ProjectionCoarseState(workloadErr, workloadMeaningful)
 	return out, true
 }
 

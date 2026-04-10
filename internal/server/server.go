@@ -930,7 +930,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"allowed": res.Allowed, "reason": res.Reason})
 		})
 
-		api.Get("/nodes", dataplaneClusterListHandler(s, s.dp.NodesSnapshot))
+		api.Get("/nodes", dataplaneClusterListHandler(s, s.dp.NodesSnapshot, func(items []dto.NodeListItemDTO) any {
+			return dataplane.EnrichNodeListItemsForAPI(items)
+		}))
 
 		api.Get("/nodes/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
@@ -1959,7 +1961,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 		})
 
-		api.Get("/namespaces/{ns}/configmaps", dataplaneNamespacedListHandler(s, s.dp.ConfigMapsSnapshot, nil))
+		api.Get("/namespaces/{ns}/configmaps", dataplaneNamespacedListHandler(s, s.dp.ConfigMapsSnapshot, func(items []dto.ConfigMapDTO) any {
+			return dataplane.EnrichConfigMapListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/configmaps/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2013,7 +2017,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/serviceaccounts", dataplaneNamespacedListHandler(s, s.dp.ServiceAccountsSnapshot, nil))
+		api.Get("/namespaces/{ns}/serviceaccounts", dataplaneNamespacedListHandler(s, s.dp.ServiceAccountsSnapshot, func(items []dto.ServiceAccountListItemDTO) any {
+			return dataplane.EnrichServiceAccountListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/serviceaccounts/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2119,7 +2125,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 		})
 
-		api.Get("/namespaces/{ns}/roles", dataplaneNamespacedListHandler(s, s.dp.RolesSnapshot, nil))
+		api.Get("/namespaces/{ns}/roles", dataplaneNamespacedListHandler(s, s.dp.RolesSnapshot, func(items []dto.RoleListItemDTO) any {
+			return dataplane.EnrichRoleListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/roles/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2199,7 +2207,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/rolebindings", dataplaneNamespacedListHandler(s, s.dp.RoleBindingsSnapshot, nil))
+		api.Get("/namespaces/{ns}/rolebindings", dataplaneNamespacedListHandler(s, s.dp.RoleBindingsSnapshot, func(items []dto.RoleBindingListItemDTO) any {
+			return dataplane.EnrichRoleBindingListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/rolebindings/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2361,7 +2371,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/secrets", dataplaneNamespacedListHandler(s, s.dp.SecretsSnapshot, nil))
+		api.Get("/namespaces/{ns}/secrets", dataplaneNamespacedListHandler(s, s.dp.SecretsSnapshot, func(items []dto.SecretDTO) any {
+			return dataplane.EnrichSecretListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2415,7 +2427,9 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
-		api.Get("/namespaces/{ns}/helmreleases", dataplaneNamespacedListHandler(s, s.dp.HelmReleasesSnapshot, nil))
+		api.Get("/namespaces/{ns}/helmreleases", dataplaneNamespacedListHandler(s, s.dp.HelmReleasesSnapshot, func(items []dto.HelmReleaseDTO) any {
+			return dataplane.EnrichHelmReleaseListItemsForAPI(items)
+		}))
 
 		api.Get("/namespaces/{ns}/helmreleases/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -2950,6 +2964,7 @@ func writeDataplaneListResponse(w http.ResponseWriter, active string, items any,
 func dataplaneClusterListHandler[I any](
 	s *Server,
 	fetch func(context.Context, string) (dataplane.Snapshot[I], error),
+	transform func([]I) any,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -2964,7 +2979,11 @@ func dataplaneClusterListHandler[I any](
 			writeDataplaneListError(w, active, err)
 			return
 		}
-		writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
+		items := any(snap.Items)
+		if transform != nil {
+			items = transform(snap.Items)
+		}
+		writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
 	}
 }
 

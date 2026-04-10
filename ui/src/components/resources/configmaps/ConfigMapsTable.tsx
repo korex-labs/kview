@@ -15,6 +15,8 @@ type ConfigMap = {
   keysCount: number;
   immutable: boolean;
   ageSec: number;
+  contentHint?: string;
+  needsAttention?: boolean;
 };
 
 type Row = ConfigMap & { id: string };
@@ -23,6 +25,17 @@ const resourceLabel = getResourceLabel("configmaps");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "contentHint",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const hint = p.row.contentHint;
+      if (!hint) return "-";
+      return <Chip size="small" label={p.row.needsAttention ? "empty" : hint} color={hint === "empty" ? "warning" : "success"} />;
+    },
+    sortable: false,
+  },
   {
     field: "keysCount",
     headerName: "Keys",
@@ -68,7 +81,10 @@ export default function ConfigMapsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback((row: Row, q: string) => row.name.toLowerCase().includes(q), []);
+  const filterPredicate = useCallback(
+    (row: Row, q: string) => row.name.toLowerCase().includes(q) || (row.contentHint || "").toLowerCase().includes(q),
+    [],
+  );
 
   return (
     <ResourceListPage<Row>
@@ -82,7 +98,7 @@ export default function ConfigMapsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="configmaps"
       accessResource={listResourceAccess.configmaps}

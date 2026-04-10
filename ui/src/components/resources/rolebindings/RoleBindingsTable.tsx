@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
@@ -18,6 +19,9 @@ type RoleBinding = {
   roleRefName: string;
   subjectsCount: number;
   ageSec: number;
+  bindingHint?: string;
+  subjectBreadth?: string;
+  needsAttention?: boolean;
 };
 
 type Row = RoleBinding & { id: string };
@@ -30,6 +34,19 @@ function formatRoleRef(kind?: string, name?: string) {
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 220 },
+  {
+    field: "bindingHint",
+    headerName: "Signal",
+    width: 150,
+    renderCell: (p) => {
+      const hint = p.row.bindingHint;
+      const breadth = p.row.subjectBreadth;
+      if (!hint && !breadth) return "-";
+      const label = breadth ? `${hint || "binding"} · ${breadth}` : hint;
+      return <Chip size="small" label={label} color={p.row.needsAttention ? "warning" : "default"} />;
+    },
+    sortable: false,
+  },
   {
     field: "roleRefName",
     headerName: "Role Ref",
@@ -74,7 +91,10 @@ export default function RoleBindingsTable({
   }, [token, namespace]);
 
   const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q),
+    (row: Row, q: string) =>
+      row.name.toLowerCase().includes(q) ||
+      (row.bindingHint || "").toLowerCase().includes(q) ||
+      (row.subjectBreadth || "").toLowerCase().includes(q),
     [],
   );
 
@@ -90,7 +110,7 @@ export default function RoleBindingsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="rolebindings"
       accessResource={listResourceAccess.rolebindings}

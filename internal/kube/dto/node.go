@@ -10,17 +10,21 @@ type NodeListItemDTO struct {
 	PodsCount         int      `json:"podsCount"`
 	KubeletVersion    string   `json:"kubeletVersion,omitempty"`
 	AgeSec            int64    `json:"ageSec"`
+	HealthBucket      string   `json:"healthBucket,omitempty"`
+	PodDensityBucket  string   `json:"podDensityBucket,omitempty"`
+	PodDensityRatio   float64  `json:"podDensityRatio,omitempty"`
+	NeedsAttention    bool     `json:"needsAttention,omitempty"`
 }
 
 type NodeDetailsDTO struct {
-	Summary    NodeSummaryDTO    `json:"summary"`
-	Metadata   NodeMetadataDTO   `json:"metadata"`
+	Summary    NodeSummaryDTO     `json:"summary"`
+	Metadata   NodeMetadataDTO    `json:"metadata"`
 	Conditions []NodeConditionDTO `json:"conditions"`
-	Capacity   NodeCapacityDTO   `json:"capacity"`
-	Taints     []NodeTaintDTO    `json:"taints,omitempty"`
-	Pods       []NodePodDTO      `json:"pods"`
+	Capacity   NodeCapacityDTO    `json:"capacity"`
+	Taints     []NodeTaintDTO     `json:"taints,omitempty"`
+	Pods       []NodePodDTO       `json:"pods"`
 	LinkedPods NodePodsSummaryDTO `json:"linkedPods"`
-	YAML       string            `json:"yaml"`
+	YAML       string             `json:"yaml"`
 }
 
 type NodeSummaryDTO struct {

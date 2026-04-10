@@ -376,15 +376,18 @@ function FindingFilterChip({
   filter,
   count,
   color = "default",
+  hideWhenZero = false,
   selected,
   onSelect,
 }: {
   filter: FindingFilter;
   count: number;
   color?: "error" | "warning" | "info" | "default";
+  hideWhenZero?: boolean;
   selected: boolean;
   onSelect: (filter: FindingFilter) => void;
 }) {
+  if (hideWhenZero && count <= 0 && !selected) return null;
   return (
     <Chip
       size="small"
@@ -677,48 +680,56 @@ export default function DashboardView(props: Props) {
                         <FindingFilterChip
                           filter="Namespace"
                           count={findings?.emptyNamespaces ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "Namespace"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="HelmRelease"
                           count={findings?.stuckHelmReleases ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "HelmRelease"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="Job"
                           count={findings?.abnormalJobs ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "Job"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="CronJob"
                           count={findings?.abnormalCronJobs ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "CronJob"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="ConfigMap"
                           count={findings?.emptyConfigMaps ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "ConfigMap"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="Secret"
                           count={findings?.emptySecrets ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "Secret"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="PersistentVolumeClaim"
                           count={findings?.potentiallyUnusedPVCs ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "PersistentVolumeClaim"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip
                           filter="ServiceAccount"
                           count={findings?.potentiallyUnusedServiceAccounts ?? 0}
+                          hideWhenZero
                           selected={findingFilter === "ServiceAccount"}
                           onSelect={setFindingFilter}
                         />
@@ -726,6 +737,7 @@ export default function DashboardView(props: Props) {
                           filter="ResourceQuota"
                           count={findings?.quotaWarnings ?? 0}
                           color={(findings?.quotaWarnings || 0) > 0 ? "warning" : "default"}
+                          hideWhenZero
                           selected={findingFilter === "ResourceQuota"}
                           onSelect={setFindingFilter}
                         />

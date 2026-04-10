@@ -1,12 +1,15 @@
 package dto
 
 type ServiceAccountListItemDTO struct {
-	Name                          string `json:"name"`
-	Namespace                     string `json:"namespace"`
-	ImagePullSecretsCount         int    `json:"imagePullSecretsCount"`
-	SecretsCount                  int    `json:"secretsCount"`
-	AutomountServiceAccountToken  *bool  `json:"automountServiceAccountToken,omitempty"`
-	AgeSec                        int64  `json:"ageSec"`
+	Name                         string `json:"name"`
+	Namespace                    string `json:"namespace"`
+	ImagePullSecretsCount        int    `json:"imagePullSecretsCount"`
+	SecretsCount                 int    `json:"secretsCount"`
+	AutomountServiceAccountToken *bool  `json:"automountServiceAccountToken,omitempty"`
+	AgeSec                       int64  `json:"ageSec"`
+	TokenMountPolicy             string `json:"tokenMountPolicy,omitempty"`
+	PullSecretHint               string `json:"pullSecretHint,omitempty"`
+	NeedsAttention               bool   `json:"needsAttention,omitempty"`
 }
 
 type ServiceAccountDetailsDTO struct {

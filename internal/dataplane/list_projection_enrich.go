@@ -3,6 +3,7 @@ package dataplane
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"kview/internal/kube/dto"
 )
@@ -369,5 +370,246 @@ func pvcListSignals(pvc dto.PersistentVolumeClaimDTO) (bucket string, needsAtten
 		return deployBucketDegraded, true
 	default:
 		return deployBucketUnknown, false
+	}
+}
+
+// EnrichHelmReleaseListItemsForAPI returns a shallow copy with release stability hints.
+func EnrichHelmReleaseListItemsForAPI(items []dto.HelmReleaseDTO) []dto.HelmReleaseDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.HelmReleaseDTO, len(items))
+	for i := range items {
+		rel := items[i]
+		rel.StabilityBucket, rel.Transitional, rel.NeedsAttention = helmReleaseListSignals(rel, time.Now())
+		out[i] = rel
+	}
+	return out
+}
+
+func helmReleaseListSignals(rel dto.HelmReleaseDTO, now time.Time) (bucket string, transitional bool, needsAttention bool) {
+	switch rel.Status {
+	case "deployed", "superseded":
+		return deployBucketHealthy, false, false
+	case "failed":
+		return deployBucketDegraded, false, true
+	case "pending-install", "pending-upgrade", "pending-rollback", "uninstalling":
+		return deployBucketProgressing, true, helmReleaseTransitionLooksStuck(rel, now)
+	case "unknown":
+		return deployBucketUnknown, false, true
+	default:
+		return deployBucketUnknown, false, false
+	}
+}
+
+func helmReleaseTransitionLooksStuck(rel dto.HelmReleaseDTO, now time.Time) bool {
+	if rel.Updated <= 0 || now.IsZero() {
+		return false
+	}
+	return now.Sub(time.Unix(rel.Updated, 0)) >= time.Hour
+}
+
+// EnrichConfigMapListItemsForAPI returns a shallow copy with content hints.
+func EnrichConfigMapListItemsForAPI(items []dto.ConfigMapDTO) []dto.ConfigMapDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.ConfigMapDTO, len(items))
+	for i := range items {
+		cm := items[i]
+		cm.ContentHint, cm.NeedsAttention = configContentHint(cm.KeysCount)
+		out[i] = cm
+	}
+	return out
+}
+
+func configContentHint(keys int) (hint string, needsAttention bool) {
+	switch {
+	case keys <= 0:
+		return "empty", true
+	case keys <= 2:
+		return "small", false
+	default:
+		return "normal", false
+	}
+}
+
+// EnrichSecretListItemsForAPI returns a shallow copy with content and secret type hints.
+func EnrichSecretListItemsForAPI(items []dto.SecretDTO) []dto.SecretDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.SecretDTO, len(items))
+	for i := range items {
+		sec := items[i]
+		sec.ContentHint, sec.NeedsAttention = configContentHint(sec.KeysCount)
+		sec.TypeHint = secretTypeHint(sec.Type)
+		out[i] = sec
+	}
+	return out
+}
+
+func secretTypeHint(secretType string) string {
+	switch secretType {
+	case "kubernetes.io/tls":
+		return "tls"
+	case "kubernetes.io/dockerconfigjson", "kubernetes.io/dockercfg":
+		return "registry"
+	case "kubernetes.io/service-account-token":
+		return "service-account"
+	case "kubernetes.io/basic-auth", "kubernetes.io/ssh-auth":
+		return "auth"
+	case "Opaque":
+		return "opaque"
+	default:
+		if secretType == "" {
+			return "unknown"
+		}
+		return "custom"
+	}
+}
+
+// EnrichServiceAccountListItemsForAPI returns a shallow copy with token/pull-secret posture hints.
+func EnrichServiceAccountListItemsForAPI(items []dto.ServiceAccountListItemDTO) []dto.ServiceAccountListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.ServiceAccountListItemDTO, len(items))
+	for i := range items {
+		sa := items[i]
+		sa.TokenMountPolicy = serviceAccountTokenMountPolicy(sa.AutomountServiceAccountToken)
+		sa.PullSecretHint = serviceAccountPullSecretHint(sa.ImagePullSecretsCount)
+		out[i] = sa
+	}
+	return out
+}
+
+func serviceAccountTokenMountPolicy(auto *bool) string {
+	if auto == nil {
+		return "default"
+	}
+	if *auto {
+		return "enabled"
+	}
+	return "disabled"
+}
+
+func serviceAccountPullSecretHint(count int) string {
+	if count <= 0 {
+		return "none"
+	}
+	return "configured"
+}
+
+// EnrichNodeListItemsForAPI returns a shallow copy with node readiness and pod-density hints.
+func EnrichNodeListItemsForAPI(items []dto.NodeListItemDTO) []dto.NodeListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.NodeListItemDTO, len(items))
+	for i := range items {
+		node := items[i]
+		node.HealthBucket, node.NeedsAttention = nodeListSignals(node)
+		node.PodDensityRatio, node.PodDensityBucket = nodePodDensity(node)
+		if node.PodDensityBucket == deployBucketDegraded {
+			node.NeedsAttention = true
+		}
+		out[i] = node
+	}
+	return out
+}
+
+func nodeListSignals(node dto.NodeListItemDTO) (bucket string, needsAttention bool) {
+	switch node.Status {
+	case "Ready":
+		return deployBucketHealthy, false
+	case "NotReady":
+		return deployBucketDegraded, true
+	case "Unknown":
+		return deployBucketProgressing, true
+	default:
+		return deployBucketUnknown, false
+	}
+}
+
+func nodePodDensity(node dto.NodeListItemDTO) (ratio float64, bucket string) {
+	total, err := strconv.Atoi(strings.TrimSpace(node.PodsAllocatable))
+	if err != nil || total <= 0 {
+		return 0, deployBucketUnknown
+	}
+	ratio = float64(node.PodsCount) / float64(total)
+	switch {
+	case ratio >= 0.9:
+		return ratio, deployBucketDegraded
+	case ratio >= 0.75:
+		return ratio, deployBucketProgressing
+	default:
+		return ratio, deployBucketHealthy
+	}
+}
+
+// EnrichRoleListItemsForAPI returns a shallow copy with coarse rules-count breadth hints.
+func EnrichRoleListItemsForAPI(items []dto.RoleListItemDTO) []dto.RoleListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.RoleListItemDTO, len(items))
+	for i := range items {
+		role := items[i]
+		role.PrivilegeBreadth, role.NeedsAttention = rolePrivilegeBreadth(role.RulesCount)
+		out[i] = role
+	}
+	return out
+}
+
+func rolePrivilegeBreadth(rules int) (breadth string, needsAttention bool) {
+	switch {
+	case rules <= 0:
+		return "empty", true
+	case rules >= 12:
+		return "broad", true
+	case rules >= 5:
+		return "medium", false
+	default:
+		return "narrow", false
+	}
+}
+
+// EnrichRoleBindingListItemsForAPI returns a shallow copy with role-ref and subject breadth hints.
+func EnrichRoleBindingListItemsForAPI(items []dto.RoleBindingListItemDTO) []dto.RoleBindingListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.RoleBindingListItemDTO, len(items))
+	for i := range items {
+		rb := items[i]
+		rb.BindingHint = roleBindingHint(rb.RoleRefKind)
+		rb.SubjectBreadth, rb.NeedsAttention = subjectBreadth(rb.SubjectsCount)
+		out[i] = rb
+	}
+	return out
+}
+
+func roleBindingHint(kind string) string {
+	switch kind {
+	case "ClusterRole":
+		return "cluster-role"
+	case "Role":
+		return "namespace-role"
+	default:
+		return "unknown"
+	}
+}
+
+func subjectBreadth(subjects int) (breadth string, needsAttention bool) {
+	switch {
+	case subjects <= 0:
+		return "empty", true
+	case subjects >= 10:
+		return "broad", true
+	case subjects >= 4:
+		return "medium", false
+	default:
+		return "narrow", false
 	}
 }

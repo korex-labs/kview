@@ -500,9 +500,7 @@ func isEmptyLookingNamespace(s dashboardSnapshotSet) bool {
 		len(s.pvcs.Items) == 0 &&
 		nonSystemConfigMapCount(s.cms.Items) == 0 &&
 		len(s.secs.Items) == 0 &&
-		len(s.helmReleases.Items) == 0 &&
-		(!s.quotasOK || len(s.resourceQuotas.Items) == 0) &&
-		(!s.limitRangesOK || len(s.limitRanges.Items) == 0)
+		len(s.helmReleases.Items) == 0
 }
 
 func nonSystemConfigMapCount(items []dto.ConfigMapDTO) int {

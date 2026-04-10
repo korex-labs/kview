@@ -35,8 +35,8 @@ function quotaLabel(row: Row): string {
   const count = row.resourceQuotaCount ?? 0;
   if (!count) return "none";
   const ratio = row.quotaMaxRatio;
-  if (ratio == null || ratio <= 0) return String(count);
-  return `${count} · ${Math.round(ratio * 100)}%`;
+  if (ratio == null || ratio <= 0) return "configured";
+  return `${Math.round(ratio * 100)}%`;
 }
 
 function mergeNamespaceProjection<T extends NamespaceProjectionUpdate>(base: T | undefined, patch: T): T {

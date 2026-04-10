@@ -129,6 +129,45 @@ func TestBuildCachedNamespaceListRowProjection_QuotaAndLimits(t *testing.T) {
 	}
 }
 
+func TestBuildCachedNamespaceListRowProjection_SupportingResourcesDoNotMakeWorkloadOK(t *testing.T) {
+	plane := newClusterPlane("ctx", ProfileFocused, DiscoveryModeTargeted, ObservationScope{}, nil, nil, nil)
+	setNamespacedSnapshot(&plane.rqStore, "support-only", ResourceQuotasSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.ResourceQuotaDTO{{Name: "rq", Namespace: "support-only"}},
+	})
+	setNamespacedSnapshot(&plane.lrStore, "support-only", LimitRangesSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: "support-only"}},
+	})
+
+	got, ok := buildCachedNamespaceListRowProjection(plane, "support-only")
+	if !ok || !got.RowEnriched {
+		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
+	}
+	if got.SummaryState != "empty" {
+		t.Fatalf("supporting resources should not make workload state ok: %+v", got)
+	}
+	if got.ResourceQuotaCount != 1 || got.LimitRangeCount != 1 {
+		t.Fatalf("supporting resource counts should still be enriched: %+v", got)
+	}
+}
+
+func TestBuildCachedNamespaceListRowProjection_SupportingErrorsDoNotDriveWorkloadState(t *testing.T) {
+	plane := newClusterPlane("ctx", ProfileFocused, DiscoveryModeTargeted, ObservationScope{}, nil, nil, nil)
+	setNamespacedSnapshot(&plane.rqStore, "support-error", ResourceQuotasSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Err:  &NormalizedError{Class: NormalizedErrorClassAccessDenied},
+	})
+
+	got, ok := buildCachedNamespaceListRowProjection(plane, "support-error")
+	if !ok || !got.RowEnriched {
+		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
+	}
+	if got.SummaryState != "empty" {
+		t.Fatalf("supporting resource error should not drive workload state: %+v", got)
+	}
+}
+
 func TestMergeCachedNamespaceRowProjectionOverlaysItems(t *testing.T) {
 	m := &manager{
 		planes: map[string]*clusterPlane{},

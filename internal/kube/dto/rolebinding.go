@@ -1,12 +1,15 @@
 package dto
 
 type RoleBindingListItemDTO struct {
-	Name         string `json:"name"`
-	Namespace    string `json:"namespace"`
-	RoleRefKind  string `json:"roleRefKind"`
-	RoleRefName  string `json:"roleRefName"`
-	SubjectsCount int   `json:"subjectsCount"`
-	AgeSec       int64  `json:"ageSec"`
+	Name           string `json:"name"`
+	Namespace      string `json:"namespace"`
+	RoleRefKind    string `json:"roleRefKind"`
+	RoleRefName    string `json:"roleRefName"`
+	SubjectsCount  int    `json:"subjectsCount"`
+	AgeSec         int64  `json:"ageSec"`
+	BindingHint    string `json:"bindingHint,omitempty"`
+	SubjectBreadth string `json:"subjectBreadth,omitempty"`
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
 }
 
 type RoleBindingDetailsDTO struct {

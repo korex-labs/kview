@@ -256,6 +256,43 @@ func TestEmptyLookingNamespaceIgnoresKubeRootCAConfigMap(t *testing.T) {
 	}
 }
 
+func TestEmptyLookingNamespaceIgnoresSupportivePolicyResources(t *testing.T) {
+	if !isEmptyLookingNamespace(dashboardSnapshotSet{
+		pods:           PodsSnapshot{Items: nil},
+		podsOK:         true,
+		deps:           DeploymentsSnapshot{Items: nil},
+		depsOK:         true,
+		ds:             DaemonSetsSnapshot{Items: nil},
+		dsOK:           true,
+		sts:            StatefulSetsSnapshot{Items: nil},
+		stsOK:          true,
+		rs:             ReplicaSetsSnapshot{Items: nil},
+		rsOK:           true,
+		jobs:           JobsSnapshot{Items: nil},
+		jobsOK:         true,
+		cjs:            CronJobsSnapshot{Items: nil},
+		cjsOK:          true,
+		svcs:           ServicesSnapshot{Items: nil},
+		svcsOK:         true,
+		ings:           IngressesSnapshot{Items: nil},
+		ingsOK:         true,
+		pvcs:           PVCsSnapshot{Items: nil},
+		pvcsOK:         true,
+		cms:            ConfigMapsSnapshot{Items: []dto.ConfigMapDTO{{Name: "kube-root-ca.crt", Namespace: "empty"}}},
+		cmsOK:          true,
+		secs:           SecretsSnapshot{Items: nil},
+		secsOK:         true,
+		helmReleases:   HelmReleasesSnapshot{Items: nil},
+		helmOK:         true,
+		resourceQuotas: ResourceQuotasSnapshot{Items: []dto.ResourceQuotaDTO{{Name: "rq", Namespace: "empty"}}},
+		quotasOK:       true,
+		limitRanges:    LimitRangesSnapshot{Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: "empty"}}},
+		limitRangesOK:  true,
+	}) {
+		t.Fatal("expected quotas/limits to be ignored for empty namespace heuristic")
+	}
+}
+
 func TestBuildDashboardCoverageIncludesSweepTargets(t *testing.T) {
 	dm := NewManager(ManagerConfig{})
 	mm := dm.(*manager)

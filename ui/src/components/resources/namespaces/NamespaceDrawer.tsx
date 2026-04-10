@@ -251,7 +251,7 @@ function isNamespaceConditionHealthy(cond: NamespaceCondition): boolean {
 function quotaGaugeColor(ratio?: number): "success" | "warning" | "error" {
   if (ratio == null) return "success";
   if (ratio >= 0.9) return "error";
-  if (ratio >= 0.7) return "warning";
+  if (ratio >= 0.8) return "warning";
   return "success";
 }
 
