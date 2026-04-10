@@ -3,6 +3,7 @@ import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
+import { workloadHealthBucketColor } from "../../../utils/k8sUi";
 import CustomResourceDefinitionDrawer from "./CustomResourceDefinitionDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
@@ -15,6 +16,9 @@ type CRDItem = {
   versions?: string;
   established?: boolean;
   ageSec: number;
+  healthBucket?: string;
+  versionBreadth?: string;
+  needsAttention?: boolean;
 };
 
 type Row = CRDItem & { id: string };
@@ -23,6 +27,15 @@ const resourceLabel = getResourceLabel("customresourcedefinitions");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 300 },
+  {
+    field: "healthBucket",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket || "unknown";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+  },
   {
     field: "group",
     headerName: "Group",
@@ -45,7 +58,14 @@ const columns: GridColDef<Row>[] = [
     field: "versions",
     headerName: "Versions",
     width: 280,
-    renderCell: (p) => valueOrDash(String(p.value || "")),
+    renderCell: (p) => (
+      <Chip
+        size="small"
+        label={`${p.row.versionBreadth || "unknown"} · ${valueOrDash(String(p.value || ""))}`}
+        color={p.row.versionBreadth === "multi" ? "primary" : "default"}
+        variant="outlined"
+      />
+    ),
   },
   {
     field: "established",
@@ -80,7 +100,9 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
       row.name.toLowerCase().includes(q) ||
       (row.group || "").toLowerCase().includes(q) ||
       (row.kind || "").toLowerCase().includes(q) ||
-      (row.scope || "").toLowerCase().includes(q),
+      (row.scope || "").toLowerCase().includes(q) ||
+      (row.healthBucket || "").toLowerCase().includes(q) ||
+      (row.versionBreadth || "").toLowerCase().includes(q),
     [],
   );
 
@@ -91,7 +113,7 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/group/kind/scope)"
+      filterLabel="Filter (name/group/kind/scope/signal)"
       resourceLabel={resourceLabel}
       resourceKey="customresourcedefinitions"
       accessResource={listResourceAccess.customresourcedefinitions}

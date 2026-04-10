@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
@@ -10,6 +11,8 @@ type ClusterRole = {
   name: string;
   rulesCount: number;
   ageSec: number;
+  privilegeBreadth?: string;
+  needsAttention?: boolean;
 };
 
 type Row = ClusterRole & { id: string };
@@ -18,6 +21,15 @@ const resourceLabel = getResourceLabel("clusterroles");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "privilegeBreadth",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const breadth = p.row.privilegeBreadth || "unknown";
+      return <Chip size="small" label={breadth} color={breadth === "broad" || breadth === "empty" ? "warning" : "default"} />;
+    },
+  },
   {
     field: "rulesCount",
     headerName: "Rules",
@@ -42,7 +54,9 @@ export default function ClusterRolesTable({ token }: { token: string }) {
   }, [token]);
 
   const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q),
+    (row: Row, q: string) =>
+      row.name.toLowerCase().includes(q) ||
+      (row.privilegeBreadth || "").toLowerCase().includes(q),
     [],
   );
 
@@ -53,7 +67,7 @@ export default function ClusterRolesTable({ token }: { token: string }) {
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="clusterroles"
       accessResource={listResourceAccess.clusterroles}

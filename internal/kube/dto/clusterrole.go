@@ -1,9 +1,11 @@
 package dto
 
 type ClusterRoleListItemDTO struct {
-	Name       string `json:"name"`
-	RulesCount int    `json:"rulesCount"`
-	AgeSec     int64  `json:"ageSec"`
+	Name             string `json:"name"`
+	RulesCount       int    `json:"rulesCount"`
+	AgeSec           int64  `json:"ageSec"`
+	PrivilegeBreadth string `json:"privilegeBreadth,omitempty"`
+	NeedsAttention   bool   `json:"needsAttention,omitempty"`
 }
 
 type ClusterRoleDetailsDTO struct {

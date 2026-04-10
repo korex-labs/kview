@@ -142,6 +142,11 @@ type ClusterDashboardFindingsPanel struct {
 	PotentiallyUnusedPVCs int                       `json:"potentiallyUnusedPVCs"`
 	PotentiallyUnusedSAs  int                       `json:"potentiallyUnusedServiceAccounts"`
 	QuotaWarnings         int                       `json:"quotaWarnings"`
+	ServiceWarnings       int                       `json:"serviceWarnings"`
+	IngressWarnings       int                       `json:"ingressWarnings"`
+	PVCWarnings           int                       `json:"pvcWarnings"`
+	RoleWarnings          int                       `json:"roleWarnings"`
+	RoleBindingWarnings   int                       `json:"roleBindingWarnings"`
 	Top                   []ClusterDashboardFinding `json:"top,omitempty"`
 	Items                 []ClusterDashboardFinding `json:"items,omitempty"`
 	Note                  string                    `json:"note,omitempty"`

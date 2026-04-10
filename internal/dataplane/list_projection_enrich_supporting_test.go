@@ -55,3 +55,16 @@ func TestEnrichServiceAccountListItemsForAPI(t *testing.T) {
 		t.Fatalf("legacy serviceaccount signal unexpected: %+v", items[2])
 	}
 }
+
+func TestEnrichCRDListItemsForAPI(t *testing.T) {
+	items := EnrichCRDListItemsForAPI([]dto.CRDListItemDTO{
+		{Name: "widgets.example.com", Versions: "v1", Established: true},
+		{Name: "gadgets.example.com", Versions: "v1, v1beta1", Established: false},
+	})
+	if items[0].HealthBucket != deployBucketHealthy || items[0].VersionBreadth != "single" || items[0].NeedsAttention {
+		t.Fatalf("established crd signal unexpected: %+v", items[0])
+	}
+	if items[1].HealthBucket != deployBucketDegraded || items[1].VersionBreadth != "multi" || !items[1].NeedsAttention {
+		t.Fatalf("unestablished crd signal unexpected: %+v", items[1])
+	}
+}

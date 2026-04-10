@@ -213,6 +213,10 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			secsOK:         secOK && secSnap.Err == nil,
 			sas:            saSnap,
 			sasOK:          saOK && saSnap.Err == nil,
+			roles:          rolesSnap,
+			rolesOK:        rolesOK && rolesSnap.Err == nil,
+			roleBindings:   roleBindingsSnap,
+			roleBindingsOK: roleBindingsOK && roleBindingsSnap.Err == nil,
 			helmReleases:   helmReleasesSnap,
 			helmOK:         helmReleasesOK && helmReleasesSnap.Err == nil,
 			resourceQuotas: rqSnap,
@@ -331,6 +335,10 @@ type dashboardSnapshotSet struct {
 	secsOK         bool
 	sas            ServiceAccountsSnapshot
 	sasOK          bool
+	roles          RolesSnapshot
+	rolesOK        bool
+	roleBindings   RoleBindingsSnapshot
+	roleBindingsOK bool
 	helmReleases   HelmReleasesSnapshot
 	helmOK         bool
 	resourceQuotas ResourceQuotasSnapshot
@@ -382,6 +390,53 @@ func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) [
 			}
 		}
 	}
+	if s.svcsOK {
+		for _, svc := range EnrichServiceListItemsForAPI(s.svcs.Items) {
+			if svc.NeedsAttention {
+				out = append(out, dashboardFinding("Service", ns, svc.Name, "medium", 66, "Service has no ready endpoints.", "medium", "services"))
+			}
+		}
+	}
+	if s.ingsOK {
+		for _, ing := range EnrichIngressListItemsForAPI(s.ings.Items) {
+			if ing.NeedsAttention {
+				reason := "Ingress routing needs attention."
+				if ing.AddressState == "pending" {
+					reason = "Ingress has no assigned address yet."
+				}
+				out = append(out, dashboardFinding("Ingress", ns, ing.Name, "medium", 64, reason, "medium", "ingresses"))
+			}
+		}
+	}
+	if s.pvcsOK {
+		for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
+			if pvc.NeedsAttention {
+				severity := "medium"
+				score := 63
+				reason := "PersistentVolumeClaim is not bound or has a pending resize signal."
+				if pvc.HealthBucket == deployBucketDegraded {
+					severity = "high"
+					score = 84
+					reason = "PersistentVolumeClaim is in a degraded phase."
+				}
+				out = append(out, dashboardFinding("PersistentVolumeClaim", ns, pvc.Name, severity, score, reason, "medium", "persistentvolumeclaims"))
+			}
+		}
+	}
+	if s.rolesOK {
+		for _, role := range EnrichRoleListItemsForAPI(s.roles.Items) {
+			if role.NeedsAttention {
+				out = append(out, dashboardFinding("Role", ns, role.Name, "low", 42, "Role has an empty or broad rule surface.", "medium", "roles"))
+			}
+		}
+	}
+	if s.roleBindingsOK {
+		for _, rb := range EnrichRoleBindingListItemsForAPI(s.roleBindings.Items) {
+			if rb.NeedsAttention {
+				out = append(out, dashboardFinding("RoleBinding", ns, rb.Name, "low", 40, "RoleBinding has an empty or broad subject surface.", "medium", "rolebindings"))
+			}
+		}
+	}
 	if s.quotasOK {
 		for _, quota := range s.resourceQuotas.Items {
 			for _, entry := range quota.Entries {
@@ -413,8 +468,8 @@ func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) [
 		}
 	}
 	if s.pvcsOK && s.podsOK && len(s.pods.Items) == 0 {
-		for _, pvc := range s.pvcs.Items {
-			if pvc.AgeSec >= int64((24 * time.Hour).Seconds()) {
+		for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
+			if !pvc.NeedsAttention && pvc.AgeSec >= int64((24*time.Hour).Seconds()) {
 				out = append(out, dashboardFinding("PersistentVolumeClaim", ns, pvc.Name, "low", 30, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "persistentvolumeclaims"))
 			}
 		}
@@ -475,6 +530,18 @@ func dashboardFindingAdvice(kind, severity string) (likelyCause string, suggeste
 	case "ServiceAccount":
 		return "The service account may have been created for a workload that no longer runs in this namespace.",
 			"Verify whether any pods or controllers still reference it. Remove it if unused, especially if it carries extra permissions."
+	case "Service":
+		return "The service selector may not match any ready pods, or all selected pods are currently not ready.",
+			"Inspect the service endpoints and selector labels, then open the selected workloads or pods to restore ready backends."
+	case "Ingress":
+		return "The ingress controller may not have admitted the route yet, or the backend/service wiring is incomplete.",
+			"Inspect ingress events, address assignment, TLS/backend references, and the services behind the route."
+	case "Role":
+		return "The role may be a placeholder with no rules or a broad permission surface that deserves review.",
+			"Review the rules and confirm the role is intentionally broad; otherwise narrow or remove it."
+	case "RoleBinding":
+		return "The binding may have no subjects or grant access to an unusually broad subject set.",
+			"Review subjects and the referenced role, then remove stale subjects or split broad access into narrower bindings."
 	case "ResourceQuota":
 		return "The namespace is approaching its configured quota because workload growth or a runaway job is consuming the remaining budget.",
 			"Inspect which resource is close to the hard limit, then either scale usage back down or raise the quota if the growth is intentional."
@@ -569,11 +636,23 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int) C
 		case "Secret":
 			out.EmptySecrets++
 		case "PersistentVolumeClaim":
-			out.PotentiallyUnusedPVCs++
+			if strings.Contains(f.Reason, "Potentially unused") {
+				out.PotentiallyUnusedPVCs++
+			} else {
+				out.PVCWarnings++
+			}
 		case "ServiceAccount":
 			out.PotentiallyUnusedSAs++
 		case "ResourceQuota":
 			out.QuotaWarnings++
+		case "Service":
+			out.ServiceWarnings++
+		case "Ingress":
+			out.IngressWarnings++
+		case "Role":
+			out.RoleWarnings++
+		case "RoleBinding":
+			out.RoleBindingWarnings++
 		}
 	}
 	if len(findings) > limit {
@@ -610,14 +689,16 @@ func dashboardFindingKindPriority(kind string) int {
 		return 4
 	case "Job", "CronJob":
 		return 5
-	case "PersistentVolumeClaim", "ServiceAccount":
+	case "PersistentVolumeClaim", "Service", "Ingress":
 		return 6
-	case "ConfigMap", "Secret":
+	case "ServiceAccount", "Role", "RoleBinding":
 		return 7
-	case "Namespace":
+	case "ConfigMap", "Secret":
 		return 8
-	default:
+	case "Namespace":
 		return 9
+	default:
+		return 10
 	}
 }
 

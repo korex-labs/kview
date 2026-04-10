@@ -274,6 +274,11 @@ export type ApiDashboardClusterResponse = {
       potentiallyUnusedPVCs: number;
       potentiallyUnusedServiceAccounts: number;
       quotaWarnings: number;
+      serviceWarnings: number;
+      ingressWarnings: number;
+      pvcWarnings: number;
+      roleWarnings: number;
+      roleBindingWarnings: number;
       top?: Array<{
         kind: string;
         namespace?: string;

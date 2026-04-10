@@ -50,3 +50,23 @@ func TestEnrichRoleAndRoleBindingListItemsForAPI(t *testing.T) {
 		t.Fatalf("wide binding signal unexpected: %+v", bindings[1])
 	}
 }
+
+func TestEnrichClusterRoleAndClusterRoleBindingListItemsForAPI(t *testing.T) {
+	roles := EnrichClusterRoleListItemsForAPI([]dto.ClusterRoleListItemDTO{
+		{Name: "wide", RulesCount: 12},
+		{Name: "small", RulesCount: 2},
+	})
+	if roles[0].PrivilegeBreadth != "broad" || !roles[0].NeedsAttention {
+		t.Fatalf("wide clusterrole signal unexpected: %+v", roles[0])
+	}
+	if roles[1].PrivilegeBreadth != "narrow" || roles[1].NeedsAttention {
+		t.Fatalf("small clusterrole signal unexpected: %+v", roles[1])
+	}
+
+	bindings := EnrichClusterRoleBindingListItemsForAPI([]dto.ClusterRoleBindingListItemDTO{
+		{Name: "wide", RoleRefKind: "ClusterRole", SubjectsCount: 12},
+	})
+	if bindings[0].BindingHint != "cluster-role" || bindings[0].SubjectBreadth != "broad" || !bindings[0].NeedsAttention {
+		t.Fatalf("wide clusterrolebinding signal unexpected: %+v", bindings[0])
+	}
+}

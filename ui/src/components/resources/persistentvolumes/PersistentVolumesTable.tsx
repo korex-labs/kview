@@ -3,7 +3,7 @@ import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
-import { pvPhaseChipColor } from "../../../utils/k8sUi";
+import { pvPhaseChipColor, workloadHealthBucketColor } from "../../../utils/k8sUi";
 import PersistentVolumeDrawer from "./PersistentVolumeDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
@@ -18,6 +18,9 @@ type PersistentVolume = {
   volumeMode?: string;
   claimRef?: string;
   ageSec: number;
+  healthBucket?: string;
+  bindingHint?: string;
+  needsAttention?: boolean;
 };
 
 type Row = PersistentVolume & { id: string };
@@ -26,6 +29,15 @@ const resourceLabel = getResourceLabel("persistentvolumes");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "healthBucket",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const bucket = p.row.healthBucket || "unknown";
+      return <Chip size="small" label={p.row.needsAttention ? "attention" : bucket} color={workloadHealthBucketColor(bucket)} />;
+    },
+  },
   {
     field: "phase",
     headerName: "Status",
@@ -60,7 +72,14 @@ const columns: GridColDef<Row>[] = [
     field: "claimRef",
     headerName: "Claim",
     width: 220,
-    renderCell: (p) => valueOrDash(String(p.value || "")),
+    renderCell: (p) => (
+      <Chip
+        size="small"
+        label={p.row.claimRef || p.row.bindingHint || "unbound"}
+        color={p.row.bindingHint === "released" ? "warning" : p.row.claimRef ? "success" : "default"}
+        variant={p.row.claimRef ? "outlined" : "filled"}
+      />
+    ),
   },
   {
     field: "ageSec",
@@ -82,6 +101,8 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
     (row: Row, q: string) =>
       row.name.toLowerCase().includes(q) ||
       (row.phase || "").toLowerCase().includes(q) ||
+      (row.healthBucket || "").toLowerCase().includes(q) ||
+      (row.bindingHint || "").toLowerCase().includes(q) ||
       (row.storageClassName || "").toLowerCase().includes(q) ||
       (row.reclaimPolicy || "").toLowerCase().includes(q) ||
       (row.claimRef || "").toLowerCase().includes(q),
@@ -95,7 +116,7 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/status/storageClass/claim)"
+      filterLabel="Filter (name/status/signal/storageClass/claim)"
       resourceLabel={resourceLabel}
       resourceKey="persistentvolumes"
       accessResource={listResourceAccess.persistentvolumes}

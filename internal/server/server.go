@@ -983,7 +983,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": dataplane.EnrichClusterRoleListItemsForAPI(items)})
 		})
 
 		api.Get("/clusterroles/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1093,7 +1093,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": dataplane.EnrichClusterRoleBindingListItemsForAPI(items)})
 		})
 
 		api.Get("/clusterrolebindings/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1203,7 +1203,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": dataplane.EnrichCRDListItemsForAPI(items)})
 		})
 
 		api.Get("/customresourcedefinitions/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1313,7 +1313,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": dataplane.EnrichPersistentVolumeListItemsForAPI(items)})
 		})
 
 		api.Get("/persistentvolumes/{name}", func(w http.ResponseWriter, r *http.Request) {

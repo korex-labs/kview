@@ -30,6 +30,10 @@ import SecretDrawer from "../secrets/SecretDrawer";
 import ServiceAccountDrawer from "../serviceaccounts/ServiceAccountDrawer";
 import PersistentVolumeClaimDrawer from "../persistentvolumeclaims/PersistentVolumeClaimDrawer";
 import HelmReleaseDrawer from "../helm/HelmReleaseDrawer";
+import ServiceDrawer from "../services/ServiceDrawer";
+import IngressDrawer from "../ingresses/IngressDrawer";
+import RoleDrawer from "../roles/RoleDrawer";
+import RoleBindingDrawer from "../rolebindings/RoleBindingDrawer";
 
 type Props = {
   token: string;
@@ -51,6 +55,10 @@ type FindingFilter =
   | "Secret"
   | "PersistentVolumeClaim"
   | "ServiceAccount"
+  | "Service"
+  | "Ingress"
+  | "Role"
+  | "RoleBinding"
   | "ResourceQuota";
 
 type InspectTarget = {
@@ -63,7 +71,11 @@ type InspectTarget = {
     | "Secret"
     | "ServiceAccount"
     | "PersistentVolumeClaim"
-    | "HelmRelease";
+    | "HelmRelease"
+    | "Service"
+    | "Ingress"
+    | "Role"
+    | "RoleBinding";
   namespace: string;
   name: string;
 };
@@ -354,9 +366,17 @@ function findingFilterLabel(filter: FindingFilter): string {
     case "Secret":
       return "Empty Secrets";
     case "PersistentVolumeClaim":
-      return "Potentially unused PVCs";
+      return "PVCs";
     case "ServiceAccount":
       return "Potentially unused service accounts";
+    case "Service":
+      return "Service endpoints";
+    case "Ingress":
+      return "Ingress routing";
+    case "Role":
+      return "Roles";
+    case "RoleBinding":
+      return "RoleBindings";
     case "ResourceQuota":
       return "Quota pressure";
     default:
@@ -412,6 +432,10 @@ function inspectTargetFromFinding(f: Finding): InspectTarget | null {
     case "ServiceAccount":
     case "PersistentVolumeClaim":
     case "HelmRelease":
+    case "Service":
+    case "Ingress":
+    case "Role":
+    case "RoleBinding":
       return { kind: f.kind, namespace, name };
     case "ResourceQuota":
       return { kind: "Namespace", namespace, name: namespace };
@@ -499,6 +523,34 @@ function DashboardInspectDrawers({
         token={token}
         namespace={namespace}
         releaseName={target?.kind === "HelmRelease" ? name : null}
+      />
+      <ServiceDrawer
+        open={open && target?.kind === "Service"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        serviceName={target?.kind === "Service" ? name : null}
+      />
+      <IngressDrawer
+        open={open && target?.kind === "Ingress"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        ingressName={target?.kind === "Ingress" ? name : null}
+      />
+      <RoleDrawer
+        open={open && target?.kind === "Role"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        roleName={target?.kind === "Role" ? name : null}
+      />
+      <RoleBindingDrawer
+        open={open && target?.kind === "RoleBinding"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        roleBindingName={target?.kind === "RoleBinding" ? name : null}
       />
     </>
   );
@@ -721,7 +773,7 @@ export default function DashboardView(props: Props) {
                         />
                         <FindingFilterChip
                           filter="PersistentVolumeClaim"
-                          count={findings?.potentiallyUnusedPVCs ?? 0}
+                          count={(findings?.potentiallyUnusedPVCs ?? 0) + (findings?.pvcWarnings ?? 0)}
                           hideWhenZero
                           selected={findingFilter === "PersistentVolumeClaim"}
                           onSelect={setFindingFilter}
@@ -731,6 +783,34 @@ export default function DashboardView(props: Props) {
                           count={findings?.potentiallyUnusedServiceAccounts ?? 0}
                           hideWhenZero
                           selected={findingFilter === "ServiceAccount"}
+                          onSelect={setFindingFilter}
+                        />
+                        <FindingFilterChip
+                          filter="Service"
+                          count={findings?.serviceWarnings ?? 0}
+                          hideWhenZero
+                          selected={findingFilter === "Service"}
+                          onSelect={setFindingFilter}
+                        />
+                        <FindingFilterChip
+                          filter="Ingress"
+                          count={findings?.ingressWarnings ?? 0}
+                          hideWhenZero
+                          selected={findingFilter === "Ingress"}
+                          onSelect={setFindingFilter}
+                        />
+                        <FindingFilterChip
+                          filter="Role"
+                          count={findings?.roleWarnings ?? 0}
+                          hideWhenZero
+                          selected={findingFilter === "Role"}
+                          onSelect={setFindingFilter}
+                        />
+                        <FindingFilterChip
+                          filter="RoleBinding"
+                          count={findings?.roleBindingWarnings ?? 0}
+                          hideWhenZero
+                          selected={findingFilter === "RoleBinding"}
                           onSelect={setFindingFilter}
                         />
                         <FindingFilterChip

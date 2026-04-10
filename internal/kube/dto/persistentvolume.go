@@ -10,6 +10,9 @@ type PersistentVolumeDTO struct {
 	VolumeMode       string   `json:"volumeMode,omitempty"`
 	ClaimRef         string   `json:"claimRef,omitempty"`
 	AgeSec           int64    `json:"ageSec"`
+	HealthBucket     string   `json:"healthBucket,omitempty"`
+	BindingHint      string   `json:"bindingHint,omitempty"`
+	NeedsAttention   bool     `json:"needsAttention,omitempty"`
 }
 
 type PersistentVolumeDetailsDTO struct {
@@ -21,29 +24,29 @@ type PersistentVolumeDetailsDTO struct {
 }
 
 type PersistentVolumeSummaryDTO struct {
-	Name             string                      `json:"name"`
-	Phase            string                      `json:"phase,omitempty"`
-	Capacity         string                      `json:"capacity,omitempty"`
-	AccessModes      []string                    `json:"accessModes,omitempty"`
-	StorageClassName string                      `json:"storageClassName,omitempty"`
-	ReclaimPolicy    string                      `json:"reclaimPolicy,omitempty"`
-	VolumeMode       string                      `json:"volumeMode,omitempty"`
+	Name             string                       `json:"name"`
+	Phase            string                       `json:"phase,omitempty"`
+	Capacity         string                       `json:"capacity,omitempty"`
+	AccessModes      []string                     `json:"accessModes,omitempty"`
+	StorageClassName string                       `json:"storageClassName,omitempty"`
+	ReclaimPolicy    string                       `json:"reclaimPolicy,omitempty"`
+	VolumeMode       string                       `json:"volumeMode,omitempty"`
 	ClaimRef         *PersistentVolumeClaimRefDTO `json:"claimRef,omitempty"`
-	AgeSec           int64                       `json:"ageSec"`
-	CreatedAt        int64                       `json:"createdAt,omitempty"`
+	AgeSec           int64                        `json:"ageSec"`
+	CreatedAt        int64                        `json:"createdAt,omitempty"`
 }
 
 type PersistentVolumeSpecDTO struct {
-	AccessModes      []string                   `json:"accessModes,omitempty"`
-	VolumeMode       string                     `json:"volumeMode,omitempty"`
-	StorageClassName string                     `json:"storageClassName,omitempty"`
-	ReclaimPolicy    string                     `json:"reclaimPolicy,omitempty"`
-	MountOptions     []string                   `json:"mountOptions,omitempty"`
-	VolumeSource     PersistentVolumeSourceDTO  `json:"volumeSource"`
+	AccessModes      []string                  `json:"accessModes,omitempty"`
+	VolumeMode       string                    `json:"volumeMode,omitempty"`
+	StorageClassName string                    `json:"storageClassName,omitempty"`
+	ReclaimPolicy    string                    `json:"reclaimPolicy,omitempty"`
+	MountOptions     []string                  `json:"mountOptions,omitempty"`
+	VolumeSource     PersistentVolumeSourceDTO `json:"volumeSource"`
 }
 
 type PersistentVolumeSourceDTO struct {
-	Type    string                           `json:"type,omitempty"`
+	Type    string                            `json:"type,omitempty"`
 	Details []PersistentVolumeSourceDetailDTO `json:"details,omitempty"`
 }
 
@@ -53,9 +56,9 @@ type PersistentVolumeSourceDetailDTO struct {
 }
 
 type PersistentVolumeStatusDTO struct {
-	Phase      string                          `json:"phase,omitempty"`
-	Capacity   string                          `json:"capacity,omitempty"`
-	Conditions []PersistentVolumeConditionDTO  `json:"conditions,omitempty"`
+	Phase      string                         `json:"phase,omitempty"`
+	Capacity   string                         `json:"capacity,omitempty"`
+	Conditions []PersistentVolumeConditionDTO `json:"conditions,omitempty"`
 }
 
 type PersistentVolumeConditionDTO struct {

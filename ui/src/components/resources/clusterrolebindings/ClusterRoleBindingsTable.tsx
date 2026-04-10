@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
@@ -12,23 +13,38 @@ type ClusterRoleBinding = {
   roleRefName: string;
   subjectsCount: number;
   ageSec: number;
+  bindingHint?: string;
+  subjectBreadth?: string;
+  needsAttention?: boolean;
 };
 
 type Row = ClusterRoleBinding & { id: string };
 
 const resourceLabel = getResourceLabel("clusterrolebindings");
 
-function formatRoleRef(kind?: string, name?: string) {
-  return `${kind || "-"}/${name || "-"}`;
-}
-
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
+  {
+    field: "subjectBreadth",
+    headerName: "Signal",
+    width: 130,
+    renderCell: (p) => {
+      const breadth = p.row.subjectBreadth || "unknown";
+      return <Chip size="small" label={breadth} color={breadth === "broad" || breadth === "empty" ? "warning" : "default"} />;
+    },
+  },
   {
     field: "roleRefName",
     headerName: "Role Ref",
     width: 220,
-    renderCell: (p) => formatRoleRef(p.row.roleRefKind, p.row.roleRefName),
+    renderCell: (p) => (
+      <Chip
+        size="small"
+        label={`${p.row.bindingHint || p.row.roleRefKind || "unknown"}: ${p.row.roleRefName || "-"}`}
+        color={p.row.roleRefKind === "ClusterRole" ? "primary" : "default"}
+        variant="outlined"
+      />
+    ),
     sortable: false,
   },
   {
@@ -55,7 +71,12 @@ export default function ClusterRoleBindingsTable({ token }: { token: string }) {
   }, [token]);
 
   const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q),
+    (row: Row, q: string) =>
+      row.name.toLowerCase().includes(q) ||
+      (row.roleRefKind || "").toLowerCase().includes(q) ||
+      (row.roleRefName || "").toLowerCase().includes(q) ||
+      (row.bindingHint || "").toLowerCase().includes(q) ||
+      (row.subjectBreadth || "").toLowerCase().includes(q),
     [],
   );
 
@@ -66,7 +87,7 @@ export default function ClusterRoleBindingsTable({ token }: { token: string }) {
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name)"
+      filterLabel="Filter (name/role/signal)"
       resourceLabel={resourceLabel}
       resourceKey="clusterrolebindings"
       accessResource={listResourceAccess.clusterrolebindings}

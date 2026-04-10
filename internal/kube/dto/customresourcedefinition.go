@@ -2,13 +2,16 @@ package dto
 
 // CRDListItemDTO is the compact representation for the list table.
 type CRDListItemDTO struct {
-	Name        string `json:"name"`
-	Group       string `json:"group"`
-	Scope       string `json:"scope"`
-	Kind        string `json:"kind"`
-	Versions    string `json:"versions"`
-	Established bool   `json:"established"`
-	AgeSec      int64  `json:"ageSec"`
+	Name           string `json:"name"`
+	Group          string `json:"group"`
+	Scope          string `json:"scope"`
+	Kind           string `json:"kind"`
+	Versions       string `json:"versions"`
+	Established    bool   `json:"established"`
+	AgeSec         int64  `json:"ageSec"`
+	HealthBucket   string `json:"healthBucket,omitempty"`
+	VersionBreadth string `json:"versionBreadth,omitempty"`
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
 }
 
 // CRDDetailsDTO is the full representation for the drawer.

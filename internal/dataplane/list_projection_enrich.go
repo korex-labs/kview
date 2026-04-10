@@ -613,3 +613,113 @@ func subjectBreadth(subjects int) (breadth string, needsAttention bool) {
 		return "narrow", false
 	}
 }
+
+// EnrichPersistentVolumeListItemsForAPI returns a shallow copy with binding and lifecycle hints.
+func EnrichPersistentVolumeListItemsForAPI(items []dto.PersistentVolumeDTO) []dto.PersistentVolumeDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.PersistentVolumeDTO, len(items))
+	for i := range items {
+		pv := items[i]
+		pv.HealthBucket, pv.NeedsAttention = persistentVolumeListSignals(pv)
+		pv.BindingHint = persistentVolumeBindingHint(pv)
+		out[i] = pv
+	}
+	return out
+}
+
+func persistentVolumeListSignals(pv dto.PersistentVolumeDTO) (bucket string, needsAttention bool) {
+	switch pv.Phase {
+	case "Bound":
+		return deployBucketHealthy, false
+	case "Available":
+		return deployBucketProgressing, false
+	case "Released", "Failed":
+		return deployBucketDegraded, true
+	default:
+		return deployBucketUnknown, false
+	}
+}
+
+func persistentVolumeBindingHint(pv dto.PersistentVolumeDTO) string {
+	if strings.TrimSpace(pv.ClaimRef) != "" {
+		return "bound"
+	}
+	if pv.Phase == "Released" {
+		return "released"
+	}
+	if pv.Phase == "Available" {
+		return "available"
+	}
+	return "unbound"
+}
+
+// EnrichClusterRoleListItemsForAPI returns a shallow copy with coarse rules-count breadth hints.
+func EnrichClusterRoleListItemsForAPI(items []dto.ClusterRoleListItemDTO) []dto.ClusterRoleListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.ClusterRoleListItemDTO, len(items))
+	for i := range items {
+		role := items[i]
+		role.PrivilegeBreadth, role.NeedsAttention = rolePrivilegeBreadth(role.RulesCount)
+		out[i] = role
+	}
+	return out
+}
+
+// EnrichClusterRoleBindingListItemsForAPI returns a shallow copy with role-ref and subject breadth hints.
+func EnrichClusterRoleBindingListItemsForAPI(items []dto.ClusterRoleBindingListItemDTO) []dto.ClusterRoleBindingListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.ClusterRoleBindingListItemDTO, len(items))
+	for i := range items {
+		rb := items[i]
+		rb.BindingHint = roleBindingHint(rb.RoleRefKind)
+		rb.SubjectBreadth, rb.NeedsAttention = subjectBreadth(rb.SubjectsCount)
+		out[i] = rb
+	}
+	return out
+}
+
+// EnrichCRDListItemsForAPI returns a shallow copy with establishment and version breadth hints.
+func EnrichCRDListItemsForAPI(items []dto.CRDListItemDTO) []dto.CRDListItemDTO {
+	if len(items) == 0 {
+		return items
+	}
+	out := make([]dto.CRDListItemDTO, len(items))
+	for i := range items {
+		crd := items[i]
+		crd.VersionBreadth = crdVersionBreadth(crd.Versions)
+		if crd.Established {
+			crd.HealthBucket = deployBucketHealthy
+		} else {
+			crd.HealthBucket = deployBucketDegraded
+			crd.NeedsAttention = true
+		}
+		out[i] = crd
+	}
+	return out
+}
+
+func crdVersionBreadth(versions string) string {
+	parts := strings.FieldsFunc(versions, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+	count := 0
+	for _, part := range parts {
+		if strings.TrimSpace(part) != "" {
+			count++
+		}
+	}
+	switch {
+	case count <= 0:
+		return "none"
+	case count == 1:
+		return "single"
+	default:
+		return "multi"
+	}
+}

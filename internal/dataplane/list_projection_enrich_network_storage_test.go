@@ -47,3 +47,16 @@ func TestEnrichPVCListItemsForAPI(t *testing.T) {
 		t.Fatalf("pvc 1 enrichment unexpected: %+v", got[1])
 	}
 }
+
+func TestEnrichPersistentVolumeListItemsForAPI(t *testing.T) {
+	got := EnrichPersistentVolumeListItemsForAPI([]dto.PersistentVolumeDTO{
+		{Name: "bound", Phase: "Bound", ClaimRef: "app/data"},
+		{Name: "released", Phase: "Released"},
+	})
+	if got[0].HealthBucket != deployBucketHealthy || got[0].BindingHint != "bound" || got[0].NeedsAttention {
+		t.Fatalf("bound pv enrichment unexpected: %+v", got[0])
+	}
+	if got[1].HealthBucket != deployBucketDegraded || got[1].BindingHint != "released" || !got[1].NeedsAttention {
+		t.Fatalf("released pv enrichment unexpected: %+v", got[1])
+	}
+}
