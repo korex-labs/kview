@@ -87,6 +87,7 @@ Background row enrichment is **narrow and user-aligned**:
 | Route | Reason |
 |-------|--------|
 | `GET /api/namespaces/{name}` | Namespace **detail** for raw metadata/conditions/YAML (intentional direct read, lazy-loaded by the UI). |
+| `GET /api/namespaces/{name}/events` | Aggregated namespace event list from Kubernetes Events in that namespace (intentional direct read, lazy-loaded by the UI). |
 
 ### 4.2 Deferred catalog reads
 

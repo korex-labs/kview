@@ -12,16 +12,20 @@ type EventDTO = {
   count: number;
   firstSeen: number;
   lastSeen: number;
+  involvedKind?: string;
+  involvedName?: string;
 };
 
 type EventsListProps = {
   events: EventDTO[];
   emptyMessage?: string;
+  showTarget?: boolean;
 };
 
 export default function EventsList({
   events,
   emptyMessage = "No events found.",
+  showTarget = false,
 }: EventsListProps) {
   if (events.length === 0) {
     return <EmptyState message={emptyMessage} />;
@@ -48,6 +52,13 @@ export default function EventsList({
               <Typography variant="subtitle2">
                 {valueOrDash(e.reason)} (x{valueOrDash(e.count)})
               </Typography>
+              {showTarget && (e.involvedKind || e.involvedName) ? (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${valueOrDash(e.involvedKind)} ${valueOrDash(e.involvedName)}`}
+                />
+              ) : null}
             </Box>
             <Typography variant="caption" color="text.secondary">
               {fmtTs(e.lastSeen)}

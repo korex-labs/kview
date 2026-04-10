@@ -17,6 +17,14 @@ func ListEventsForPod(ctx context.Context, c *cluster.Clients, namespace, podNam
 	return ListEventsForObject(ctx, c, namespace, "Pod", podName)
 }
 
+func ListEventsForNamespace(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.EventDTO, error) {
+	evs, err := c.Clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return mapAndSortEvents(evs.Items), nil
+}
+
 func LatestEventsByObject(ctx context.Context, c *cluster.Clients, namespace, kind string) (map[string]dto.EventBriefDTO, error) {
 	evs, err := c.Clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -91,13 +99,15 @@ func toDTO(e corev1.Event) dto.EventDTO {
 	last := eventLastSeen(e)
 
 	return dto.EventDTO{
-		Type:      e.Type,
-		Reason:    e.Reason,
-		Message:   e.Message,
-		Count:     e.Count,
-		FirstSeen: first.Unix(),
-		LastSeen:  last.Unix(),
-		FieldPath: strings.TrimSpace(e.InvolvedObject.FieldPath),
+		Type:         e.Type,
+		Reason:       e.Reason,
+		Message:      e.Message,
+		Count:        e.Count,
+		FirstSeen:    first.Unix(),
+		LastSeen:     last.Unix(),
+		FieldPath:    strings.TrimSpace(e.InvolvedObject.FieldPath),
+		InvolvedKind: strings.TrimSpace(e.InvolvedObject.Kind),
+		InvolvedName: strings.TrimSpace(e.InvolvedObject.Name),
 	}
 }
 

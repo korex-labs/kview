@@ -385,4 +385,6 @@ export type EventDTO = {
   firstSeen: number;
   lastSeen: number;
   fieldPath?: string;
+  involvedKind?: string;
+  involvedName?: string;
 };

@@ -15,7 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import { apiGet } from "../../../api";
-import type { ApiItemResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, EventDTO } from "../../../types/api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import {
@@ -33,6 +33,7 @@ import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import RightDrawer from "../../layout/RightDrawer";
 import Section from "../../shared/Section";
+import EventsList from "../../shared/EventsList";
 import NamespaceActions from "./NamespaceActions";
 import PodDrawer from "../pods/PodDrawer";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
@@ -208,7 +209,8 @@ type LimitRange = {
   items: LimitRangeItem[];
 };
 
-const tabs = ["Signals", "Inventory", "Capacity", "Metadata", "YAML"] as const;
+const tabs = ["Signals", "Inventory", "Capacity", "Events", "Metadata", "YAML"] as const;
+const eventsTabIndex = tabs.indexOf("Events");
 const metadataTabIndex = tabs.indexOf("Metadata");
 const yamlTabIndex = tabs.indexOf("YAML");
 
@@ -373,6 +375,10 @@ export default function NamespaceDrawer(props: {
   const [detailsErr, setDetailsErr] = useState("");
   const [details, setDetails] = useState<NamespaceDetails | null>(null);
   const [detailsRequested, setDetailsRequested] = useState(false);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsErr, setEventsErr] = useState("");
+  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [eventsRequested, setEventsRequested] = useState(false);
 
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerDeployment, setDrawerDeployment] = useState<string | null>(null);
@@ -380,6 +386,7 @@ export default function NamespaceDrawer(props: {
   const [drawerHelmRelease, setDrawerHelmRelease] = useState<string | null>(null);
   const insightsCacheRef = useRef<Record<string, NamespaceInsights>>({});
   const detailsCacheRef = useRef<Record<string, NamespaceDetails>>({});
+  const eventsCacheRef = useRef<Record<string, EventDTO[]>>({});
 
   const name = props.namespaceName;
 
@@ -396,6 +403,11 @@ export default function NamespaceDrawer(props: {
     const cachedDetails = detailsCacheRef.current[name] || null;
     setDetails(cachedDetails);
     setDetailsRequested(!!cachedDetails);
+    setEventsLoading(false);
+    setEventsErr("");
+    const cachedEvents = eventsCacheRef.current[name] || [];
+    setEvents(cachedEvents);
+    setEventsRequested(!!eventsCacheRef.current[name]);
     setDrawerPod(null);
     setDrawerDeployment(null);
     setDrawerJob(null);
@@ -435,6 +447,26 @@ export default function NamespaceDrawer(props: {
       .catch((e) => setDetailsErr(String(e)))
       .finally(() => setDetailsLoading(false));
   }, [props.open, name, props.token, tab, detailsRequested, detailsLoading, details]);
+
+  useEffect(() => {
+    if (!props.open || !name) return;
+    if (tab !== eventsTabIndex) return;
+    if (eventsRequested || eventsLoading) return;
+
+    setEventsRequested(true);
+    setEventsLoading(true);
+    setEventsErr("");
+
+    const encodedName = encodeURIComponent(name);
+    (async () => {
+      const res = await apiGet<ApiListResponse<EventDTO>>(`/api/namespaces/${encodedName}/events`, props.token);
+      const items = res?.items || [];
+      setEvents(items);
+      eventsCacheRef.current[name] = items;
+    })()
+      .catch((e) => setEventsErr(String(e)))
+      .finally(() => setEventsLoading(false));
+  }, [props.open, name, props.token, tab, eventsRequested, eventsLoading]);
 
   const summary = details?.summary;
   const metadata = details?.metadata;
@@ -1042,6 +1074,22 @@ export default function NamespaceDrawer(props: {
                       </Box>
                     )}
                   </Section>
+                </Box>
+              )}
+
+              {tab === eventsTabIndex && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {eventsLoading ? (
+                    <Box sx={loadingCenterSx}>
+                      <CircularProgress />
+                    </Box>
+                  ) : eventsErr ? (
+                    <ErrorState message={eventsErr} />
+                  ) : (
+                    <Section title="Namespace events">
+                      <EventsList events={events} emptyMessage="No events found in this namespace." showTarget />
+                    </Section>
+                  )}
                 </Box>
               )}
 
