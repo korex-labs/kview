@@ -51,11 +51,27 @@ Notable projection:
 
 - **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, bounded hotspots, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`). If at least one contributing snapshot is usable, the endpoint returns a degraded/partial payload instead of hard-failing the whole summary.
 
+### Derived projections
+
+Some useful operator views can be **derived** from resources the user is allowed to read even when the direct target resource is denied or unavailable. These are intentionally labeled as derived, **sparse**, and **inexact** rather than presented as authoritative list snapshots.
+
+Current derived dashboard projections:
+
+- **Node workload rollups** are derived from cached pod snapshots. They infer node names, pod counts, namespaces, non-running pods, and restart-heavy pod signals from `pod.spec.nodeName` already present in pod list DTOs. They do **not** include node capacity, allocatable CPU/memory, taints, labels, or pods outside cached namespaces.
+- **Helm chart catalog rows** are derived from cached Helm release snapshots. They group releases by chart name, with chart versions/statuses shown as version rollups in details, which remains useful when a direct cluster-scoped Helm chart catalog read is unavailable. They do **not** imply a live Helm repository/catalog scan.
+
+The same derived data can also be served as a fallback through the canonical list/detail surfaces:
+
+- `GET /api/nodes` and `GET /api/nodes/{name}` can return derived node rows/details when direct node reads fail but cached pods identify nodes. The UI keeps the normal Nodes table/drawer deep-link behavior and labels the data as derived.
+- `GET /api/helmcharts` can return derived chart rows when the direct chart catalog read fails but cached Helm releases are available. The UI keeps the normal Helm Charts table/drawer behavior and labels the rows as derived.
+
+Rule of thumb: derived projections can support correlation and triage, but the UI/API must expose `source`, `coverage`, `completeness`, and notes so operators understand what was inferred and what was not observed.
+
 ---
 
 ## Dashboard summary
 
-`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **findings** for cached-scope attention signals, and optional **bounded** workload hints (cross-namespace sampling is not cluster-complete). Findings currently cover empty-looking namespaces, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, quota pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. The response includes both a capped `findings.top` list for first-glance triage and `findings.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
+`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **findings** for cached-scope attention signals, derived sparse node/Helm chart signals, and optional **bounded** workload hints (cross-namespace sampling is not cluster-complete). Findings currently cover empty-looking namespaces, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, quota pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. The response includes both a capped `findings.top` list for first-glance triage and `findings.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
 
 ---
 
@@ -117,7 +133,7 @@ The UI performs periodic background refresh for dataplane-backed list views and 
 
 These are **intentional** current limits, not bugs:
 
-- **`GET /api/helmcharts`** remains a direct read until cluster-scoped Helm catalog snapshot semantics exist.
+- **`GET /api/helmcharts`** remains a direct read first, but can serve explicitly marked derived chart-name rows from cached Helm release snapshots when the direct cluster-scoped Helm catalog read is denied/unavailable.
 - **Namespace raw detail** (`GET /api/namespaces/{name}`) remains a direct read for metadata/conditions/YAML, while drawer-oriented observability is projection-backed via `GET /api/namespaces/{name}/insights`.
 - **Detail, events, YAML, relation** endpoints remain direct reads even when the **list** for that kind is dataplane-backed.
 - A **uniform metadata envelope on every API** (including legacy list routes) is not guaranteed; that would be a product-wide decision.

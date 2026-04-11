@@ -14,6 +14,13 @@ type NodeListItemDTO struct {
 	PodDensityBucket  string   `json:"podDensityBucket,omitempty"`
 	PodDensityRatio   float64  `json:"podDensityRatio,omitempty"`
 	NeedsAttention    bool     `json:"needsAttention,omitempty"`
+	Derived           bool     `json:"derived,omitempty"`
+	DerivedSource     string   `json:"derivedSource,omitempty"`
+	DerivedCoverage   string   `json:"derivedCoverage,omitempty"`
+	DerivedNote       string   `json:"derivedNote,omitempty"`
+	NamespaceCount    int      `json:"namespaceCount,omitempty"`
+	ProblematicPods   int      `json:"problematicPods,omitempty"`
+	RestartCount      int32    `json:"restartCount,omitempty"`
 }
 
 type NodeDetailsDTO struct {
@@ -25,6 +32,14 @@ type NodeDetailsDTO struct {
 	Pods       []NodePodDTO       `json:"pods"`
 	LinkedPods NodePodsSummaryDTO `json:"linkedPods"`
 	YAML       string             `json:"yaml"`
+	Derived    *DerivedMetaDTO    `json:"derived,omitempty"`
+}
+
+type DerivedMetaDTO struct {
+	Source       string `json:"source"`
+	Coverage     string `json:"coverage,omitempty"`
+	Completeness string `json:"completeness,omitempty"`
+	Note         string `json:"note,omitempty"`
 }
 
 type NodeSummaryDTO struct {

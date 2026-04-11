@@ -1,11 +1,12 @@
 import React, { useCallback } from "react";
-import { Box, Chip } from "@mui/material";
+import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
-import { apiGet } from "../../../api";
+import { apiGetWithContext } from "../../../api";
 import { valueOrDash } from "../../../utils/format";
 import HelmChartDrawer from "./HelmChartDrawer";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
+import { dataplaneListMetaFromResponse, type DataplaneListMeta } from "../../../types/api";
 
 type HelmChart = {
   chartName: string;
@@ -13,6 +14,20 @@ type HelmChart = {
   appVersion: string;
   releases: number;
   namespaces: string[];
+  statuses?: string[];
+  needsAttention?: number;
+  versions?: Array<{
+    chartVersion?: string;
+    appVersion?: string;
+    releases: number;
+    namespaces?: string[];
+    statuses?: string[];
+    needsAttention?: number;
+  }>;
+  derived?: boolean;
+  derivedSource?: string;
+  derivedCoverage?: string;
+  derivedNote?: string;
 };
 
 type Row = HelmChart & { id: string };
@@ -22,10 +37,21 @@ const resourceLabel = getResourceLabel("helmcharts");
 const columns: GridColDef<Row>[] = [
   { field: "chartName", headerName: "Chart", flex: 1, minWidth: 200 },
   {
+    field: "derived",
+    headerName: "Source",
+    width: 120,
+    renderCell: (p) => p.row.derived ? <Chip size="small" label="derived" color="warning" variant="outlined" /> : "direct",
+    sortable: false,
+  },
+  {
     field: "chartVersion",
-    headerName: "Version",
+    headerName: "Versions",
     width: 150,
-    renderCell: (p) => valueOrDash(p.value as string | undefined),
+    renderCell: (p) => {
+      const count = p.row.versions?.length || 0;
+      if (count > 1) return `${count} versions`;
+      return valueOrDash(p.row.chartVersion);
+    },
   },
   {
     field: "appVersion",
@@ -42,31 +68,29 @@ const columns: GridColDef<Row>[] = [
   {
     field: "namespaces",
     headerName: "Namespaces",
-    flex: 1,
-    minWidth: 200,
-    renderCell: (p) => {
-      const ns = p.row.namespaces;
-      if (!ns || ns.length === 0) return "-";
-      return (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-          {ns.map((n) => (
-            <Chip key={n} size="small" label={n} variant="outlined" />
-          ))}
-        </Box>
-      );
-    },
+    width: 130,
+    type: "number",
+    renderCell: (p) => p.row.namespaces?.length || 0,
+  },
+  {
+    field: "needsAttention",
+    headerName: "Signals",
+    width: 110,
+    type: "number",
+    renderCell: (p) => p.row.needsAttention ? <Chip size="small" color="warning" label={p.row.needsAttention} /> : "-",
   },
 ];
 
 export default function HelmChartsTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async () => {
-    const res = await apiGet<{ items: HelmChart[] }>("/api/helmcharts", token);
+  const fetchRows = useCallback(async (contextName?: string) => {
+    const res = await apiGetWithContext<{ items: HelmChart[]; meta?: Partial<DataplaneListMeta>; observed?: string }>("/api/helmcharts", token, contextName || "");
     const items = res.items || [];
     return {
       rows: items.map((c) => ({
         ...c,
-        id: `${c.chartName}/${c.chartVersion}`,
+        id: c.chartName,
       })),
+      dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
     };
   }, [token]);
 
@@ -74,7 +98,14 @@ export default function HelmChartsTable({ token }: { token: string }) {
     (row: Row, q: string) =>
       row.chartName.toLowerCase().includes(q) ||
       (row.chartVersion || "").toLowerCase().includes(q) ||
-      (row.appVersion || "").toLowerCase().includes(q),
+      (row.appVersion || "").toLowerCase().includes(q) ||
+      (row.versions || []).some((v) =>
+        (v.chartVersion || "").toLowerCase().includes(q) ||
+        (v.appVersion || "").toLowerCase().includes(q) ||
+        (v.statuses || []).join(",").toLowerCase().includes(q),
+      ) ||
+      (row.derived ? "derived" : "direct").includes(q) ||
+      (row.statuses || []).join(",").toLowerCase().includes(q),
     [],
   );
 
@@ -85,17 +116,18 @@ export default function HelmChartsTable({ token }: { token: string }) {
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (chart / version)"
+      filterLabel="Filter (chart/version/status/source)"
       resourceLabel={resourceLabel}
       resourceKey="helmcharts"
       accessResource={listResourceAccess.helmcharts}
       namespace={null}
       defaultSortField="chartName"
-      getRowHeight={() => "auto"}
+      skipEmptyAccessCheck
       renderDrawer={({ selectedRow, open, onClose }) => (
         <HelmChartDrawer
           open={open}
           onClose={onClose}
+          token={token}
           chart={selectedRow}
         />
       )}

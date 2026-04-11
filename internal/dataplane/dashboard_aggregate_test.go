@@ -76,7 +76,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}}})
 	setNamespacedSnapshot(&plane.lrStore, ns, LimitRangesSnapshot{Meta: meta, Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: ns}}})
 
-	res, hot, find, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, ClusterDashboardListOptions{})
+	res, hot, find, derived, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, NodesSnapshot{}, "denied", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: %d", res.Pods)
 	}
@@ -110,6 +110,12 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	if cov.VisibleNamespaces != 1 {
 		t.Fatalf("visible %d", cov.VisibleNamespaces)
 	}
+	if derived.Nodes.Total != 1 || len(derived.Nodes.Nodes) != 1 || derived.Nodes.Nodes[0].Name == "" {
+		t.Fatalf("derived nodes %+v", derived.Nodes)
+	}
+	if derived.HelmCharts.Total != 1 || len(derived.HelmCharts.Charts) != 1 {
+		t.Fatalf("derived helm charts %+v", derived.HelmCharts)
+	}
 }
 
 func TestAggregateClusterDashboard_NoCacheUnknownTotals(t *testing.T) {
@@ -118,7 +124,7 @@ func TestAggregateClusterDashboard_NoCacheUnknownTotals(t *testing.T) {
 	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx2")
 	plane := planeAny.(*clusterPlane)
 
-	res, _, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"x", "y"}, 2, 0, ClusterDashboardListOptions{})
+	res, _, _, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"x", "y"}, 2, 0, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 0 || cov.ResourceTotalsCompleteness != "unknown" || cov.NamespacesInResourceTotals != 0 {
 		t.Fatalf("res=%+v cov=%+v", res, cov)
 	}
@@ -142,7 +148,7 @@ func TestAggregateClusterDashboard_HonorsHotspotToggle(t *testing.T) {
 		},
 	})
 
-	res, hot, _, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, ClusterDashboardListOptions{})
+	res, hot, _, _, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: got %d, want 1", res.Pods)
 	}

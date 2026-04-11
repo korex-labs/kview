@@ -318,6 +318,68 @@ export type ApiDashboardClusterResponse = {
       aggregateFreshness?: string;
       aggregateDegradation?: string;
     };
+    derived?: {
+      nodes: {
+        meta: {
+          source: string;
+          freshness?: string;
+          coverage: string;
+          degradation?: string;
+          completeness: string;
+          observedAt?: string;
+          namespacesScope: number;
+          note?: string;
+        };
+        directNodeSnapshotState?: string;
+        directNodeSnapshotTotal?: number;
+        total: number;
+        pods: number;
+        elevatedRestartPods: number;
+        problematicPods: number;
+        nodes?: Array<{
+          name: string;
+          namespaces?: string[];
+          namespaceCount: number;
+          pods: number;
+          runningPods: number;
+          nonRunningPods: number;
+          restartCount: number;
+          elevatedRestartPods: number;
+          problematicPods: number;
+          severity: string;
+        }>;
+      };
+      helmCharts: {
+        meta: {
+          source: string;
+          freshness?: string;
+          coverage: string;
+          degradation?: string;
+          completeness: string;
+          observedAt?: string;
+          namespacesScope: number;
+          note?: string;
+        };
+        charts?: Array<{
+          chartName: string;
+          releases: number;
+          namespaces?: string[];
+          namespaceCount: number;
+          statuses?: string[];
+          needsAttention?: number;
+          versions?: Array<{
+            chartVersion?: string;
+            appVersion?: string;
+            releases: number;
+            namespaces?: string[];
+            statuses?: string[];
+            needsAttention?: number;
+          }>;
+        }>;
+        total: number;
+        status?: Record<string, number>;
+      };
+    };
     workloadHints?: {
       totalNamespacesVisible: number;
       namespacesWithWorkloadCache: number;

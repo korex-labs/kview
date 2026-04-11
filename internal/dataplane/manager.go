@@ -77,6 +77,10 @@ type DataPlaneManager interface {
 	MergeCachedNamespaceRowProjection(ctx context.Context, clusterName string, items []dto.NamespaceListItemDTO) ([]dto.NamespaceListItemDTO, int)
 	// NodesSnapshot returns a raw snapshot for nodes in the given cluster.
 	NodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error)
+	// DerivedNodesSnapshot returns a sparse node list inferred from cached pod snapshots only.
+	DerivedNodesSnapshot(ctx context.Context, clusterName string) (NodesSnapshot, error)
+	// DerivedNodeDetails returns sparse node details inferred from cached pod snapshots only.
+	DerivedNodeDetails(ctx context.Context, clusterName, nodeName string) (dto.NodeDetailsDTO, bool, error)
 	// PersistentVolumesSnapshot returns a raw snapshot for persistent volumes in the given cluster.
 	PersistentVolumesSnapshot(ctx context.Context, clusterName string) (PersistentVolumesSnapshot, error)
 	// ClusterRolesSnapshot returns a raw snapshot for cluster roles in the given cluster.
@@ -107,6 +111,8 @@ type DataPlaneManager interface {
 	RoleBindingsSnapshot(ctx context.Context, clusterName, namespace string) (RoleBindingsSnapshot, error)
 	// HelmReleasesSnapshot returns a raw snapshot for Helm releases in the given namespace.
 	HelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) (HelmReleasesSnapshot, error)
+	// DerivedHelmChartsSnapshot returns sparse chart rows inferred from cached Helm release snapshots only.
+	DerivedHelmChartsSnapshot(ctx context.Context, clusterName string) (Snapshot[dto.HelmChartDTO], error)
 	// InvalidateHelmReleasesSnapshot drops the cached Helm release list for a namespace after a Helm mutation.
 	InvalidateHelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) error
 	// DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace.

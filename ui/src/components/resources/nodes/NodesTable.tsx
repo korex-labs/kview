@@ -27,6 +27,13 @@ type Node = {
   podDensityBucket?: string;
   podDensityRatio?: number;
   needsAttention?: boolean;
+  derived?: boolean;
+  derivedSource?: string;
+  derivedCoverage?: string;
+  derivedNote?: string;
+  namespaceCount?: number;
+  problematicPods?: number;
+  restartCount?: number;
 };
 
 type Row = Node & { id: string };
@@ -35,6 +42,13 @@ const resourceLabel = getResourceLabel("nodes");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 220 },
+  {
+    field: "derived",
+    headerName: "Source",
+    width: 120,
+    renderCell: (p) => p.row.derived ? <Chip size="small" label="derived" color="warning" variant="outlined" /> : "direct",
+    sortable: false,
+  },
   {
     field: "status",
     headerName: "Status",
@@ -84,6 +98,13 @@ const columns: GridColDef<Row>[] = [
     type: "number",
   },
   {
+    field: "problematicPods",
+    headerName: "Signals",
+    width: 110,
+    type: "number",
+    renderCell: (p) => p.row.derived ? (p.row.problematicPods ?? 0) : "-",
+  },
+  {
     field: "podDensityBucket",
     headerName: "Density",
     width: 130,
@@ -127,6 +148,8 @@ export default function NodesTable({ token }: { token: string }) {
       (row.status || "").toLowerCase().includes(q) ||
       (row.healthBucket || "").toLowerCase().includes(q) ||
       (row.podDensityBucket || "").toLowerCase().includes(q) ||
+      (row.derivedSource || "").toLowerCase().includes(q) ||
+      (row.derived ? "derived" : "direct").includes(q) ||
       roleText.includes(q)
     );
   }, []);
@@ -142,11 +165,12 @@ export default function NodesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/role/status/signal)"
+      filterLabel="Filter (name/role/status/signal/source)"
       resourceLabel={resourceLabel}
       resourceKey="nodes"
       accessResource={listResourceAccess.nodes}
       namespace={null}
+      skipEmptyAccessCheck
       renderDrawer={({ selectedId, open, onClose }) => (
         <NodeDrawer
           open={open}

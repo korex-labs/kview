@@ -21,7 +21,7 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 
 | Route pattern | Snapshot / notes |
 |---------------|------------------|
-| `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. |
+| `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. If direct node list is denied/unavailable and cached pod snapshots exist, returns explicitly marked derived node rows from cached pod snapshots instead. |
 | `GET /api/namespaces/{ns}/pods` | `PodsSnapshot`; rows may include projection-derived fields (`restartSeverity`, `listHealthHint`) from `EnrichPodListItemsForAPI`. |
 | `GET /api/namespaces/{ns}/deployments` | `DeploymentsSnapshot`; optional `EnrichDeploymentListItemsForAPI` fields. |
 | `GET /api/namespaces/{ns}/daemonsets` | `DaemonSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
@@ -48,7 +48,7 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | Route | Behavior |
 |-------|----------|
 | `GET /api/namespaces` | Returns `NamespacesSnapshot` list immediately with `rowProjection.revision` / `loading`. Background stages enrich a scored subset: live **GET** per selected namespace (`GetNamespaceListFields`), then **pods + deployments** snapshots at low priority. If the namespace list order and target set are unchanged, the existing enrichment revision is reused so enriched rows remain stable across refreshes. Target namespaces are **scored from optional query hints**, not an alphabetical walk of the full list (see §2.1). UI polls `GET /api/namespaces/enrichment?revision=…`. |
-| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`: `visibility` (namespaces/nodes snapshots + observed-at), `resources` for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic `findings` from the same cached namespace scope, and workload `hotspots` from the cached workload subset, plus `workloadHints` alias for chips. |
+| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`: `visibility` (namespaces/nodes snapshots + observed-at), `resources` for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic `findings` from the same cached namespace scope, derived sparse node and Helm chart signals from cached pod/Helm release snapshots, and workload `hotspots` from the cached workload subset, plus `workloadHints` alias for chips. |
 | `GET /api/namespaces/enrichment?revision=` | Server-side merge for progressive namespace list rows (same revision as `GET /api/namespaces`). Includes `enrichTargets` (count of namespaces in the scored enrichment subset). Reflects in-process background work, not a direct kube call. |
 | `GET /api/dataplane/search?q=…` | Cached quick-access search over the persisted dataplane name index for the active context, with `limit`/`offset` paging and `hasMore`. Prioritizes Helm releases, deployments, then ReplicaSets/DaemonSets/StatefulSets before other kinds. It does **not** perform live Kubernetes discovery; opening a result uses the normal resource detail drawer read. |
 
@@ -93,13 +93,13 @@ Background row enrichment is **narrow and user-aligned**:
 
 | Route | Reason |
 |-------|--------|
-| `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. |
+| `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. Rows are grouped by chart name and expose version rollups. If direct catalog read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived chart rows from cached Helm release snapshots instead. |
 
 ### 4.3 Cluster-scoped families (not dataplane list–backed)
 
 | Routes (representative) | Notes |
 |-------------------------|-------|
-| `GET /api/nodes/{name}` | Node detail direct read. Node list uses `NodesSnapshot`. |
+| `GET /api/nodes/{name}` | Node detail direct read. If direct detail is denied/unavailable and cached pod snapshots reference the node, returns an explicitly marked derived detail with pod rollups only. Node list uses `NodesSnapshot` or the derived fallback described above. |
 | `GET /api/clusterroles`, `…/{name}`, events, yaml | RBAC cluster scope. |
 | `GET /api/clusterrolebindings`, … | Same. |
 | `GET /api/customresourcedefinitions`, … | CRD cluster scope. |
@@ -133,6 +133,8 @@ For resources that have them, these remain **direct** `kube` reads:
 ## 5. Design summary
 
 For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, and limit ranges), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, cluster-scoped families).
+
+Derived projections are allowed only when explicitly labeled as derived/sparse/inexact. They may infer useful views such as node workload rollups from cached pod snapshots or chart catalog rows from cached Helm release snapshots, but they must not be represented as direct Kubernetes list results. When a canonical route serves a derived fallback, it must preserve the normal resource identity and deep-link target while making the fallback source visible in the payload/UI.
 
 ---
 

@@ -62,9 +62,25 @@ type HelmHookDTO struct {
 }
 
 type HelmChartDTO struct {
-	ChartName    string   `json:"chartName"`
-	ChartVersion string   `json:"chartVersion"`
-	AppVersion   string   `json:"appVersion"`
-	Releases     int      `json:"releases"`
-	Namespaces   []string `json:"namespaces"`
+	ChartName       string                `json:"chartName"`
+	ChartVersion    string                `json:"chartVersion"`
+	AppVersion      string                `json:"appVersion"`
+	Releases        int                   `json:"releases"`
+	Namespaces      []string              `json:"namespaces"`
+	Statuses        []string              `json:"statuses,omitempty"`
+	NeedsAttention  int                   `json:"needsAttention,omitempty"`
+	Versions        []HelmChartVersionDTO `json:"versions,omitempty"`
+	Derived         bool                  `json:"derived,omitempty"`
+	DerivedSource   string                `json:"derivedSource,omitempty"`
+	DerivedCoverage string                `json:"derivedCoverage,omitempty"`
+	DerivedNote     string                `json:"derivedNote,omitempty"`
+}
+
+type HelmChartVersionDTO struct {
+	ChartVersion   string   `json:"chartVersion,omitempty"`
+	AppVersion     string   `json:"appVersion,omitempty"`
+	Releases       int      `json:"releases"`
+	Namespaces     []string `json:"namespaces,omitempty"`
+	Statuses       []string `json:"statuses,omitempty"`
+	NeedsAttention int      `json:"needsAttention,omitempty"`
 }

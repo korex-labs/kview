@@ -767,7 +767,8 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
+			active := s.readContextName(r)
+			clients, active, err := s.mgr.GetClientsForContext(ctx, active)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 				return
@@ -959,9 +960,31 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"allowed": res.Allowed, "reason": res.Reason})
 		})
 
-		api.Get("/nodes", dataplaneClusterListHandler(s, s.dp.NodesSnapshot, func(items []dto.NodeListItemDTO) any {
-			return dataplane.EnrichNodeListItemsForAPI(items)
-		}))
+		api.Get("/nodes", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			defer cancel()
+
+			active := s.readContextName(r)
+			if s.dp != nil {
+				s.dp.EnsureObservers(ctx, active)
+			}
+			snap, err := s.dp.NodesSnapshot(ctx, active)
+			if listLength(snap.Items) == 0 {
+				if derived, derr := s.dp.DerivedNodesSnapshot(ctx, active); derr == nil && (len(derived.Items) > 0 || err != nil || snap.Err != nil) {
+					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(derived.Items), derived.Meta, derived.Err)
+					return
+				}
+				if err != nil {
+					writeDataplaneListError(w, active, err)
+					return
+				}
+				if snap.Err != nil {
+					writeDataplaneNormalizedListError(w, active, snap.Err)
+					return
+				}
+			}
+			writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(snap.Items), snap.Meta, snap.Err)
+		})
 
 		api.Get("/nodes/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
@@ -973,7 +996,8 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
+			active := s.readContextName(r)
+			clients, active, err := s.mgr.GetClientsForContext(ctx, active)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 				return
@@ -981,6 +1005,10 @@ func (s *Server) Router() http.Handler {
 
 			det, err := kube.GetNodeDetails(ctx, clients, name)
 			if err != nil {
+				if derived, ok, derr := s.dp.DerivedNodeDetails(ctx, active, name); derr == nil && ok {
+					writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": derived})
+					return
+				}
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
 					status = http.StatusForbidden
@@ -2414,7 +2442,8 @@ func (s *Server) Router() http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			clients, active, err := s.mgr.GetClients(ctx)
+			active := s.readContextName(r)
+			clients, active, err := s.mgr.GetClientsForContext(ctx, active)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 				return
@@ -2422,6 +2451,21 @@ func (s *Server) Router() http.Handler {
 
 			items, err := kube.ListHelmCharts(ctx, clients)
 			if err != nil {
+				if derived, derr := s.dp.DerivedHelmChartsSnapshot(ctx, active); derr == nil {
+					writeJSON(w, http.StatusOK, map[string]any{
+						"active":   active,
+						"items":    derived.Items,
+						"observed": derived.Meta.ObservedAt,
+						"meta": map[string]any{
+							"freshness":    derived.Meta.Freshness,
+							"coverage":     derived.Meta.Coverage,
+							"degradation":  derived.Meta.Degradation,
+							"completeness": derived.Meta.Completeness,
+							"state":        dataplane.CoarseState(derived.Err, len(derived.Items)),
+						},
+					})
+					return
+				}
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
 					status = http.StatusForbidden
@@ -2978,6 +3022,22 @@ func writeDataplaneListError(w http.ResponseWriter, active string, err error) {
 		status = http.StatusForbidden
 	}
 	writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+}
+
+func writeDataplaneNormalizedListError(w http.ResponseWriter, active string, err *dataplane.NormalizedError) {
+	if err == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "dataplane snapshot unavailable", "active": active})
+		return
+	}
+	status := http.StatusInternalServerError
+	if err.Class == dataplane.NormalizedErrorClassAccessDenied || err.Class == dataplane.NormalizedErrorClassUnauthorized {
+		status = http.StatusForbidden
+	}
+	message := err.UpstreamMessage
+	if message == "" {
+		message = string(err.Class)
+	}
+	writeJSON(w, status, map[string]any{"error": message, "active": active})
 }
 
 func listLength(items any) int {

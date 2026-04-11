@@ -26,7 +26,7 @@ func resourceTotalsCompletenessLabel(visible, withCachedDataplaneLists int) stri
 // aggregateClusterDashboard rolls up workload totals and hotspots only from namespaces that already
 // have cached dataplane list snapshots (typically from visiting those namespaces or row enrichment),
 // intersected with the current namespace list snapshot. No alphabetical sampling and no implicit cluster-wide totals.
-func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nsUnhealthy int, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardHotspotsPanel, ClusterDashboardFindingsPanel, ClusterDashboardWorkloadHints, ClusterDashboardCoverage) {
+func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nsUnhealthy int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardHotspotsPanel, ClusterDashboardFindingsPanel, ClusterDashboardDerivedPanel, ClusterDashboardWorkloadHints, ClusterDashboardCoverage) {
 	opts = normalizeClusterDashboardListOptions(opts)
 	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
 	policy := m.Policy().Dashboard
@@ -34,6 +34,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	knownNS := visibleNamespacesWithCachedDataplaneLists(plane, nsNamesSorted)
 	cov.NamespacesInResourceTotals = len(knownNS)
 	cov.ResourceTotalsCompleteness = resourceTotalsCompletenessLabel(nsTotal, len(knownNS))
+	derived := buildDerivedDashboardProjections(plane, knownNS, int32(policy.RestartElevatedThreshold), nodesSnap, nodeState)
 
 	res := ClusterDashboardResourcesPanel{
 		TotalNamespaces: nsTotal,
@@ -58,7 +59,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			hot.Note = res.Note
 			find.Note = res.Note
 		}
-		return res, hot, find, wh, cov
+		return res, hot, find, derived, wh, cov
 	}
 
 	if cov.ResourceTotalsCompleteness == "partial" {
@@ -261,7 +262,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		find.Note = findNote
 		wh.AggregateFreshness = res.AggregateFreshness
 		wh.AggregateDegradation = res.AggregateDegradation
-		return res, hot, find, wh, cov
+		return res, hot, find, derived, wh, cov
 	}
 
 	sort.Slice(scores, func(i, j int) bool {
@@ -307,7 +308,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	wh.AggregateFreshness = hot.AggregateFreshness
 	wh.AggregateDegradation = hot.AggregateDegradation
 
-	return res, hot, find, wh, cov
+	return res, hot, find, derived, wh, cov
 }
 
 type dashboardSnapshotSet struct {

@@ -17,6 +17,7 @@ type ClusterDashboardSummary struct {
 	Resources     ClusterDashboardResourcesPanel  `json:"resources"`
 	Hotspots      ClusterDashboardHotspotsPanel   `json:"hotspots"`
 	Findings      ClusterDashboardFindingsPanel   `json:"findings"`
+	Derived       ClusterDashboardDerivedPanel    `json:"derived"`
 	WorkloadHints ClusterDashboardWorkloadHints   `json:"workloadHints"`
 	Dataplane     ClusterDashboardDataplaneStats  `json:"dataplane"`
 }
@@ -312,7 +313,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	resPanel, hotPanel, findingsPanel, wh, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nsUnhealthy, normalizeClusterDashboardListOptions(opts))
+	resPanel, hotPanel, findingsPanel, derivedPanel, wh, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nsUnhealthy, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
 	dpStats := dashboardDataplaneStatsFromSnapshots(m.stats.snapshot(), m.scheduler.StatsSnapshot(), time.Now().UTC())
 	if policy.NamespaceEnrichment.Enabled && policy.NamespaceEnrichment.Sweep.Enabled && len(nsSnap.Items) > 0 && !m.hasNamespaceEnrichmentInFlight(clusterName) {
 		m.BeginNamespaceListProgressiveEnrichment(clusterName, nsSnap.Items, NamespaceEnrichHints{})
@@ -360,6 +361,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		Resources:     resPanel,
 		Hotspots:      hotPanel,
 		Findings:      findingsPanel,
+		Derived:       derivedPanel,
 		WorkloadHints: wh,
 		Dataplane:     dpStats,
 	}

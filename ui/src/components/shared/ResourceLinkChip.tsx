@@ -4,7 +4,7 @@ import type { SxProps, Theme } from "@mui/material/styles";
 
 type ResourceLinkChipProps = {
   label: string;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   sx?: SxProps<Theme>;
 };
 

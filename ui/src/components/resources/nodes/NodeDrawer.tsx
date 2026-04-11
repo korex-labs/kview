@@ -16,7 +16,8 @@ import {
   TableBody,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { apiGet } from "../../../api";
+import { apiGetWithContext } from "../../../api";
+import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import MetadataSection from "../../shared/MetadataSection";
 import ConditionsTable from "../../shared/ConditionsTable";
@@ -31,6 +32,7 @@ import Section from "../../shared/Section";
 import NodeActions from "./NodeActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import type { ApiItemResponse } from "../../../types/api";
 import {
   panelBoxSx,
@@ -48,6 +50,12 @@ type NodeDetails = {
   pods: NodePod[];
   linkedPods: NodePodsSummary;
   yaml: string;
+  derived?: {
+    source: string;
+    coverage?: string;
+    completeness?: string;
+    note?: string;
+  };
 };
 
 type NodeSummary = {
@@ -139,12 +147,14 @@ export default function NodeDrawer(props: {
   token: string;
   nodeName: string | null;
 }) {
+  const activeContext = useActiveContext();
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<NodeDetails | null>(null);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<{ name: string; namespace: string } | null>(null);
+  const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
 
   const name = props.nodeName;
 
@@ -155,16 +165,17 @@ export default function NodeDrawer(props: {
     setErr("");
     setDetails(null);
     setDrawerPod(null);
+    setDrawerNamespace(null);
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<NodeDetails>>(`/api/nodes/${encodeURIComponent(name)}`, props.token);
+      const det = await apiGetWithContext<ApiItemResponse<NodeDetails>>(`/api/nodes/${encodeURIComponent(name)}`, props.token, activeContext);
       const item: NodeDetails | null = det?.item ?? null;
       setDetails(item);
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-  }, [props.open, name, props.token, retryNonce]);
+  }, [props.open, name, props.token, activeContext, retryNonce]);
 
   const summary = details?.summary;
   const conditions = details?.conditions || [];
@@ -177,6 +188,7 @@ export default function NodeDrawer(props: {
     !!details?.capacity?.podsCapacity ||
     !!details?.capacity?.podsAllocatable;
   const taints = details?.taints || [];
+  const derived = details?.derived;
 
   const summaryItems = useMemo(
     () => [
@@ -219,7 +231,23 @@ export default function NodeDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
-                  {name && (
+                  {derived ? (
+                    <Section title="Derived Projection" divider={false}>
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                          <Chip size="small" color="warning" variant="outlined" label="Derived" />
+                          <Chip size="small" variant="outlined" label={`Source ${derived.source}`} />
+                          {derived.coverage ? <Chip size="small" variant="outlined" label={`Coverage ${derived.coverage}`} /> : null}
+                          {derived.completeness ? <Chip size="small" variant="outlined" label={`Completeness ${derived.completeness}`} /> : null}
+                        </Box>
+                        <Typography variant="body2" color="text.secondary">
+                          {derived.note || "This node view is inferred from cached pod snapshots; direct node detail was not available."}
+                        </Typography>
+                      </Box>
+                    </Section>
+                  ) : null}
+
+                  {name && !derived && (
                     <Section title="Actions" divider={false}>
                       <NodeActions
                         token={props.token}
@@ -308,7 +336,6 @@ export default function NodeDrawer(props: {
                       <TableHead>
                         <TableRow>
                           <TableCell>Pod</TableCell>
-                          <TableCell>Namespace</TableCell>
                           <TableCell>Status</TableCell>
                           <TableCell>Ready</TableCell>
                           <TableCell>Restarts</TableCell>
@@ -327,8 +354,55 @@ export default function NodeDrawer(props: {
                             }
                             sx={{ cursor: p.name ? "pointer" : "default" }}
                           >
-                            <TableCell>{valueOrDash(p.name)}</TableCell>
-                            <TableCell>{valueOrDash(p.namespace)}</TableCell>
+                            <TableCell>
+                              {p.name && p.namespace ? (
+                                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                                  <Typography
+                                    component="button"
+                                    type="button"
+                                    variant="body2"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setDrawerPod({ name: p.name, namespace: p.namespace });
+                                    }}
+                                    sx={{
+                                      border: 0,
+                                      p: 0,
+                                      background: "transparent",
+                                      color: "primary.main",
+                                      cursor: "pointer",
+                                      font: "inherit",
+                                      fontWeight: 600,
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    {p.name}
+                                  </Typography>
+                                  <Typography
+                                    component="button"
+                                    type="button"
+                                    variant="caption"
+                                    color="text.secondary"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setDrawerNamespace(p.namespace);
+                                    }}
+                                    sx={{
+                                      border: 0,
+                                      p: 0,
+                                      background: "transparent",
+                                      cursor: "pointer",
+                                      font: "inherit",
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    {p.namespace}
+                                  </Typography>
+                                </Box>
+                              ) : (
+                                valueOrDash(p.name)
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
                             </TableCell>
@@ -366,6 +440,12 @@ export default function NodeDrawer(props: {
               token={props.token}
               namespace={drawerPod?.namespace || ""}
               podName={drawerPod?.name || null}
+            />
+            <NamespaceDrawer
+              open={!!drawerNamespace}
+              onClose={() => setDrawerNamespace(null)}
+              token={props.token}
+              namespaceName={drawerNamespace}
             />
           </>
         )}

@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -32,10 +32,12 @@ import SecretDrawer from "../secrets/SecretDrawer";
 import ServiceAccountDrawer from "../serviceaccounts/ServiceAccountDrawer";
 import PersistentVolumeClaimDrawer from "../persistentvolumeclaims/PersistentVolumeClaimDrawer";
 import HelmReleaseDrawer from "../helm/HelmReleaseDrawer";
+import HelmChartDrawer from "../helm/HelmChartDrawer";
 import ServiceDrawer from "../services/ServiceDrawer";
 import IngressDrawer from "../ingresses/IngressDrawer";
 import RoleDrawer from "../roles/RoleDrawer";
 import RoleBindingDrawer from "../rolebindings/RoleBindingDrawer";
+import NodeDrawer from "../nodes/NodeDrawer";
 
 type Props = {
   token: string;
@@ -66,6 +68,7 @@ type FindingFilter =
 type InspectTarget = {
   kind:
     | "Namespace"
+    | "Node"
     | "Pod"
     | "Job"
     | "CronJob"
@@ -77,10 +80,34 @@ type InspectTarget = {
     | "Service"
     | "Ingress"
     | "Role"
-    | "RoleBinding";
+    | "RoleBinding"
+    | "HelmChart";
   namespace: string;
   name: string;
+  chart?: {
+    chartName: string;
+    chartVersion: string;
+    appVersion: string;
+    releases: number;
+    namespaces: string[];
+    statuses?: string[];
+    needsAttention?: number;
+    versions?: Array<{
+      chartVersion?: string;
+      appVersion?: string;
+      releases: number;
+      namespaces?: string[];
+      statuses?: string[];
+      needsAttention?: number;
+    }>;
+    derived?: boolean;
+    derivedSource?: string;
+    derivedCoverage?: string;
+    derivedNote?: string;
+  };
 };
+
+type DerivedFilter = "all" | "nodes" | "helm" | "signals";
 
 function stateChipColor(state: string): "success" | "warning" | "error" | "default" {
   return namespaceRowSummaryStateColor(state) as "success" | "warning" | "error" | "default";
@@ -413,6 +440,43 @@ function FindingFilterChip({
   );
 }
 
+function derivedFilterLabel(filter: DerivedFilter): string {
+  switch (filter) {
+    case "all":
+      return "All derived";
+    case "nodes":
+      return "Nodes";
+    case "helm":
+      return "Helm charts";
+    case "signals":
+      return "With signals";
+    default:
+      return filter;
+  }
+}
+
+function DerivedFilterChip({
+  filter,
+  count,
+  selected,
+  onSelect,
+}: {
+  filter: DerivedFilter;
+  count: number;
+  selected: boolean;
+  onSelect: (filter: DerivedFilter) => void;
+}) {
+  return (
+    <Chip
+      size="small"
+      color={filter === "signals" && count > 0 ? "warning" : "default"}
+      variant={selected ? "filled" : "outlined"}
+      label={`${derivedFilterLabel(filter)} ${count}`}
+      onClick={() => onSelect(filter)}
+    />
+  );
+}
+
 function inspectTargetFromFinding(f: Finding): InspectTarget | null {
   const namespace = f.namespace || "";
   const name = f.name || (f.kind === "Namespace" ? namespace : "");
@@ -469,6 +533,12 @@ function DashboardInspectDrawers({
         namespace={namespace}
         podName={target?.kind === "Pod" ? name : null}
       />
+      <NodeDrawer
+        open={open && target?.kind === "Node"}
+        onClose={onClose}
+        token={token}
+        nodeName={target?.kind === "Node" ? name : null}
+      />
       <JobDrawer
         open={open && target?.kind === "Job"}
         onClose={onClose}
@@ -518,6 +588,12 @@ function DashboardInspectDrawers({
         namespace={namespace}
         releaseName={target?.kind === "HelmRelease" ? name : null}
       />
+      <HelmChartDrawer
+        open={open && target?.kind === "HelmChart"}
+        onClose={onClose}
+        token={token}
+        chart={target?.kind === "HelmChart" ? target.chart || null : null}
+      />
       <ServiceDrawer
         open={open && target?.kind === "Service"}
         onClose={onClose}
@@ -561,12 +637,17 @@ export default function DashboardView(props: Props) {
   const [restartHotspotsQuery, setRestartHotspotsQuery] = useState("");
   const [restartHotspotsPage, setRestartHotspotsPage] = useState(0);
   const [restartHotspotsRowsPerPage, setRestartHotspotsRowsPerPage] = useState(10);
+  const [derivedFilter, setDerivedFilter] = useState<DerivedFilter>("all");
+  const [derivedQuery, setDerivedQuery] = useState("");
+  const [derivedPage, setDerivedPage] = useState(0);
+  const [derivedRowsPerPage, setDerivedRowsPerPage] = useState(10);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
   const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
   const deferredFindingsQuery = useDeferredValue(findingsQuery);
   const deferredRestartHotspotsQuery = useDeferredValue(restartHotspotsQuery);
+  const deferredDerivedQuery = useDeferredValue(derivedQuery);
   const lastLoadScopeRef = useRef("");
 
   useEffect(() => {
@@ -632,6 +713,81 @@ export default function DashboardView(props: Props) {
     setFindingsPage(0);
   };
 
+  const selectDerivedFilter = (filter: DerivedFilter) => {
+    setDerivedFilter(filter);
+    setDerivedPage(0);
+  };
+
+  const derivedRows = useMemo(() => {
+    const derived = data?.item?.derived;
+    if (!derived) return [];
+    const nodeRows = (derived.nodes.nodes || []).map((node) => ({
+      type: "nodes" as const,
+      key: `node/${node.name}`,
+      primary: node.name,
+      secondary: `${node.namespaceCount} namespace${node.namespaceCount === 1 ? "" : "s"} · ${node.runningPods}/${node.pods} running`,
+      metric: `${node.restartCount} restarts · ${node.elevatedRestartPods} elevated`,
+      signals: node.problematicPods,
+      severity: node.severity,
+      target: { kind: "Node" as const, namespace: "", name: node.name },
+    }));
+    const chartRows = (derived.helmCharts.charts || []).map((chart) => {
+      const versionLabel = chart.versions && chart.versions.length > 1
+        ? `${chart.versions.length} versions`
+        : chart.versions?.[0]?.chartVersion || "unknown version";
+      return {
+        type: "helm" as const,
+        key: `helm/${chart.chartName}`,
+        primary: chart.chartName,
+        secondary: `${versionLabel} · ${chart.namespaceCount} namespace${chart.namespaceCount === 1 ? "" : "s"}`,
+        metric: `${chart.releases} release${chart.releases === 1 ? "" : "s"}`,
+        signals: chart.needsAttention || 0,
+        severity: chart.needsAttention ? "medium" : "low",
+        target: {
+          kind: "HelmChart" as const,
+          namespace: "",
+          name: chart.chartName,
+          chart: {
+            chartName: chart.chartName,
+            chartVersion: chart.versions && chart.versions.length > 1 ? "multiple" : chart.versions?.[0]?.chartVersion || "",
+            appVersion: chart.versions && chart.versions.length > 1 ? "multiple" : chart.versions?.[0]?.appVersion || "",
+            releases: chart.releases,
+            namespaces: chart.namespaces || [],
+            statuses: chart.statuses,
+            needsAttention: chart.needsAttention,
+            versions: chart.versions,
+            derived: true,
+            derivedSource: derived.helmCharts.meta.source,
+            derivedCoverage: derived.helmCharts.meta.coverage,
+            derivedNote: derived.helmCharts.meta.note,
+          },
+        },
+      };
+    });
+    return [...nodeRows, ...chartRows];
+  }, [data?.item?.derived]);
+
+  const filteredDerivedRows = useMemo(() => {
+    const q = deferredDerivedQuery.trim().toLowerCase();
+    return derivedRows.filter((row) => {
+      if (derivedFilter === "nodes" && row.type !== "nodes") return false;
+      if (derivedFilter === "helm" && row.type !== "helm") return false;
+      if (derivedFilter === "signals" && row.signals <= 0) return false;
+      if (!q) return true;
+      return (
+        row.primary.toLowerCase().includes(q) ||
+        row.secondary.toLowerCase().includes(q) ||
+        row.metric.toLowerCase().includes(q) ||
+        row.type.includes(q)
+      );
+    });
+  }, [deferredDerivedQuery, derivedFilter, derivedRows]);
+
+  const visibleDerivedRows = useMemo(
+    () => filteredDerivedRows.slice(derivedPage * derivedRowsPerPage, derivedPage * derivedRowsPerPage + derivedRowsPerPage),
+    [derivedPage, derivedRowsPerPage, filteredDerivedRows],
+  );
+
   return (
     <Box
       className="kview-dashboard-root"
@@ -673,7 +829,7 @@ export default function DashboardView(props: Props) {
       {!loading && !err && data?.item && (
         <Box sx={{ px: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           {(() => {
-            const { plane, visibility, coverage, resources, hotspots, findings, dataplane } = data.item;
+            const { plane, visibility, coverage, resources, hotspots, findings, derived, dataplane } = data.item;
             const ns = visibility.namespaces;
             const nodes = visibility.nodes;
             const cov = coverage;
@@ -981,7 +1137,43 @@ export default function DashboardView(props: Props) {
                               {visibleRestartHotspots.map((h) => (
                                 <TableRow key={`${h.namespace}/${h.name}`}>
                                   <TableCell sx={{ border: 0, py: 0.5, pl: 0, verticalAlign: "top" }}>
-                                    {h.namespace}/{h.name}
+                                    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                                      <Typography
+                                        component="button"
+                                        type="button"
+                                        variant="body2"
+                                        onClick={() => setInspectTarget({ kind: "Pod", namespace: h.namespace, name: h.name })}
+                                        sx={{
+                                          border: 0,
+                                          p: 0,
+                                          background: "transparent",
+                                          color: "primary.main",
+                                          cursor: "pointer",
+                                          font: "inherit",
+                                          fontWeight: 600,
+                                          textAlign: "left",
+                                        }}
+                                      >
+                                        {h.name}
+                                      </Typography>
+                                      <Typography
+                                        component="button"
+                                        type="button"
+                                        variant="caption"
+                                        color="text.secondary"
+                                        onClick={() => setInspectTarget({ kind: "Namespace", namespace: h.namespace, name: h.namespace })}
+                                        sx={{
+                                          border: 0,
+                                          p: 0,
+                                          background: "transparent",
+                                          cursor: "pointer",
+                                          font: "inherit",
+                                          textAlign: "left",
+                                        }}
+                                      >
+                                        {h.namespace}
+                                      </Typography>
+                                    </Box>
                                   </TableCell>
                                   <TableCell sx={{ border: 0, py: 0.5, verticalAlign: "top" }}>
                                     <Box sx={{ display: "flex", flexDirection: "column" }}>
@@ -1076,6 +1268,121 @@ export default function DashboardView(props: Props) {
                     ))}
                   </Box>
                 </Paper>
+
+                {derived ? (
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <PanelTitle
+                      title="Derived Signals"
+                      hint="Explicitly derived projections from cached dataplane snapshots. These do not perform hidden live Kubernetes reads and may be sparse."
+                    />
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+                      <Chip size="small" variant="outlined" label={`Node source ${derived.nodes.meta.source}`} />
+                      <Chip size="small" variant="outlined" label={`Helm source ${derived.helmCharts.meta.source}`} />
+                      <Chip size="small" color="warning" variant="outlined" label="Sparse / inexact" />
+                    </Box>
+                    <Box sx={dashboardPanelSectionSx}>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                        Filter sparse derived node and Helm chart rows. These rows preserve the normal Nodes and Helm Charts inspect targets.
+                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+                        <DerivedFilterChip filter="all" count={derivedRows.length} selected={derivedFilter === "all"} onSelect={selectDerivedFilter} />
+                        <DerivedFilterChip filter="nodes" count={derived.nodes.total} selected={derivedFilter === "nodes"} onSelect={selectDerivedFilter} />
+                        <DerivedFilterChip filter="helm" count={derived.helmCharts.total} selected={derivedFilter === "helm"} onSelect={selectDerivedFilter} />
+                        <DerivedFilterChip
+                          filter="signals"
+                          count={derivedRows.filter((row) => row.signals > 0).length}
+                          selected={derivedFilter === "signals"}
+                          onSelect={selectDerivedFilter}
+                        />
+                      </Box>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1 }}>
+                        <TextField
+                          size="small"
+                          label="Search derived signals"
+                          value={derivedQuery}
+                          onChange={(event) => {
+                            setDerivedQuery(event.target.value);
+                            setDerivedPage(0);
+                          }}
+                          placeholder="node, chart, version..."
+                          sx={{ minWidth: { xs: "100%", sm: 280 } }}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+                          Showing {visibleDerivedRows.length} of {filteredDerivedRows.length} derived row
+                          {filteredDerivedRows.length === 1 ? "" : "s"}.
+                        </Typography>
+                      </Box>
+                      {visibleDerivedRows.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                          No derived rows match this filter.
+                        </Typography>
+                      ) : (
+                        <Table size="small">
+                          <TableBody>
+                            {visibleDerivedRows.map((row) => (
+                              <TableRow key={row.key} hover onClick={() => setInspectTarget(row.target)} sx={{ cursor: "pointer" }}>
+                                <TableCell sx={{ border: 0, py: 0.6, pl: 0, width: 120, verticalAlign: "top" }}>
+                                  <Chip size="small" label={row.type === "nodes" ? "Node" : "Helm chart"} variant="outlined" />
+                                </TableCell>
+                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top" }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {row.primary}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {row.secondary}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top" }}>
+                                  {row.metric}
+                                </TableCell>
+                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top", width: 120 }}>
+                                  {row.signals > 0 ? (
+                                    <Chip
+                                      size="small"
+                                      color={severityColor(row.severity)}
+                                      label={`${row.signals} signal${row.signals === 1 ? "" : "s"}`}
+                                    />
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">
+                                      -
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={{ border: 0, py: 0.6, pr: 0, textAlign: "right", verticalAlign: "top", width: 100 }}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setInspectTarget(row.target);
+                                    }}
+                                  >
+                                    Inspect
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                      {filteredDerivedRows.length > 0 ? (
+                        <TablePagination
+                          component="div"
+                          count={filteredDerivedRows.length}
+                          page={derivedPage}
+                          rowsPerPage={derivedRowsPerPage}
+                          rowsPerPageOptions={[10, 25, 50, 100]}
+                          onPageChange={(_, page) => setDerivedPage(page)}
+                          onRowsPerPageChange={(event) => {
+                            setDerivedRowsPerPage(Number(event.target.value));
+                            setDerivedPage(0);
+                          }}
+                          sx={{ borderTop: "1px solid var(--panel-border)", mt: 1 }}
+                        />
+                      ) : null}
+                    </Box>
+                  </Paper>
+                ) : null}
 
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" }, gap: 2 }}>
                   <Paper variant="outlined" sx={{ p: 2 }}>

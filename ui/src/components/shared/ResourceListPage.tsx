@@ -56,6 +56,8 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   renderFooterExtra?: (refetch: () => Promise<void>) => React.ReactNode;
   /** Optional row height for DataGrid (e.g. () => "auto" for multi-line cells). */
   getRowHeight?: () => "auto" | number;
+  /** Disable the secondary SAR overlay for routes that intentionally serve sparse derived fallbacks. */
+  skipEmptyAccessCheck?: boolean;
   /**
    * Dataplane-backed lists: poll GET /api/dataplane/revision cheaply; full fetchRows only when revision changes.
    * Ignored when the user selects a full list refresh interval (`refreshSec > 0`) in the toolbar.
@@ -92,6 +94,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   renderDrawer,
   renderFooterExtra,
   getRowHeight,
+  skipEmptyAccessCheck = false,
   dataplaneRevisionPoll,
   dataplaneRefreshSec,
 }: ResourceListPageProps<TRow>) {
@@ -141,7 +144,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     token,
     itemsLength: rows.length,
     error,
-    loading,
+    loading: loading || skipEmptyAccessCheck,
     resource: accessResource,
     namespace,
   });
