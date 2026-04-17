@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
 )
 
 // HandleDaemonSetRestart performs a rollout restart by patching the pod template annotation.

@@ -5,10 +5,10 @@ import (
 
 	rbacv1 "k8s.io/api/rbac/v1"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
-func mapPolicyRules(rules []rbacv1.PolicyRule) []dto.PolicyRuleDTO {
+func MapPolicyRules(rules []rbacv1.PolicyRule) []dto.PolicyRuleDTO {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -41,7 +41,7 @@ func mapPolicyRules(rules []rbacv1.PolicyRule) []dto.PolicyRuleDTO {
 	return out
 }
 
-func mapRoleBindingSubjects(bindingNamespace string, subjects []rbacv1.Subject) []dto.SubjectDTO {
+func MapRoleBindingSubjects(bindingNamespace string, subjects []rbacv1.Subject) []dto.SubjectDTO {
 	if len(subjects) == 0 {
 		return nil
 	}

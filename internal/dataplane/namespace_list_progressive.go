@@ -12,9 +12,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"kview/internal/kube"
-	"kview/internal/kube/dto"
-	"kview/internal/runtime"
+	namespaces "github.com/alex-mamchenkov/kview/internal/kube/resource/namespaces"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
 )
 
 const nsEnrichActivityTTL = 3 * time.Minute
@@ -569,7 +569,7 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 					return nil
 				}
 
-				fields, err := kube.GetNamespaceListFields(gctx, c, name)
+				fields, err := namespaces.GetNamespaceListFields(gctx, c, name)
 				sess.mu.Lock()
 				row := sess.merged[name]
 				if err == nil {

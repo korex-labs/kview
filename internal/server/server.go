@@ -17,14 +17,37 @@ import (
 	"github.com/go-chi/cors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"kview/internal/buildinfo"
-	"kview/internal/cluster"
-	"kview/internal/dataplane"
-	"kview/internal/kube"
-	"kview/internal/kube/dto"
-	"kview/internal/runtime"
-	"kview/internal/session"
-	"kview/internal/stream"
+	"github.com/alex-mamchenkov/kview/internal/buildinfo"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/dataplane"
+	"github.com/alex-mamchenkov/kview/internal/kube"
+	clusterroles "github.com/alex-mamchenkov/kview/internal/kube/resource/clusterroles"
+	crbindings "github.com/alex-mamchenkov/kview/internal/kube/resource/clusterrolebindings"
+	configmaps "github.com/alex-mamchenkov/kview/internal/kube/resource/configmaps"
+	cronjobs "github.com/alex-mamchenkov/kview/internal/kube/resource/cronjobs"
+	crds "github.com/alex-mamchenkov/kview/internal/kube/resource/customresourcedefinitions"
+	daemonsets "github.com/alex-mamchenkov/kview/internal/kube/resource/daemonsets"
+	deployments "github.com/alex-mamchenkov/kview/internal/kube/resource/deployments"
+	kubeevents "github.com/alex-mamchenkov/kview/internal/kube/resource/events"
+	kubehelm "github.com/alex-mamchenkov/kview/internal/kube/resource/helm"
+	ingresses "github.com/alex-mamchenkov/kview/internal/kube/resource/ingresses"
+	jobs "github.com/alex-mamchenkov/kview/internal/kube/resource/jobs"
+	namespaces "github.com/alex-mamchenkov/kview/internal/kube/resource/namespaces"
+	nodes "github.com/alex-mamchenkov/kview/internal/kube/resource/nodes"
+	pvcs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumeclaims"
+	pvs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumes"
+	pods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	replicasets "github.com/alex-mamchenkov/kview/internal/kube/resource/replicasets"
+	roles "github.com/alex-mamchenkov/kview/internal/kube/resource/roles"
+	rolebindings "github.com/alex-mamchenkov/kview/internal/kube/resource/rolebindings"
+	secrets "github.com/alex-mamchenkov/kview/internal/kube/resource/secrets"
+	serviceaccounts "github.com/alex-mamchenkov/kview/internal/kube/resource/serviceaccounts"
+	svcs "github.com/alex-mamchenkov/kview/internal/kube/resource/services"
+	statefulsets "github.com/alex-mamchenkov/kview/internal/kube/resource/statefulsets"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/session"
+	"github.com/alex-mamchenkov/kview/internal/stream"
 )
 
 //go:embed ui_dist
@@ -537,7 +560,7 @@ func (s *Server) Router() http.Handler {
 			if err != nil && targetKind == "service" {
 				// Some clusters/kube-proxies do not support service port-forward robustly.
 				// Fallback to one backing Pod while preserving service metadata in session.
-				if podName, podErr := kube.ResolveServiceTargetPod(ctx, clients, ns, targetResource); podErr == nil && podName != "" {
+				if podName, podErr := svcs.ResolveServiceTargetPod(ctx, clients, ns, targetResource); podErr == nil && podName != "" {
 					forwardPod = podName
 					effectiveLocal, stopFn, err = startForward(localPort)
 					if err != nil && body.LocalPort <= 0 && localPort == body.RemotePort {
@@ -793,7 +816,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetNamespaceDetails(ctx, clients, name)
+			det, err := namespaces.GetNamespaceDetails(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -822,7 +845,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForNamespace(ctx, clients, name)
+			evs, err := kubeevents.ListEventsForNamespace(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1035,7 +1058,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetNodeDetails(ctx, clients, name)
+			det, err := nodes.GetNodeDetails(ctx, clients, name)
 			if err != nil {
 				if derived, ok, derr := s.dp.DerivedNodeDetails(ctx, active, name); derr == nil && ok {
 					writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": derived})
@@ -1072,7 +1095,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetClusterRoleDetails(ctx, clients, name)
+			det, err := clusterroles.GetClusterRoleDetails(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1101,7 +1124,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, "", "ClusterRole", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, "", "ClusterRole", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1130,7 +1153,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetClusterRoleYAML(ctx, clients, name)
+			y, err := clusterroles.GetClusterRoleYAML(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1163,7 +1186,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetClusterRoleBindingDetails(ctx, clients, name)
+			det, err := crbindings.GetClusterRoleBindingDetails(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1192,7 +1215,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, "", "ClusterRoleBinding", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, "", "ClusterRoleBinding", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1221,7 +1244,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetClusterRoleBindingYAML(ctx, clients, name)
+			y, err := crbindings.GetClusterRoleBindingYAML(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1254,7 +1277,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetCustomResourceDefinitionDetails(ctx, clients, name)
+			det, err := crds.GetCustomResourceDefinitionDetails(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1283,7 +1306,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, "", "CustomResourceDefinition", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, "", "CustomResourceDefinition", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1312,7 +1335,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetCustomResourceDefinitionYAML(ctx, clients, name)
+			y, err := crds.GetCustomResourceDefinitionYAML(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1345,7 +1368,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetPersistentVolumeDetails(ctx, clients, name)
+			det, err := pvs.GetPersistentVolumeDetails(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1374,7 +1397,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, "", "PersistentVolume", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, "", "PersistentVolume", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1403,7 +1426,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetPersistentVolumeYAML(ctx, clients, name)
+			y, err := pvs.GetPersistentVolumeYAML(ctx, clients, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1433,7 +1456,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetPodDetails(ctx, clients, ns, name)
+			det, err := pods.GetPodDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1459,7 +1482,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForPod(ctx, clients, ns, name)
+			evs, err := kubeevents.ListEventsForPod(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1485,7 +1508,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			items, err := kube.ListServicesSelectingPod(ctx, clients, ns, name)
+			items, err := pods.ListServicesSelectingPod(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1518,7 +1541,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetDeploymentDetails(ctx, clients, ns, name)
+			det, err := deployments.GetDeploymentDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1544,7 +1567,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Deployment", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Deployment", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1577,7 +1600,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetDaemonSetDetails(ctx, clients, ns, name)
+			det, err := daemonsets.GetDaemonSetDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1603,7 +1626,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "DaemonSet", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "DaemonSet", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1629,7 +1652,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetDaemonSetYAML(ctx, clients, ns, name)
+			y, err := daemonsets.GetDaemonSetYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1659,7 +1682,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetStatefulSetDetails(ctx, clients, ns, name)
+			det, err := statefulsets.GetStatefulSetDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1685,7 +1708,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "StatefulSet", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "StatefulSet", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1711,7 +1734,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetStatefulSetYAML(ctx, clients, ns, name)
+			y, err := statefulsets.GetStatefulSetYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1741,7 +1764,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetReplicaSetDetails(ctx, clients, ns, name)
+			det, err := replicasets.GetReplicaSetDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1767,7 +1790,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "ReplicaSet", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "ReplicaSet", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1797,7 +1820,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetJobDetails(ctx, clients, ns, name)
+			det, err := jobs.GetJobDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1823,7 +1846,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Job", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Job", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1853,7 +1876,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetCronJobDetails(ctx, clients, ns, name)
+			det, err := cronjobs.GetCronJobDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1879,7 +1902,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "CronJob", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "CronJob", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1909,7 +1932,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetServiceDetails(ctx, clients, ns, name)
+			det, err := svcs.GetServiceDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1935,7 +1958,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Service", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Service", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1961,7 +1984,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			items, err := kube.ListIngressesForService(ctx, clients, ns, name)
+			items, err := ingresses.ListIngressesForService(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -1991,7 +2014,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetConfigMapDetails(ctx, clients, ns, name)
+			det, err := configmaps.GetConfigMapDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2017,7 +2040,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "ConfigMap", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "ConfigMap", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2047,7 +2070,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetServiceAccountDetails(ctx, clients, ns, name)
+			det, err := serviceaccounts.GetServiceAccountDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2073,7 +2096,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "ServiceAccount", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "ServiceAccount", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2099,7 +2122,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetServiceAccountYAML(ctx, clients, ns, name)
+			y, err := serviceaccounts.GetServiceAccountYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2125,7 +2148,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			items, err := kube.ListRoleBindingsForServiceAccount(ctx, clients, ns, name)
+			items, err := serviceaccounts.ListRoleBindingsForServiceAccount(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2155,7 +2178,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetRoleDetails(ctx, clients, ns, name)
+			det, err := roles.GetRoleDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2181,7 +2204,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Role", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Role", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2207,7 +2230,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetRoleYAML(ctx, clients, ns, name)
+			y, err := roles.GetRoleYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2237,7 +2260,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetRoleBindingDetails(ctx, clients, ns, name)
+			det, err := rolebindings.GetRoleBindingDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2263,7 +2286,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "RoleBinding", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "RoleBinding", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2289,7 +2312,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetRoleBindingYAML(ctx, clients, ns, name)
+			y, err := rolebindings.GetRoleBindingYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2319,7 +2342,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetPersistentVolumeClaimDetails(ctx, clients, ns, name)
+			det, err := pvcs.GetPersistentVolumeClaimDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2345,7 +2368,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "PersistentVolumeClaim", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "PersistentVolumeClaim", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2371,7 +2394,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			y, err := kube.GetPersistentVolumeClaimYAML(ctx, clients, ns, name)
+			y, err := pvcs.GetPersistentVolumeClaimYAML(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2401,7 +2424,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetSecretDetails(ctx, clients, ns, name)
+			det, err := secrets.GetSecretDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2427,7 +2450,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Secret", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Secret", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2457,7 +2480,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetHelmReleaseDetails(ctx, clients, ns, name)
+			det, err := kubehelm.GetHelmReleaseDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2481,7 +2504,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			items, err := kube.ListHelmCharts(ctx, clients)
+			items, err := kubehelm.ListHelmCharts(ctx, clients)
 			if err != nil {
 				if derived, derr := s.dp.DerivedHelmChartsSnapshot(ctx, active); derr == nil {
 					writeJSON(w, http.StatusOK, map[string]any{
@@ -2526,7 +2549,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			det, err := kube.GetIngressDetails(ctx, clients, ns, name)
+			det, err := ingresses.GetIngressDetails(ctx, clients, ns, name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2552,7 +2575,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			evs, err := kube.ListEventsForObject(ctx, clients, ns, "Ingress", name)
+			evs, err := kubeevents.ListEventsForObject(ctx, clients, ns, "Ingress", name)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if apierrors.IsForbidden(err) {
@@ -2576,7 +2599,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			var body kube.HelmUninstallRequest
+			var body kubehelm.HelmUninstallRequest
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Namespace == "" || body.Release == "" {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("namespace and release are required")})
 				return
@@ -2595,7 +2618,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			result, err := kube.HelmUninstall(ctx, clients, body)
+			result, err := kubehelm.HelmUninstall(ctx, clients, body)
 			if err != nil {
 				status, apiErr := mapHelmError(err)
 				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})
@@ -2614,7 +2637,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			var body kube.HelmUpgradeRequest
+			var body kubehelm.HelmUpgradeRequest
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Namespace == "" || body.Release == "" || body.Chart == "" {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("namespace, release, and chart are required")})
 				return
@@ -2633,7 +2656,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			result, err := kube.HelmUpgrade(ctx, clients, body)
+			result, err := kubehelm.HelmUpgrade(ctx, clients, body)
 			if err != nil {
 				status, apiErr := mapHelmError(err)
 				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})
@@ -2652,7 +2675,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			var body kube.HelmInstallRequest
+			var body kubehelm.HelmInstallRequest
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Namespace == "" || body.Release == "" || body.Chart == "" {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("namespace, release, and chart are required")})
 				return
@@ -2671,7 +2694,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			result, err := kube.HelmInstall(ctx, clients, body)
+			result, err := kubehelm.HelmInstall(ctx, clients, body)
 			if err != nil {
 				status, apiErr := mapHelmError(err)
 				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})
@@ -2690,7 +2713,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			var body kube.HelmReinstallRequest
+			var body kubehelm.HelmReinstallRequest
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Namespace == "" || body.Release == "" {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("namespace and release are required")})
 				return
@@ -2709,7 +2732,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			result, err := kube.HelmReinstall(ctx, clients, body)
+			result, err := kubehelm.HelmReinstall(ctx, clients, body)
 			if err != nil {
 				status, apiErr := mapHelmError(err)
 				writeJSON(w, status, map[string]any{"context": ctxName, "error": apiErr})

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
 )
 
 var ErrNotFound = errors.New("session not found")

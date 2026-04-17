@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 func TestEnrichHelmReleaseListItemsForAPI(t *testing.T) {

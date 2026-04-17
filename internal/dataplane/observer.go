@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
 )
 
 type observerKind string

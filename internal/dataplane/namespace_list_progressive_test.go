@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"kview/internal/cluster"
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 type failingClientsProvider struct{}

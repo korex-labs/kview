@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 func mergeNamespaceRowInto(dst *dto.NamespaceListItemDTO, src dto.NamespaceListItemDTO) {

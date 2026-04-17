@@ -19,7 +19,7 @@ VERSION?=$(shell sh -c 'tag=""; \
 	else \
 		printf "dev"; \
 	fi')
-GO_LDFLAGS=-X kview/internal/buildinfo.Version=$(VERSION)
+GO_LDFLAGS=-X github.com/alex-mamchenkov/kview/internal/buildinfo.Version=$(VERSION)
 DOCKER_RUN=docker run --rm \
 	-u $(shell id -u):$(shell id -g) \
 	-e HOME=/tmp \

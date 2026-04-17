@@ -3,7 +3,7 @@ package dataplane
 import (
 	"testing"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 func TestRollupDeployments(t *testing.T) {

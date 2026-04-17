@@ -8,10 +8,33 @@ import (
 	"sync/atomic"
 	"time"
 
-	"kview/internal/cluster"
-	"kview/internal/kube"
-	"kview/internal/kube/dto"
-	"kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
+	clusterroles "github.com/alex-mamchenkov/kview/internal/kube/resource/clusterroles"
+	crbindings "github.com/alex-mamchenkov/kview/internal/kube/resource/clusterrolebindings"
+	configmaps "github.com/alex-mamchenkov/kview/internal/kube/resource/configmaps"
+	cronjobs "github.com/alex-mamchenkov/kview/internal/kube/resource/cronjobs"
+	crds "github.com/alex-mamchenkov/kview/internal/kube/resource/customresourcedefinitions"
+	daemonsets "github.com/alex-mamchenkov/kview/internal/kube/resource/daemonsets"
+	deployments "github.com/alex-mamchenkov/kview/internal/kube/resource/deployments"
+	kubehelm "github.com/alex-mamchenkov/kview/internal/kube/resource/helm"
+	ingresses "github.com/alex-mamchenkov/kview/internal/kube/resource/ingresses"
+	jobs "github.com/alex-mamchenkov/kview/internal/kube/resource/jobs"
+	limitranges "github.com/alex-mamchenkov/kview/internal/kube/resource/limitranges"
+	namespaces "github.com/alex-mamchenkov/kview/internal/kube/resource/namespaces"
+	nodes "github.com/alex-mamchenkov/kview/internal/kube/resource/nodes"
+	pvcs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumeclaims"
+	pvs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumes"
+	pods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	replicasets "github.com/alex-mamchenkov/kview/internal/kube/resource/replicasets"
+	rquotas "github.com/alex-mamchenkov/kview/internal/kube/resource/resourcequotas"
+	roles "github.com/alex-mamchenkov/kview/internal/kube/resource/roles"
+	rolebindings "github.com/alex-mamchenkov/kview/internal/kube/resource/rolebindings"
+	secrets "github.com/alex-mamchenkov/kview/internal/kube/resource/secrets"
+	serviceaccounts "github.com/alex-mamchenkov/kview/internal/kube/resource/serviceaccounts"
+	svcs "github.com/alex-mamchenkov/kview/internal/kube/resource/services"
+	statefulsets "github.com/alex-mamchenkov/kview/internal/kube/resource/statefulsets"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
 )
 
 // SchedulerWorkType is a marker for the type of work a scheduler might own.
@@ -682,7 +705,7 @@ func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *workSchedu
 		capGroup:    "",
 		capResource: "namespaces",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListNamespaces,
+		fetch:       namespaces.ListNamespaces,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.nsStore, desc)
 }
@@ -695,7 +718,7 @@ func (p *clusterPlane) NodesSnapshot(ctx context.Context, sched *workScheduler, 
 		capGroup:    "",
 		capResource: "nodes",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListNodes,
+		fetch:       nodes.ListNodes,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.nodesStore, desc)
 }
@@ -708,7 +731,7 @@ func (p *clusterPlane) PersistentVolumesSnapshot(ctx context.Context, sched *wor
 		capGroup:    "",
 		capResource: "persistentvolumes",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListPersistentVolumes,
+		fetch:       pvs.ListPersistentVolumes,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.persistentVolumesStore, desc)
 }
@@ -721,7 +744,7 @@ func (p *clusterPlane) ClusterRolesSnapshot(ctx context.Context, sched *workSche
 		capGroup:    "rbac.authorization.k8s.io",
 		capResource: "clusterroles",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListClusterRoles,
+		fetch:       clusterroles.ListClusterRoles,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.clusterRolesStore, desc)
 }
@@ -734,7 +757,7 @@ func (p *clusterPlane) ClusterRoleBindingsSnapshot(ctx context.Context, sched *w
 		capGroup:    "rbac.authorization.k8s.io",
 		capResource: "clusterrolebindings",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListClusterRoleBindings,
+		fetch:       crbindings.ListClusterRoleBindings,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.clusterRoleBindingsStore, desc)
 }
@@ -747,7 +770,7 @@ func (p *clusterPlane) CRDsSnapshot(ctx context.Context, sched *workScheduler, c
 		capGroup:    "apiextensions.k8s.io",
 		capResource: "customresourcedefinitions",
 		capScope:    CapabilityScopeCluster,
-		fetch:       kube.ListCustomResourceDefinitions,
+		fetch:       crds.ListCustomResourceDefinitions,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.crdsStore, desc)
 }
@@ -760,7 +783,7 @@ func (p *clusterPlane) PodsSnapshot(ctx context.Context, sched *workScheduler, c
 		capGroup:    "",
 		capResource: "pods",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListPods,
+		fetch:       pods.ListPods,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.podsStore, desc)
 }
@@ -773,7 +796,7 @@ func (p *clusterPlane) DeploymentsSnapshot(ctx context.Context, sched *workSched
 		capGroup:    "",
 		capResource: "deployments",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListDeployments,
+		fetch:       deployments.ListDeployments,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.depsStore, desc)
 }
@@ -786,7 +809,7 @@ func (p *clusterPlane) ServicesSnapshot(ctx context.Context, sched *workSchedule
 		capGroup:    "",
 		capResource: "services",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListServices,
+		fetch:       svcs.ListServices,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.svcsStore, desc)
 }
@@ -799,7 +822,7 @@ func (p *clusterPlane) IngressesSnapshot(ctx context.Context, sched *workSchedul
 		capGroup:    "networking.k8s.io",
 		capResource: "ingresses",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListIngresses,
+		fetch:       ingresses.ListIngresses,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.ingStore, desc)
 }
@@ -812,7 +835,7 @@ func (p *clusterPlane) PVCsSnapshot(ctx context.Context, sched *workScheduler, c
 		capGroup:    "",
 		capResource: "persistentvolumeclaims",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListPersistentVolumeClaims,
+		fetch:       pvcs.ListPersistentVolumeClaims,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.pvcsStore, desc)
 }
@@ -825,7 +848,7 @@ func (p *clusterPlane) ConfigMapsSnapshot(ctx context.Context, sched *workSchedu
 		capGroup:    "",
 		capResource: "configmaps",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListConfigMaps,
+		fetch:       configmaps.ListConfigMaps,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.cmsStore, desc)
 }
@@ -838,7 +861,7 @@ func (p *clusterPlane) SecretsSnapshot(ctx context.Context, sched *workScheduler
 		capGroup:    "",
 		capResource: "secrets",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListSecrets,
+		fetch:       secrets.ListSecrets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.secsStore, desc)
 }
@@ -851,7 +874,7 @@ func (p *clusterPlane) ServiceAccountsSnapshot(ctx context.Context, sched *workS
 		capGroup:    "",
 		capResource: "serviceaccounts",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListServiceAccounts,
+		fetch:       serviceaccounts.ListServiceAccounts,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.saStore, desc)
 }
@@ -864,7 +887,7 @@ func (p *clusterPlane) RolesSnapshot(ctx context.Context, sched *workScheduler, 
 		capGroup:    "rbac.authorization.k8s.io",
 		capResource: "roles",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListRoles,
+		fetch:       roles.ListRoles,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rolesStore, desc)
 }
@@ -877,7 +900,7 @@ func (p *clusterPlane) RoleBindingsSnapshot(ctx context.Context, sched *workSche
 		capGroup:    "rbac.authorization.k8s.io",
 		capResource: "rolebindings",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListRoleBindings,
+		fetch:       rolebindings.ListRoleBindings,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.roleBindingsStore, desc)
 }
@@ -890,7 +913,7 @@ func (p *clusterPlane) HelmReleasesSnapshot(ctx context.Context, sched *workSche
 		capGroup:    "",
 		capResource: "secrets",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListHelmReleases,
+		fetch:       kubehelm.ListHelmReleases,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.helmReleasesStore, desc)
 }
@@ -903,7 +926,7 @@ func (p *clusterPlane) DaemonSetsSnapshot(ctx context.Context, sched *workSchedu
 		capGroup:    "",
 		capResource: "daemonsets",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListDaemonSets,
+		fetch:       daemonsets.ListDaemonSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.dsStore, desc)
 }
@@ -916,7 +939,7 @@ func (p *clusterPlane) StatefulSetsSnapshot(ctx context.Context, sched *workSche
 		capGroup:    "",
 		capResource: "statefulsets",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListStatefulSets,
+		fetch:       statefulsets.ListStatefulSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.stsStore, desc)
 }
@@ -929,7 +952,7 @@ func (p *clusterPlane) ReplicaSetsSnapshot(ctx context.Context, sched *workSched
 		capGroup:    "",
 		capResource: "replicasets",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListReplicaSets,
+		fetch:       replicasets.ListReplicaSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rsStore, desc)
 }
@@ -942,7 +965,7 @@ func (p *clusterPlane) JobsSnapshot(ctx context.Context, sched *workScheduler, c
 		capGroup:    "batch",
 		capResource: "jobs",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListJobs,
+		fetch:       jobs.ListJobs,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.jobsStore, desc)
 }
@@ -955,7 +978,7 @@ func (p *clusterPlane) CronJobsSnapshot(ctx context.Context, sched *workSchedule
 		capGroup:    "batch",
 		capResource: "cronjobs",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListCronJobs,
+		fetch:       cronjobs.ListCronJobs,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.cjStore, desc)
 }
@@ -968,7 +991,7 @@ func (p *clusterPlane) ResourceQuotasSnapshot(ctx context.Context, sched *workSc
 		capGroup:    "",
 		capResource: "resourcequotas",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListResourceQuotaItems,
+		fetch:       rquotas.ListResourceQuotaItems,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rqStore, desc)
 }
@@ -981,7 +1004,7 @@ func (p *clusterPlane) LimitRangesSnapshot(ctx context.Context, sched *workSched
 		capGroup:    "",
 		capResource: "limitranges",
 		capScope:    CapabilityScopeNamespace,
-		fetch:       kube.ListLimitRanges,
+		fetch:       limitranges.ListLimitRanges,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.lrStore, desc)
 }

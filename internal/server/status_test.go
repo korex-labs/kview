@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"kview/internal/buildinfo"
-	"kview/internal/runtime"
-	"kview/internal/session"
+	"github.com/alex-mamchenkov/kview/internal/buildinfo"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/session"
 )
 
 func TestBuildStatusIncludesBackendVersion(t *testing.T) {

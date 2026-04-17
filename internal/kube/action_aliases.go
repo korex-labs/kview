@@ -1,6 +1,6 @@
 package kube
 
-import kubeactions "kview/internal/kube/actions"
+import kubeactions "github.com/alex-mamchenkov/kview/internal/kube/actions"
 
 // Keep the public kube action API stable while mutation implementation lives in
 // internal/kube/actions.

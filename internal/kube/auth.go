@@ -6,7 +6,7 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
 )
 
 type AccessReviewRequest struct {

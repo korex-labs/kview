@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 const (

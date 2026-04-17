@@ -8,12 +8,12 @@ import (
 	"log"
 	"net/http"
 
-	"kview/internal/cluster"
-	"kview/internal/kube"
-	kubeactions "kview/internal/kube/actions"
-	"kview/internal/launcher"
-	"kview/internal/runtime"
-	"kview/internal/server"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
+	kubehelm "github.com/alex-mamchenkov/kview/internal/kube/resource/helm"
+	kubeactions "github.com/alex-mamchenkov/kview/internal/kube/actions"
+	"github.com/alex-mamchenkov/kview/internal/launcher"
+	"github.com/alex-mamchenkov/kview/internal/runtime"
+	"github.com/alex-mamchenkov/kview/internal/server"
 )
 
 // runtimeLogger mirrors kubeconfig discovery messages into both stderr and runtime logs.
@@ -47,10 +47,10 @@ func main() {
 	srv.Actions().Register("restart", kubeactions.HandleDeploymentRestart)
 	srv.Actions().Register("delete", kubeactions.HandleDeploymentDelete)
 
-	srv.Actions().Register("helm.uninstall", kube.HandleHelmUninstall)
-	srv.Actions().Register("helm.upgrade", kube.HandleHelmUpgrade)
-	srv.Actions().Register("helm.reinstall", kube.HandleHelmReinstall)
-	srv.Actions().Register("helm.rollback", kube.HandleHelmRollback)
+	srv.Actions().Register("helm.uninstall", kubehelm.HandleHelmUninstall)
+	srv.Actions().Register("helm.upgrade", kubehelm.HandleHelmUpgrade)
+	srv.Actions().Register("helm.reinstall", kubehelm.HandleHelmReinstall)
+	srv.Actions().Register("helm.rollback", kubehelm.HandleHelmRollback)
 
 	srv.Actions().Register("pod.delete", kubeactions.HandlePodDelete)
 

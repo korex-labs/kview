@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"kview/internal/kube/dto"
+	"github.com/alex-mamchenkov/kview/internal/kube/dto"
 )
 
 // NamespaceInsightsProjection is a dataplane-backed namespace observability view.

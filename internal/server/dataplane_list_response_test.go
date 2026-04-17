@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"kview/internal/dataplane"
+	"github.com/alex-mamchenkov/kview/internal/dataplane"
 )
 
 func TestWriteDataplaneListResponse_MetadataShape(t *testing.T) {

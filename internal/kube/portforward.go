@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 
-	"kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
 )
 
 // StartPodPortForward starts a Kubernetes port-forward to a Pod and returns the

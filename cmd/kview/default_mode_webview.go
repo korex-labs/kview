@@ -2,7 +2,7 @@
 
 package main
 
-import "kview/internal/launcher"
+import "github.com/alex-mamchenkov/kview/internal/launcher"
 
 // For webview builds, prefer webview as the default launcher mode when --mode is not set.
 var defaultMode = launcher.ModeWebview

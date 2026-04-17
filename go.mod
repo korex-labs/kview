@@ -1,4 +1,4 @@
-module kview
+module github.com/alex-mamchenkov/kview
 
 go 1.25.0
 

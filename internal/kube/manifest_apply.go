@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/restmapper"
 
-	"kview/internal/cluster"
+	"github.com/alex-mamchenkov/kview/internal/cluster"
 )
 
 // ApplyManifest parses a multi-document YAML manifest and applies each object
@@ -61,7 +61,7 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 
 		mapping, mapErr := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if mapErr != nil {
-			log.Printf("kview/apply: RESTMapping failed gvk=%s name=%s ns=%s: %v",
+			log.Printf("github.com/alex-mamchenkov/kview/apply: RESTMapping failed gvk=%s name=%s ns=%s: %v",
 				gvk, obj.GetName(), obj.GetNamespace(), mapErr)
 			skipped++
 			continue
@@ -74,7 +74,7 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 
 		jsonBytes, marshalErr := json.Marshal(obj.Object)
 		if marshalErr != nil {
-			log.Printf("kview/apply: marshal failed gvk=%s name=%s ns=%s: %v",
+			log.Printf("github.com/alex-mamchenkov/kview/apply: marshal failed gvk=%s name=%s ns=%s: %v",
 				gvk, obj.GetName(), obj.GetNamespace(), marshalErr)
 			skipped++
 			continue
@@ -94,7 +94,7 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 			FieldValidation: "Ignore",
 		})
 		if applyErr != nil {
-			log.Printf("kview/apply: patch failed gvk=%s name=%s ns=%s: %v",
+			log.Printf("github.com/alex-mamchenkov/kview/apply: patch failed gvk=%s name=%s ns=%s: %v",
 				gvk, obj.GetName(), obj.GetNamespace(), applyErr)
 			skipped++
 			continue
