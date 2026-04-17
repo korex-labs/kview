@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Paper, Typography } from "@mui/material";
+import { METRIC_CARD_MIN_WIDTH } from "../../theme/sxTokens";
 import InfoHint from "./InfoHint";
 
 export default function MetricCard({
@@ -14,7 +15,7 @@ export default function MetricCard({
   hint?: string;
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, minWidth: 160, flex: "1 1 160px" }}>
+    <Paper variant="outlined" sx={{ p: 1.5, minWidth: METRIC_CARD_MIN_WIDTH, flex: `1 1 ${METRIC_CARD_MIN_WIDTH}px` }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
         <Typography variant="caption" color="text.secondary">
           {label}

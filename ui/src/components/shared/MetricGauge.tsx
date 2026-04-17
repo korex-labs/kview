@@ -1,5 +1,6 @@
 import React from "react";
 import { Box } from "@mui/material";
+import { GAUGE_BORDER_RADIUS, GAUGE_HEIGHT } from "../../theme/sxTokens";
 
 export default function MetricGauge({
   value,
@@ -16,8 +17,8 @@ export default function MetricGauge({
       sx={{
         position: "relative",
         width: "100%",
-        height: 18,
-        borderRadius: 999,
+        height: GAUGE_HEIGHT,
+        borderRadius: GAUGE_BORDER_RADIUS,
         overflow: "hidden",
         border: "1px solid var(--panel-border)",
         backgroundColor: trackColor,
@@ -27,7 +28,7 @@ export default function MetricGauge({
         sx={{
           width: `${clamped}%`,
           height: "100%",
-          borderRadius: 999,
+          borderRadius: GAUGE_BORDER_RADIUS,
           backgroundColor: color,
         }}
       />

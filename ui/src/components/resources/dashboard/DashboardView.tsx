@@ -15,6 +15,7 @@ import { apiGet, apiGetWithContext } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
 import { fmtAgeShort, fmtBytes, fmtByteRate, fmtPercent, fmtRate } from "../../../utils/format";
+import { STAT_CELL_LABEL_WIDTH } from "../../../theme/sxTokens";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
 import InfoHint from "../../shared/InfoHint";
@@ -69,7 +70,7 @@ const dashboardPanelSectionSx = {
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <TableRow>
-      <TableCell sx={{ border: 0, py: 0.5, pl: 0, color: "text.secondary", width: 240 }}>{label}</TableCell>
+      <TableCell sx={{ border: 0, py: 0.5, pl: 0, color: "text.secondary", width: STAT_CELL_LABEL_WIDTH }}>{label}</TableCell>
       <TableCell sx={{ border: 0, py: 0.5, fontWeight: 600 }}>{value}</TableCell>
     </TableRow>
   );

@@ -61,6 +61,16 @@ export const monospaceSx: SxProps<Theme> = {
   fontFamily: "monospace",
 };
 
+// ---- Metric / gauge layout ----
+/** Height in px for pill-shaped gauge and stacked bar components. */
+export const GAUGE_HEIGHT = 18;
+/** Border-radius for pill shapes (gauges, bars). */
+export const GAUGE_BORDER_RADIUS = 999;
+/** Min-width for MetricCard components in a flex row. */
+export const METRIC_CARD_MIN_WIDTH = 160;
+/** Label column width in two-column stat tables (e.g. DashboardView StatCell). */
+export const STAT_CELL_LABEL_WIDTH = 240;
+
 // ---- Toolbar / action row ----
 /** Horizontal action row: flex, wrap, gap 1. */
 export const actionRowSx: SxProps<Theme> = {
