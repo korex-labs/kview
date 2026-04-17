@@ -30,6 +30,20 @@ import (
 //go:embed ui_dist
 var uiFS embed.FS
 
+const (
+	ctxTimeoutStatus        = 5 * time.Second   // health / status / capabilities endpoints
+	ctxTimeoutDetail        = 10 * time.Second  // single-resource detail reads
+	ctxTimeoutPortForward   = 15 * time.Second  // port-forward session setup
+	ctxTimeoutList          = 20 * time.Second  // dataplane list reads
+	ctxTimeoutProjection    = 30 * time.Second  // composite projections (namespace insights, Helm charts)
+	ctxTimeoutExec          = 45 * time.Second  // exec / terminal sessions
+	ctxTimeoutHelmUninstall = 60 * time.Second  // Helm uninstall
+	ctxTimeoutHelmMutate    = 120 * time.Second // Helm upgrade / install / generic actions
+	ctxTimeoutConnectivity  = 3 * time.Second   // connectivity ping
+
+	deniedLogSuppressTTL = 60 * time.Second // rate-limit interval for repeated access-denied log lines
+)
+
 type Server struct {
 	mgr            *cluster.Manager
 	token          string
@@ -107,7 +121,7 @@ func (s *Server) Router() http.Handler {
 		// Projections must not perform hidden live kube reads; use snapshots only.
 
 		api.Get("/activity", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			activities, err := runtime.ListActivitiesSorted(ctx, s.rt.Registry())
@@ -178,7 +192,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			logs := s.rt.Logs().List(ctx)
@@ -186,7 +200,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/sessions", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			items, err := s.sessions.List(ctx)
@@ -203,7 +217,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing session id"})
 				return
 			}
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			sess, ok, err := s.sessions.Get(ctx, id)
@@ -224,7 +238,7 @@ func (s *Server) Router() http.Handler {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing session id"})
 				return
 			}
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			// Best-effort fetch before stopping so we can log which session was terminated.
@@ -252,7 +266,7 @@ func (s *Server) Router() http.Handler {
 
 		// Optional placeholder endpoint to create fake sessions for testing.
 		api.Post("/sessions", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			var body struct {
@@ -299,7 +313,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Post("/sessions/terminal", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
 			defer cancel()
 
 			var body struct {
@@ -355,7 +369,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Post("/container-commands/run", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutExec)
 			defer cancel()
 
 			var body kube.ContainerCommandRequest
@@ -401,7 +415,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Post("/sessions/portforward", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutPortForward)
 			defer cancel()
 
 			var body struct {
@@ -603,7 +617,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/dashboard/cluster", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -637,7 +651,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -679,7 +693,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/namespaces", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutExec)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -769,7 +783,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -799,7 +813,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -828,7 +842,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -856,7 +870,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -884,7 +898,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -909,7 +923,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -938,7 +952,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -966,7 +980,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/nodes", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -1011,7 +1025,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -1049,7 +1063,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1078,7 +1092,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1107,7 +1121,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1140,7 +1154,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1169,7 +1183,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1198,7 +1212,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1231,7 +1245,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1260,7 +1274,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1289,7 +1303,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1322,7 +1336,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1351,7 +1365,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1380,7 +1394,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1410,7 +1424,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1436,7 +1450,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1462,7 +1476,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1495,7 +1509,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1521,7 +1535,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1554,7 +1568,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1580,7 +1594,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1606,7 +1620,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1636,7 +1650,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1662,7 +1676,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1688,7 +1702,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1718,7 +1732,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1744,7 +1758,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1774,7 +1788,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1800,7 +1814,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1830,7 +1844,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1856,7 +1870,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1886,7 +1900,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1912,7 +1926,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1938,7 +1952,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1968,7 +1982,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -1994,7 +2008,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2024,7 +2038,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2050,7 +2064,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2076,7 +2090,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2102,7 +2116,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2132,7 +2146,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2158,7 +2172,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2184,7 +2198,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2214,7 +2228,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2240,7 +2254,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2266,7 +2280,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2296,7 +2310,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2322,7 +2336,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2348,7 +2362,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2378,7 +2392,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2404,7 +2418,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2434,7 +2448,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2457,7 +2471,7 @@ func (s *Server) Router() http.Handler {
 		})
 
 		api.Get("/helmcharts", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
 			defer cancel()
 
 			active := s.readContextName(r)
@@ -2503,7 +2517,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2529,7 +2543,7 @@ func (s *Server) Router() http.Handler {
 			ns := chi.URLParam(r, "ns")
 			name := chi.URLParam(r, "name")
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, active, err := s.mgr.GetClients(ctx)
@@ -2568,7 +2582,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmUninstall)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2606,7 +2620,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmMutate)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2644,7 +2658,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmMutate)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2682,7 +2696,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmMutate)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2725,7 +2739,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2772,7 +2786,7 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmMutate)
 			defer cancel()
 
 			clients, _, err := s.mgr.GetClientsForContext(ctx, ctxName)
@@ -2871,7 +2885,7 @@ func (s *Server) activityAccessDeniedLogMiddleware(next http.Handler) http.Handl
 			s.deniedLogMu.Unlock()
 			return
 		}
-		s.deniedLogUntil[key] = now.Add(60 * time.Second)
+		s.deniedLogUntil[key] = now.Add(deniedLogSuppressTTL)
 		s.deniedLogMu.Unlock()
 
 		s.rt.Log(runtime.LogLevelWarn, "rbac", fmt.Sprintf("access denied: %s", key))
@@ -2982,7 +2996,7 @@ func dataplaneClusterListHandler[I any](
 	transform func([]I) any,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 		defer cancel()
 
 		active := s.readContextName(r)
@@ -3014,7 +3028,7 @@ func dataplaneNamespacedListHandler[I any](
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 		defer cancel()
 
 		active := s.readContextName(r)
@@ -3145,7 +3159,7 @@ func (s *Server) buildStatus(parent context.Context, contextName string) statusD
 			clusterStatus.Namespace = info.Namespace
 		}
 
-		ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+		ctx, cancel := context.WithTimeout(parent, ctxTimeoutConnectivity)
 		defer cancel()
 
 		clients, active, err := s.mgr.GetClientsForContext(ctx, contextName)
