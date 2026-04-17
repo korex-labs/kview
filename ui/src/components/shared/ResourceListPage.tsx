@@ -13,7 +13,6 @@ import ResourceTableToolbar, { type ResourceTableToolbarProps } from "./Resource
 import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
-import { useUserSettings } from "../../settingsContext";
 
 const defaultDataplaneRefreshSec = 10;
 
@@ -107,17 +106,14 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const [drawerOpen, setDrawerOpen] = useState(false);
   /** Id of the row shown in the drawer (set when opening via Open or double-click). */
   const [drawerSelectedId, setDrawerSelectedId] = useState<string | null>(null);
-  const { settings } = useUserSettings();
-  const effectiveInitialRefreshSec = initialRefreshSec ?? settings.appearance.defaultListRefreshSec;
-  const [refreshSec, setRefreshSec] = useState<number>(effectiveInitialRefreshSec);
+  const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec ?? 0);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const offline = health === "unhealthy";
 
   useEffect(() => {
-    if (initialRefreshSec != null) return;
-    setRefreshSec(settings.appearance.defaultListRefreshSec);
-  }, [initialRefreshSec, settings.appearance.defaultListRefreshSec]);
+    setRefreshSec(initialRefreshSec ?? 0);
+  }, [initialRefreshSec]);
 
   const fetchRowsStable = useCallback(() => fetchRows(activeContext), [activeContext, fetchRows]);
   const fetchRevisionStable = useCallback(

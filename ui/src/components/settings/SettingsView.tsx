@@ -338,25 +338,6 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
         <TextField
           select
           size="small"
-          label="Default list refresh"
-          value={settings.appearance.defaultListRefreshSec}
-          onChange={(e) =>
-            setSettings((prev) =>
-              updateAppearance(prev, { defaultListRefreshSec: Number(e.target.value) }),
-            )
-          }
-          helperText="Applies to resource list views. Off keeps dataplane revision polling and background refresh behavior."
-          sx={{ maxWidth: 320 }}
-        >
-          {refreshIntervalOptions.map((opt) => (
-            <MenuItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
           label="Dashboard refresh"
           value={settings.appearance.dashboardRefreshSec}
           onChange={(e) =>

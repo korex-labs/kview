@@ -25,7 +25,6 @@ export type SmartFilterRule = {
 export type KviewUserSettingsV1 = {
   v: 1;
   appearance: {
-    defaultListRefreshSec: number;
     dashboardRefreshSec: number;
     smartFiltersEnabled: boolean;
     activityPanelInitiallyOpen: boolean;
@@ -192,7 +191,6 @@ export function defaultUserSettings(): KviewUserSettingsV1 {
   return {
     v: 1,
     appearance: {
-      defaultListRefreshSec: 0,
       dashboardRefreshSec: 10,
       smartFiltersEnabled: true,
       activityPanelInitiallyOpen: true,
@@ -846,10 +844,6 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV1 | null
   return {
     v: 1,
     appearance: {
-      defaultListRefreshSec: validRefreshSec(
-        rawAppearance.defaultListRefreshSec,
-        defaults.appearance.defaultListRefreshSec,
-      ),
       dashboardRefreshSec: validRefreshSec(
         rawAppearance.dashboardRefreshSec,
         defaults.appearance.dashboardRefreshSec,

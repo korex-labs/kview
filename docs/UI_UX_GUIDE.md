@@ -106,7 +106,7 @@ kview exposes a full-page Settings view from the header, next to the theme selec
 
 Settings are browser-local and separate from navigation state. The profile currently owns:
 
-- frontend list and dashboard refresh defaults
+- dashboard refresh defaults
 - initial Activity Panel state
 - smart-filter enablement and scoped smart-filter rules
 - custom container command presets

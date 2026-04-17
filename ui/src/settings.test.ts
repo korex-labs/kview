@@ -31,7 +31,6 @@ describe("user settings", () => {
     const parsed = validateUserSettings({
       v: 1,
       appearance: {
-        defaultListRefreshSec: 30,
         dashboardRefreshSec: 0,
         smartFiltersEnabled: false,
       },
@@ -54,7 +53,6 @@ describe("user settings", () => {
       },
     });
 
-    expect(parsed?.appearance.defaultListRefreshSec).toBe(30);
     expect(parsed?.appearance.dashboardRefreshSec).toBe(0);
     expect(parsed?.appearance.smartFiltersEnabled).toBe(false);
     expect(parsed?.appearance.activityPanelInitiallyOpen).toBe(true);
