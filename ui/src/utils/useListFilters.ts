@@ -80,6 +80,7 @@ export default function useListFilters<T>({
   const setFilter = useCallback((value: string) => {
     setFilterRaw(value);
     saveListTextFilter(value);
+    saveQuickFilterSelection([]);
   }, []);
 
   const setSelectedQuickFilter = useCallback(
