@@ -167,7 +167,8 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			aggregateMetas = append(aggregateMetas, lrSnap.Meta)
 		}
 		signals.Add(detectDashboardSignals(now, ns, dashboardSnapshotSet{
-			pods:           podsSnap,
+			restartThreshold: int32(policy.RestartElevatedThreshold),
+			pods:             podsSnap,
 			podsOK:         podsOK && podsSnap.Err == nil,
 			deps:           depsSnap,
 			depsOK:         depsOK && depsSnap.Err == nil,
@@ -225,6 +226,10 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 }
 
 type dashboardSnapshotSet struct {
+	// restartThreshold is the minimum restart count to raise a pod restart signal.
+	// Set from policy.Dashboard.RestartElevatedThreshold; falls back to signalRestartMinThreshold.
+	restartThreshold int32
+
 	pods           PodsSnapshot
 	podsOK         bool
 	deps           DeploymentsSnapshot
@@ -324,11 +329,14 @@ func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO) Cluster
 }
 
 // restartSeverityFromCount maps restart counts to coarse severity buckets.
+// signalRestartMedThreshold (20) and signalRestartMinThreshold (5) are fixed
+// presentation thresholds here; the policy knob RestartElevatedThreshold
+// governs when a pod restart signal is raised (see detectPodRestartSignals).
 func restartSeverityFromCount(restarts int32) string {
 	switch {
-	case restarts >= 20:
+	case restarts >= signalRestartMedThreshold:
 		return restartSeverityHigh
-	case restarts >= 5:
+	case restarts >= signalRestartMinThreshold:
 		return restartSeverityMedium
 	default:
 		return restartSeverityLow

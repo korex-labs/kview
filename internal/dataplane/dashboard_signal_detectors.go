@@ -45,8 +45,12 @@ func detectPodRestartSignals(_ time.Time, ns string, s dashboardSnapshotSet) []C
 		return nil
 	}
 	var out []ClusterDashboardSignal
+	threshold := s.restartThreshold
+	if threshold <= 0 {
+		threshold = signalRestartMinThreshold
+	}
 	for _, p := range s.pods.Items {
-		if p.Restarts >= 5 {
+		if p.Restarts >= threshold {
 			out = append(out, dashboardPodRestartSignal(ns, p))
 		}
 	}
@@ -72,7 +76,7 @@ func detectLongRunningJobSignals(_ time.Time, ns string, s dashboardSnapshotSet)
 	}
 	var out []ClusterDashboardSignal
 	for _, j := range EnrichJobListItemsForAPI(s.jobs.Items) {
-		if !j.NeedsAttention && j.Status == "Running" && j.AgeSec >= int64((6*time.Hour).Seconds()) {
+		if !j.NeedsAttention && j.Status == "Running" && j.AgeSec >= int64(signalLongRunningJobDuration.Seconds()) {
 			out = append(out, dashboardSignalItem("long_running_job", "Job", ns, j.Name, "medium", 62, "Job has been running for more than 6 hours.", "medium", "jobs"))
 		}
 	}
@@ -98,7 +102,7 @@ func detectCronJobNoRecentSuccessSignals(_ time.Time, ns string, s dashboardSnap
 	}
 	var out []ClusterDashboardSignal
 	for _, cj := range EnrichCronJobListItemsForAPI(s.cjs.Items) {
-		if !cj.NeedsAttention && !cj.Suspend && cj.AgeSec >= int64((24*time.Hour).Seconds()) && cj.LastSuccessfulTime == 0 {
+		if !cj.NeedsAttention && !cj.Suspend && cj.AgeSec >= int64(signalCronJobNoSuccessDuration.Seconds()) && cj.LastSuccessfulTime == 0 {
 			out = append(out, dashboardSignalItem("cronjob_no_recent_success", "CronJob", ns, cj.Name, "medium", 60, "CronJob has no successful run recorded after more than 24 hours.", "medium", "cronjobs"))
 		}
 	}
@@ -118,7 +122,7 @@ func detectStaleTransitionalHelmReleaseSignals(now time.Time, ns string, s dashb
 		stale := rel.Updated == 0
 		if rel.Updated > 0 {
 			d := now.Sub(time.Unix(rel.Updated, 0))
-			stale = d >= 15*time.Minute
+			stale = d >= signalStaleHelmReleaseDuration
 			age = "status has been transitional for more than 15 minutes"
 		}
 		if stale {
@@ -222,13 +226,13 @@ func detectResourceQuotaPressureSignals(_ time.Time, ns string, s dashboardSnaps
 	var out []ClusterDashboardSignal
 	for _, quota := range s.resourceQuotas.Items {
 		for _, entry := range quota.Entries {
-			if entry.Ratio == nil || *entry.Ratio < 0.8 {
+			if entry.Ratio == nil || *entry.Ratio < quotaWarnRatio {
 				continue
 			}
 			ratio := *entry.Ratio
 			severity := "medium"
 			score := 68
-			if ratio >= 0.9 {
+			if ratio >= quotaCritRatio {
 				severity = "high"
 				score = 92
 			}
@@ -273,7 +277,7 @@ func detectPotentiallyUnusedPVCSignals(_ time.Time, ns string, s dashboardSnapsh
 	}
 	var out []ClusterDashboardSignal
 	for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
-		if !pvc.NeedsAttention && pvc.AgeSec >= int64((24*time.Hour).Seconds()) {
+		if !pvc.NeedsAttention && pvc.AgeSec >= int64(signalUnusedResourceAgeDuration.Seconds()) {
 			out = append(out, dashboardSignalItem("potentially_unused_pvc", "PersistentVolumeClaim", ns, pvc.Name, "low", 30, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "persistentvolumeclaims"))
 		}
 	}
@@ -286,7 +290,7 @@ func detectPotentiallyUnusedServiceAccountSignals(_ time.Time, ns string, s dash
 	}
 	var out []ClusterDashboardSignal
 	for _, sa := range s.sas.Items {
-		if sa.Name != "default" && sa.AgeSec >= int64((24*time.Hour).Seconds()) {
+		if sa.Name != "default" && sa.AgeSec >= int64(signalUnusedResourceAgeDuration.Seconds()) {
 			out = append(out, dashboardSignalItem("potentially_unused_serviceaccount", "ServiceAccount", ns, sa.Name, "low", 25, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "serviceaccounts"))
 		}
 	}

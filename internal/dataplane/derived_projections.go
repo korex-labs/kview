@@ -169,7 +169,7 @@ func buildDerivedNodesProjection(plane *clusterPlane, knownNS []string, restartT
 
 func derivedNodeSeverity(n ClusterDashboardDerivedNode) string {
 	switch {
-	case n.ElevatedRestartPods >= 3 || n.NonRunningPods >= 5:
+	case n.ElevatedRestartPods >= derivedNodeElevatedRestartMin || n.NonRunningPods >= derivedNodeNonRunningMin:
 		return "high"
 	case n.ElevatedRestartPods > 0 || n.NonRunningPods > 0:
 		return "medium"

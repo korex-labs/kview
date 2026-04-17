@@ -307,7 +307,7 @@ func podProblematicFromList(items []dto.PodListItemDTO, limit int) []dto.Problem
 				}
 			}
 		}
-		if p.Restarts >= 10 {
+		if p.Restarts >= signalPodRestartNoteThreshold {
 			isProblematic = true
 			reason = "HighRestarts"
 		}

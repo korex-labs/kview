@@ -151,12 +151,12 @@ func quotaRiskFromSnapshot(snap ResourceQuotasSnapshot) (maxRatio float64, warni
 			if ratio > maxRatio {
 				maxRatio = ratio
 			}
-			if ratio >= 0.9 {
+			if ratio >= quotaCritRatio {
 				critical = true
 				warning = true
 				continue
 			}
-			if ratio >= 0.8 {
+			if ratio >= quotaWarnRatio {
 				warning = true
 			}
 		}
@@ -181,7 +181,7 @@ func podProblematicFromListUnbounded(items []dto.PodListItemDTO) []dto.Problemat
 				}
 			}
 		}
-		if p.Restarts >= 10 {
+		if p.Restarts >= signalPodRestartNoteThreshold {
 			isProblematic = true
 			reason = "HighRestarts"
 		}

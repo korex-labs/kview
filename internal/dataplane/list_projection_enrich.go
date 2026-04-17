@@ -31,9 +31,9 @@ func ListRestartSeverity(restarts int32) string {
 		return listRestartNone
 	}
 	switch {
-	case restarts >= 20:
+	case restarts >= signalRestartMedThreshold:
 		return listRestartHigh
-	case restarts >= 5:
+	case restarts >= signalRestartMinThreshold:
 		return listRestartMedium
 	default:
 		return listRestartLow
@@ -59,13 +59,13 @@ func podListHealthHint(p dto.PodListItemDTO) string {
 	if p.Phase == "Failed" || p.Phase == "Pending" {
 		return podListHintProblem
 	}
-	if p.Restarts >= 10 {
+	if p.Restarts >= signalPodRestartNoteThreshold {
 		return podListHintProblem
 	}
 	if podListNotReady(p.Ready) {
 		return podListHintProblem
 	}
-	if p.Restarts >= 3 {
+	if p.Restarts >= derivedNodeElevatedRestartMin {
 		return podListHintAttention
 	}
 	if p.LastEvent != nil && p.LastEvent.Type == "Warning" {
