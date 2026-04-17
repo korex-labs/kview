@@ -150,15 +150,6 @@ function buildResourceSignalMap(groups?: NamespaceResourceSignals[]): Map<string
   return out;
 }
 
-function buildResourceKindSignalMap(groups?: NamespaceResourceSignals[]): Map<string, DashboardSignalItem[]> {
-  const out = new Map<string, DashboardSignalItem[]>();
-  for (const group of groups || []) {
-    const existing = out.get(group.resourceKind) || [];
-    out.set(group.resourceKind, [...existing, ...(group.signals || [])]);
-  }
-  return out;
-}
-
 function resourceSignalsFor(
   groups: Map<string, DashboardSignalItem[]>,
   kind: string,
@@ -199,16 +190,10 @@ function mapCountChip(
   count: number | undefined,
   sectionKey: string,
   enabled: boolean,
-  onSelect: (sectionKey: string) => void,
-  signals: DashboardSignalItem[] = []
+  onSelect: (sectionKey: string) => void
 ) {
   if (!count) return null;
-  return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
-      <ResourceLinkChip label={`${label}: ${count}`} onClick={enabled ? () => onSelect(sectionKey) : undefined} />
-      <ResourceSignalsChip signals={signals} />
-    </Box>
-  );
+  return <ResourceLinkChip label={`${label}: ${count}`} onClick={enabled ? () => onSelect(sectionKey) : undefined} />;
 }
 
 export default function NamespaceDrawer(props: {
@@ -332,7 +317,6 @@ export default function NamespaceDrawer(props: {
   const workloadByKind = insights?.summary?.workloadByKind;
   const signals = insights?.signals || [];
   const resourceSignalMap = useMemo(() => buildResourceSignalMap(insights?.resourceSignals), [insights?.resourceSignals]);
-  const resourceKindSignalMap = useMemo(() => buildResourceKindSignalMap(insights?.resourceSignals), [insights?.resourceSignals]);
   const quotas = insights?.resourceQuotas || [];
   const limitRanges = insights?.limitRanges || [];
   const quotaPressure = summarizeQuotaPressure(quotas);
@@ -409,19 +393,19 @@ export default function NamespaceDrawer(props: {
                     <>
                       <Section title="Workloads">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("Pods", counts.pods, "pods", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Pod"))}
-                          {mapCountChip("Deployments", counts.deployments, "deployments", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Deployment"))}
-                          {mapCountChip("StatefulSets", counts.statefulSets, "statefulSets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("StatefulSet"))}
-                          {mapCountChip("DaemonSets", counts.daemonSets, "daemonsets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("DaemonSet"))}
-                          {mapCountChip("Jobs", counts.jobs, "jobs", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Job"))}
-                          {mapCountChip("CronJobs", counts.cronJobs, "cronjobs", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("CronJob"))}
+                          {mapCountChip("Pods", counts.pods, "pods", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Deployments", counts.deployments, "deployments", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("StatefulSets", counts.statefulSets, "statefulSets", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("DaemonSets", counts.daemonSets, "daemonsets", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Jobs", counts.jobs, "jobs", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("CronJobs", counts.cronJobs, "cronjobs", !!props.onNavigate, navigateTo)}
                         </Box>
                       </Section>
 
                       <Section title="Networking">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("Services", counts.services, "services", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Service"))}
-                          {mapCountChip("Ingresses", counts.ingresses, "ingresses", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Ingress"))}
+                          {mapCountChip("Services", counts.services, "services", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Ingresses", counts.ingresses, "ingresses", !!props.onNavigate, navigateTo)}
                           {counts.services === 0 && counts.ingresses === 0 && (
                             <Typography variant="body2" color="text.secondary">None</Typography>
                           )}
@@ -430,18 +414,18 @@ export default function NamespaceDrawer(props: {
 
                       <Section title="Storage & configuration">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("PVCs", counts.pvcs, "persistentvolumeclaims", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("PersistentVolumeClaim"))}
-                          {mapCountChip("ConfigMaps", counts.configMaps, "configmaps", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("ConfigMap"))}
-                          {mapCountChip("Secrets", counts.secrets, "secrets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Secret"))}
+                          {mapCountChip("PVCs", counts.pvcs, "persistentvolumeclaims", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("ConfigMaps", counts.configMaps, "configmaps", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Secrets", counts.secrets, "secrets", !!props.onNavigate, navigateTo)}
                         </Box>
                       </Section>
 
                       <Section title="Access & packaging">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("ServiceAccounts", counts.serviceAccounts, "serviceaccounts", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("ServiceAccount"))}
-                          {mapCountChip("Roles", counts.roles, "roles", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Role"))}
-                          {mapCountChip("RoleBindings", counts.roleBindings, "rolebindings", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("RoleBinding"))}
-                          {mapCountChip("Helm releases", counts.helmReleases, "helm", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("HelmRelease"))}
+                          {mapCountChip("ServiceAccounts", counts.serviceAccounts, "serviceaccounts", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Roles", counts.roles, "roles", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("RoleBindings", counts.roleBindings, "rolebindings", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Helm releases", counts.helmReleases, "helm", !!props.onNavigate, navigateTo)}
                         </Box>
                       </Section>
                     </>
