@@ -1,29 +1,27 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useRef, useState } from "react";
 import {
   Box,
-  Button,
   Chip,
   CircularProgress,
-  IconButton,
   Paper,
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TablePagination,
   TableRow,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
-import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { apiGet, apiGetWithContext } from "../../../api";
-import type { ApiDashboardClusterResponse, DashboardSignalFilter, DashboardSignalItem, DashboardSignalsPanel, HelmChart } from "../../../types/api";
+import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
+import InfoHint from "../../shared/InfoHint";
+import MetricCard from "../../shared/MetricCard";
+import StackedMetricBar from "../../shared/StackedMetricBar";
+import DashboardSignalsPanel from "./DashboardSignalsPanel";
+import DashboardDerivedPanel from "./DashboardDerivedPanel";
+import type { InspectTarget } from "./dashboardTypes";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import PodDrawer from "../pods/PodDrawer";
 import JobDrawer from "../jobs/JobDrawer";
@@ -45,41 +43,8 @@ type Props = {
   onNavigate?: (section: string, namespace: string) => void;
 };
 
-type SignalFilter = string;
-
-type InspectTarget = {
-  kind:
-    | "Namespace"
-    | "Node"
-    | "Pod"
-    | "Job"
-    | "CronJob"
-    | "ConfigMap"
-    | "Secret"
-    | "ServiceAccount"
-    | "PersistentVolumeClaim"
-    | "HelmRelease"
-    | "Service"
-    | "Ingress"
-    | "Role"
-    | "RoleBinding"
-    | "HelmChart";
-  namespace: string;
-  name: string;
-  chart?: HelmChart;
-};
-
-type DerivedFilter = "all" | "nodes" | "helm" | "signals";
-
 function stateChipColor(state: string): "success" | "warning" | "error" | "default" {
   return dataplaneCoarseStateChipColor(state) as "success" | "warning" | "error" | "default";
-}
-
-function severityColor(severity: string): "error" | "warning" | "info" | "default" {
-  if (severity === "high") return "error";
-  if (severity === "medium") return "warning";
-  if (severity === "low") return "info";
-  return "default";
 }
 
 function formatAgeShort(ageSec?: number): string {
@@ -119,16 +84,6 @@ function formatPercent(value?: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-function InfoHint({ title }: { title: string }) {
-  return (
-    <Tooltip title={title}>
-      <IconButton size="small" sx={{ p: 0.25 }}>
-        <InfoOutlinedIcon fontSize="inherit" />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
 function PanelTitle({ title, hint }: { title: string; hint: string }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 1 }}>
@@ -140,14 +95,6 @@ function PanelTitle({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-const dashboardPanelSx = {
-  p: 2,
-  height: "100%",
-  display: "flex",
-  flexDirection: "column",
-  gap: 1.5,
-};
-
 const dashboardPanelSectionSx = {
   border: "1px solid var(--panel-border)",
   borderRadius: 1,
@@ -155,143 +102,12 @@ const dashboardPanelSectionSx = {
   backgroundColor: "var(--bg-secondary)",
 };
 
-function SignalHintIcons({ likelyCause, suggestedAction }: { likelyCause?: string; suggestedAction?: string }) {
-  if (!likelyCause && !suggestedAction) return null;
-  return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: 0.5, verticalAlign: "middle" }}>
-      {likelyCause ? (
-        <Tooltip title={`Likely cause: ${likelyCause}`}>
-          <IconButton size="small" sx={{ p: 0.2 }}>
-            <HelpOutlineOutlinedIcon fontSize="inherit" />
-          </IconButton>
-        </Tooltip>
-      ) : null}
-      {suggestedAction ? (
-        <Tooltip title={`Next step: ${suggestedAction}`}>
-          <IconButton size="small" sx={{ p: 0.2 }}>
-            <BuildOutlinedIcon fontSize="inherit" />
-          </IconButton>
-        </Tooltip>
-      ) : null}
-    </Box>
-  );
-}
-
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <TableRow>
       <TableCell sx={{ border: 0, py: 0.5, pl: 0, color: "text.secondary", width: 240 }}>{label}</TableCell>
       <TableCell sx={{ border: 0, py: 0.5, fontWeight: 600 }}>{value}</TableCell>
     </TableRow>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  color = "default",
-  hint,
-}: {
-  label: string;
-  value: React.ReactNode;
-  color?: "success" | "warning" | "error" | "info" | "default";
-  hint?: string;
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: 1.5, minWidth: 160, flex: "1 1 160px" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">
-          {label}
-        </Typography>
-        {hint ? <InfoHint title={hint} /> : null}
-      </Box>
-      <Typography variant="h5" sx={{ mt: 0.5, color: color === "default" ? undefined : `${color}.main` }}>
-        {value}
-      </Typography>
-    </Paper>
-  );
-}
-
-type BarSegment = {
-  label: string;
-  value: number;
-  color: string;
-};
-
-function StackedMetricBar({ segments }: { segments: BarSegment[] }) {
-  const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value || 0), 0);
-  if (total <= 0) {
-    return (
-      <Box
-        sx={{
-          height: 18,
-          borderRadius: 999,
-          border: "1px solid var(--panel-border)",
-          backgroundColor: "rgba(0,0,0,0.05)",
-        }}
-      />
-    );
-  }
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        width: "100%",
-        height: 18,
-        overflow: "hidden",
-        borderRadius: 999,
-        border: "1px solid var(--panel-border)",
-        backgroundColor: "rgba(0,0,0,0.04)",
-      }}
-    >
-      {segments
-        .filter((segment) => segment.value > 0)
-        .map((segment) => (
-          <Tooltip key={segment.label} title={`${segment.label}: ${segment.value}`}>
-            <Box
-              sx={{
-                width: `${(segment.value / total) * 100}%`,
-                backgroundColor: segment.color,
-                minWidth: segment.value > 0 ? 8 : 0,
-              }}
-            />
-          </Tooltip>
-        ))}
-    </Box>
-  );
-}
-
-function MetricGauge({
-  value,
-  color,
-  trackColor = "rgba(0,0,0,0.08)",
-}: {
-  value: number;
-  color: string;
-  trackColor?: string;
-}) {
-  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-  return (
-    <Box
-      sx={{
-        position: "relative",
-        width: "100%",
-        height: 18,
-        borderRadius: 999,
-        overflow: "hidden",
-        border: "1px solid var(--panel-border)",
-        backgroundColor: trackColor,
-      }}
-    >
-      <Box
-        sx={{
-          width: `${clamped}%`,
-          height: "100%",
-          borderRadius: 999,
-          backgroundColor: color,
-        }}
-      />
-    </Box>
   );
 }
 
@@ -320,226 +136,6 @@ function DataplaneVisualRow({
       </TableCell>
     </TableRow>
   );
-}
-
-function signalLocation(f: DashboardSignalItem): string {
-  if (f.scopeLocation) return `${f.scope || "scope"}: ${f.scopeLocation}`;
-  if (f.namespace) return `namespace: ${f.namespace}`;
-  if (f.scope) return f.scope;
-  return "-";
-}
-
-function signalResourceName(f: DashboardSignalItem): string {
-  return f.resourceName || f.name || f.namespace || f.kind;
-}
-
-function signalCalculatedText(f: DashboardSignalItem): string {
-  return f.calculatedData || f.reason;
-}
-
-function signalActualText(f: DashboardSignalItem): string {
-  return f.actualData || f.reason;
-}
-
-function signalFilterLabel(filter: SignalFilter): string {
-  switch (filter) {
-    case "top":
-      return "Top priority";
-    case "high":
-      return "High severity";
-    case "medium":
-      return "Medium severity";
-    case "low":
-      return "Low severity";
-    case "Namespace":
-      return "Empty namespaces";
-    case "HelmRelease":
-      return "Stuck Helm releases";
-    case "Job":
-      return "Jobs";
-    case "CronJob":
-      return "CronJobs";
-    case "ConfigMap":
-      return "Empty ConfigMaps";
-    case "Secret":
-      return "Empty Secrets";
-    case "PersistentVolumeClaim":
-      return "PVCs";
-    case "ServiceAccount":
-      return "Potentially unused service accounts";
-    case "Service":
-      return "Service endpoints";
-    case "Ingress":
-      return "Ingress routing";
-    case "Role":
-      return "Roles";
-    case "RoleBinding":
-      return "RoleBindings";
-    case "ResourceQuota":
-      return "Quota pressure";
-    case "Pod":
-      return "Pod restarts";
-    default:
-      return filter;
-  }
-}
-
-function signalFilterGroupLabel(category?: string): string {
-  switch (category) {
-    case "severity":
-      return "By Severity";
-    case "kind":
-      return "By Kind";
-    case "signal_type":
-      return "By Signal Reason";
-    case "namespace":
-      return "Top 5 Namespaces With Problems";
-    case "priority":
-      return "Priority";
-    default:
-      return "Other";
-  }
-}
-
-function signalFilterGroupOrder(category?: string): number {
-  switch (category) {
-    case "priority":
-      return 0;
-    case "severity":
-      return 1;
-    case "kind":
-      return 2;
-    case "signal_type":
-      return 3;
-    case "namespace":
-      return 4;
-    default:
-      return 5;
-  }
-}
-
-function groupedSignalFilters(filters: DashboardSignalFilter[]): Array<{ category: string; label: string; filters: DashboardSignalFilter[] }> {
-  const byCategory = new Map<string, DashboardSignalFilter[]>();
-  for (const filter of filters) {
-    const category = filter.category || "other";
-    byCategory.set(category, [...(byCategory.get(category) || []), filter]);
-  }
-  return Array.from(byCategory.entries())
-    .sort(([a], [b]) => signalFilterGroupOrder(a) - signalFilterGroupOrder(b))
-    .map(([category, items]) => ({
-      category,
-      label: signalFilterGroupLabel(category),
-      filters: items,
-    }));
-}
-
-function signalFilterColor(filter: DashboardSignalFilter): "error" | "warning" | "info" | "default" {
-  if (filter.count <= 0) return "default";
-  if (filter.severity === "high") return "error";
-  if (filter.severity === "medium") return "warning";
-  if (filter.severity === "low") return "info";
-  return "default";
-}
-
-function fallbackSignalFilters(panel: DashboardSignalsPanel | undefined, topCount: number): DashboardSignalFilter[] {
-  return [
-    { id: "top", label: "Top priority", count: topCount, category: "priority" },
-    { id: "high", label: "High severity", count: panel?.high ?? 0, category: "severity", severity: "high" },
-    { id: "medium", label: "Medium severity", count: panel?.medium ?? 0, category: "severity", severity: "medium" },
-    { id: "low", label: "Low severity", count: panel?.low ?? 0, category: "severity", severity: "low" },
-  ];
-}
-
-function SignalFilterChip({
-  filter,
-  label,
-  count,
-  color = "default",
-  hideWhenZero = false,
-  selected,
-  onSelect,
-}: {
-  filter: SignalFilter;
-  label?: string;
-  count: number;
-  color?: "error" | "warning" | "info" | "default";
-  hideWhenZero?: boolean;
-  selected: boolean;
-  onSelect: (filter: SignalFilter) => void;
-}) {
-  if (hideWhenZero && count <= 0 && !selected) return null;
-  return (
-    <Chip
-      size="small"
-      color={color}
-      variant={selected ? "filled" : "outlined"}
-      label={`${label || signalFilterLabel(filter)} ${count}`}
-      onClick={() => onSelect(filter)}
-    />
-  );
-}
-
-function derivedFilterLabel(filter: DerivedFilter): string {
-  switch (filter) {
-    case "all":
-      return "All derived";
-    case "nodes":
-      return "Nodes";
-    case "helm":
-      return "Helm charts";
-    case "signals":
-      return "With signals";
-    default:
-      return filter;
-  }
-}
-
-function DerivedFilterChip({
-  filter,
-  count,
-  selected,
-  onSelect,
-}: {
-  filter: DerivedFilter;
-  count: number;
-  selected: boolean;
-  onSelect: (filter: DerivedFilter) => void;
-}) {
-  return (
-    <Chip
-      size="small"
-      color={filter === "signals" && count > 0 ? "warning" : "default"}
-      variant={selected ? "filled" : "outlined"}
-      label={`${derivedFilterLabel(filter)} ${count}`}
-      onClick={() => onSelect(filter)}
-    />
-  );
-}
-
-function inspectTargetFromSignal(f: DashboardSignalItem): InspectTarget | null {
-  const namespace = f.namespace || "";
-  const name = f.name || (f.kind === "Namespace" ? namespace : "");
-  if (!namespace || !name) return null;
-  switch (f.kind) {
-    case "Namespace":
-    case "Pod":
-    case "Job":
-    case "CronJob":
-    case "ConfigMap":
-    case "Secret":
-    case "ServiceAccount":
-    case "PersistentVolumeClaim":
-    case "HelmRelease":
-    case "Service":
-    case "Ingress":
-    case "Role":
-    case "RoleBinding":
-      return { kind: f.kind, namespace, name };
-    case "ResourceQuota":
-      return { kind: "Namespace", namespace, name: namespace };
-    default:
-      return null;
-  }
 }
 
 function DashboardInspectDrawers({
@@ -670,20 +266,15 @@ export default function DashboardView(props: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>("top");
+  const [signalFilter, setSignalFilter] = useState("top");
   const [signalsQuery, setSignalsQuery] = useState("");
   const [signalsPage, setSignalsPage] = useState(0);
   const [signalsRowsPerPage, setSignalsRowsPerPage] = useState(10);
-  const [derivedFilter, setDerivedFilter] = useState<DerivedFilter>("all");
-  const [derivedQuery, setDerivedQuery] = useState("");
-  const [derivedPage, setDerivedPage] = useState(0);
-  const [derivedRowsPerPage, setDerivedRowsPerPage] = useState(10);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
   const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
-  const deferredDerivedQuery = useDeferredValue(derivedQuery);
   const lastLoadScopeRef = useRef("");
 
   useEffect(() => {
@@ -738,85 +329,10 @@ export default function DashboardView(props: Props) {
     props.token,
   ]);
 
-  const selectSignalFilter = (filter: SignalFilter) => {
+  const selectSignalFilter = (filter: string) => {
     setSignalFilter(filter);
     setSignalsPage(0);
   };
-
-  const selectDerivedFilter = (filter: DerivedFilter) => {
-    setDerivedFilter(filter);
-    setDerivedPage(0);
-  };
-
-  const derivedRows = useMemo(() => {
-    const derived = data?.item?.derived;
-    if (!derived) return [];
-    const nodeRows = (derived.nodes.nodes || []).map((node) => ({
-      type: "nodes" as const,
-      key: `node/${node.name}`,
-      primary: node.name,
-      secondary: `${node.namespaceCount} namespace${node.namespaceCount === 1 ? "" : "s"} · ${node.runningPods}/${node.pods} running`,
-      metric: `${node.restartCount} restarts · ${node.elevatedRestartPods} elevated`,
-      signals: node.problematicPods,
-      severity: node.severity,
-      target: { kind: "Node" as const, namespace: "", name: node.name },
-    }));
-    const chartRows = (derived.helmCharts.charts || []).map((chart) => {
-      const versionLabel = chart.versions && chart.versions.length > 1
-        ? `${chart.versions.length} versions`
-        : chart.versions?.[0]?.chartVersion || "unknown version";
-      return {
-        type: "helm" as const,
-        key: `helm/${chart.chartName}`,
-        primary: chart.chartName,
-        secondary: `${versionLabel} · ${chart.namespaceCount} namespace${chart.namespaceCount === 1 ? "" : "s"}`,
-        metric: `${chart.releases} release${chart.releases === 1 ? "" : "s"}`,
-        signals: chart.needsAttention || 0,
-        severity: chart.needsAttention ? "medium" : "low",
-        target: {
-          kind: "HelmChart" as const,
-          namespace: "",
-          name: chart.chartName,
-          chart: {
-            chartName: chart.chartName,
-            chartVersion: chart.versions && chart.versions.length > 1 ? "multiple" : chart.versions?.[0]?.chartVersion || "",
-            appVersion: chart.versions && chart.versions.length > 1 ? "multiple" : chart.versions?.[0]?.appVersion || "",
-            releases: chart.releases,
-            namespaces: chart.namespaces || [],
-            statuses: chart.statuses,
-            needsAttention: chart.needsAttention,
-            versions: chart.versions,
-            derived: true,
-            derivedSource: derived.helmCharts.meta.source,
-            derivedCoverage: derived.helmCharts.meta.coverage,
-            derivedNote: derived.helmCharts.meta.note,
-          },
-        },
-      };
-    });
-    return [...nodeRows, ...chartRows];
-  }, [data?.item?.derived]);
-
-  const filteredDerivedRows = useMemo(() => {
-    const q = deferredDerivedQuery.trim().toLowerCase();
-    return derivedRows.filter((row) => {
-      if (derivedFilter === "nodes" && row.type !== "nodes") return false;
-      if (derivedFilter === "helm" && row.type !== "helm") return false;
-      if (derivedFilter === "signals" && row.signals <= 0) return false;
-      if (!q) return true;
-      return (
-        row.primary.toLowerCase().includes(q) ||
-        row.secondary.toLowerCase().includes(q) ||
-        row.metric.toLowerCase().includes(q) ||
-        row.type.includes(q)
-      );
-    });
-  }, [deferredDerivedQuery, derivedFilter, derivedRows]);
-
-  const visibleDerivedRows = useMemo(
-    () => filteredDerivedRows.slice(derivedPage * derivedRowsPerPage, derivedPage * derivedRowsPerPage + derivedRowsPerPage),
-    [derivedPage, derivedRowsPerPage, filteredDerivedRows],
-  );
 
   return (
     <Box
@@ -865,13 +381,6 @@ export default function DashboardView(props: Props) {
             const nodes = visibility.nodes;
             const cov = coverage;
             const knownScope = `${cov.namespacesInResourceTotals} / ${cov.visibleNamespaces}`;
-            const topSignals = signalPanel?.top || [];
-            const visibleSignals = signalPanel?.items || [];
-            const visibleSignalsTotal = signalPanel?.itemsTotal ?? visibleSignals.length;
-            const signalQuickFilters =
-              signalPanel?.filters && signalPanel.filters.length > 0 ? signalPanel.filters : fallbackSignalFilters(signalPanel, topSignals.length);
-            const signalFilterGroups = groupedSignalFilters(signalQuickFilters);
-            const selectedSignalFilterLabel = signalQuickFilters.find((filter) => filter.id === signalFilter)?.label || signalFilterLabel(signalFilter);
 
             return (
               <>
@@ -908,136 +417,19 @@ export default function DashboardView(props: Props) {
                   />
                 </Box>
 
-                <Box
-                  sx={{
-                    display: "block",
-                  }}
-                >
-                  <Paper variant="outlined" sx={dashboardPanelSx}>
-                    <PanelTitle
-                      title="Signals"
-                      hint={signalPanel?.note || "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope signals."}
-                    />
-                    <Box sx={dashboardPanelSectionSx}>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                        Filter cached-scope signals by severity, kind, signal reason, or namespace.
-                      </Typography>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        {signalFilterGroups.map((group) => (
-                          <Box key={group.category}>
-                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                              {group.label}
-                            </Typography>
-                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                              {group.filters.map((filter) => (
-                                <SignalFilterChip
-                                  key={filter.id}
-                                  filter={filter.id}
-                                  label={filter.label}
-                                  count={filter.count}
-                                  color={signalFilterColor(filter)}
-                                  hideWhenZero={filter.category === "signal_type" || filter.category === "kind" || filter.category === "namespace"}
-                                  selected={signalFilter === filter.id}
-                                  onSelect={selectSignalFilter}
-                                />
-                              ))}
-                            </Box>
-                          </Box>
-                        ))}
-                      </Box>
-                    </Box>
-                    <Box sx={{ ...dashboardPanelSectionSx, flex: 1 }}>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1 }}>
-                        <TextField
-                          size="small"
-                          label="Search signals"
-                          value={signalsQuery}
-                          onChange={(event) => {
-                            setSignalsQuery(event.target.value);
-                            setSignalsPage(0);
-                          }}
-                          placeholder="name, kind, namespace..."
-                          sx={{ minWidth: { xs: "100%", sm: 280 } }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                          Showing {visibleSignals.length} of {visibleSignalsTotal} {selectedSignalFilterLabel.toLowerCase()} signal
-                          {visibleSignalsTotal === 1 ? "" : "s"}.
-                        </Typography>
-                      </Box>
-                      {visibleSignals.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          No cached-scope signals for this filter.
-                        </Typography>
-                      ) : (
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell sx={{ pl: 0 }}>Severity</TableCell>
-                              <TableCell>Kind</TableCell>
-                              <TableCell>Resource</TableCell>
-                              <TableCell>Signal</TableCell>
-                              <TableCell sx={{ pr: 0, textAlign: "right" }}>Action</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {visibleSignals.map((f) => (
-                              <TableRow key={`${f.kind}/${f.namespace || ""}/${f.name || ""}/${f.reason}`}>
-                                <TableCell sx={{ py: 0.6, pl: 0, width: 104, verticalAlign: "top" }}>
-                                  <Chip size="small" color={severityColor(f.severity)} label={f.severity} />
-                                </TableCell>
-                                <TableCell sx={{ py: 0.6, width: 132, verticalAlign: "top" }}>
-                                  <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} />
-                                </TableCell>
-                                <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {signalResourceName(f)}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {signalLocation(f)}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {signalCalculatedText(f)}
-                                    <SignalHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {signalActualText(f)}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: 0.6, pr: 0, textAlign: "right", width: 110, verticalAlign: "top" }}>
-                                  {inspectTargetFromSignal(f) ? (
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      onClick={() => setInspectTarget(inspectTargetFromSignal(f))}
-                                    >
-                                      Inspect
-                                    </Button>
-                                  ) : null}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                      {visibleSignalsTotal > 0 ? (
-                        <TablePagination
-                          component="div"
-                          count={visibleSignalsTotal}
-                          page={signalsPage}
-                          rowsPerPage={signalsRowsPerPage}
-                          rowsPerPageOptions={[10, 25, 50, 100]}
-                          onPageChange={(_, page) => setSignalsPage(page)}
-                          onRowsPerPageChange={(event) => {
-                            setSignalsRowsPerPage(Number(event.target.value));
-                            setSignalsPage(0);
-                          }}
-                          sx={{ borderTop: "1px solid var(--panel-border)", mt: 1 }}
-                        />
-                      ) : null}
-                    </Box>
-                  </Paper>
+                <Box sx={{ display: "block" }}>
+                  <DashboardSignalsPanel
+                    signalPanel={signalPanel}
+                    signalFilter={signalFilter}
+                    onSignalFilterChange={selectSignalFilter}
+                    signalsQuery={signalsQuery}
+                    onSignalsQueryChange={setSignalsQuery}
+                    signalsPage={signalsPage}
+                    onSignalsPageChange={setSignalsPage}
+                    signalsRowsPerPage={signalsRowsPerPage}
+                    onSignalsRowsPerPageChange={setSignalsRowsPerPage}
+                    onInspect={setInspectTarget}
+                  />
                 </Box>
 
                 <Paper variant="outlined" sx={{ p: 2 }}>
@@ -1083,118 +475,7 @@ export default function DashboardView(props: Props) {
                 </Paper>
 
                 {derived ? (
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <PanelTitle
-                      title="Derived Signals"
-                      hint="Explicitly derived projections from cached dataplane snapshots. These do not perform hidden live Kubernetes reads and may be sparse."
-                    />
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                      <Chip size="small" variant="outlined" label={`Node source ${derived.nodes.meta.source}`} />
-                      <Chip size="small" variant="outlined" label={`Helm source ${derived.helmCharts.meta.source}`} />
-                      <Chip size="small" color="warning" variant="outlined" label="Sparse / inexact" />
-                    </Box>
-                    <Box sx={dashboardPanelSectionSx}>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                        Filter sparse derived node and Helm chart rows. These rows preserve the normal Nodes and Helm Charts inspect targets.
-                      </Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                        <DerivedFilterChip filter="all" count={derivedRows.length} selected={derivedFilter === "all"} onSelect={selectDerivedFilter} />
-                        <DerivedFilterChip filter="nodes" count={derived.nodes.total} selected={derivedFilter === "nodes"} onSelect={selectDerivedFilter} />
-                        <DerivedFilterChip filter="helm" count={derived.helmCharts.total} selected={derivedFilter === "helm"} onSelect={selectDerivedFilter} />
-                        <DerivedFilterChip
-                          filter="signals"
-                          count={derivedRows.filter((row) => row.signals > 0).length}
-                          selected={derivedFilter === "signals"}
-                          onSelect={selectDerivedFilter}
-                        />
-                      </Box>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1 }}>
-                        <TextField
-                          size="small"
-                          label="Search derived signals"
-                          value={derivedQuery}
-                          onChange={(event) => {
-                            setDerivedQuery(event.target.value);
-                            setDerivedPage(0);
-                          }}
-                          placeholder="node, chart, version..."
-                          sx={{ minWidth: { xs: "100%", sm: 280 } }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                          Showing {visibleDerivedRows.length} of {filteredDerivedRows.length} derived row
-                          {filteredDerivedRows.length === 1 ? "" : "s"}.
-                        </Typography>
-                      </Box>
-                      {visibleDerivedRows.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          No derived rows match this filter.
-                        </Typography>
-                      ) : (
-                        <Table size="small">
-                          <TableBody>
-                            {visibleDerivedRows.map((row) => (
-                              <TableRow key={row.key} hover onClick={() => setInspectTarget(row.target)} sx={{ cursor: "pointer" }}>
-                                <TableCell sx={{ border: 0, py: 0.6, pl: 0, width: 120, verticalAlign: "top" }}>
-                                  <Chip size="small" label={row.type === "nodes" ? "Node" : "Helm chart"} variant="outlined" />
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top" }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {row.primary}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {row.secondary}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top" }}>
-                                  {row.metric}
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top", width: 120 }}>
-                                  {row.signals > 0 ? (
-                                    <Chip
-                                      size="small"
-                                      color={severityColor(row.severity)}
-                                      label={`${row.signals} signal${row.signals === 1 ? "" : "s"}`}
-                                    />
-                                  ) : (
-                                    <Typography variant="caption" color="text.secondary">
-                                      -
-                                    </Typography>
-                                  )}
-                                </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, pr: 0, textAlign: "right", verticalAlign: "top", width: 100 }}>
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setInspectTarget(row.target);
-                                    }}
-                                  >
-                                    Inspect
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                      {filteredDerivedRows.length > 0 ? (
-                        <TablePagination
-                          component="div"
-                          count={filteredDerivedRows.length}
-                          page={derivedPage}
-                          rowsPerPage={derivedRowsPerPage}
-                          rowsPerPageOptions={[10, 25, 50, 100]}
-                          onPageChange={(_, page) => setDerivedPage(page)}
-                          onRowsPerPageChange={(event) => {
-                            setDerivedRowsPerPage(Number(event.target.value));
-                            setDerivedPage(0);
-                          }}
-                          sx={{ borderTop: "1px solid var(--panel-border)", mt: 1 }}
-                        />
-                      ) : null}
-                    </Box>
-                  </Paper>
+                  <DashboardDerivedPanel derived={derived} onInspect={setInspectTarget} />
                 ) : null}
 
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" }, gap: 2 }}>
