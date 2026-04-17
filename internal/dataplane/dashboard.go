@@ -5,21 +5,17 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"kview/internal/kube/dto"
 )
 
 // ClusterDashboardSummary is a bounded Stage 5C operator overview derived from dataplane snapshots.
 type ClusterDashboardSummary struct {
-	Plane         ClusterDashboardPlane           `json:"plane"`
-	Visibility    ClusterDashboardVisibilityPanel `json:"visibility"`
-	Coverage      ClusterDashboardCoverage        `json:"coverage"`
-	Resources     ClusterDashboardResourcesPanel  `json:"resources"`
-	Hotspots      ClusterDashboardHotspotsPanel   `json:"hotspots"`
-	Findings      ClusterDashboardFindingsPanel   `json:"findings"`
-	Derived       ClusterDashboardDerivedPanel    `json:"derived"`
-	WorkloadHints ClusterDashboardWorkloadHints   `json:"workloadHints"`
-	Dataplane     ClusterDashboardDataplaneStats  `json:"dataplane"`
+	Plane      ClusterDashboardPlane           `json:"plane"`
+	Visibility ClusterDashboardVisibilityPanel `json:"visibility"`
+	Coverage   ClusterDashboardCoverage        `json:"coverage"`
+	Resources  ClusterDashboardResourcesPanel  `json:"resources"`
+	Signals    ClusterDashboardSignalsPanel    `json:"signals"`
+	Derived    ClusterDashboardDerivedPanel    `json:"derived"`
+	Dataplane  ClusterDashboardDataplaneStats  `json:"dataplane"`
 }
 
 type ClusterDashboardPlane struct {
@@ -108,65 +104,50 @@ type ClusterDashboardResourcesPanel struct {
 	AggregateDegradation   string `json:"aggregateDegradation,omitempty"`
 }
 
-// ClusterDashboardProblematicNamespace ranks namespaces by problematic resource count within the cached workload scope.
-type ClusterDashboardProblematicNamespace struct {
-	Namespace string `json:"namespace"`
-	Score     int    `json:"score"`
+// ClusterDashboardSignalsPanel groups heuristic dataplane signals from cached namespace snapshots.
+type ClusterDashboardSignalsPanel struct {
+	Total                 int                            `json:"total"`
+	High                  int                            `json:"high"`
+	Medium                int                            `json:"medium"`
+	Low                   int                            `json:"low"`
+	EmptyNamespaces       int                            `json:"emptyNamespaces"`
+	StuckHelmReleases     int                            `json:"stuckHelmReleases"`
+	AbnormalJobs          int                            `json:"abnormalJobs"`
+	AbnormalCronJobs      int                            `json:"abnormalCronJobs"`
+	EmptyConfigMaps       int                            `json:"emptyConfigMaps"`
+	EmptySecrets          int                            `json:"emptySecrets"`
+	PotentiallyUnusedPVCs int                            `json:"potentiallyUnusedPVCs"`
+	PotentiallyUnusedSAs  int                            `json:"potentiallyUnusedServiceAccounts"`
+	QuotaWarnings         int                            `json:"quotaWarnings"`
+	PodRestartSignals     int                            `json:"podRestartSignals"`
+	ServiceWarnings       int                            `json:"serviceWarnings"`
+	IngressWarnings       int                            `json:"ingressWarnings"`
+	PVCWarnings           int                            `json:"pvcWarnings"`
+	RoleWarnings          int                            `json:"roleWarnings"`
+	RoleBindingWarnings   int                            `json:"roleBindingWarnings"`
+	Filters               []ClusterDashboardSignalFilter `json:"filters,omitempty"`
+	Top                   []ClusterDashboardSignal       `json:"top,omitempty"`
+	Items                 []ClusterDashboardSignal       `json:"items,omitempty"`
+	ItemsTotal            int                            `json:"itemsTotal"`
+	ItemsOffset           int                            `json:"itemsOffset"`
+	ItemsLimit            int                            `json:"itemsLimit"`
+	ItemsFilter           string                         `json:"itemsFilter,omitempty"`
+	ItemsQuery            string                         `json:"itemsQuery,omitempty"`
+	ItemsHasMore          bool                           `json:"itemsHasMore,omitempty"`
+	Note                  string                         `json:"note,omitempty"`
+	AggregateFreshness    string                         `json:"aggregateFreshness,omitempty"`
+	AggregateDegradation  string                         `json:"aggregateDegradation,omitempty"`
 }
 
-// ClusterDashboardHotspotsPanel is derived from the same cached-namespace scope as Resources.
-type ClusterDashboardHotspotsPanel struct {
-	UnhealthyNamespaces        int                                    `json:"unhealthyNamespaces"`
-	DegradedDeployments        int                                    `json:"degradedDeployments"`
-	PodsWithElevatedRestarts   int                                    `json:"podsWithElevatedRestarts"`
-	ProblematicResources       int                                    `json:"problematicResources"`
-	TopProblematicNamespaces   []ClusterDashboardProblematicNamespace `json:"topProblematicNamespaces,omitempty"`
-	TopPodRestartHotspots      []dto.PodRestartHotspotDTO             `json:"topPodRestartHotspots,omitempty"`
-	RestartHotspotsTotal       int                                    `json:"restartHotspotsTotal"`
-	RestartHotspotsOffset      int                                    `json:"restartHotspotsOffset"`
-	RestartHotspotsLimit       int                                    `json:"restartHotspotsLimit"`
-	RestartHotspotsQuery       string                                 `json:"restartHotspotsQuery,omitempty"`
-	RestartHotspotsHasMore     bool                                   `json:"restartHotspotsHasMore,omitempty"`
-	Note                       string                                 `json:"note,omitempty"`
-	AggregateFreshness         string                                 `json:"aggregateFreshness,omitempty"`
-	AggregateDegradation       string                                 `json:"aggregateDegradation,omitempty"`
-	HighSeverityHotspotsInTopN int                                    `json:"highSeverityHotspotsInTopN"`
+type ClusterDashboardSignalFilter struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Count    int    `json:"count"`
+	Category string `json:"category,omitempty"`
+	Severity string `json:"severity,omitempty"`
 }
 
-// ClusterDashboardFindingsPanel groups heuristic dataplane findings from cached namespace snapshots.
-type ClusterDashboardFindingsPanel struct {
-	Total                 int                       `json:"total"`
-	High                  int                       `json:"high"`
-	Medium                int                       `json:"medium"`
-	Low                   int                       `json:"low"`
-	EmptyNamespaces       int                       `json:"emptyNamespaces"`
-	StuckHelmReleases     int                       `json:"stuckHelmReleases"`
-	AbnormalJobs          int                       `json:"abnormalJobs"`
-	AbnormalCronJobs      int                       `json:"abnormalCronJobs"`
-	EmptyConfigMaps       int                       `json:"emptyConfigMaps"`
-	EmptySecrets          int                       `json:"emptySecrets"`
-	PotentiallyUnusedPVCs int                       `json:"potentiallyUnusedPVCs"`
-	PotentiallyUnusedSAs  int                       `json:"potentiallyUnusedServiceAccounts"`
-	QuotaWarnings         int                       `json:"quotaWarnings"`
-	ServiceWarnings       int                       `json:"serviceWarnings"`
-	IngressWarnings       int                       `json:"ingressWarnings"`
-	PVCWarnings           int                       `json:"pvcWarnings"`
-	RoleWarnings          int                       `json:"roleWarnings"`
-	RoleBindingWarnings   int                       `json:"roleBindingWarnings"`
-	Top                   []ClusterDashboardFinding `json:"top,omitempty"`
-	Items                 []ClusterDashboardFinding `json:"items,omitempty"`
-	ItemsTotal            int                       `json:"itemsTotal"`
-	ItemsOffset           int                       `json:"itemsOffset"`
-	ItemsLimit            int                       `json:"itemsLimit"`
-	ItemsFilter           string                    `json:"itemsFilter,omitempty"`
-	ItemsQuery            string                    `json:"itemsQuery,omitempty"`
-	ItemsHasMore          bool                      `json:"itemsHasMore,omitempty"`
-	Note                  string                    `json:"note,omitempty"`
-	AggregateFreshness    string                    `json:"aggregateFreshness,omitempty"`
-	AggregateDegradation  string                    `json:"aggregateDegradation,omitempty"`
-}
-
-type ClusterDashboardFinding struct {
+type ClusterDashboardSignal struct {
 	Kind            string `json:"kind"`
 	Namespace       string `json:"namespace,omitempty"`
 	Name            string `json:"name,omitempty"`
@@ -177,27 +158,20 @@ type ClusterDashboardFinding struct {
 	SuggestedAction string `json:"suggestedAction,omitempty"`
 	Confidence      string `json:"confidence,omitempty"`
 	Section         string `json:"section,omitempty"`
+	SignalType      string `json:"signalType,omitempty"`
+	ResourceKind    string `json:"resourceKind,omitempty"`
+	ResourceName    string `json:"resourceName,omitempty"`
+	Scope           string `json:"scope,omitempty"`         // cluster | namespace
+	ScopeLocation   string `json:"scopeLocation,omitempty"` // namespace, node, or another scope-specific location
+	ActualData      string `json:"actualData,omitempty"`
+	CalculatedData  string `json:"calculatedData,omitempty"`
 }
 
 type ClusterDashboardListOptions struct {
-	FindingsFilter        string
-	FindingsQuery         string
-	FindingsOffset        int
-	FindingsLimit         int
-	RestartHotspotsQuery  string
-	RestartHotspotsOffset int
-	RestartHotspotsLimit  int
-}
-
-// ClusterDashboardWorkloadHints mirrors Hotspots for compact UI chips.
-type ClusterDashboardWorkloadHints struct {
-	TotalNamespacesVisible      int                        `json:"totalNamespacesVisible"`
-	NamespacesWithWorkloadCache int                        `json:"namespacesWithWorkloadCache"`
-	TopPodRestartHotspots       []dto.PodRestartHotspotDTO `json:"topPodRestartHotspots,omitempty"`
-	PodsWithElevatedRestarts    int                        `json:"podsWithElevatedRestarts"`
-	HighSeverityHotspotsInTopN  int                        `json:"highSeverityHotspotsInTopN"`
-	AggregateFreshness          string                     `json:"aggregateFreshness,omitempty"`
-	AggregateDegradation        string                     `json:"aggregateDegradation,omitempty"`
+	SignalsFilter string
+	SignalsQuery  string
+	SignalsOffset int
+	SignalsLimit  int
 }
 
 type ClusterDashboardDataplaneStats struct {
@@ -313,13 +287,19 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	resPanel, hotPanel, findingsPanel, derivedPanel, wh, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nsUnhealthy, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
+	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
+	if derivedPanel.Nodes.Total > nodeTotal {
+		nodeTotal = derivedPanel.Nodes.Total
+		if nodeState == "empty" {
+			nodeState = "degraded"
+		}
+	}
 	dpStats := dashboardDataplaneStatsFromSnapshots(m.stats.snapshot(), m.scheduler.StatsSnapshot(), time.Now().UTC())
 	if policy.NamespaceEnrichment.Enabled && policy.NamespaceEnrichment.Sweep.Enabled && len(nsSnap.Items) > 0 && !m.hasNamespaceEnrichmentInFlight(clusterName) {
 		m.BeginNamespaceListProgressiveEnrichment(clusterName, nsSnap.Items, NamespaceEnrichHints{})
 	}
 
-	trust := "Namespace and node blocks reflect dataplane snapshots. Resource totals and hotspots use only namespaces where the dataplane already has cached list snapshots (see coverage.resourceTotalsCompleteness and coverage.namespacesInResourceTotals)."
+	trust := "Namespace and node blocks reflect dataplane snapshots. Resource totals and signals use only namespaces where the dataplane already has cached list snapshots (see coverage.resourceTotalsCompleteness and coverage.namespacesInResourceTotals)."
 
 	return ClusterDashboardSummary{
 		Plane: ClusterDashboardPlane{
@@ -357,13 +337,11 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 			NodesObservedAt:      formatSnapshotTime(nodesSnap.Meta.ObservedAt),
 			TrustNote:            trust,
 		},
-		Coverage:      cov,
-		Resources:     resPanel,
-		Hotspots:      hotPanel,
-		Findings:      findingsPanel,
-		Derived:       derivedPanel,
-		WorkloadHints: wh,
-		Dataplane:     dpStats,
+		Coverage:  cov,
+		Resources: resPanel,
+		Signals:   signalsPanel,
+		Derived:   derivedPanel,
+		Dataplane: dpStats,
 	}
 }
 

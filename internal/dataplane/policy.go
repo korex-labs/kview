@@ -85,9 +85,8 @@ type BackgroundBudgetPolicy struct {
 type DashboardPolicy struct {
 	RefreshSec               int  `json:"refreshSec"`
 	UseCachedTotalsOnly      bool `json:"useCachedTotalsOnly"`
-	IncludeHotspots          bool `json:"includeHotspots"`
 	RestartElevatedThreshold int  `json:"restartElevatedThreshold"`
-	HotspotLimit             int  `json:"hotspotLimit"`
+	SignalLimit              int  `json:"signalLimit"`
 }
 
 func DefaultDataplanePolicy() DataplanePolicy {
@@ -172,9 +171,8 @@ func DefaultDataplanePolicy() DataplanePolicy {
 		Dashboard: DashboardPolicy{
 			RefreshSec:               10,
 			UseCachedTotalsOnly:      true,
-			IncludeHotspots:          true,
 			RestartElevatedThreshold: 3,
-			HotspotLimit:             10,
+			SignalLimit:              10,
 		},
 	}
 }
@@ -225,7 +223,7 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 
 	out.Dashboard.RefreshSec = clampInt(out.Dashboard.RefreshSec, 0, 3600, def.Dashboard.RefreshSec)
 	out.Dashboard.RestartElevatedThreshold = clampInt(out.Dashboard.RestartElevatedThreshold, 1, 1000, def.Dashboard.RestartElevatedThreshold)
-	out.Dashboard.HotspotLimit = clampInt(out.Dashboard.HotspotLimit, 1, 100, def.Dashboard.HotspotLimit)
+	out.Dashboard.SignalLimit = clampInt(out.Dashboard.SignalLimit, 1, 100, def.Dashboard.SignalLimit)
 
 	if out.Profile == DataplaneProfileManual {
 		out.Observers.Enabled = false

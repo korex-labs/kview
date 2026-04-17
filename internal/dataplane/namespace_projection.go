@@ -11,7 +11,6 @@ import (
 
 const (
 	namespaceSummaryMaxProblematic = 10
-	namespaceSummaryHotspotLimit   = 15
 )
 
 // NamespaceSummaryProjection is a projection-backed view of namespace resources plus metadata.
@@ -148,11 +147,6 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		cjSnap, cjErr,
 	)
 	res.WorkloadByKind = &wh.Rollup
-
-	if podsErr == nil {
-		hot := ProjectRestartHotspotsFromPods(namespace, podsSnap, namespaceSummaryHotspotLimit)
-		res.RestartHotspots = hot.Items
-	}
 
 	workloadProblems := WorkloadProblematicCandidates(
 		depsSnap.Items,

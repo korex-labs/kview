@@ -689,12 +689,14 @@ func (s *Server) Router() http.Handler {
 
 			snap, err := s.dp.NamespacesSnapshot(ctx, active)
 			if err != nil {
-				status := http.StatusInternalServerError
-				if apierrors.IsForbidden(err) {
-					status = http.StatusForbidden
+				if len(snap.Items) == 0 {
+					status := http.StatusInternalServerError
+					if apierrors.IsForbidden(err) {
+						status = http.StatusForbidden
+					}
+					writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+					return
 				}
-				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
-				return
 			}
 
 			state := dataplane.CoarseState(snap.Err, len(snap.Items))
@@ -714,9 +716,12 @@ func (s *Server) Router() http.Handler {
 				Stage:        "list",
 				Note:         "Pod and deployment counts for current, recent, and favourite namespaces appear shortly after you stop interacting with the app.",
 			}
+			if err != nil {
+				rowProj.Note = "Namespace list is using cached data because the latest refresh failed. Row metrics may update after the next successful refresh."
+			}
 			if rev == 0 {
 				rowProj.Loading = false
-				if len(items) > 0 {
+				if len(items) > 0 && err == nil {
 					if !policy.Enabled {
 						rowProj.Note = "Namespace row enrichment is disabled in settings."
 					} else {
@@ -969,11 +974,24 @@ func (s *Server) Router() http.Handler {
 				s.dp.EnsureObservers(ctx, active)
 			}
 			snap, err := s.dp.NodesSnapshot(ctx, active)
-			if listLength(snap.Items) == 0 {
-				if derived, derr := s.dp.DerivedNodesSnapshot(ctx, active); derr == nil && (len(derived.Items) > 0 || err != nil || snap.Err != nil) {
+			if derived, derr := s.dp.DerivedNodesSnapshot(ctx, active); derr == nil && len(derived.Items) > 0 {
+				if len(snap.Items) == 0 {
 					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(derived.Items), derived.Meta, derived.Err)
 					return
 				}
+				merged := dataplane.MergeDirectAndDerivedNodeListItems(snap.Items, derived.Items)
+				if len(merged) > len(snap.Items) {
+					meta := snap.Meta
+					meta.Coverage = dataplane.CoverageClassPartial
+					meta.Completeness = dataplane.CompletenessClassInexact
+					if meta.Degradation == dataplane.DegradationClassNone || meta.Degradation == "" {
+						meta.Degradation = dataplane.DegradationClassMinor
+					}
+					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(merged), meta, snap.Err)
+					return
+				}
+			}
+			if listLength(snap.Items) == 0 {
 				if err != nil {
 					writeDataplaneListError(w, active, err)
 					return
@@ -3336,13 +3354,10 @@ func (s *Server) logClusterStatusTransition(clusterStatus statusClusterDTO) {
 func parseClusterDashboardListOptions(r *http.Request) dataplane.ClusterDashboardListOptions {
 	q := r.URL.Query()
 	return dataplane.ClusterDashboardListOptions{
-		FindingsFilter:        q.Get("findingsFilter"),
-		FindingsQuery:         q.Get("findingsQ"),
-		FindingsOffset:        parseNonNegativeQueryInt(q.Get("findingsOffset")),
-		FindingsLimit:         parseNonNegativeQueryInt(q.Get("findingsLimit")),
-		RestartHotspotsQuery:  q.Get("restartHotspotsQ"),
-		RestartHotspotsOffset: parseNonNegativeQueryInt(q.Get("restartHotspotsOffset")),
-		RestartHotspotsLimit:  parseNonNegativeQueryInt(q.Get("restartHotspotsLimit")),
+		SignalsFilter: q.Get("signalsFilter"),
+		SignalsQuery:  q.Get("signalsQ"),
+		SignalsOffset: parseNonNegativeQueryInt(q.Get("signalsOffset")),
+		SignalsLimit:  parseNonNegativeQueryInt(q.Get("signalsLimit")),
 	}
 }
 

@@ -49,7 +49,7 @@ Operators can inspect **running and queued** snapshot work via `GET /api/datapla
 
 Notable projection:
 
-- **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, bounded hotspots, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`). If at least one contributing snapshot is usable, the endpoint returns a degraded/partial payload instead of hard-failing the whole summary.
+- **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`). If at least one contributing snapshot is usable, the endpoint returns a degraded/partial payload instead of hard-failing the whole summary.
 
 ### Derived projections
 
@@ -71,7 +71,9 @@ Rule of thumb: derived projections can support correlation and triage, but the U
 
 ## Dashboard summary
 
-`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **findings** for cached-scope attention signals, derived sparse node/Helm chart signals, and optional **bounded** workload hints (cross-namespace sampling is not cluster-complete). Findings currently cover empty-looking namespaces, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, quota pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. The response includes both a capped `findings.top` list for first-glance triage and `findings.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
+`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **signals** for cached-scope attention, and derived sparse node/Helm chart projections. Signals currently cover empty-looking namespaces, elevated pod restarts, stale transitional Helm releases, abnormal Jobs/CronJobs, empty ConfigMaps/Secrets, quota pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. Detectors populate a single in-memory signal store for the request; the store keeps the signal table plus a resource identity index, so a resource can have multiple signals and projections can retrieve signals by resource kind/name/scope/location without re-running detection. The JSON panel is `signals`. Each item carries a stable signal shape: `signalType`, resource identity (`resourceKind`, `resourceName`), scope (`scope`, `scopeLocation`), `severity`, `actualData`, `calculatedData`, confidence, section/filter key, and advisory text (`likelyCause`, `suggestedAction`). The panel also includes `signals.filters`, a backend-provided quick-filter list with IDs, labels, counts, category, and severity hints for severity, resource kind, signal reason, and the top namespaces with problems, so the UI does not need to hard-code every signal type. The response includes both a capped `signals.top` list for first-glance triage and `signals.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
+
+`GET /api/namespaces/{name}/insights` uses the same signal store for namespace-scoped views. It returns the sorted flat `signals` list plus grouped `resourceSignals`, allowing drawer sections to attach the exact signals for a ResourceQuota, PVC, Service, or other resource by identity.
 
 ---
 
@@ -114,7 +116,7 @@ Current policy knobs include:
 - focused namespace enrichment: current/recent/favourite inclusion, caps, parallelism, idle quiet window, and stage toggles for namespace details, pods, deployments
 - optional background namespace sweep: per-cycle cap, per-hour cap, re-enrich interval, idle gate, system namespace inclusion
 - scheduler budget: per-cluster concurrency, transient retries, long-run snapshot activity threshold
-- dashboard projection hints: restart threshold and hotspot limit
+- dashboard projection hints: restart threshold and signal limit
 
 Validation keeps hard bounds on all numeric controls so wide/sweep settings can increase observability without unbounded cluster scans.
 

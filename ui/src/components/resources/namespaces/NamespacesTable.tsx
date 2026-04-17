@@ -154,7 +154,7 @@ const columns: GridColDef<Row>[] = [
           <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
             {row.podsWithRestarts ?? 0}
           </Typography>
-          {row.restartHotspot && <Chip size="small" label="Δ" color="warning" title="Elevated pod restarts (≥5)" />}
+          {row.restartSignal && <Chip size="small" label="Δ" color="warning" title="Elevated pod restarts (≥5)" />}
         </Box>
       );
     },

@@ -102,7 +102,7 @@ const columns: GridColDef<Row>[] = [
     headerName: "Signals",
     width: 110,
     type: "number",
-    renderCell: (p) => p.row.derived ? (p.row.problematicPods ?? 0) : "-",
+    renderCell: (p) => p.row.problematicPods ?? "-",
   },
   {
     field: "podDensityBucket",

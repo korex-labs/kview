@@ -38,7 +38,7 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | `GET /api/namespaces/{ns}/roles` | `RolesSnapshot` |
 | `GET /api/namespaces/{ns}/rolebindings` | `RoleBindingsSnapshot` |
 | `GET /api/namespaces/{ns}/helmreleases` | `HelmReleasesSnapshot`; backed by Helm's Secret storage in the namespace. |
-| `GET /api/namespaces/{ns}/resourcequotas` | `ResourceQuotasSnapshot`; also feeds namespace row quota pressure and dashboard findings. |
+| `GET /api/namespaces/{ns}/resourcequotas` | `ResourceQuotasSnapshot`; also feeds namespace row quota pressure and dashboard signals. |
 | `GET /api/namespaces/{ns}/limitranges` | `LimitRangesSnapshot`; also feeds namespace row limit-range count and dashboard totals. |
 
 ---
@@ -48,7 +48,7 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | Route | Behavior |
 |-------|----------|
 | `GET /api/namespaces` | Returns `NamespacesSnapshot` list immediately with `rowProjection.revision` / `loading`. Background stages enrich a scored subset: live **GET** per selected namespace (`GetNamespaceListFields`), then **pods + deployments** snapshots at low priority. If the namespace list order and target set are unchanged, the existing enrichment revision is reused so enriched rows remain stable across refreshes. Target namespaces are **scored from optional query hints**, not an alphabetical walk of the full list (see §2.1). UI polls `GET /api/namespaces/enrichment?revision=…`. |
-| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`: `visibility` (namespaces/nodes snapshots + observed-at), `resources` for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic `findings` from the same cached namespace scope, derived sparse node and Helm chart signals from cached pod/Helm release snapshots, and workload `hotspots` from the cached workload subset, plus `workloadHints` alias for chips. |
+| `GET /api/dashboard/cluster` | `EnsureObservers` + `DashboardSummary`: `visibility` (namespaces/nodes snapshots + observed-at), `resources` for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic cached-scope signal rows under the `signals` JSON panel, and derived sparse node and Helm chart projections from cached pod/Helm release snapshots. Detector output is collected into one request-local signal store indexed by resource kind/name/scope/location, so resources may carry multiple signals and projections can reuse the same signal table. Each signal item includes stable signal fields (`signalType`, resource identity, scope, severity, actual/calculated data, confidence, and advisory text). `signals.filters` provides backend-owned quick filter definitions and counts grouped by severity, kind, signal reason, and top namespaces with problems. |
 | `GET /api/namespaces/enrichment?revision=` | Server-side merge for progressive namespace list rows (same revision as `GET /api/namespaces`). Includes `enrichTargets` (count of namespaces in the scored enrichment subset). Reflects in-process background work, not a direct kube call. |
 | `GET /api/dataplane/search?q=…` | Cached quick-access search over the persisted dataplane name index for the active context, with `limit`/`offset` paging and `hasMore`. Prioritizes Helm releases, deployments, then ReplicaSets/DaemonSets/StatefulSets before other kinds. It does **not** perform live Kubernetes discovery; opening a result uses the normal resource detail drawer read. |
 
@@ -75,8 +75,8 @@ Background row enrichment is **narrow and user-aligned**:
 
 | Route | Behavior |
 |-------|----------|
-| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, `restartHotspots`, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. Returns a degraded/partial usable payload when at least one contributing snapshot is usable. |
-| `GET /api/namespaces/{name}/insights` | `NamespaceInsightsProjection`: namespace summary plus sorted namespace-scoped findings, full `ResourceQuota` entries, and `LimitRange` items from dataplane namespace-scoped snapshots only. Intended for the namespace drawer's observability-first view. |
+| `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. Returns a degraded/partial usable payload when at least one contributing snapshot is usable. |
+| `GET /api/namespaces/{name}/insights` | `NamespaceInsightsProjection`: namespace summary plus sorted namespace-scoped signal rows under the `signals` JSON key, grouped `resourceSignals` keyed by resource identity, full `ResourceQuota` entries, and `LimitRange` items from dataplane namespace-scoped snapshots only. Intended for the namespace drawer's observability-first view. |
 
 ---
 

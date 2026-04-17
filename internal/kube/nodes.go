@@ -13,14 +13,16 @@ import (
 	"kview/internal/kube/dto"
 )
 
+const nodeListChunkLimit int64 = 500
+
 func ListNodes(ctx context.Context, c *cluster.Clients) ([]dto.NodeListItemDTO, error) {
-	nodes, err := c.Clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	nodes, err := listAllNodes(ctx, c)
 	if err != nil {
 		return nil, err
 	}
 
 	podCounts := map[string]int{}
-	if pods, err := c.Clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{}); err == nil {
+	if pods, err := listAllPodsForNodeCounts(ctx, c); err == nil {
 		for _, p := range pods.Items {
 			if p.Spec.NodeName == "" {
 				continue
@@ -50,6 +52,46 @@ func ListNodes(ctx context.Context, c *cluster.Clients) ([]dto.NodeListItemDTO, 
 		})
 	}
 	return out, nil
+}
+
+func listAllNodes(ctx context.Context, c *cluster.Clients) (*corev1.NodeList, error) {
+	return listAllNodePages(ctx, c.Clientset.CoreV1().Nodes().List)
+}
+
+func listAllNodePages(ctx context.Context, list func(context.Context, metav1.ListOptions) (*corev1.NodeList, error)) (*corev1.NodeList, error) {
+	var out corev1.NodeList
+	opts := metav1.ListOptions{Limit: nodeListChunkLimit}
+	for {
+		page, err := list(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, page.Items...)
+		if page.Continue == "" {
+			return &out, nil
+		}
+		opts.Continue = page.Continue
+	}
+}
+
+func listAllPodsForNodeCounts(ctx context.Context, c *cluster.Clients) (*corev1.PodList, error) {
+	return listAllPodPages(ctx, c.Clientset.CoreV1().Pods("").List)
+}
+
+func listAllPodPages(ctx context.Context, list func(context.Context, metav1.ListOptions) (*corev1.PodList, error)) (*corev1.PodList, error) {
+	var out corev1.PodList
+	opts := metav1.ListOptions{Limit: nodeListChunkLimit}
+	for {
+		page, err := list(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, page.Items...)
+		if page.Continue == "" {
+			return &out, nil
+		}
+		opts.Continue = page.Continue
+	}
 }
 
 func nodeReadyStatus(conds []corev1.NodeCondition) string {

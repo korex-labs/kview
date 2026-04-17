@@ -195,7 +195,7 @@ function AppInner() {
 
       // 2) namespaces
       const nsPath0 = namespacesListApiPath(appState, chosenCtx, appState.activeNamespace || "");
-      const { limited, items: nsItems } = await fetchNamespaces(token, nsPath0);
+      const { limited, items: nsItems } = await fetchNamespaces(token, nsPath0, chosenCtx);
       setNsLimited(limited);
       setNamespaces(nsItems);
 
@@ -238,9 +238,10 @@ function AppInner() {
   async function fetchNamespaces(
     currentToken: string,
     apiPath: string,
+    contextName: string,
   ): Promise<{ limited: boolean; items: string[] }> {
     try {
-      const nsRes = await apiGet<ApiNamespacesListResponse>(apiPath, currentToken);
+      const nsRes = await apiGetWithContext<ApiNamespacesListResponse>(apiPath, currentToken, contextName);
       return {
         limited: !!nsRes.limited,
         items: (nsRes.items || []).map((x) => x.name),
@@ -259,7 +260,7 @@ function AppInner() {
     setActiveContext(name);
 
     const nsPath = namespacesListApiPath(appState, name, appState.activeNamespace || "");
-    const { limited, items: nsItems } = await fetchNamespaces(token, nsPath);
+    const { limited, items: nsItems } = await fetchNamespaces(token, nsPath, name);
     setNsLimited(limited);
     setNamespaces(nsItems);
 

@@ -70,12 +70,13 @@ type NamespaceCondition = {
 
 type NamespaceInsights = {
   summary: NamespaceSummaryResources;
-  findings?: NamespaceFinding[];
+  signals?: NamespaceSignal[];
+  resourceSignals?: NamespaceResourceSignals[];
   resourceQuotas?: ResourceQuota[];
   limitRanges?: LimitRange[];
 };
 
-type NamespaceFinding = {
+type NamespaceSignal = {
   kind: string;
   namespace?: string;
   name?: string;
@@ -86,6 +87,21 @@ type NamespaceFinding = {
   suggestedAction?: string;
   confidence?: string;
   section?: string;
+  signalType?: string;
+  resourceKind?: string;
+  resourceName?: string;
+  scope?: string;
+  scopeLocation?: string;
+  actualData?: string;
+  calculatedData?: string;
+};
+
+type NamespaceResourceSignals = {
+  resourceKind: string;
+  resourceName: string;
+  scope?: string;
+  scopeLocation?: string;
+  signals?: NamespaceSignal[];
 };
 
 type WorkloadKindHealthRollup = {
@@ -104,16 +120,6 @@ type NamespaceWorkloadHealthRollup = {
   replicaSets: WorkloadKindHealthRollup;
 };
 
-type PodRestartHotspot = {
-  namespace: string;
-  name: string;
-  restarts: number;
-  phase: string;
-  node?: string;
-  lastEventReason?: string;
-  severity: string;
-};
-
 type NamespaceSummaryResources = {
   counts: ResourceCounts;
   podHealth: PodHealth;
@@ -121,7 +127,6 @@ type NamespaceSummaryResources = {
   problematic: ProblematicResource[];
   helmReleases?: NamespaceHelmRelease[];
   workloadByKind?: NamespaceWorkloadHealthRollup;
-  restartHotspots?: PodRestartHotspot[];
   meta?: NamespaceSummaryMeta;
 };
 
@@ -232,7 +237,7 @@ const sectionMap: Record<string, string> = {
   roleBindings: "rolebindings",
 };
 
-function findingSeverityColor(severity?: string): "error" | "warning" | "info" | "default" {
+function signalSeverityColor(severity?: string): "error" | "warning" | "info" | "default" {
   if (severity === "high") return "error";
   if (severity === "medium") return "warning";
   if (severity === "low") return "info";
@@ -277,16 +282,70 @@ function summarizeQuotaPressure(quotas: ResourceQuota[]): { critical: number; wa
   return { critical, warning };
 }
 
-function findingTarget(finding: NamespaceFinding): string {
-  if (!finding.name) return finding.namespace || finding.kind;
-  return finding.namespace ? `${finding.namespace}/${finding.name}` : finding.name;
+function signalTarget(signal: NamespaceSignal): string {
+  if (!signal.name) return signal.namespace || signal.kind;
+  return signal.namespace ? `${signal.namespace}/${signal.name}` : signal.name;
 }
 
-function findingNote(finding: NamespaceFinding): string {
-  const parts = [finding.reason];
-  if (finding.likelyCause) parts.push(`Likely cause: ${finding.likelyCause}`);
-  if (finding.suggestedAction) parts.push(`Next step: ${finding.suggestedAction}`);
+function signalNote(signal: NamespaceSignal): string {
+  const actual = signal.actualData || signal.reason;
+  const parts = [actual];
+  if (signal.calculatedData && signal.calculatedData !== actual) parts.push(`Calculated: ${signal.calculatedData}`);
+  if (signal.likelyCause) parts.push(`Likely cause: ${signal.likelyCause}`);
+  if (signal.suggestedAction) parts.push(`Next step: ${signal.suggestedAction}`);
   return parts.join(" ");
+}
+
+function resourceSignalKey(kind: string, name: string, scope = "namespace", scopeLocation = ""): string {
+  return `${scope}/${scopeLocation}/${kind}/${name}`;
+}
+
+function buildResourceSignalMap(groups?: NamespaceResourceSignals[]): Map<string, NamespaceSignal[]> {
+  const out = new Map<string, NamespaceSignal[]>();
+  for (const group of groups || []) {
+    out.set(resourceSignalKey(group.resourceKind, group.resourceName, group.scope || "namespace", group.scopeLocation || ""), group.signals || []);
+  }
+  return out;
+}
+
+function buildResourceKindSignalMap(groups?: NamespaceResourceSignals[]): Map<string, NamespaceSignal[]> {
+  const out = new Map<string, NamespaceSignal[]>();
+  for (const group of groups || []) {
+    const existing = out.get(group.resourceKind) || [];
+    out.set(group.resourceKind, [...existing, ...(group.signals || [])]);
+  }
+  return out;
+}
+
+function resourceSignalsFor(
+  groups: Map<string, NamespaceSignal[]>,
+  kind: string,
+  name: string,
+  namespace: string
+): NamespaceSignal[] {
+  return groups.get(resourceSignalKey(kind, name, "namespace", namespace)) || [];
+}
+
+function worstSignalSeverity(signals: NamespaceSignal[]): string {
+  if (signals.some((signal) => signal.severity === "high")) return "high";
+  if (signals.some((signal) => signal.severity === "medium")) return "medium";
+  if (signals.some((signal) => signal.severity === "low")) return "low";
+  return "";
+}
+
+function signalsForQuotaEntry(signals: NamespaceSignal[], entryKey: string): NamespaceSignal[] {
+  return signals.filter((signal) => signal.signalType === "resource_quota_pressure" && (signal.actualData || "").startsWith(`${entryKey}:`));
+}
+
+function ResourceSignalsChip({ signals, label }: { signals: NamespaceSignal[]; label?: string }) {
+  if (signals.length === 0) return null;
+  const severity = worstSignalSeverity(signals);
+  const chipLabel = label || `${signals.length} signal${signals.length === 1 ? "" : "s"}`;
+  return (
+    <Tooltip title={signals.map(signalNote).join(" ")}>
+      <Chip size="small" color={signalSeverityColor(severity)} label={chipLabel} />
+    </Tooltip>
+  );
 }
 
 function kvRowsFromMap(values?: Record<string, string>): Array<{ label: string; value: string; monospace: boolean }> {
@@ -304,10 +363,16 @@ function mapCountChip(
   count: number | undefined,
   sectionKey: string,
   enabled: boolean,
-  onSelect: (sectionKey: string) => void
+  onSelect: (sectionKey: string) => void,
+  signals: NamespaceSignal[] = []
 ) {
   if (!count) return null;
-  return <ResourceLinkChip label={`${label}: ${count}`} onClick={enabled ? () => onSelect(sectionKey) : undefined} />;
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+      <ResourceLinkChip label={`${label}: ${count}`} onClick={enabled ? () => onSelect(sectionKey) : undefined} />
+      <ResourceSignalsChip signals={signals} />
+    </Box>
+  );
 }
 
 function stackedHealthBar(segments: HealthBarSegment[]) {
@@ -478,8 +543,9 @@ export default function NamespaceDrawer(props: {
   const helmReleases = insights?.summary?.helmReleases || [];
   const summaryMeta = insights?.summary?.meta;
   const workloadByKind = insights?.summary?.workloadByKind;
-  const restartHotspots = insights?.summary?.restartHotspots || [];
-  const findings = insights?.findings || [];
+  const signals = insights?.signals || [];
+  const resourceSignalMap = useMemo(() => buildResourceSignalMap(insights?.resourceSignals), [insights?.resourceSignals]);
+  const resourceKindSignalMap = useMemo(() => buildResourceKindSignalMap(insights?.resourceSignals), [insights?.resourceSignals]);
   const quotas = insights?.resourceQuotas || [];
   const limitRanges = insights?.limitRanges || [];
   const quotaPressure = summarizeQuotaPressure(quotas);
@@ -532,17 +598,20 @@ export default function NamespaceDrawer(props: {
     }
   }
 
-  function openFinding(finding: NamespaceFinding) {
-    switch (finding.kind) {
+  function openSignal(signal: NamespaceSignal) {
+    switch (signal.kind) {
       case "Namespace":
       case "ResourceQuota":
         setTab(2);
         return;
       case "HelmRelease":
-        setDrawerHelmRelease(finding.name || null);
+        setDrawerHelmRelease(signal.name || null);
         return;
       case "Job":
-        setDrawerJob(finding.name || null);
+        setDrawerJob(signal.name || null);
+        return;
+      case "Pod":
+        setDrawerPod(signal.name || null);
         return;
       case "ConfigMap":
         navigateTo("configMaps");
@@ -717,16 +786,9 @@ export default function NamespaceDrawer(props: {
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
                       <Chip
                         size="small"
-                        color={findings.some((item) => item.severity === "high") ? "error" : findings.some((item) => item.severity === "medium") ? "warning" : "success"}
-                        label={`Findings: ${findings.length}`}
+                        color={signals.some((item) => item.severity === "high") ? "error" : signals.some((item) => item.severity === "medium") ? "warning" : "success"}
+                        label={`Signals: ${signals.length}`}
                       />
-                      {restartHotspots.length > 0 && (
-                        <Chip
-                          size="small"
-                          color={restartHotspots.some((item) => item.severity === "high") ? "error" : "warning"}
-                          label={`Restart hotspots: ${restartHotspots.length}`}
-                        />
-                      )}
                       {problematic.length > 0 && <Chip size="small" color="warning" label={`Problematic resources: ${problematic.length}`} />}
                       {(quotaPressure.critical > 0 || quotaPressure.warning > 0) && (
                         <Chip
@@ -772,41 +834,9 @@ export default function NamespaceDrawer(props: {
                     </Section>
                   )}
 
-                  {restartHotspots.length > 0 && (
-                    <Section title="Restart hotspots">
-                      <Table size="small" sx={{ mt: 1 }}>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Kind</TableCell>
-                            <TableCell>Target</TableCell>
-                            <TableCell>Signal</TableCell>
-                            <TableCell>Reason</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {restartHotspots.slice(0, 8).map((item) => (
-                            <TableRow>
-                              <TableCell>
-                                <Chip size="small" label="Pod" />
-                              </TableCell>
-                              <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{item.name}</TableCell>
-                              <TableCell>
-                                <Chip size="small" color={findingSeverityColor(item.severity)} label={`${item.severity} · ${item.restarts} restarts`} />
-                              </TableCell>
-                              <TableCell>
-                                {item.phase}
-                                {item.lastEventReason ? ` · ${item.lastEventReason}` : ""}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Section>
-                  )}
-
-                  <Section title="Findings">
-                    {findings.length === 0 ? (
-                      <EmptyState message="No namespace findings from cached dataplane scope." />
+                  <Section title="Signals">
+                    {signals.length === 0 ? (
+                      <EmptyState message="No namespace signals from cached dataplane scope." />
                     ) : (
                       <Table size="small" sx={{ mt: 1 }}>
                         <TableHead>
@@ -818,22 +848,22 @@ export default function NamespaceDrawer(props: {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {findings.map((finding, index) => (
+                          {signals.map((signal, index) => (
                             <TableRow
-                              key={`${finding.kind}-${finding.name || finding.namespace || index}`}
+                              key={`${signal.kind}-${signal.name || signal.namespace || index}`}
                               hover
                               sx={{ cursor: "pointer" }}
-                              onClick={() => openFinding(finding)}
-                              title={findingNote(finding)}
+                              onClick={() => openSignal(signal)}
+                              title={signalNote(signal)}
                             >
                               <TableCell>
-                                <Chip size="small" label={finding.kind} />
+                                <Chip size="small" label={signal.kind} />
                               </TableCell>
-                              <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{findingTarget(finding)}</TableCell>
+                              <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{signalTarget(signal)}</TableCell>
                               <TableCell>
-                                <Chip size="small" color={findingSeverityColor(finding.severity)} label={finding.severity} />
+                                <Chip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
                               </TableCell>
-                              <TableCell>{finding.reason}</TableCell>
+                              <TableCell>{signalNote(signal)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -869,19 +899,19 @@ export default function NamespaceDrawer(props: {
                     <>
                       <Section title="Workloads">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("Pods", counts.pods, "pods", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Deployments", counts.deployments, "deployments", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("StatefulSets", counts.statefulSets, "statefulSets", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("DaemonSets", counts.daemonSets, "daemonSets", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Jobs", counts.jobs, "jobs", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("CronJobs", counts.cronJobs, "cronJobs", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Pods", counts.pods, "pods", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Pod"))}
+                          {mapCountChip("Deployments", counts.deployments, "deployments", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Deployment"))}
+                          {mapCountChip("StatefulSets", counts.statefulSets, "statefulSets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("StatefulSet"))}
+                          {mapCountChip("DaemonSets", counts.daemonSets, "daemonsets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("DaemonSet"))}
+                          {mapCountChip("Jobs", counts.jobs, "jobs", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Job"))}
+                          {mapCountChip("CronJobs", counts.cronJobs, "cronjobs", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("CronJob"))}
                         </Box>
                       </Section>
 
                       <Section title="Networking">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("Services", counts.services, "services", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Ingresses", counts.ingresses, "ingresses", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("Services", counts.services, "services", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Service"))}
+                          {mapCountChip("Ingresses", counts.ingresses, "ingresses", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Ingress"))}
                           {counts.services === 0 && counts.ingresses === 0 && (
                             <Typography variant="body2" color="text.secondary">None</Typography>
                           )}
@@ -890,18 +920,18 @@ export default function NamespaceDrawer(props: {
 
                       <Section title="Storage & configuration">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("PVCs", counts.pvcs, "pvcs", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("ConfigMaps", counts.configMaps, "configMaps", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Secrets", counts.secrets, "secrets", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("PVCs", counts.pvcs, "persistentvolumeclaims", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("PersistentVolumeClaim"))}
+                          {mapCountChip("ConfigMaps", counts.configMaps, "configmaps", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("ConfigMap"))}
+                          {mapCountChip("Secrets", counts.secrets, "secrets", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Secret"))}
                         </Box>
                       </Section>
 
                       <Section title="Access & packaging">
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                          {mapCountChip("ServiceAccounts", counts.serviceAccounts, "serviceAccounts", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Roles", counts.roles, "roles", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("RoleBindings", counts.roleBindings, "roleBindings", !!props.onNavigate, navigateTo)}
-                          {mapCountChip("Helm releases", counts.helmReleases, "helmReleases", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("ServiceAccounts", counts.serviceAccounts, "serviceaccounts", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("ServiceAccount"))}
+                          {mapCountChip("Roles", counts.roles, "roles", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("Role"))}
+                          {mapCountChip("RoleBindings", counts.roleBindings, "rolebindings", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("RoleBinding"))}
+                          {mapCountChip("Helm releases", counts.helmReleases, "helm", !!props.onNavigate, navigateTo, resourceKindSignalMap.get("HelmRelease"))}
                         </Box>
                       </Section>
                     </>
@@ -915,23 +945,30 @@ export default function NamespaceDrawer(props: {
                             <TableCell>Name</TableCell>
                             <TableCell>Status</TableCell>
                             <TableCell>Revision</TableCell>
+                            <TableCell>Signals</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {helmReleases.map((release) => (
-                            <TableRow
-                              key={release.name}
-                              hover
-                              sx={{ cursor: "pointer" }}
-                              onClick={() => setDrawerHelmRelease(release.name)}
-                            >
-                              <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{release.name}</TableCell>
-                              <TableCell>
-                                <Chip size="small" label={release.status} color={helmStatusChipColor(release.status)} />
-                              </TableCell>
-                              <TableCell>{release.revision}</TableCell>
-                            </TableRow>
-                          ))}
+                          {helmReleases.map((release) => {
+                            const releaseSignals = resourceSignalsFor(resourceSignalMap, "HelmRelease", release.name, name || "");
+                            return (
+                              <TableRow
+                                key={release.name}
+                                hover
+                                sx={{ cursor: "pointer" }}
+                                onClick={() => setDrawerHelmRelease(release.name)}
+                              >
+                                <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{release.name}</TableCell>
+                                <TableCell>
+                                  <Chip size="small" label={release.status} color={helmStatusChipColor(release.status)} />
+                                </TableCell>
+                                <TableCell>{release.revision}</TableCell>
+                                <TableCell>
+                                  <ResourceSignalsChip signals={releaseSignals} />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </Section>
@@ -957,72 +994,83 @@ export default function NamespaceDrawer(props: {
                   {quotas.length === 0 ? (
                     <EmptyState message="No ResourceQuotas in this namespace." />
                   ) : (
-                    quotas.map((quota) => (
-                      <Section key={quota.name} title={`ResourceQuota: ${quota.name}`}>
-                        <KeyValueTable
-                          rows={[
-                            { label: "Name", value: quota.name, monospace: true },
-                            { label: "Age", value: fmtAge(quota.ageSec) },
-                          ]}
-                          columns={2}
-                        />
-                        <Table size="small" sx={{ mt: 1.5 }}>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell sx={{ width: "30%", fontWeight: 600 }}>Resource</TableCell>
-                              <TableCell sx={{ width: "50%", fontWeight: 600 }}>Usage</TableCell>
-                              <TableCell sx={{ width: "20%", fontWeight: 600, textAlign: "right" }}>Used / Hard</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {quota.entries.map((entry) => {
-                              const pct = entry.ratio != null ? Math.round(entry.ratio * 100) : null;
-                              const color = quotaGaugeMuiColor(entry.ratio);
-                              return (
-                                <TableRow key={entry.key}>
-                                  <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{entry.key}</TableCell>
-                                  <TableCell>
-                                    <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
-                                      <LinearProgress
-                                        variant="determinate"
-                                        value={pct != null ? Math.min(pct, 100) : 0}
-                                        sx={{
-                                          width: "100%",
-                                          height: 20,
-                                          borderRadius: 1,
-                                          backgroundColor: "rgba(0,0,0,0.08)",
-                                          "& .MuiLinearProgress-bar": {
-                                            backgroundColor: color,
+                    quotas.map((quota) => {
+                      const quotaSignals = resourceSignalsFor(resourceSignalMap, "ResourceQuota", quota.name, name || "");
+                      return (
+                        <Section
+                          key={quota.name}
+                          title={`ResourceQuota: ${quota.name}`}
+                          actions={<ResourceSignalsChip signals={quotaSignals} />}
+                        >
+                          <KeyValueTable
+                            rows={[
+                              { label: "Name", value: quota.name, monospace: true },
+                              { label: "Age", value: fmtAge(quota.ageSec) },
+                            ]}
+                            columns={2}
+                          />
+                          <Table size="small" sx={{ mt: 1.5 }}>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ width: "30%", fontWeight: 600 }}>Resource</TableCell>
+                                <TableCell sx={{ width: "50%", fontWeight: 600 }}>Usage</TableCell>
+                                <TableCell sx={{ width: "20%", fontWeight: 600, textAlign: "right" }}>Used / Hard</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {quota.entries.map((entry) => {
+                                const entrySignals = signalsForQuotaEntry(quotaSignals, entry.key);
+                                const pct = entry.ratio != null ? Math.round(entry.ratio * 100) : null;
+                                const color = quotaGaugeMuiColor(entry.ratio);
+                                return (
+                                  <TableRow key={entry.key}>
+                                    <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{entry.key}</TableCell>
+                                    <TableCell>
+                                      <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
+                                        <LinearProgress
+                                          variant="determinate"
+                                          value={pct != null ? Math.min(pct, 100) : 0}
+                                          sx={{
+                                            width: "100%",
+                                            height: 20,
                                             borderRadius: 1,
-                                          },
-                                        }}
-                                      />
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          position: "absolute",
-                                          width: "100%",
-                                          textAlign: "center",
-                                          fontSize: 11,
-                                          fontWeight: 600,
-                                          color: pct != null && pct >= 50 ? "#fff" : "text.primary",
-                                          lineHeight: "20px",
-                                        }}
-                                      >
-                                        {pct != null ? `${pct}%` : "-"}
-                                      </Typography>
-                                    </Box>
-                                  </TableCell>
-                                  <TableCell sx={{ textAlign: "right", fontSize: 12, whiteSpace: "nowrap" }}>
-                                    {entry.used} / {entry.hard}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </Section>
-                    ))
+                                            backgroundColor: "rgba(0,0,0,0.08)",
+                                            "& .MuiLinearProgress-bar": {
+                                              backgroundColor: color,
+                                              borderRadius: 1,
+                                            },
+                                          }}
+                                        />
+                                        <Typography
+                                          variant="caption"
+                                          sx={{
+                                            position: "absolute",
+                                            width: "100%",
+                                            textAlign: "center",
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: pct != null && pct >= 50 ? "#fff" : "text.primary",
+                                            lineHeight: "20px",
+                                          }}
+                                        >
+                                          {pct != null ? `${pct}%` : "-"}
+                                        </Typography>
+                                      </Box>
+                                    </TableCell>
+                                    <TableCell sx={{ textAlign: "right", fontSize: 12, whiteSpace: "nowrap" }}>
+                                      <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>
+                                        <ResourceSignalsChip signals={entrySignals} label={entrySignals[0]?.calculatedData || "signal"} />
+                                        <span>{entry.used} / {entry.hard}</span>
+                                      </Box>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </Section>
+                      );
+                    })
                   )}
 
                   <Section title="LimitRanges">

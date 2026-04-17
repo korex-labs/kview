@@ -99,9 +99,8 @@ export type DataplaneSettings = {
   dashboard: {
     refreshSec: number;
     useCachedTotalsOnly: boolean;
-    includeHotspots: boolean;
     restartElevatedThreshold: number;
-    hotspotLimit: number;
+    signalLimit: number;
   };
 };
 
@@ -360,9 +359,8 @@ export function defaultDataplaneSettings(): DataplaneSettings {
     dashboard: {
       refreshSec: 10,
       useCachedTotalsOnly: true,
-      includeHotspots: true,
       restartElevatedThreshold: 3,
-      hotspotLimit: 10,
+      signalLimit: 10,
     },
   };
 }
@@ -797,17 +795,13 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
         typeof rawDashboard.useCachedTotalsOnly === "boolean"
           ? rawDashboard.useCachedTotalsOnly
           : defaults.dashboard.useCachedTotalsOnly,
-      includeHotspots:
-        typeof rawDashboard.includeHotspots === "boolean"
-          ? rawDashboard.includeHotspots
-          : defaults.dashboard.includeHotspots,
       restartElevatedThreshold: validNumber(
         rawDashboard.restartElevatedThreshold,
         1,
         1000,
         defaults.dashboard.restartElevatedThreshold,
       ),
-      hotspotLimit: validNumber(rawDashboard.hotspotLimit, 1, 100, defaults.dashboard.hotspotLimit),
+      signalLimit: validNumber(rawDashboard.signalLimit, 1, 100, defaults.dashboard.signalLimit),
     },
   };
 

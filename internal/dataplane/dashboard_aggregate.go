@@ -2,11 +2,20 @@ package dataplane
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
 
 	"kview/internal/kube/dto"
+)
+
+const (
+	// Restart severity is a coarse operator hint, not predictive analytics.
+	restartSeverityHigh   = "high"
+	restartSeverityMedium = "medium"
+	restartSeverityLow    = "low"
 )
 
 // resourceTotalsCompletenessLabel returns complete | partial | unknown for visible vs cached dataplane-list namespaces.
@@ -23,10 +32,10 @@ func resourceTotalsCompletenessLabel(visible, withCachedDataplaneLists int) stri
 	return "partial"
 }
 
-// aggregateClusterDashboard rolls up workload totals and hotspots only from namespaces that already
+// aggregateClusterDashboard rolls up workload totals and signals only from namespaces that already
 // have cached dataplane list snapshots (typically from visiting those namespaces or row enrichment),
 // intersected with the current namespace list snapshot. No alphabetical sampling and no implicit cluster-wide totals.
-func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nsUnhealthy int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardHotspotsPanel, ClusterDashboardFindingsPanel, ClusterDashboardDerivedPanel, ClusterDashboardWorkloadHints, ClusterDashboardCoverage) {
+func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
 	opts = normalizeClusterDashboardListOptions(opts)
 	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
 	policy := m.Policy().Dashboard
@@ -39,47 +48,31 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	res := ClusterDashboardResourcesPanel{
 		TotalNamespaces: nsTotal,
 	}
-	hot := ClusterDashboardHotspotsPanel{
-		UnhealthyNamespaces: nsUnhealthy,
-	}
-	find := ClusterDashboardFindingsPanel{}
-	wh := ClusterDashboardWorkloadHints{
-		TotalNamespacesVisible:      nsTotal,
-		NamespacesWithWorkloadCache: len(knownNS),
-	}
+	signalPanel := ClusterDashboardSignalsPanel{}
 
 	if nsTotal == 0 || len(knownNS) == 0 || plane == nil {
 		if nsTotal > 0 && len(knownNS) == 0 {
 			res.Note = "No cached dataplane list snapshots yet for visible namespaces; totals stay at zero until namespaces are opened or row enrichment fills caches."
-			hot.Note = res.Note
-			find.Note = res.Note
+			signalPanel.Note = res.Note
 			cov.ResourceTotalsNote = res.Note
 		} else if nsTotal == 0 {
 			res.Note = "No namespaces visible in snapshot; resource totals are zero."
-			hot.Note = res.Note
-			find.Note = res.Note
+			signalPanel.Note = res.Note
 		}
-		return res, hot, find, derived, wh, cov
+		return res, signalPanel, derived, cov
 	}
 
 	if cov.ResourceTotalsCompleteness == "partial" {
-		t := "Resource totals and hotspots sum only namespaces where the dataplane already has cached list snapshots; some visible namespaces are not included yet."
+		t := "Resource totals and signals sum only namespaces where the dataplane already has cached list snapshots; some visible namespaces are not included yet."
 		res.Note = t
-		hot.Note = t
-		find.Note = t
+		signalPanel.Note = t
 		cov.ResourceTotalsNote = t
 	} else {
 		cov.ResourceTotalsNote = "Totals include every visible namespace that has at least one cached dataplane list snapshot."
 	}
 
 	var aggregateMetas []SnapshotMetadata
-	var hotspotLists [][]dto.PodRestartHotspotDTO
-	type nsScore struct {
-		ns    string
-		score int
-	}
-	scores := make([]nsScore, 0, len(knownNS))
-	var findings []ClusterDashboardFinding
+	signals := newDashboardSignalStore()
 	now := time.Now()
 
 	for _, ns := range knownNS {
@@ -105,24 +98,9 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		if podsOK && podsSnap.Err == nil {
 			res.Pods += len(podsSnap.Items)
 			aggregateMetas = append(aggregateMetas, podsSnap.Meta)
-			if policy.IncludeHotspots {
-				hot.PodsWithElevatedRestarts += CountPodsWithRestartThreshold(podsSnap, int32(policy.RestartElevatedThreshold))
-				hList := ProjectRestartHotspotsFromPods(ns, podsSnap, len(podsSnap.Items))
-				if len(hList.Items) > 0 {
-					hotspotLists = append(hotspotLists, hList.Items)
-				}
-			}
 		}
 		if depsOK && depsSnap.Err == nil {
 			res.Deployments += len(depsSnap.Items)
-			if policy.IncludeHotspots {
-				enriched := EnrichDeploymentListItemsForAPI(depsSnap.Items)
-				for _, d := range enriched {
-					if d.HealthBucket == deployBucketDegraded || d.RolloutNeedsAttention {
-						hot.DegradedDeployments++
-					}
-				}
-			}
 		}
 		if dsOK && dsSnap.Err == nil {
 			res.DaemonSets += len(dsSnap.Items)
@@ -188,7 +166,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			res.LimitRanges += len(lrSnap.Items)
 			aggregateMetas = append(aggregateMetas, lrSnap.Meta)
 		}
-		findings = append(findings, detectDashboardFindings(now, ns, dashboardSnapshotSet{
+		signals.Add(detectDashboardSignals(now, ns, dashboardSnapshotSet{
 			pods:           podsSnap,
 			podsOK:         podsOK && podsSnap.Err == nil,
 			deps:           depsSnap,
@@ -227,88 +205,23 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			limitRangesOK:  lrOK && lrSnap.Err == nil,
 		})...)
 
-		if policy.IncludeHotspots {
-			var probPods []dto.ProblematicResource
-			if podsOK && podsSnap.Err == nil {
-				probPods = podProblematicFromListUnbounded(podsSnap.Items)
-			}
-			var probDeps []dto.ProblematicResource
-			if depsOK && depsSnap.Err == nil {
-				probDeps = deploymentProblematicListUnbounded(depsSnap.Items)
-			}
-			var probWorkloads []dto.ProblematicResource
-			if dsOK && dsSnap.Err == nil || stsOK && stsSnap.Err == nil || jobsOK && jobsSnap.Err == nil || cjOK && cjSnap.Err == nil {
-				probWorkloads = WorkloadProblematicCandidates(
-					nil,
-					dsSnap.Items,
-					stsSnap.Items,
-					jobsSnap.Items,
-					cjSnap.Items,
-					policy.HotspotLimit,
-				)
-			}
-			pc := countUniqueProblematic(probPods, probDeps, probWorkloads)
-			hot.ProblematicResources += pc
-			if pc > 0 {
-				scores = append(scores, nsScore{ns: ns, score: pc})
-			}
-		}
 	}
-
-	if !policy.IncludeHotspots {
-		hot.Note = "Hotspot projection is disabled in dataplane settings."
-		findNote := find.Note
-		find = summarizeDashboardFindings(findings, policy.HotspotLimit, opts)
-		find.Note = findNote
-		wh.AggregateFreshness = res.AggregateFreshness
-		wh.AggregateDegradation = res.AggregateDegradation
-		return res, hot, find, derived, wh, cov
-	}
-
-	sort.Slice(scores, func(i, j int) bool {
-		if scores[i].score != scores[j].score {
-			return scores[i].score > scores[j].score
-		}
-		return scores[i].ns < scores[j].ns
-	})
-	for k := 0; k < len(scores) && k < 5; k++ {
-		hot.TopProblematicNamespaces = append(hot.TopProblematicNamespaces, ClusterDashboardProblematicNamespace{
-			Namespace: scores[k].ns,
-			Score:     scores[k].score,
-		})
-	}
-
-	restartHotspots := mergeRestartHotspotsUnbounded(hotspotLists...)
-	for _, item := range restartHotspots {
-		if item.Severity == restartSeverityHigh {
-			hot.HighSeverityHotspotsInTopN++
-		}
-	}
-	hot.TopPodRestartHotspots = paginateRestartHotspots(filterRestartHotspots(restartHotspots, opts.RestartHotspotsQuery), opts, &hot)
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
 		wd := string(WorstDegradationFromSnapshots(aggregateMetas...))
 		res.AggregateFreshness = wf
 		res.AggregateDegradation = wd
-		hot.AggregateFreshness = wf
-		hot.AggregateDegradation = wd
-		find.AggregateFreshness = wf
-		find.AggregateDegradation = wd
+		signalPanel.AggregateFreshness = wf
+		signalPanel.AggregateDegradation = wd
 	}
-	findNote := find.Note
-	find = summarizeDashboardFindings(findings, policy.HotspotLimit, opts)
-	find.Note = findNote
-	find.AggregateFreshness = hot.AggregateFreshness
-	find.AggregateDegradation = hot.AggregateDegradation
+	signalNote := signalPanel.Note
+	signalPanel = signals.Summary(policy.SignalLimit, opts)
+	signalPanel.Note = signalNote
+	signalPanel.AggregateFreshness = res.AggregateFreshness
+	signalPanel.AggregateDegradation = res.AggregateDegradation
 
-	wh.TopPodRestartHotspots = hot.TopPodRestartHotspots
-	wh.PodsWithElevatedRestarts = hot.PodsWithElevatedRestarts
-	wh.HighSeverityHotspotsInTopN = hot.HighSeverityHotspotsInTopN
-	wh.AggregateFreshness = hot.AggregateFreshness
-	wh.AggregateDegradation = hot.AggregateDegradation
-
-	return res, hot, find, derived, wh, cov
+	return res, signalPanel, derived, cov
 }
 
 type dashboardSnapshotSet struct {
@@ -350,207 +263,84 @@ type dashboardSnapshotSet struct {
 	limitRangesOK  bool
 }
 
-func detectDashboardFindings(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardFinding {
-	var out []ClusterDashboardFinding
-	if isEmptyLookingNamespace(s) {
-		out = append(out, dashboardFinding("Namespace", ns, "", "medium", 70, "No workload, network, storage, config, or Helm resources in cached snapshots.", "medium", "namespaces"))
-	}
-	if s.jobsOK {
-		for _, j := range EnrichJobListItemsForAPI(s.jobs.Items) {
-			if j.NeedsAttention {
-				out = append(out, dashboardFinding("Job", ns, j.Name, "high", 90, "Job is failed or has failed attempts.", "high", "jobs"))
-				continue
-			}
-			if j.Status == "Running" && j.AgeSec >= int64((6*time.Hour).Seconds()) {
-				out = append(out, dashboardFinding("Job", ns, j.Name, "medium", 62, "Job has been running for more than 6 hours.", "medium", "jobs"))
-			}
-		}
-	}
-	if s.cjsOK {
-		for _, cj := range EnrichCronJobListItemsForAPI(s.cjs.Items) {
-			if cj.NeedsAttention {
-				out = append(out, dashboardFinding("CronJob", ns, cj.Name, "high", 88, "CronJob has an unusually large number of active jobs.", "high", "cronjobs"))
-				continue
-			}
-			if !cj.Suspend && cj.AgeSec >= int64((24*time.Hour).Seconds()) && cj.LastSuccessfulTime == 0 {
-				out = append(out, dashboardFinding("CronJob", ns, cj.Name, "medium", 60, "CronJob has no successful run recorded after more than 24 hours.", "medium", "cronjobs"))
-			}
-		}
-	}
-	if s.helmOK {
-		for _, rel := range s.helmReleases.Items {
-			if isTransitionalHelmStatus(rel.Status) {
-				age := "last update time is unknown"
-				stale := rel.Updated == 0
-				if rel.Updated > 0 {
-					d := now.Sub(time.Unix(rel.Updated, 0))
-					stale = d >= 15*time.Minute
-					age = "status has been transitional for more than 15 minutes"
-				}
-				if stale {
-					out = append(out, dashboardFinding("HelmRelease", ns, rel.Name, "high", 86, age, "medium", "helm"))
-				}
-			}
-		}
-	}
-	if s.svcsOK {
-		for _, svc := range EnrichServiceListItemsForAPI(s.svcs.Items) {
-			if svc.NeedsAttention {
-				out = append(out, dashboardFinding("Service", ns, svc.Name, "medium", 66, "Service has no ready endpoints.", "medium", "services"))
-			}
-		}
-	}
-	if s.ingsOK {
-		for _, ing := range EnrichIngressListItemsForAPI(s.ings.Items) {
-			if ing.NeedsAttention {
-				reason := "Ingress routing needs attention."
-				if ing.AddressState == "pending" {
-					reason = "Ingress has no assigned address yet."
-				}
-				out = append(out, dashboardFinding("Ingress", ns, ing.Name, "medium", 64, reason, "medium", "ingresses"))
-			}
-		}
-	}
-	if s.pvcsOK {
-		for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
-			if pvc.NeedsAttention {
-				severity := "medium"
-				score := 63
-				reason := "PersistentVolumeClaim is not bound or has a pending resize signal."
-				if pvc.HealthBucket == deployBucketDegraded {
-					severity = "high"
-					score = 84
-					reason = "PersistentVolumeClaim is in a degraded phase."
-				}
-				out = append(out, dashboardFinding("PersistentVolumeClaim", ns, pvc.Name, severity, score, reason, "medium", "persistentvolumeclaims"))
-			}
-		}
-	}
-	if s.rolesOK {
-		for _, role := range EnrichRoleListItemsForAPI(s.roles.Items) {
-			if role.NeedsAttention {
-				out = append(out, dashboardFinding("Role", ns, role.Name, "low", 42, "Role has an empty or broad rule surface.", "medium", "roles"))
-			}
-		}
-	}
-	if s.roleBindingsOK {
-		for _, rb := range EnrichRoleBindingListItemsForAPI(s.roleBindings.Items) {
-			if rb.NeedsAttention {
-				out = append(out, dashboardFinding("RoleBinding", ns, rb.Name, "low", 40, "RoleBinding has an empty or broad subject surface.", "medium", "rolebindings"))
-			}
-		}
-	}
-	if s.quotasOK {
-		for _, quota := range s.resourceQuotas.Items {
-			for _, entry := range quota.Entries {
-				if entry.Ratio == nil || *entry.Ratio < 0.8 {
-					continue
-				}
-				severity := "medium"
-				score := 68
-				if *entry.Ratio >= 0.9 {
-					severity = "high"
-					score = 92
-				}
-				out = append(out, dashboardFinding("ResourceQuota", ns, quota.Name, severity, score, "Resource quota "+entry.Key+" is nearing its hard limit.", "high", "namespaces"))
-			}
-		}
-	}
-	if s.cmsOK {
-		for _, cm := range s.cms.Items {
-			if cm.KeysCount == 0 {
-				out = append(out, dashboardFinding("ConfigMap", ns, cm.Name, "low", 35, "ConfigMap has no data keys.", "high", "configmaps"))
-			}
-		}
-	}
-	if s.secsOK {
-		for _, sec := range s.secs.Items {
-			if sec.KeysCount == 0 {
-				out = append(out, dashboardFinding("Secret", ns, sec.Name, "low", 35, "Secret has no data keys.", "high", "secrets"))
-			}
-		}
-	}
-	if s.pvcsOK && s.podsOK && len(s.pods.Items) == 0 {
-		for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
-			if !pvc.NeedsAttention && pvc.AgeSec >= int64((24*time.Hour).Seconds()) {
-				out = append(out, dashboardFinding("PersistentVolumeClaim", ns, pvc.Name, "low", 30, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "persistentvolumeclaims"))
-			}
-		}
-	}
-	if s.sasOK && s.podsOK && len(s.pods.Items) == 0 {
-		for _, sa := range s.sas.Items {
-			if sa.Name != "default" && sa.AgeSec >= int64((24*time.Hour).Seconds()) {
-				out = append(out, dashboardFinding("ServiceAccount", ns, sa.Name, "low", 25, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "serviceaccounts"))
-			}
-		}
+func detectDashboardSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	var out []ClusterDashboardSignal
+	for _, detector := range dashboardSignalDetectors {
+		out = append(out, detector.Detect(now, ns, s)...)
 	}
 	return out
 }
 
-func dashboardFinding(kind, namespace, name, severity string, score int, reason, confidence, section string) ClusterDashboardFinding {
-	likelyCause, suggestedAction := dashboardFindingAdvice(kind, severity)
-	return ClusterDashboardFinding{
+func dashboardSignalItem(signalType, kind, namespace, name, severity string, score int, reason, confidence, section string) ClusterDashboardSignal {
+	def := dashboardSignalDefinitionForType(signalType)
+	if def.ActualData == "" {
+		def.ActualData = reason
+	}
+	if def.CalculatedData == "" {
+		def.CalculatedData = reason
+	}
+	resourceName := name
+	scope := "namespace"
+	scopeLocation := namespace
+	if kind == "Namespace" {
+		resourceName = namespace
+		scope = "cluster"
+		scopeLocation = ""
+	}
+	return ClusterDashboardSignal{
 		Kind:            kind,
 		Namespace:       namespace,
 		Name:            name,
 		Severity:        severity,
 		Score:           score,
 		Reason:          reason,
-		LikelyCause:     likelyCause,
-		SuggestedAction: suggestedAction,
+		LikelyCause:     def.LikelyCause,
+		SuggestedAction: def.SuggestedAction,
 		Confidence:      confidence,
 		Section:         section,
+		SignalType:      def.Type,
+		ResourceKind:    kind,
+		ResourceName:    resourceName,
+		Scope:           scope,
+		ScopeLocation:   scopeLocation,
+		ActualData:      def.ActualData,
+		CalculatedData:  def.CalculatedData,
 	}
 }
 
-func dashboardFindingAdvice(kind, severity string) (likelyCause string, suggestedAction string) {
-	switch kind {
-	case "Namespace":
-		return "The workload may have been removed earlier, or the namespace was created temporarily and never cleaned up.",
-			"Check recent ownership and deploy history. If it is no longer needed, remove the namespace after confirming no retained data or policies still depend on it."
-	case "HelmRelease":
-		return "A Helm upgrade, rollback, or uninstall likely stalled on hooks, failing resources, or an interrupted release operation.",
-			"Inspect the release status, recent Helm history, and related workload events. Resolve the blocking resource or hook, then finish or roll back the release cleanly."
-	case "Job":
-		if severity == "high" {
-			return "The job probably has failing pods, image/config problems, missing dependencies, or logic that exits unsuccessfully.",
-				"Open the job and pod logs, inspect events, and fix the failing input, dependency, or image issue before rerunning."
-		}
-		return "The job may be blocked on external work, stuck waiting on resources, or looping without making progress.",
-			"Inspect active pods, logs, and related dependencies. If it is intentionally long-running, consider moving it to a different workload type or adjusting expectations."
-	case "CronJob":
-		return "The schedule may be producing overlapping runs, repeatedly failing, or never completing successfully.",
-			"Review recent job history, concurrency policy, schedule, and pod failures. Reduce overlap or fix the underlying job failure before the backlog grows."
-	case "ConfigMap":
-		return "The object may be a placeholder, partially applied manifest, or leftover config no workload actually uses.",
-			"Confirm whether a workload mounts or references it. Populate the expected data or remove it if it is obsolete."
-	case "Secret":
-		return "The secret may be an incomplete rollout artifact, placeholder, or stale object left behind by an old deployment.",
-			"Verify whether anything references it. Restore the expected data or delete it if it is no longer used."
-	case "PersistentVolumeClaim":
-		return "The claim may belong to a removed workload, a failed rollout, or a namespace that no longer has active consumers.",
-			"Check what last mounted it and whether data must be kept. Delete or archive it only after confirming retention expectations."
-	case "ServiceAccount":
-		return "The service account may have been created for a workload that no longer runs in this namespace.",
-			"Verify whether any pods or controllers still reference it. Remove it if unused, especially if it carries extra permissions."
-	case "Service":
-		return "The service selector may not match any ready pods, or all selected pods are currently not ready.",
-			"Inspect the service endpoints and selector labels, then open the selected workloads or pods to restore ready backends."
-	case "Ingress":
-		return "The ingress controller may not have admitted the route yet, or the backend/service wiring is incomplete.",
-			"Inspect ingress events, address assignment, TLS/backend references, and the services behind the route."
-	case "Role":
-		return "The role may be a placeholder with no rules or a broad permission surface that deserves review.",
-			"Review the rules and confirm the role is intentionally broad; otherwise narrow or remove it."
-	case "RoleBinding":
-		return "The binding may have no subjects or grant access to an unusually broad subject set.",
-			"Review subjects and the referenced role, then remove stale subjects or split broad access into narrower bindings."
-	case "ResourceQuota":
-		return "The namespace is approaching its configured quota because workload growth or a runaway job is consuming the remaining budget.",
-			"Inspect which resource is close to the hard limit, then either scale usage back down or raise the quota if the growth is intentional."
-	default:
-		return "", ""
+func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO) ClusterDashboardSignal {
+	severity := restartSeverityFromCount(pod.Restarts)
+	score := 61
+	if severity == restartSeverityHigh {
+		score = 83
 	}
+	f := dashboardSignalItem("pod_restarts", "Pod", namespace, pod.Name, severity, score, "Pod has elevated restart count.", "high", "pods")
+	f.ActualData = fmt.Sprintf("%d restarts", pod.Restarts)
+	if pod.AgeSec > 0 {
+		f.ActualData = fmt.Sprintf("%s · age %.1fd", f.ActualData, float64(pod.AgeSec)/float64((24*time.Hour).Seconds()))
+	}
+	f.CalculatedData = fmt.Sprintf("%.1f/day restart rate", restartRatePerDay(pod.Restarts, pod.AgeSec))
+	return f
+}
+
+// restartSeverityFromCount maps restart counts to coarse severity buckets.
+func restartSeverityFromCount(restarts int32) string {
+	switch {
+	case restarts >= 20:
+		return restartSeverityHigh
+	case restarts >= 5:
+		return restartSeverityMedium
+	default:
+		return restartSeverityLow
+	}
+}
+
+func restartRatePerDay(restarts int32, ageSec int64) float64 {
+	if restarts <= 0 || ageSec <= 0 {
+		return 0
+	}
+	rate := float64(restarts) * 86400 / float64(ageSec)
+	return math.Round(rate*10) / 10
 }
 
 func isEmptyLookingNamespace(s dashboardSnapshotSet) bool {
@@ -593,31 +383,31 @@ func isTransitionalHelmStatus(status string) bool {
 	}
 }
 
-func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int, opts ClusterDashboardListOptions) ClusterDashboardFindingsPanel {
+func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts ClusterDashboardListOptions) ClusterDashboardSignalsPanel {
 	opts = normalizeClusterDashboardListOptions(opts)
 	if limit <= 0 {
 		limit = 10
 	}
-	sort.Slice(findings, func(i, j int) bool {
-		if si, sj := dashboardFindingSeverityPriority(findings[i].Severity), dashboardFindingSeverityPriority(findings[j].Severity); si != sj {
+	sort.Slice(signals, func(i, j int) bool {
+		if si, sj := dashboardSignalSeverityPriority(signals[i].Severity), dashboardSignalSeverityPriority(signals[j].Severity); si != sj {
 			return si < sj
 		}
-		if pi, pj := dashboardFindingKindPriority(findings[i].Kind), dashboardFindingKindPriority(findings[j].Kind); pi != pj {
+		if pi, pj := dashboardSignalKindPriority(signals[i].Kind), dashboardSignalKindPriority(signals[j].Kind); pi != pj {
 			return pi < pj
 		}
-		if findings[i].Score != findings[j].Score {
-			return findings[i].Score > findings[j].Score
+		if signals[i].Score != signals[j].Score {
+			return signals[i].Score > signals[j].Score
 		}
-		if findings[i].Namespace != findings[j].Namespace {
-			return findings[i].Namespace < findings[j].Namespace
+		if signals[i].Namespace != signals[j].Namespace {
+			return signals[i].Namespace < signals[j].Namespace
 		}
-		if findings[i].Kind != findings[j].Kind {
-			return findings[i].Kind < findings[j].Kind
+		if signals[i].Kind != signals[j].Kind {
+			return signals[i].Kind < signals[j].Kind
 		}
-		return findings[i].Name < findings[j].Name
+		return signals[i].Name < signals[j].Name
 	})
-	out := ClusterDashboardFindingsPanel{Total: len(findings)}
-	for _, f := range findings {
+	out := ClusterDashboardSignalsPanel{Total: len(signals)}
+	for _, f := range signals {
 		switch f.Severity {
 		case "high":
 			out.High++
@@ -626,68 +416,217 @@ func summarizeDashboardFindings(findings []ClusterDashboardFinding, limit int, o
 		default:
 			out.Low++
 		}
-		switch f.Kind {
-		case "Namespace":
-			out.EmptyNamespaces++
-		case "HelmRelease":
-			out.StuckHelmReleases++
-		case "Job":
-			out.AbnormalJobs++
-		case "CronJob":
-			out.AbnormalCronJobs++
-		case "ConfigMap":
-			out.EmptyConfigMaps++
-		case "Secret":
-			out.EmptySecrets++
-		case "PersistentVolumeClaim":
-			if strings.Contains(f.Reason, "Potentially unused") {
-				out.PotentiallyUnusedPVCs++
-			} else {
-				out.PVCWarnings++
-			}
-		case "ServiceAccount":
-			out.PotentiallyUnusedSAs++
-		case "ResourceQuota":
-			out.QuotaWarnings++
-		case "Service":
-			out.ServiceWarnings++
-		case "Ingress":
-			out.IngressWarnings++
-		case "Role":
-			out.RoleWarnings++
-		case "RoleBinding":
-			out.RoleBindingWarnings++
-		}
+		out.incrementSignalCounter(dashboardSignalDefinitionForType(f.SignalType).SummaryCounter)
 	}
-	if len(findings) > limit {
-		out.Top = append(out.Top, findings[:limit]...)
+	if len(signals) > limit {
+		out.Top = append(out.Top, signals[:limit]...)
 	} else {
-		out.Top = append(out.Top, findings...)
+		out.Top = append(out.Top, signals...)
 	}
-	pageSource := filterDashboardFindings(findings, opts.FindingsFilter, opts.FindingsQuery)
-	if opts.FindingsFilter == "" || opts.FindingsFilter == "top" {
+	out.Filters = buildDashboardSignalFilters(signals, len(out.Top), out)
+	pageSource := filterDashboardSignals(signals, opts.SignalsFilter, opts.SignalsQuery)
+	if opts.SignalsFilter == "" || opts.SignalsFilter == "top" {
 		if len(pageSource) > limit {
 			pageSource = pageSource[:limit]
 		}
 	}
 	out.ItemsTotal = len(pageSource)
-	out.ItemsOffset = opts.FindingsOffset
-	out.ItemsLimit = opts.FindingsLimit
-	out.ItemsFilter = opts.FindingsFilter
-	out.ItemsQuery = opts.FindingsQuery
-	out.Items = append(out.Items, paginateDashboardFindings(pageSource, opts.FindingsOffset, opts.FindingsLimit)...)
+	out.ItemsOffset = opts.SignalsOffset
+	out.ItemsLimit = opts.SignalsLimit
+	out.ItemsFilter = opts.SignalsFilter
+	out.ItemsQuery = opts.SignalsQuery
+	out.Items = append(out.Items, paginateDashboardSignals(pageSource, opts.SignalsOffset, opts.SignalsLimit)...)
 	out.ItemsHasMore = out.ItemsOffset+len(out.Items) < out.ItemsTotal
 	return out
 }
 
+func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
+	switch counter {
+	case "empty_namespaces":
+		p.EmptyNamespaces++
+	case "stuck_helm_releases":
+		p.StuckHelmReleases++
+	case "abnormal_jobs":
+		p.AbnormalJobs++
+	case "abnormal_cronjobs":
+		p.AbnormalCronJobs++
+	case "empty_configmaps":
+		p.EmptyConfigMaps++
+	case "empty_secrets":
+		p.EmptySecrets++
+	case "potentially_unused_pvcs":
+		p.PotentiallyUnusedPVCs++
+	case "potentially_unused_serviceaccounts":
+		p.PotentiallyUnusedSAs++
+	case "quota_warnings":
+		p.QuotaWarnings++
+	case "pod_restart_signals":
+		p.PodRestartSignals++
+	case "service_warnings":
+		p.ServiceWarnings++
+	case "ingress_warnings":
+		p.IngressWarnings++
+	case "pvc_warnings":
+		p.PVCWarnings++
+	case "role_warnings":
+		p.RoleWarnings++
+	case "rolebinding_warnings":
+		p.RoleBindingWarnings++
+	}
+}
+
+func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel) []ClusterDashboardSignalFilter {
+	filters := []ClusterDashboardSignalFilter{
+		{ID: "top", Label: "Top priority", Count: topCount, Category: "priority"},
+		{ID: "high", Label: "High severity", Count: summary.High, Category: "severity", Severity: "high"},
+		{ID: "medium", Label: "Medium severity", Count: summary.Medium, Category: "severity", Severity: "medium"},
+		{ID: "low", Label: "Low severity", Count: summary.Low, Category: "severity", Severity: "low"},
+	}
+
+	kindFilters := map[string]dashboardCountedFilter{}
+	namespaceFilters := map[string]dashboardCountedFilter{}
+	type signalTypeCount struct {
+		id       string
+		count    int
+		severity string
+	}
+	byType := map[string]signalTypeCount{}
+	for _, signal := range signals {
+		if signal.Kind != "" {
+			id := "kind:" + signal.Kind
+			current := kindFilters[id]
+			current.id = id
+			current.label = signal.Kind
+			current.count++
+			current.severity = worstSignalSeverity(current.severity, signal.Severity)
+			current.priority = dashboardSignalKindPriority(signal.Kind)
+			kindFilters[id] = current
+		}
+		if signal.Namespace != "" {
+			id := "namespace:" + signal.Namespace
+			current := namespaceFilters[id]
+			current.id = id
+			current.label = signal.Namespace
+			current.count++
+			current.severity = worstSignalSeverity(current.severity, signal.Severity)
+			namespaceFilters[id] = current
+		}
+		if signal.SignalType == "" {
+			continue
+		}
+		id := "signal:" + signal.SignalType
+		current := byType[id]
+		current.id = id
+		current.count++
+		current.severity = worstSignalSeverity(current.severity, signal.Severity)
+		byType[id] = current
+	}
+	kinds := countedFiltersFromMap(kindFilters)
+	sort.Slice(kinds, func(i, j int) bool {
+		if si, sj := dashboardSignalSeverityPriority(kinds[i].severity), dashboardSignalSeverityPriority(kinds[j].severity); si != sj {
+			return si < sj
+		}
+		if kinds[i].priority != kinds[j].priority {
+			return kinds[i].priority < kinds[j].priority
+		}
+		return kinds[i].label < kinds[j].label
+	})
+	for _, item := range kinds {
+		filters = append(filters, ClusterDashboardSignalFilter{
+			ID:       item.id,
+			Label:    item.label,
+			Count:    item.count,
+			Category: "kind",
+			Severity: item.severity,
+		})
+	}
+	signalTypes := make([]signalTypeCount, 0, len(byType))
+	for _, item := range byType {
+		signalTypes = append(signalTypes, item)
+	}
+	sort.Slice(signalTypes, func(i, j int) bool {
+		if si, sj := dashboardSignalSeverityPriority(signalTypes[i].severity), dashboardSignalSeverityPriority(signalTypes[j].severity); si != sj {
+			return si < sj
+		}
+		if pi, pj := dashboardSignalTypePriority(strings.TrimPrefix(signalTypes[i].id, "signal:")), dashboardSignalTypePriority(strings.TrimPrefix(signalTypes[j].id, "signal:")); pi != pj {
+			return pi < pj
+		}
+		return signalTypes[i].id < signalTypes[j].id
+	})
+	for _, item := range signalTypes {
+		if item.count <= 0 {
+			continue
+		}
+		filters = append(filters, ClusterDashboardSignalFilter{
+			ID:       item.id,
+			Label:    dashboardSignalTypeLabel(strings.TrimPrefix(item.id, "signal:")),
+			Count:    item.count,
+			Category: "signal_type",
+			Severity: item.severity,
+		})
+	}
+	namespaces := countedFiltersFromMap(namespaceFilters)
+	sort.Slice(namespaces, func(i, j int) bool {
+		if si, sj := dashboardSignalSeverityPriority(namespaces[i].severity), dashboardSignalSeverityPriority(namespaces[j].severity); si != sj {
+			return si < sj
+		}
+		if namespaces[i].count != namespaces[j].count {
+			return namespaces[i].count > namespaces[j].count
+		}
+		return namespaces[i].label < namespaces[j].label
+	})
+	if len(namespaces) > 5 {
+		namespaces = namespaces[:5]
+	}
+	for _, item := range namespaces {
+		filters = append(filters, ClusterDashboardSignalFilter{
+			ID:       item.id,
+			Label:    item.label,
+			Count:    item.count,
+			Category: "namespace",
+			Severity: item.severity,
+		})
+	}
+	return filters
+}
+
+type dashboardCountedFilter struct {
+	id       string
+	label    string
+	count    int
+	severity string
+	priority int
+}
+
+func countedFiltersFromMap(items map[string]dashboardCountedFilter) []dashboardCountedFilter {
+	out := make([]dashboardCountedFilter, 0, len(items))
+	for _, item := range items {
+		if item.count > 0 {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func worstSignalSeverity(a, b string) string {
+	if a == "" {
+		return b
+	}
+	if dashboardSignalSeverityPriority(b) < dashboardSignalSeverityPriority(a) {
+		return b
+	}
+	return a
+}
+
+func dashboardSignalTypeLabel(signalType string) string {
+	return dashboardSignalDefinitionForType(signalType).Label
+}
+
 func normalizeClusterDashboardListOptions(opts ClusterDashboardListOptions) ClusterDashboardListOptions {
-	opts.FindingsFilter = strings.TrimSpace(opts.FindingsFilter)
-	opts.FindingsQuery = strings.TrimSpace(opts.FindingsQuery)
-	opts.RestartHotspotsQuery = strings.TrimSpace(opts.RestartHotspotsQuery)
-	opts.FindingsOffset = normalizeDashboardOffset(opts.FindingsOffset)
-	opts.RestartHotspotsOffset = normalizeDashboardOffset(opts.RestartHotspotsOffset)
-	opts.FindingsLimit = normalizeDashboardLimit(opts.FindingsLimit)
-	opts.RestartHotspotsLimit = normalizeDashboardLimit(opts.RestartHotspotsLimit)
+	opts.SignalsFilter = strings.TrimSpace(opts.SignalsFilter)
+	opts.SignalsQuery = strings.TrimSpace(opts.SignalsQuery)
+	opts.SignalsOffset = normalizeDashboardOffset(opts.SignalsOffset)
+	opts.SignalsLimit = normalizeDashboardLimit(opts.SignalsLimit)
 	return opts
 }
 
@@ -709,21 +648,35 @@ func normalizeDashboardLimit(limit int) int {
 	}
 }
 
-func filterDashboardFindings(findings []ClusterDashboardFinding, filter, query string) []ClusterDashboardFinding {
+func filterDashboardSignals(signals []ClusterDashboardSignal, filter, query string) []ClusterDashboardSignal {
 	filter = strings.TrimSpace(filter)
 	query = strings.ToLower(strings.TrimSpace(query))
-	out := make([]ClusterDashboardFinding, 0, len(findings))
-	for _, f := range findings {
+	out := make([]ClusterDashboardSignal, 0, len(signals))
+	for _, f := range signals {
 		if filter != "" && filter != "top" {
 			if filter == "high" || filter == "medium" || filter == "low" {
 				if f.Severity != filter {
 					continue
 				}
+			} else if strings.HasPrefix(filter, "kind:") {
+				if f.Kind != strings.TrimPrefix(filter, "kind:") {
+					continue
+				}
+			} else if strings.HasPrefix(filter, "signal:") {
+				if f.SignalType != strings.TrimPrefix(filter, "signal:") {
+					continue
+				}
+			} else if strings.HasPrefix(filter, "namespace:") {
+				if f.Namespace != strings.TrimPrefix(filter, "namespace:") {
+					continue
+				}
+			} else if f.SignalType == filter {
+				// keep
 			} else if f.Kind != filter {
 				continue
 			}
 		}
-		if query != "" && !dashboardFindingMatchesQuery(f, query) {
+		if query != "" && !dashboardSignalMatchesQuery(f, query) {
 			continue
 		}
 		out = append(out, f)
@@ -731,8 +684,11 @@ func filterDashboardFindings(findings []ClusterDashboardFinding, filter, query s
 	return out
 }
 
-func dashboardFindingMatchesQuery(f ClusterDashboardFinding, query string) bool {
-	fields := []string{f.Kind, f.Namespace, f.Name, f.Severity, f.Reason, f.LikelyCause, f.SuggestedAction, f.Confidence, f.Section}
+func dashboardSignalMatchesQuery(f ClusterDashboardSignal, query string) bool {
+	fields := []string{
+		f.Kind, f.Namespace, f.Name, f.Severity, f.Reason, f.LikelyCause, f.SuggestedAction, f.Confidence, f.Section,
+		f.SignalType, f.ResourceKind, f.ResourceName, f.Scope, f.ScopeLocation, f.ActualData, f.CalculatedData,
+	}
 	for _, field := range fields {
 		if strings.Contains(strings.ToLower(field), query) {
 			return true
@@ -741,7 +697,7 @@ func dashboardFindingMatchesQuery(f ClusterDashboardFinding, query string) bool 
 	return false
 }
 
-func paginateDashboardFindings(items []ClusterDashboardFinding, offset, limit int) []ClusterDashboardFinding {
+func paginateDashboardSignals(items []ClusterDashboardSignal, offset, limit int) []ClusterDashboardSignal {
 	if offset >= len(items) {
 		return nil
 	}
@@ -752,59 +708,7 @@ func paginateDashboardFindings(items []ClusterDashboardFinding, offset, limit in
 	return items[offset:end]
 }
 
-func mergeRestartHotspotsUnbounded(lists ...[]dto.PodRestartHotspotDTO) []dto.PodRestartHotspotDTO {
-	total := 0
-	for _, list := range lists {
-		total += len(list)
-	}
-	if total == 0 {
-		return nil
-	}
-	return MergeRestartHotspots(total, lists...)
-}
-
-func filterRestartHotspots(items []dto.PodRestartHotspotDTO, query string) []dto.PodRestartHotspotDTO {
-	query = strings.ToLower(strings.TrimSpace(query))
-	if query == "" {
-		return items
-	}
-	out := make([]dto.PodRestartHotspotDTO, 0, len(items))
-	for _, item := range items {
-		if restartHotspotMatchesQuery(item, query) {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-
-func restartHotspotMatchesQuery(item dto.PodRestartHotspotDTO, query string) bool {
-	fields := []string{"pod", item.Namespace, item.Name, item.Phase, item.Node, item.LastEventReason, item.Severity}
-	for _, field := range fields {
-		if strings.Contains(strings.ToLower(field), query) {
-			return true
-		}
-	}
-	return false
-}
-
-func paginateRestartHotspots(items []dto.PodRestartHotspotDTO, opts ClusterDashboardListOptions, hot *ClusterDashboardHotspotsPanel) []dto.PodRestartHotspotDTO {
-	hot.RestartHotspotsTotal = len(items)
-	hot.RestartHotspotsOffset = opts.RestartHotspotsOffset
-	hot.RestartHotspotsLimit = opts.RestartHotspotsLimit
-	hot.RestartHotspotsQuery = opts.RestartHotspotsQuery
-	if opts.RestartHotspotsOffset >= len(items) {
-		return nil
-	}
-	end := opts.RestartHotspotsOffset + opts.RestartHotspotsLimit
-	if end > len(items) {
-		end = len(items)
-	}
-	page := items[opts.RestartHotspotsOffset:end]
-	hot.RestartHotspotsHasMore = opts.RestartHotspotsOffset+len(page) < hot.RestartHotspotsTotal
-	return page
-}
-
-func dashboardFindingSeverityPriority(severity string) int {
+func dashboardSignalSeverityPriority(severity string) int {
 	switch severity {
 	case "high":
 		return 0
@@ -815,7 +719,7 @@ func dashboardFindingSeverityPriority(severity string) int {
 	}
 }
 
-func dashboardFindingKindPriority(kind string) int {
+func dashboardSignalKindPriority(kind string) int {
 	switch kind {
 	case "HelmRelease":
 		return 0
@@ -840,6 +744,10 @@ func dashboardFindingKindPriority(kind string) int {
 	default:
 		return 10
 	}
+}
+
+func dashboardSignalTypePriority(signalType string) int {
+	return dashboardSignalDefinitionForType(signalType).Priority
 }
 
 func visibleNamespacesWithCachedDataplaneLists(plane *clusterPlane, visibleSorted []string) []string {

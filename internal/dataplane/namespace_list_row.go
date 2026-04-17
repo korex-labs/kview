@@ -17,7 +17,7 @@ func mergeNamespaceRowInto(dst *dto.NamespaceListItemDTO, src dto.NamespaceListI
 	dst.DeploymentCount = src.DeploymentCount
 	dst.ProblematicCount = src.ProblematicCount
 	dst.PodsWithRestarts = src.PodsWithRestarts
-	dst.RestartHotspot = src.RestartHotspot
+	dst.RestartSignal = src.RestartSignal
 	dst.ResourceQuotaCount = src.ResourceQuotaCount
 	dst.LimitRangeCount = src.LimitRangeCount
 	dst.QuotaWarning = src.QuotaWarning
@@ -64,18 +64,18 @@ func buildNamespaceListRowProjection(podsSnap PodsSnapshot, depsSnap Deployments
 
 	if podsSnap.Err == nil {
 		var withRestarts int
-		hotspot := false
+		restartSignal := false
 		for _, p := range podsSnap.Items {
 			if p.Restarts > 0 {
 				withRestarts++
 			}
 			switch ListRestartSeverity(p.Restarts) {
 			case listRestartMedium, listRestartHigh:
-				hotspot = true
+				restartSignal = true
 			}
 		}
 		out.PodsWithRestarts = withRestarts
-		out.RestartHotspot = hotspot
+		out.RestartSignal = restartSignal
 	}
 
 	return out
@@ -112,7 +112,7 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 				}
 				switch ListRestartSeverity(p.Restarts) {
 				case listRestartMedium, listRestartHigh:
-					out.RestartHotspot = true
+					out.RestartSignal = true
 				}
 			}
 		}

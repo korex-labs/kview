@@ -76,7 +76,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}}})
 	setNamespacedSnapshot(&plane.lrStore, ns, LimitRangesSnapshot{Meta: meta, Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: ns}}})
 
-	res, hot, find, derived, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, NodesSnapshot{}, "denied", ClusterDashboardListOptions{})
+	res, signalPanel, derived, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, NodesSnapshot{}, "denied", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: %d", res.Pods)
 	}
@@ -89,20 +89,11 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	if res.ResourceQuotas != 1 || res.LimitRanges != 1 {
 		t.Fatalf("quota/limit totals: %+v", res)
 	}
-	if hot.PodsWithElevatedRestarts < 1 {
-		t.Fatalf("elevated: %d", hot.PodsWithElevatedRestarts)
+	if signalPanel.EmptyConfigMaps != 1 || signalPanel.EmptySecrets != 1 {
+		t.Fatalf("signals %+v", signalPanel)
 	}
-	if len(hot.TopPodRestartHotspots) == 0 {
-		t.Fatal("expected hotspot merge")
-	}
-	if wh.NamespacesWithWorkloadCache != 1 || wh.TotalNamespacesVisible != 1 {
-		t.Fatalf("wh %+v", wh)
-	}
-	if find.EmptyConfigMaps != 1 || find.EmptySecrets != 1 {
-		t.Fatalf("findings %+v", find)
-	}
-	if find.QuotaWarnings != 1 || find.High == 0 {
-		t.Fatalf("quota findings %+v", find)
+	if signalPanel.QuotaWarnings != 1 || signalPanel.High == 0 {
+		t.Fatalf("quota signals %+v", signalPanel)
 	}
 	if cov.ResourceTotalsCompleteness != "complete" || cov.NamespacesInResourceTotals != 1 {
 		t.Fatalf("cov %+v", cov)
@@ -124,19 +115,15 @@ func TestAggregateClusterDashboard_NoCacheUnknownTotals(t *testing.T) {
 	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx2")
 	plane := planeAny.(*clusterPlane)
 
-	res, _, _, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"x", "y"}, 2, 0, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	res, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"x", "y"}, 2, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 0 || cov.ResourceTotalsCompleteness != "unknown" || cov.NamespacesInResourceTotals != 0 {
 		t.Fatalf("res=%+v cov=%+v", res, cov)
 	}
 }
 
-func TestAggregateClusterDashboard_HonorsHotspotToggle(t *testing.T) {
+func TestAggregateClusterDashboard_PodRestartsAreSignals(t *testing.T) {
 	dm := NewManager(ManagerConfig{})
 	mm := dm.(*manager)
-	policy := mm.Policy()
-	policy.Dashboard.IncludeHotspots = false
-	mm.SetPolicy(policy)
-
 	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx3")
 	plane := planeAny.(*clusterPlane)
 
@@ -148,28 +135,22 @@ func TestAggregateClusterDashboard_HonorsHotspotToggle(t *testing.T) {
 		},
 	})
 
-	res, hot, _, _, wh, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, 0, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	res, signalPanel, _, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: got %d, want 1", res.Pods)
 	}
-	if hot.PodsWithElevatedRestarts != 0 || len(hot.TopPodRestartHotspots) != 0 || hot.ProblematicResources != 0 {
-		t.Fatalf("hotspots should be disabled: %+v", hot)
-	}
-	if hot.Note == "" {
-		t.Fatal("expected disabled hotspot note")
-	}
-	if wh.PodsWithElevatedRestarts != 0 || len(wh.TopPodRestartHotspots) != 0 {
-		t.Fatalf("workload hints should not include hotspots: %+v", wh)
+	if signalPanel.PodRestartSignals != 1 || signalPanel.Total != 1 || len(signalPanel.Items) != 1 {
+		t.Fatalf("pod restart signal not summarized: %+v", signalPanel)
 	}
 	if cov.ResourceTotalsCompleteness != "complete" {
 		t.Fatalf("coverage: %+v", cov)
 	}
 }
 
-func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
+func TestDetectDashboardSignalsRanksSignals(t *testing.T) {
 	now := time.Now().UTC()
 	ns := "app"
-	findings := detectDashboardFindings(now, ns, dashboardSnapshotSet{
+	signals := detectDashboardSignals(now, ns, dashboardSnapshotSet{
 		pods:    PodsSnapshot{Items: nil},
 		podsOK:  true,
 		deps:    DeploymentsSnapshot{Items: nil},
@@ -208,11 +189,11 @@ func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
 		helmReleases:   HelmReleasesSnapshot{Items: []dto.HelmReleaseDTO{{Name: "rel", Namespace: ns, Status: "pending-upgrade", Updated: now.Add(-time.Hour).Unix()}}},
 		helmOK:         true,
 	})
-	summary := summarizeDashboardFindings(findings, 3, ClusterDashboardListOptions{FindingsFilter: "top", FindingsLimit: len(findings)})
-	if summary.Total != len(findings) || summary.High < 2 || summary.EmptyConfigMaps != 1 || summary.EmptySecrets != 1 ||
+	summary := summarizeDashboardSignals(signals, 3, ClusterDashboardListOptions{SignalsFilter: "top", SignalsLimit: len(signals)})
+	if summary.Total != len(signals) || summary.High < 2 || summary.EmptyConfigMaps != 1 || summary.EmptySecrets != 1 ||
 		summary.ServiceWarnings != 1 || summary.IngressWarnings != 1 || summary.PVCWarnings != 1 ||
 		summary.RoleWarnings != 1 || summary.RoleBindingWarnings != 1 {
-		t.Fatalf("summary %+v findings %+v", summary, findings)
+		t.Fatalf("summary %+v signals %+v", summary, signals)
 	}
 	if len(summary.Top) != 3 {
 		t.Fatalf("top not capped: %+v", summary.Top)
@@ -220,17 +201,23 @@ func TestDetectDashboardFindingsRanksSignals(t *testing.T) {
 	if summary.Top[0].Kind != "HelmRelease" || summary.Top[1].Kind != "Job" || summary.Top[2].Kind != "CronJob" {
 		t.Fatalf("top not ordered by attention priority: %+v", summary.Top)
 	}
+	if summary.Top[0].SignalType != "stale_transitional_helm_release" || summary.Top[0].ResourceKind != "HelmRelease" || summary.Top[0].ResourceName != "rel" {
+		t.Fatalf("top signal identity not populated: %+v", summary.Top[0])
+	}
+	if summary.Top[0].Scope != "namespace" || summary.Top[0].ScopeLocation != ns || summary.Top[0].ActualData == "" || summary.Top[0].CalculatedData == "" {
+		t.Fatalf("top signal scope/data not populated: %+v", summary.Top[0])
+	}
 	if summary.ItemsTotal != 3 || len(summary.Items) != 3 || summary.ItemsHasMore {
 		t.Fatalf("top items should be capped: %+v", summary)
 	}
 }
 
-func TestSummarizeDashboardFindingsPrefersHigherValueKindsOverScore(t *testing.T) {
-	summary := summarizeDashboardFindings([]ClusterDashboardFinding{
+func TestSummarizeDashboardSignalsPrefersHigherValueKindsOverScore(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
 		{Kind: "Job", Severity: "high", Score: 95, Namespace: "ns", Name: "job-a"},
 		{Kind: "HelmRelease", Severity: "high", Score: 86, Namespace: "ns", Name: "rel-a"},
 		{Kind: "Secret", Severity: "high", Score: 99, Namespace: "ns", Name: "sec-a"},
-	}, 10, ClusterDashboardListOptions{FindingsLimit: 10})
+	}, 10, ClusterDashboardListOptions{SignalsLimit: 10})
 
 	if len(summary.Top) != 3 {
 		t.Fatalf("top len = %d", len(summary.Top))
@@ -240,17 +227,17 @@ func TestSummarizeDashboardFindingsPrefersHigherValueKindsOverScore(t *testing.T
 	}
 }
 
-func TestSummarizeDashboardFindingsFiltersAndPaginatesItems(t *testing.T) {
-	summary := summarizeDashboardFindings([]ClusterDashboardFinding{
+func TestSummarizeDashboardSignalsFiltersAndPaginatesItems(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
 		{Kind: "Job", Severity: "high", Score: 95, Namespace: "team-a", Name: "api-migrate"},
 		{Kind: "Job", Severity: "high", Score: 90, Namespace: "team-b", Name: "worker-migrate"},
 		{Kind: "Secret", Severity: "low", Score: 30, Namespace: "team-a", Name: "empty-secret"},
 		{Kind: "Service", Severity: "medium", Score: 70, Namespace: "team-a", Name: "api"},
 	}, 10, ClusterDashboardListOptions{
-		FindingsFilter: "high",
-		FindingsQuery:  "migrate",
-		FindingsOffset: 1,
-		FindingsLimit:  1,
+		SignalsFilter: "high",
+		SignalsQuery:  "migrate",
+		SignalsOffset: 1,
+		SignalsLimit:  1,
 	})
 
 	if summary.Total != 4 || summary.High != 2 || summary.Medium != 1 || summary.Low != 1 {
@@ -264,25 +251,259 @@ func TestSummarizeDashboardFindingsFiltersAndPaginatesItems(t *testing.T) {
 	}
 }
 
-func TestRestartHotspotsFilterAndPaginate(t *testing.T) {
-	items := []dto.PodRestartHotspotDTO{
-		{Namespace: "team-a", Name: "api-0", Node: "node-a", Severity: "high", RestartRatePerDay: 10, Restarts: 20},
-		{Namespace: "team-a", Name: "worker-0", Node: "node-b", Severity: "medium", RestartRatePerDay: 8, Restarts: 8},
-		{Namespace: "team-b", Name: "api-1", Node: "node-a", Severity: "low", RestartRatePerDay: 3, Restarts: 2},
-	}
-	hot := ClusterDashboardHotspotsPanel{}
-	page := paginateRestartHotspots(filterRestartHotspots(items, "node-a"), ClusterDashboardListOptions{
-		RestartHotspotsQuery:  "node-a",
-		RestartHotspotsOffset: 1,
-		RestartHotspotsLimit:  1,
-	}, &hot)
+func TestSummarizeDashboardSignalsFiltersBySignalType(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("empty_configmap", "ConfigMap", "team-a", "empty-cm", "low", 35, "ConfigMap has no data keys.", "high", "configmaps"),
+		dashboardSignalItem("empty_secret", "Secret", "team-a", "empty-secret", "low", 35, "Secret has no data keys.", "high", "secrets"),
+	}, 10, ClusterDashboardListOptions{SignalsFilter: "empty_secret", SignalsLimit: 10})
 
-	if hot.RestartHotspotsTotal != 2 || hot.RestartHotspotsOffset != 1 || hot.RestartHotspotsLimit != 1 || hot.RestartHotspotsHasMore {
-		t.Fatalf("hotspot page metadata mismatch: %+v", hot)
+	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].SignalType != "empty_secret" {
+		t.Fatalf("expected signal-type filtered secret signal, got %+v", summary)
 	}
-	if len(page) != 1 || page[0].Name != "api-1" {
-		t.Fatalf("unexpected hotspot page: %+v", page)
+	if !dashboardSignalFilterExists(summary.Filters, "signal:empty_secret", "Empty Secrets", 1) {
+		t.Fatalf("expected empty-secret filter in %+v", summary.Filters)
 	}
+}
+
+func TestSummarizeDashboardSignalsCountsBySignalType(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("pvc_needs_attention", "PersistentVolumeClaim", "team-a", "data", "medium", 63, "Potentially unused wording should not decide this bucket.", "medium", "persistentvolumeclaims"),
+		dashboardSignalItem("potentially_unused_pvc", "PersistentVolumeClaim", "team-a", "archive", "low", 30, "No magic wording required.", "low", "persistentvolumeclaims"),
+		dashboardSignalItem("long_running_job", "Job", "team-a", "slow", "medium", 62, "Job has been running for more than 6 hours.", "medium", "jobs"),
+		dashboardSignalItem("cronjob_no_recent_success", "CronJob", "team-a", "nightly", "medium", 60, "CronJob has no successful run recorded after more than 24 hours.", "medium", "cronjobs"),
+	}, 10, ClusterDashboardListOptions{SignalsLimit: 10})
+
+	if summary.PVCWarnings != 1 || summary.PotentiallyUnusedPVCs != 1 {
+		t.Fatalf("PVC counters should use signal type, got %+v", summary)
+	}
+	if summary.AbnormalJobs != 1 || summary.AbnormalCronJobs != 1 {
+		t.Fatalf("job counters should include signal-type variants, got %+v", summary)
+	}
+}
+
+func TestDashboardSignalFiltersSortEachGroupBySeverity(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("empty_configmap", "ConfigMap", "team-a", "empty-cm", "low", 35, "ConfigMap has no data keys.", "high", "configmaps"),
+		dashboardSignalItem("service_no_ready_endpoints", "Service", "team-b", "api", "medium", 70, "Service has no ready endpoints.", "medium", "services"),
+		dashboardSignalItem("abnormal_job", "Job", "team-c", "migrate", "high", 95, "Job failed recently.", "high", "jobs"),
+		dashboardSignalItem("empty_secret", "Secret", "team-a", "empty-secret", "low", 35, "Secret has no data keys.", "high", "secrets"),
+	}, 10, ClusterDashboardListOptions{SignalsLimit: 10})
+
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "kind"); !dashboardStringSliceEqual(got, []string{"kind:Job", "kind:Service", "kind:ConfigMap", "kind:Secret"}) {
+		t.Fatalf("kind filters not sorted by severity: %v", got)
+	}
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "signal_type"); !dashboardStringSliceEqual(got, []string{"signal:abnormal_job", "signal:service_no_ready_endpoints", "signal:empty_configmap", "signal:empty_secret"}) {
+		t.Fatalf("signal-type filters not sorted by severity: %v", got)
+	}
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace"); !dashboardStringSliceEqual(got, []string{"namespace:team-c", "namespace:team-b", "namespace:team-a"}) {
+		t.Fatalf("namespace filters not sorted by severity: %v", got)
+	}
+}
+
+func TestDashboardPodRestartSignalUsesSignalShape(t *testing.T) {
+	item := dashboardPodRestartSignal("team-a", dto.PodListItemDTO{Name: "api-0", Restarts: 10, AgeSec: int64((48 * time.Hour).Seconds())})
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{item}, 10, ClusterDashboardListOptions{SignalsFilter: "signal:pod_restarts", SignalsLimit: 10})
+
+	if summary.PodRestartSignals != 1 || summary.ItemsTotal != 1 || len(summary.Items) != 1 {
+		t.Fatalf("expected pod restart signal count and filter, got %+v", summary)
+	}
+	got := summary.Items[0]
+	if got.SignalType != "pod_restarts" || got.ResourceKind != "Pod" || got.ResourceName != "api-0" {
+		t.Fatalf("pod restart identity missing: %+v", got)
+	}
+	if got.ActualData != "10 restarts · age 2.0d" || got.CalculatedData != "5.0/day restart rate" {
+		t.Fatalf("pod restart signal data mismatch: %+v", got)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "signal:pod_restarts", "Pod restarts", 1) {
+		t.Fatalf("expected pod restart filter in %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "kind:Pod", "Pod", 1) {
+		t.Fatalf("expected pod kind filter in %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "namespace:team-a", "team-a", 1) {
+		t.Fatalf("expected namespace filter in %+v", summary.Filters)
+	}
+}
+
+func TestDashboardResourceQuotaSignalUsesEntryData(t *testing.T) {
+	ratio := 0.825
+	items := detectDashboardSignals(time.Now(), "team-a", dashboardSnapshotSet{
+		resourceQuotas: ResourceQuotasSnapshot{Items: []dto.ResourceQuotaDTO{{
+			Name:      "rq",
+			Namespace: "team-a",
+			Entries:   []dto.ResourceQuotaEntryDTO{{Key: "pods", Used: "33", Hard: "40", Ratio: &ratio}},
+		}}},
+		quotasOK: true,
+	})
+
+	if len(items) != 1 {
+		t.Fatalf("expected one quota signal, got %+v", items)
+	}
+	got := items[0]
+	if got.SignalType != "resource_quota_pressure" || got.Severity != "medium" {
+		t.Fatalf("quota signal identity mismatch: %+v", got)
+	}
+	if got.ActualData != "pods: 33 / 40" || got.CalculatedData != "82% of hard limit" {
+		t.Fatalf("quota signal data mismatch: %+v", got)
+	}
+}
+
+func TestDashboardSignalDefinitionRegistryPreservesKnownMetadata(t *testing.T) {
+	secret := dashboardSignalDefinitionForType("empty_secret")
+	if secret.Type != "empty_secret" || secret.Label != "Empty Secrets" {
+		t.Fatalf("secret signal identity mismatch: %+v", secret)
+	}
+	if secret.ActualData != "0 data keys" || secret.CalculatedData != "empty Secret" {
+		t.Fatalf("secret signal data mismatch: %+v", secret)
+	}
+	if secret.LikelyCause == "" || secret.SuggestedAction == "" {
+		t.Fatalf("secret signal advice missing: %+v", secret)
+	}
+
+	longRunningJob := dashboardSignalDefinitionForType("long_running_job")
+	if longRunningJob.Type != "long_running_job" || longRunningJob.CalculatedData != "running for more than 6 hours" {
+		t.Fatalf("long-running job signal mismatch: %+v", longRunningJob)
+	}
+
+	if dashboardSignalDefinitionForType("pod_restarts").Priority != 0 {
+		t.Fatalf("pod restart priority should come from the registry")
+	}
+	unknown := dashboardSignalDefinitionForType("unknown_signal")
+	if unknown.Label != "unknown_signal" || unknown.Priority != 10 {
+		t.Fatalf("unknown signal fallback mismatch: %+v", unknown)
+	}
+}
+
+func TestDashboardSignalDetectorRegistryHasDefinitions(t *testing.T) {
+	seen := map[string]bool{}
+	for _, detector := range dashboardSignalDetectors {
+		if detector.Type == "" || detector.Detect == nil {
+			t.Fatalf("invalid detector entry: %+v", detector)
+		}
+		if seen[detector.Type] {
+			t.Fatalf("duplicate detector for %q", detector.Type)
+		}
+		seen[detector.Type] = true
+		def := dashboardSignalDefinitionForType(detector.Type)
+		if def.Type != detector.Type || def.Label == "" {
+			t.Fatalf("detector %q missing signal definition: %+v", detector.Type, def)
+		}
+		if def.SummaryCounter == "" {
+			t.Fatalf("detector %q missing summary counter: %+v", detector.Type, def)
+		}
+	}
+}
+
+func TestDashboardSignalDetectorRegistryProducesExplicitTypes(t *testing.T) {
+	ratio := 0.91
+	now := time.Now().UTC()
+	items := detectDashboardSignals(now, "team-a", dashboardSnapshotSet{
+		pods:   PodsSnapshot{Items: []dto.PodListItemDTO{{Name: "api-0", Restarts: 8, AgeSec: int64((48 * time.Hour).Seconds())}}},
+		podsOK: true,
+		jobs: JobsSnapshot{Items: []dto.JobDTO{
+			{Name: "failed", Namespace: "team-a", Status: "Failed", Failed: 1},
+			{Name: "running", Namespace: "team-a", Status: "Running", AgeSec: int64((7 * time.Hour).Seconds())},
+		}},
+		jobsOK: true,
+		resourceQuotas: ResourceQuotasSnapshot{Items: []dto.ResourceQuotaDTO{{
+			Name:      "rq",
+			Namespace: "team-a",
+			Entries:   []dto.ResourceQuotaEntryDTO{{Key: "pods", Used: "91", Hard: "100", Ratio: &ratio}},
+		}}},
+		quotasOK: true,
+	})
+
+	want := map[string]bool{
+		"pod_restarts":            false,
+		"abnormal_job":            false,
+		"long_running_job":        false,
+		"resource_quota_pressure": false,
+	}
+	for _, item := range items {
+		if _, ok := want[item.SignalType]; ok {
+			want[item.SignalType] = true
+		}
+	}
+	for signalType, found := range want {
+		if !found {
+			t.Fatalf("expected detector output for %q in %+v", signalType, items)
+		}
+	}
+}
+
+func TestDashboardSignalStoreIndexesMultipleSignalsPerResource(t *testing.T) {
+	store := newDashboardSignalStore()
+	store.Add(
+		dashboardSignalItem("pvc_needs_attention", "PersistentVolumeClaim", "team-a", "data", "medium", 63, "PVC needs attention.", "medium", "persistentvolumeclaims"),
+		dashboardSignalItem("potentially_unused_pvc", "PersistentVolumeClaim", "team-a", "data", "low", 30, "PVC may be unused.", "low", "persistentvolumeclaims"),
+		dashboardSignalItem("empty_secret", "Secret", "team-a", "token", "low", 35, "Secret has no data keys.", "high", "secrets"),
+	)
+
+	items := store.SignalsForResource("PersistentVolumeClaim", "data", "namespace", "team-a")
+	if len(items) != 2 {
+		t.Fatalf("expected two PVC signals from resource index, got %+v", items)
+	}
+	if items[0].SignalType != "pvc_needs_attention" || items[1].SignalType != "potentially_unused_pvc" {
+		t.Fatalf("unexpected indexed PVC signals: %+v", items)
+	}
+	if got := store.SignalsForResource("Secret", "token", "namespace", "team-a"); len(got) != 1 || got[0].SignalType != "empty_secret" {
+		t.Fatalf("expected one indexed secret signal, got %+v", got)
+	}
+	groups := store.ResourceSignals()
+	if len(groups) != 2 {
+		t.Fatalf("expected two resource signal groups, got %+v", groups)
+	}
+	if groups[0].ResourceKind != "PersistentVolumeClaim" || groups[0].ResourceName != "data" || len(groups[0].Signals) != 2 {
+		t.Fatalf("unexpected first resource signal group: %+v", groups)
+	}
+}
+
+func TestDashboardSignalStoreSummaryDoesNotMutateInsertionOrder(t *testing.T) {
+	store := newDashboardSignalStore()
+	store.Add(
+		dashboardSignalItem("empty_secret", "Secret", "team-a", "token", "low", 35, "Secret has no data keys.", "high", "secrets"),
+		dashboardSignalItem("abnormal_job", "Job", "team-a", "migrate", "high", 90, "Job failed.", "high", "jobs"),
+	)
+
+	summary := store.Summary(10, ClusterDashboardListOptions{SignalsLimit: 10})
+	if len(summary.Top) != 2 || summary.Top[0].SignalType != "abnormal_job" {
+		t.Fatalf("expected sorted summary from signal store, got %+v", summary.Top)
+	}
+	items := store.Items()
+	if len(items) != 2 || items[0].SignalType != "empty_secret" || items[1].SignalType != "abnormal_job" {
+		t.Fatalf("summary should not mutate signal-store insertion order, got %+v", items)
+	}
+}
+
+func dashboardSignalFilterExists(filters []ClusterDashboardSignalFilter, id, label string, count int) bool {
+	for _, filter := range filters {
+		if filter.ID == id && filter.Label == label && filter.Count == count {
+			return true
+		}
+	}
+	return false
+}
+
+func dashboardSignalFilterIDsByCategory(filters []ClusterDashboardSignalFilter, category string) []string {
+	var ids []string
+	for _, filter := range filters {
+		if filter.Category == category {
+			ids = append(ids, filter.ID)
+		}
+	}
+	return ids
+}
+
+func dashboardStringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestEmptyLookingNamespaceIgnoresKubeRootCAConfigMap(t *testing.T) {

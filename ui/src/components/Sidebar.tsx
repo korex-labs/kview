@@ -126,7 +126,7 @@ export default function Sidebar(props: Props) {
               label="Namespace (manual)"
               value={props.namespace}
               onChange={(e) => props.onSelectNamespace(e.target.value)}
-              helperText="No permission to list namespaces (RBAC). Type it manually."
+              helperText="Namespace list is unavailable. Type it manually."
             />
           )}
 

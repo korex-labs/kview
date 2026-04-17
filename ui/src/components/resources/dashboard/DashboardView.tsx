@@ -9,6 +9,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TablePagination,
   TableRow,
   TextField,
@@ -19,7 +20,7 @@ import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { apiGet, apiGetWithContext } from "../../../api";
-import type { ApiDashboardClusterResponse } from "../../../types/api";
+import type { ApiDashboardClusterResponse, DashboardSignalFilter, DashboardSignalItem, DashboardSignalsPanel } from "../../../types/api";
 import { namespaceRowSummaryStateColor } from "../../../utils/k8sUi";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
@@ -44,26 +45,8 @@ type Props = {
   onNavigate?: (section: string, namespace: string) => void;
 };
 
-type FindingsPanel = NonNullable<NonNullable<ApiDashboardClusterResponse["item"]>["findings"]>;
-type Finding = NonNullable<FindingsPanel["items"]>[number];
-type FindingFilter =
-  | "top"
-  | "high"
-  | "medium"
-  | "low"
-  | "Namespace"
-  | "HelmRelease"
-  | "Job"
-  | "CronJob"
-  | "ConfigMap"
-  | "Secret"
-  | "PersistentVolumeClaim"
-  | "ServiceAccount"
-  | "Service"
-  | "Ingress"
-  | "Role"
-  | "RoleBinding"
-  | "ResourceQuota";
+type SignalItem = DashboardSignalItem;
+type SignalFilter = string;
 
 type InspectTarget = {
   kind:
@@ -118,13 +101,6 @@ function severityColor(severity: string): "error" | "warning" | "info" | "defaul
   if (severity === "medium") return "warning";
   if (severity === "low") return "info";
   return "default";
-}
-
-function formatRestartRatePerDay(value?: number): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return "";
-  if (value >= 100) return `${Math.round(value)}/day`;
-  if (value >= 10) return `${value.toFixed(1)}/day`;
-  return `${value.toFixed(1)}/day`;
 }
 
 function formatAgeShort(ageSec?: number): string {
@@ -200,7 +176,7 @@ const dashboardPanelSectionSx = {
   backgroundColor: "var(--bg-secondary)",
 };
 
-function FindingHintIcons({ likelyCause, suggestedAction }: { likelyCause?: string; suggestedAction?: string }) {
+function SignalHintIcons({ likelyCause, suggestedAction }: { likelyCause?: string; suggestedAction?: string }) {
   if (!likelyCause && !suggestedAction) return null;
   return (
     <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: 0.5, verticalAlign: "middle" }}>
@@ -367,12 +343,26 @@ function DataplaneVisualRow({
   );
 }
 
-function findingTarget(f: Finding): string {
-  if (!f.name) return f.namespace || f.kind;
-  return f.namespace ? `${f.namespace}/${f.name}` : f.name;
+function signalLocation(f: SignalItem): string {
+  if (f.scopeLocation) return `${f.scope || "scope"}: ${f.scopeLocation}`;
+  if (f.namespace) return `namespace: ${f.namespace}`;
+  if (f.scope) return f.scope;
+  return "-";
 }
 
-function findingFilterLabel(filter: FindingFilter): string {
+function signalResourceName(f: SignalItem): string {
+  return f.resourceName || f.name || f.namespace || f.kind;
+}
+
+function signalCalculatedText(f: SignalItem): string {
+  return f.calculatedData || f.reason;
+}
+
+function signalActualText(f: SignalItem): string {
+  return f.actualData || f.reason;
+}
+
+function signalFilterLabel(filter: SignalFilter): string {
   switch (filter) {
     case "top":
       return "Top priority";
@@ -408,25 +398,95 @@ function findingFilterLabel(filter: FindingFilter): string {
       return "RoleBindings";
     case "ResourceQuota":
       return "Quota pressure";
+    case "Pod":
+      return "Pod restarts";
     default:
       return filter;
   }
 }
 
-function FindingFilterChip({
+function signalFilterGroupLabel(category?: string): string {
+  switch (category) {
+    case "severity":
+      return "By Severity";
+    case "kind":
+      return "By Kind";
+    case "signal_type":
+      return "By Signal Reason";
+    case "namespace":
+      return "Top 5 Namespaces With Problems";
+    case "priority":
+      return "Priority";
+    default:
+      return "Other";
+  }
+}
+
+function signalFilterGroupOrder(category?: string): number {
+  switch (category) {
+    case "priority":
+      return 0;
+    case "severity":
+      return 1;
+    case "kind":
+      return 2;
+    case "signal_type":
+      return 3;
+    case "namespace":
+      return 4;
+    default:
+      return 5;
+  }
+}
+
+function groupedSignalFilters(filters: DashboardSignalFilter[]): Array<{ category: string; label: string; filters: DashboardSignalFilter[] }> {
+  const byCategory = new Map<string, DashboardSignalFilter[]>();
+  for (const filter of filters) {
+    const category = filter.category || "other";
+    byCategory.set(category, [...(byCategory.get(category) || []), filter]);
+  }
+  return Array.from(byCategory.entries())
+    .sort(([a], [b]) => signalFilterGroupOrder(a) - signalFilterGroupOrder(b))
+    .map(([category, items]) => ({
+      category,
+      label: signalFilterGroupLabel(category),
+      filters: items,
+    }));
+}
+
+function signalFilterColor(filter: DashboardSignalFilter): "error" | "warning" | "info" | "default" {
+  if (filter.count <= 0) return "default";
+  if (filter.severity === "high") return "error";
+  if (filter.severity === "medium") return "warning";
+  if (filter.severity === "low") return "info";
+  return "default";
+}
+
+function fallbackSignalFilters(panel: DashboardSignalsPanel | undefined, topCount: number): DashboardSignalFilter[] {
+  return [
+    { id: "top", label: "Top priority", count: topCount, category: "priority" },
+    { id: "high", label: "High severity", count: panel?.high ?? 0, category: "severity", severity: "high" },
+    { id: "medium", label: "Medium severity", count: panel?.medium ?? 0, category: "severity", severity: "medium" },
+    { id: "low", label: "Low severity", count: panel?.low ?? 0, category: "severity", severity: "low" },
+  ];
+}
+
+function SignalFilterChip({
   filter,
+  label,
   count,
   color = "default",
   hideWhenZero = false,
   selected,
   onSelect,
 }: {
-  filter: FindingFilter;
+  filter: SignalFilter;
+  label?: string;
   count: number;
   color?: "error" | "warning" | "info" | "default";
   hideWhenZero?: boolean;
   selected: boolean;
-  onSelect: (filter: FindingFilter) => void;
+  onSelect: (filter: SignalFilter) => void;
 }) {
   if (hideWhenZero && count <= 0 && !selected) return null;
   return (
@@ -434,7 +494,7 @@ function FindingFilterChip({
       size="small"
       color={color}
       variant={selected ? "filled" : "outlined"}
-      label={`${findingFilterLabel(filter)} ${count}`}
+      label={`${label || signalFilterLabel(filter)} ${count}`}
       onClick={() => onSelect(filter)}
     />
   );
@@ -477,12 +537,13 @@ function DerivedFilterChip({
   );
 }
 
-function inspectTargetFromFinding(f: Finding): InspectTarget | null {
+function inspectTargetFromSignal(f: SignalItem): InspectTarget | null {
   const namespace = f.namespace || "";
   const name = f.name || (f.kind === "Namespace" ? namespace : "");
   if (!namespace || !name) return null;
   switch (f.kind) {
     case "Namespace":
+    case "Pod":
     case "Job":
     case "CronJob":
     case "ConfigMap":
@@ -630,13 +691,10 @@ export default function DashboardView(props: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [findingFilter, setFindingFilter] = useState<FindingFilter>("top");
-  const [findingsQuery, setFindingsQuery] = useState("");
-  const [findingsPage, setFindingsPage] = useState(0);
-  const [findingsRowsPerPage, setFindingsRowsPerPage] = useState(10);
-  const [restartHotspotsQuery, setRestartHotspotsQuery] = useState("");
-  const [restartHotspotsPage, setRestartHotspotsPage] = useState(0);
-  const [restartHotspotsRowsPerPage, setRestartHotspotsRowsPerPage] = useState(10);
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>("top");
+  const [signalsQuery, setSignalsQuery] = useState("");
+  const [signalsPage, setSignalsPage] = useState(0);
+  const [signalsRowsPerPage, setSignalsRowsPerPage] = useState(10);
   const [derivedFilter, setDerivedFilter] = useState<DerivedFilter>("all");
   const [derivedQuery, setDerivedQuery] = useState("");
   const [derivedPage, setDerivedPage] = useState(0);
@@ -645,8 +703,7 @@ export default function DashboardView(props: Props) {
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
   const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
-  const deferredFindingsQuery = useDeferredValue(findingsQuery);
-  const deferredRestartHotspotsQuery = useDeferredValue(restartHotspotsQuery);
+  const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const deferredDerivedQuery = useDeferredValue(derivedQuery);
   const lastLoadScopeRef = useRef("");
 
@@ -662,13 +719,10 @@ export default function DashboardView(props: Props) {
       setErr(null);
       try {
         const params = new URLSearchParams({
-          findingsFilter: findingFilter,
-          findingsQ: deferredFindingsQuery,
-          findingsOffset: String(findingsPage * findingsRowsPerPage),
-          findingsLimit: String(findingsRowsPerPage),
-          restartHotspotsQ: deferredRestartHotspotsQuery,
-          restartHotspotsOffset: String(restartHotspotsPage * restartHotspotsRowsPerPage),
-          restartHotspotsLimit: String(restartHotspotsRowsPerPage),
+          signalsFilter: signalFilter,
+          signalsQ: deferredSignalsQuery,
+          signalsOffset: String(signalsPage * signalsRowsPerPage),
+          signalsLimit: String(signalsRowsPerPage),
         });
         const path = `/api/dashboard/cluster?${params.toString()}`;
         const res = activeContext
@@ -698,19 +752,16 @@ export default function DashboardView(props: Props) {
   }, [
     activeContext,
     dashboardRefreshSec,
-    deferredFindingsQuery,
-    deferredRestartHotspotsQuery,
-    findingFilter,
-    findingsPage,
-    findingsRowsPerPage,
+    deferredSignalsQuery,
+    signalFilter,
+    signalsPage,
+    signalsRowsPerPage,
     props.token,
-    restartHotspotsPage,
-    restartHotspotsRowsPerPage,
   ]);
 
-  const selectFindingFilter = (filter: FindingFilter) => {
-    setFindingFilter(filter);
-    setFindingsPage(0);
+  const selectSignalFilter = (filter: SignalFilter) => {
+    setSignalFilter(filter);
+    setSignalsPage(0);
   };
 
   const selectDerivedFilter = (filter: DerivedFilter) => {
@@ -808,7 +859,7 @@ export default function DashboardView(props: Props) {
     >
       <Box sx={{ px: 2, pt: 1, display: "flex", alignItems: "center", gap: 0.75 }}>
         <Typography variant="h6">Cluster dashboard</Typography>
-        <InfoHint title="Dataplane snapshot view. Resource totals and findings use cached namespace list snapshots only; unknown namespaces are not inferred." />
+        <InfoHint title="Dataplane snapshot view. Resource totals and signals use cached namespace list snapshots only; unknown namespaces are not inferred." />
       </Box>
 
       {loading && (
@@ -829,37 +880,39 @@ export default function DashboardView(props: Props) {
       {!loading && !err && data?.item && (
         <Box sx={{ px: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           {(() => {
-            const { plane, visibility, coverage, resources, hotspots, findings, derived, dataplane } = data.item;
+            const { plane, visibility, coverage, resources, signals, derived, dataplane } = data.item;
+            const signalPanel = signals;
             const ns = visibility.namespaces;
             const nodes = visibility.nodes;
             const cov = coverage;
-            const hotspotsEnabled = settings.dataplane.dashboard.includeHotspots;
             const knownScope = `${cov.namespacesInResourceTotals} / ${cov.visibleNamespaces}`;
-            const topFindings = findings?.top || [];
-            const visibleFindings = findings?.items || [];
-            const visibleFindingsTotal = findings?.itemsTotal ?? visibleFindings.length;
-            const visibleRestartHotspots = hotspots.topPodRestartHotspots || [];
-            const visibleRestartHotspotsTotal = hotspots.restartHotspotsTotal ?? visibleRestartHotspots.length;
+            const topSignals = signalPanel?.top || [];
+            const visibleSignals = signalPanel?.items || [];
+            const visibleSignalsTotal = signalPanel?.itemsTotal ?? visibleSignals.length;
+            const signalQuickFilters =
+              signalPanel?.filters && signalPanel.filters.length > 0 ? signalPanel.filters : fallbackSignalFilters(signalPanel, topSignals.length);
+            const signalFilterGroups = groupedSignalFilters(signalQuickFilters);
+            const selectedSignalFilterLabel = signalQuickFilters.find((filter) => filter.id === signalFilter)?.label || signalFilterLabel(signalFilter);
 
             return (
               <>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                   <MetricCard
-                    label="Findings"
-                    value={findings?.total ?? 0}
-                    color={(findings?.high || 0) > 0 ? "error" : (findings?.medium || 0) > 0 ? "warning" : "success"}
-                    hint="Heuristic findings from cached namespace snapshots."
+                    label="Signals"
+                    value={signalPanel?.total ?? 0}
+                    color={(signalPanel?.high || 0) > 0 ? "error" : (signalPanel?.medium || 0) > 0 ? "warning" : "success"}
+                    hint="Heuristic signals from cached namespace snapshots."
                   />
                   <MetricCard
                     label="Known namespace scope"
                     value={knownScope}
                     color={cov.resourceTotalsCompleteness === "complete" ? "success" : "warning"}
-                    hint="Namespaces included in resource totals and findings."
+                    hint="Namespaces included in resource totals and signals."
                   />
                   <MetricCard
-                    label="Elevated pod restarts"
-                    value={hotspotsEnabled ? hotspots.podsWithElevatedRestarts : "off"}
-                    color={hotspots.highSeverityHotspotsInTopN > 0 ? "error" : hotspots.podsWithElevatedRestarts > 0 ? "warning" : "success"}
+                    label="Pod restart signals"
+                    value={signalPanel?.podRestartSignals ?? 0}
+                    color={(signalPanel?.podRestartSignals || 0) > 0 ? "warning" : "success"}
                     hint={`Pods above ${settings.dataplane.dashboard.restartElevatedThreshold} restarts in cached scope.`}
                   />
                   <MetricCard
@@ -878,188 +931,107 @@ export default function DashboardView(props: Props) {
 
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
-                    gap: 2,
-                    alignItems: "stretch",
+                    display: "block",
                   }}
                 >
                   <Paper variant="outlined" sx={dashboardPanelSx}>
                     <PanelTitle
-                      title="Attention"
-                      hint={findings?.note || "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope findings."}
+                      title="Signals"
+                      hint={signalPanel?.note || "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope signals."}
                     />
                     <Box sx={dashboardPanelSectionSx}>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                        Filter cached-scope findings by severity or resource type.
+                        Filter cached-scope signals by severity, kind, signal reason, or namespace.
                       </Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                        <FindingFilterChip
-                          filter="top"
-                          count={topFindings.length}
-                          selected={findingFilter === "top"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="high"
-                          count={findings?.high ?? 0}
-                          color={(findings?.high || 0) > 0 ? "error" : "default"}
-                          selected={findingFilter === "high"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="medium"
-                          count={findings?.medium ?? 0}
-                          color={(findings?.medium || 0) > 0 ? "warning" : "default"}
-                          selected={findingFilter === "medium"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="low"
-                          count={findings?.low ?? 0}
-                          color={(findings?.low || 0) > 0 ? "info" : "default"}
-                          selected={findingFilter === "low"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Namespace"
-                          count={findings?.emptyNamespaces ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Namespace"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="HelmRelease"
-                          count={findings?.stuckHelmReleases ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "HelmRelease"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Job"
-                          count={findings?.abnormalJobs ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Job"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="CronJob"
-                          count={findings?.abnormalCronJobs ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "CronJob"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="ConfigMap"
-                          count={findings?.emptyConfigMaps ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "ConfigMap"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Secret"
-                          count={findings?.emptySecrets ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Secret"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="PersistentVolumeClaim"
-                          count={(findings?.potentiallyUnusedPVCs ?? 0) + (findings?.pvcWarnings ?? 0)}
-                          hideWhenZero
-                          selected={findingFilter === "PersistentVolumeClaim"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="ServiceAccount"
-                          count={findings?.potentiallyUnusedServiceAccounts ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "ServiceAccount"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Service"
-                          count={findings?.serviceWarnings ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Service"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Ingress"
-                          count={findings?.ingressWarnings ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Ingress"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="Role"
-                          count={findings?.roleWarnings ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "Role"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="RoleBinding"
-                          count={findings?.roleBindingWarnings ?? 0}
-                          hideWhenZero
-                          selected={findingFilter === "RoleBinding"}
-                          onSelect={selectFindingFilter}
-                        />
-                        <FindingFilterChip
-                          filter="ResourceQuota"
-                          count={findings?.quotaWarnings ?? 0}
-                          color={(findings?.quotaWarnings || 0) > 0 ? "warning" : "default"}
-                          hideWhenZero
-                          selected={findingFilter === "ResourceQuota"}
-                          onSelect={selectFindingFilter}
-                        />
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {signalFilterGroups.map((group) => (
+                          <Box key={group.category}>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                              {group.label}
+                            </Typography>
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                              {group.filters.map((filter) => (
+                                <SignalFilterChip
+                                  key={filter.id}
+                                  filter={filter.id}
+                                  label={filter.label}
+                                  count={filter.count}
+                                  color={signalFilterColor(filter)}
+                                  hideWhenZero={filter.category === "signal_type" || filter.category === "kind" || filter.category === "namespace"}
+                                  selected={signalFilter === filter.id}
+                                  onSelect={selectSignalFilter}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        ))}
                       </Box>
                     </Box>
                     <Box sx={{ ...dashboardPanelSectionSx, flex: 1 }}>
                       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1 }}>
                         <TextField
                           size="small"
-                          label="Search findings"
-                          value={findingsQuery}
+                          label="Search signals"
+                          value={signalsQuery}
                           onChange={(event) => {
-                            setFindingsQuery(event.target.value);
-                            setFindingsPage(0);
+                            setSignalsQuery(event.target.value);
+                            setSignalsPage(0);
                           }}
                           placeholder="name, kind, namespace..."
                           sx={{ minWidth: { xs: "100%", sm: 280 } }}
                         />
                         <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                          Showing {visibleFindings.length} of {visibleFindingsTotal} {findingFilterLabel(findingFilter).toLowerCase()} finding
-                          {visibleFindingsTotal === 1 ? "" : "s"}.
+                          Showing {visibleSignals.length} of {visibleSignalsTotal} {selectedSignalFilterLabel.toLowerCase()} signal
+                          {visibleSignalsTotal === 1 ? "" : "s"}.
                         </Typography>
                       </Box>
-                      {visibleFindings.length === 0 ? (
+                      {visibleSignals.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                          No cached-scope findings for this filter.
+                          No cached-scope signals for this filter.
                         </Typography>
                       ) : (
                         <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ pl: 0 }}>Severity</TableCell>
+                              <TableCell>Kind</TableCell>
+                              <TableCell>Resource</TableCell>
+                              <TableCell>Signal</TableCell>
+                              <TableCell sx={{ pr: 0, textAlign: "right" }}>Action</TableCell>
+                            </TableRow>
+                          </TableHead>
                           <TableBody>
-                            {visibleFindings.map((f) => (
+                            {visibleSignals.map((f) => (
                               <TableRow key={`${f.kind}/${f.namespace || ""}/${f.name || ""}/${f.reason}`}>
-                                <TableCell sx={{ border: 0, py: 0.6, pl: 0, width: 118, verticalAlign: "top" }}>
+                                <TableCell sx={{ py: 0.6, pl: 0, width: 104, verticalAlign: "top" }}>
                                   <Chip size="small" color={severityColor(f.severity)} label={f.severity} />
                                 </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, verticalAlign: "top" }}>
+                                <TableCell sx={{ py: 0.6, width: 132, verticalAlign: "top" }}>
+                                  <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} />
+                                </TableCell>
+                                <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
                                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {f.kind} {findingTarget(f)}
-                                    <FindingHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
+                                    {signalResourceName(f)}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
-                                    {f.reason} {f.confidence ? `Confidence: ${f.confidence}.` : ""}
+                                    {signalLocation(f)}
                                   </Typography>
                                 </TableCell>
-                                <TableCell sx={{ border: 0, py: 0.6, pr: 0, textAlign: "right", width: 110, verticalAlign: "top" }}>
-                                  {inspectTargetFromFinding(f) ? (
+                                <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {signalCalculatedText(f)}
+                                    <SignalHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {signalActualText(f)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ py: 0.6, pr: 0, textAlign: "right", width: 110, verticalAlign: "top" }}>
+                                  {inspectTargetFromSignal(f) ? (
                                     <Button
                                       size="small"
                                       variant="outlined"
-                                      onClick={() => setInspectTarget(inspectTargetFromFinding(f))}
+                                      onClick={() => setInspectTarget(inspectTargetFromSignal(f))}
                                     >
                                       Inspect
                                     </Button>
@@ -1070,161 +1042,23 @@ export default function DashboardView(props: Props) {
                           </TableBody>
                         </Table>
                       )}
-                      {visibleFindingsTotal > 0 ? (
+                      {visibleSignalsTotal > 0 ? (
                         <TablePagination
                           component="div"
-                          count={visibleFindingsTotal}
-                          page={findingsPage}
-                          rowsPerPage={findingsRowsPerPage}
+                          count={visibleSignalsTotal}
+                          page={signalsPage}
+                          rowsPerPage={signalsRowsPerPage}
                           rowsPerPageOptions={[10, 25, 50, 100]}
-                          onPageChange={(_, page) => setFindingsPage(page)}
+                          onPageChange={(_, page) => setSignalsPage(page)}
                           onRowsPerPageChange={(event) => {
-                            setFindingsRowsPerPage(Number(event.target.value));
-                            setFindingsPage(0);
+                            setSignalsRowsPerPage(Number(event.target.value));
+                            setSignalsPage(0);
                           }}
                           sx={{ borderTop: "1px solid var(--panel-border)", mt: 1 }}
                         />
                       ) : null}
                     </Box>
                   </Paper>
-
-                  {hotspotsEnabled && (hotspots.topProblematicNamespaces?.length || hotspots.podsWithElevatedRestarts > 0) ? (
-                    <Paper variant="outlined" sx={dashboardPanelSx}>
-                      <PanelTitle
-                        title="Hotspots"
-                        hint="Compatibility view for restart-heavy pods and older problematic-resource scoring."
-                      />
-                      {hotspots.topProblematicNamespaces && hotspots.topProblematicNamespaces.length > 0 ? (
-                        <Box sx={dashboardPanelSectionSx}>
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
-                            Namespaces with the most flagged resources
-                          </Typography>
-                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                            {hotspots.topProblematicNamespaces.map((t) => (
-                              <Chip
-                                key={t.namespace}
-                                size="small"
-                                label={`${t.namespace}: ${t.score}`}
-                                color="warning"
-                                variant="outlined"
-                                onClick={() => setInspectTarget({ kind: "Namespace", namespace: t.namespace, name: t.namespace })}
-                              />
-                            ))}
-                          </Box>
-                        </Box>
-                      ) : null}
-                      <Box sx={{ ...dashboardPanelSectionSx, flex: 1 }}>
-                        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1 }}>
-                          <TextField
-                            size="small"
-                            label="Search restart hotspots"
-                            value={restartHotspotsQuery}
-                            onChange={(event) => {
-                              setRestartHotspotsQuery(event.target.value);
-                              setRestartHotspotsPage(0);
-                            }}
-                            placeholder="pod, namespace, node..."
-                            sx={{ minWidth: { xs: "100%", sm: 280 } }}
-                          />
-                          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                            Showing {visibleRestartHotspots.length} of {visibleRestartHotspotsTotal} pod restart hotspot
-                            {visibleRestartHotspotsTotal === 1 ? "" : "s"} in cached scope.
-                          </Typography>
-                        </Box>
-                        {visibleRestartHotspots.length > 0 ? (
-                          <Table size="small">
-                            <TableBody>
-                              {visibleRestartHotspots.map((h) => (
-                                <TableRow key={`${h.namespace}/${h.name}`}>
-                                  <TableCell sx={{ border: 0, py: 0.5, pl: 0, verticalAlign: "top" }}>
-                                    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                                      <Typography
-                                        component="button"
-                                        type="button"
-                                        variant="body2"
-                                        onClick={() => setInspectTarget({ kind: "Pod", namespace: h.namespace, name: h.name })}
-                                        sx={{
-                                          border: 0,
-                                          p: 0,
-                                          background: "transparent",
-                                          color: "primary.main",
-                                          cursor: "pointer",
-                                          font: "inherit",
-                                          fontWeight: 600,
-                                          textAlign: "left",
-                                        }}
-                                      >
-                                        {h.name}
-                                      </Typography>
-                                      <Typography
-                                        component="button"
-                                        type="button"
-                                        variant="caption"
-                                        color="text.secondary"
-                                        onClick={() => setInspectTarget({ kind: "Namespace", namespace: h.namespace, name: h.namespace })}
-                                        sx={{
-                                          border: 0,
-                                          p: 0,
-                                          background: "transparent",
-                                          cursor: "pointer",
-                                          font: "inherit",
-                                          textAlign: "left",
-                                        }}
-                                      >
-                                        {h.namespace}
-                                      </Typography>
-                                    </Box>
-                                  </TableCell>
-                                  <TableCell sx={{ border: 0, py: 0.5, verticalAlign: "top" }}>
-                                    <Box sx={{ display: "flex", flexDirection: "column" }}>
-                                      <Typography variant="body2">
-                                        {h.restartRatePerDay ? formatRestartRatePerDay(h.restartRatePerDay) : `${h.restarts} restarts`}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {h.restarts} restarts
-                                        {h.ageSec ? ` · age ${formatAgeShort(h.ageSec)}` : ""}
-                                      </Typography>
-                                    </Box>
-                                  </TableCell>
-                                  <TableCell sx={{ border: 0, py: 0.5, verticalAlign: "top", width: 92 }}>
-                                    <Chip size="small" label={h.severity} color={h.severity === "high" ? "error" : "warning"} />
-                                  </TableCell>
-                                  <TableCell sx={{ border: 0, py: 0.5, pr: 0, textAlign: "right", verticalAlign: "top", width: 110 }}>
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      onClick={() => setInspectTarget({ kind: "Pod", namespace: h.namespace, name: h.name })}
-                                    >
-                                      Inspect
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            No restart hotspots match this search.
-                          </Typography>
-                        )}
-                        {visibleRestartHotspotsTotal > 0 ? (
-                          <TablePagination
-                            component="div"
-                            count={visibleRestartHotspotsTotal}
-                            page={restartHotspotsPage}
-                            rowsPerPage={restartHotspotsRowsPerPage}
-                            rowsPerPageOptions={[10, 25, 50, 100]}
-                            onPageChange={(_, page) => setRestartHotspotsPage(page)}
-                            onRowsPerPageChange={(event) => {
-                              setRestartHotspotsRowsPerPage(Number(event.target.value));
-                              setRestartHotspotsPage(0);
-                            }}
-                            sx={{ borderTop: "1px solid var(--panel-border)", mt: 1 }}
-                          />
-                        ) : null}
-                      </Box>
-                    </Paper>
-                  ) : null}
                 </Box>
 
                 <Paper variant="outlined" sx={{ p: 2 }}>

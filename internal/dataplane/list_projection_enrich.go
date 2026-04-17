@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -509,7 +510,9 @@ func EnrichNodeListItemsForAPI(items []dto.NodeListItemDTO) []dto.NodeListItemDT
 	out := make([]dto.NodeListItemDTO, len(items))
 	for i := range items {
 		node := items[i]
-		node.HealthBucket, node.NeedsAttention = nodeListSignals(node)
+		if !node.Derived || node.HealthBucket == "" {
+			node.HealthBucket, node.NeedsAttention = nodeListSignals(node)
+		}
 		node.PodDensityRatio, node.PodDensityBucket = nodePodDensity(node)
 		if node.PodDensityBucket == deployBucketDegraded {
 			node.NeedsAttention = true
@@ -517,6 +520,52 @@ func EnrichNodeListItemsForAPI(items []dto.NodeListItemDTO) []dto.NodeListItemDT
 		out[i] = node
 	}
 	return out
+}
+
+func MergeDirectAndDerivedNodeListItems(direct, derived []dto.NodeListItemDTO) []dto.NodeListItemDTO {
+	if len(direct) == 0 {
+		out := append([]dto.NodeListItemDTO(nil), derived...)
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		return out
+	}
+	out := make([]dto.NodeListItemDTO, 0, len(direct)+len(derived))
+	seen := make(map[string]int, len(direct)+len(derived))
+	for _, node := range direct {
+		if node.Name == "" {
+			continue
+		}
+		seen[node.Name] = len(out)
+		out = append(out, node)
+	}
+	for _, node := range derived {
+		if node.Name == "" {
+			continue
+		}
+		if idx, ok := seen[node.Name]; ok {
+			out[idx] = mergeNodeListItemSignals(out[idx], node)
+			continue
+		}
+		seen[node.Name] = len(out)
+		out = append(out, node)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func mergeNodeListItemSignals(direct, derived dto.NodeListItemDTO) dto.NodeListItemDTO {
+	if derived.PodsCount > direct.PodsCount {
+		direct.PodsCount = derived.PodsCount
+	}
+	if derived.NamespaceCount > direct.NamespaceCount {
+		direct.NamespaceCount = derived.NamespaceCount
+	}
+	if derived.ProblematicPods > direct.ProblematicPods {
+		direct.ProblematicPods = derived.ProblematicPods
+	}
+	if derived.RestartCount > direct.RestartCount {
+		direct.RestartCount = derived.RestartCount
+	}
+	return direct
 }
 
 func nodeListSignals(node dto.NodeListItemDTO) (bucket string, needsAttention bool) {

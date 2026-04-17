@@ -29,8 +29,8 @@ func TestBuildNamespaceListRowProjection_OKWithCounts(t *testing.T) {
 	if got.PodCount != 2 || got.DeploymentCount != 1 {
 		t.Fatalf("counts %d %d", got.PodCount, got.DeploymentCount)
 	}
-	if got.PodsWithRestarts != 1 || !got.RestartHotspot {
-		t.Fatalf("restarts %d hotspot %v", got.PodsWithRestarts, got.RestartHotspot)
+	if got.PodsWithRestarts != 1 || !got.RestartSignal {
+		t.Fatalf("restarts %d restart signal %v", got.PodsWithRestarts, got.RestartSignal)
 	}
 	if got.ProblematicCount != 0 {
 		t.Fatalf("problematic %d", got.ProblematicCount)
@@ -94,12 +94,12 @@ func TestMergeNamespaceRowIntoIgnoresListOnlyPatch(t *testing.T) {
 		DeploymentCount:  2,
 		ProblematicCount: 1,
 		PodsWithRestarts: 1,
-		RestartHotspot:   true,
+		RestartSignal:    true,
 	}
 
 	mergeNamespaceRowInto(&dst, dto.NamespaceListItemDTO{Name: "app"})
 
-	if !dst.RowEnriched || dst.PodCount != 3 || dst.DeploymentCount != 2 || dst.SummaryState != "warning" || !dst.RestartHotspot {
+	if !dst.RowEnriched || dst.PodCount != 3 || dst.DeploymentCount != 2 || dst.SummaryState != "warning" || !dst.RestartSignal {
 		t.Fatalf("list-only patch should not reset enriched fields: %+v", dst)
 	}
 }

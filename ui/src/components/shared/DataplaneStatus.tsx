@@ -58,7 +58,8 @@ export default function DataplaneStatus(props: Props) {
   const ns = data.item.visibility.namespaces;
   const nodes = data.item.visibility.nodes;
   const plane = data.item.plane;
-  const wh = data.item.workloadHints;
+  const coverage = data.item.coverage;
+  const signals = data.item.signals;
 
   return (
     <Box sx={{ mb: 1, px: 2, display: "flex", flexWrap: "wrap", rowGap: 0.5, columnGap: 1 }}>
@@ -66,12 +67,12 @@ export default function DataplaneStatus(props: Props) {
         Cluster data · context {data.active || "-"}
       </Typography>
 
-      {wh && wh.namespacesWithWorkloadCache > 0 && (
+      {coverage.namespacesInResourceTotals > 0 && (
         <Chip
           size="small"
           variant="outlined"
-          color={wh.highSeverityHotspotsInTopN > 0 ? "warning" : "default"}
-          label={`Workload cache: ${wh.namespacesWithWorkloadCache}/${wh.totalNamespacesVisible} ns · elevated restarts: ${wh.podsWithElevatedRestarts}`}
+          color={(signals?.high || 0) > 0 ? "warning" : "default"}
+          label={`Signal scope: ${coverage.namespacesInResourceTotals}/${coverage.visibleNamespaces} ns · signals: ${signals?.total ?? 0}`}
         />
       )}
 
@@ -102,4 +103,3 @@ export default function DataplaneStatus(props: Props) {
     </Box>
   );
 }
-

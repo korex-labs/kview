@@ -1113,7 +1113,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
             {numField("Node observer (sec)", dp.observers.nodesIntervalSec, (value) => setDataplaneObservers({ nodesIntervalSec: value }))}
             {numField("Node backoff max (sec)", dp.observers.nodesBackoffMaxSec, (value) => setDataplaneObservers({ nodesBackoffMaxSec: value }))}
             {numField("Restart threshold", dp.dashboard.restartElevatedThreshold, (value) => setDataplaneDashboard({ restartElevatedThreshold: value }))}
-            {numField("Hotspot limit", dp.dashboard.hotspotLimit, (value) => setDataplaneDashboard({ hotspotLimit: value }))}
+            {numField("Signal limit", dp.dashboard.signalLimit, (value) => setDataplaneDashboard({ signalLimit: value }))}
           </Box>
         </Paper>
 

@@ -13,7 +13,7 @@ type NamespaceListItemDTO struct {
 	DeploymentCount    int     `json:"deploymentCount,omitempty"`
 	ProblematicCount   int     `json:"problematicCount,omitempty"`
 	PodsWithRestarts   int     `json:"podsWithRestarts,omitempty"`
-	RestartHotspot     bool    `json:"restartHotspot,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+	RestartSignal      bool    `json:"restartSignal,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
 	ResourceQuotaCount int     `json:"resourceQuotaCount,omitempty"`
 	LimitRangeCount    int     `json:"limitRangeCount,omitempty"`
 	QuotaWarning       bool    `json:"quotaWarning,omitempty"`
@@ -47,10 +47,11 @@ type NamespaceDetailsDTO struct {
 }
 
 type NamespaceInsightsDTO struct {
-	Summary        NamespaceSummaryResourcesDTO `json:"summary"`
-	Findings       []NamespaceInsightFindingDTO `json:"findings,omitempty"`
-	ResourceQuotas []ResourceQuotaDTO           `json:"resourceQuotas,omitempty"`
-	LimitRanges    []LimitRangeDTO              `json:"limitRanges,omitempty"`
+	Summary         NamespaceSummaryResourcesDTO  `json:"summary"`
+	Signals         []NamespaceInsightSignalDTO   `json:"signals,omitempty"`
+	ResourceSignals []NamespaceResourceSignalsDTO `json:"resourceSignals,omitempty"`
+	ResourceQuotas  []ResourceQuotaDTO            `json:"resourceQuotas,omitempty"`
+	LimitRanges     []LimitRangeDTO               `json:"limitRanges,omitempty"`
 }
 
 type NamespaceSummaryDTO struct {
@@ -79,24 +80,9 @@ type NamespaceSummaryResourcesDTO struct {
 	DeployHealth NamespaceDeploymentHealth `json:"deploymentHealth"`
 	Problematic  []ProblematicResource     `json:"problematic"`
 	HelmReleases []NamespaceHelmRelease    `json:"helmReleases,omitempty"`
-	// RestartHotspots is a bounded, severity-sorted view from dataplane pod snapshots (Stage 5C).
-	RestartHotspots []PodRestartHotspotDTO `json:"restartHotspots,omitempty"`
 	// WorkloadByKind rolls up coarse health from dataplane workload list snapshots (Stage 5C).
 	WorkloadByKind *NamespaceWorkloadHealthRollupDTO `json:"workloadByKind,omitempty"`
 	Meta           *NamespaceSummaryMetaDTO          `json:"meta,omitempty"`
-}
-
-// PodRestartHotspotDTO surfaces restart-heavy pods for operator attention.
-type PodRestartHotspotDTO struct {
-	Namespace         string  `json:"namespace"`
-	Name              string  `json:"name"`
-	Restarts          int32   `json:"restarts"`
-	RestartRatePerDay float64 `json:"restartRatePerDay,omitempty"`
-	AgeSec            int64   `json:"ageSec,omitempty"`
-	Phase             string  `json:"phase"`
-	Node              string  `json:"node,omitempty"`
-	LastEventReason   string  `json:"lastEventReason,omitempty"`
-	Severity          string  `json:"severity"` // high | medium | low
 }
 
 // WorkloadKindHealthRollupDTO is a simple healthy / progressing / degraded partition per kind.
@@ -175,7 +161,7 @@ type NamespaceSummaryMetaDTO struct {
 	State string `json:"state"`
 }
 
-type NamespaceInsightFindingDTO struct {
+type NamespaceInsightSignalDTO struct {
 	Kind            string `json:"kind"`
 	Namespace       string `json:"namespace,omitempty"`
 	Name            string `json:"name,omitempty"`
@@ -186,4 +172,19 @@ type NamespaceInsightFindingDTO struct {
 	SuggestedAction string `json:"suggestedAction,omitempty"`
 	Confidence      string `json:"confidence,omitempty"`
 	Section         string `json:"section,omitempty"`
+	SignalType      string `json:"signalType,omitempty"`
+	ResourceKind    string `json:"resourceKind,omitempty"`
+	ResourceName    string `json:"resourceName,omitempty"`
+	Scope           string `json:"scope,omitempty"`
+	ScopeLocation   string `json:"scopeLocation,omitempty"`
+	ActualData      string `json:"actualData,omitempty"`
+	CalculatedData  string `json:"calculatedData,omitempty"`
+}
+
+type NamespaceResourceSignalsDTO struct {
+	ResourceKind  string                      `json:"resourceKind"`
+	ResourceName  string                      `json:"resourceName"`
+	Scope         string                      `json:"scope,omitempty"`
+	ScopeLocation string                      `json:"scopeLocation,omitempty"`
+	Signals       []NamespaceInsightSignalDTO `json:"signals,omitempty"`
 }

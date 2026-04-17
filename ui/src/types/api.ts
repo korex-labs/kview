@@ -85,7 +85,7 @@ export type ApiNamespacesEnrichmentPoll = {
     deploymentCount?: number;
     problematicCount?: number;
     podsWithRestarts?: number;
-    restartHotspot?: boolean;
+    restartSignal?: boolean;
     resourceQuotaCount?: number;
     limitRangeCount?: number;
     quotaWarning?: boolean;
@@ -149,7 +149,7 @@ export type ApiNamespacesListResponse = {
     deploymentCount?: number;
     problematicCount?: number;
     podsWithRestarts?: number;
-    restartHotspot?: boolean;
+    restartSignal?: boolean;
     resourceQuotaCount?: number;
     limitRangeCount?: number;
     quotaWarning?: boolean;
@@ -158,17 +158,66 @@ export type ApiNamespacesListResponse = {
   }>;
 };
 
-/** Pod restart hotspot row (dashboard / namespace summary) */
-export type PodRestartHotspotDTO = {
-  namespace: string;
-  name: string;
-  restarts: number;
-  restartRatePerDay?: number;
-  ageSec?: number;
-  phase: string;
-  node?: string;
-  lastEventReason?: string;
+export type DashboardSignalItem = {
+  kind: string;
+  namespace?: string;
+  name?: string;
   severity: string;
+  score: number;
+  reason: string;
+  likelyCause?: string;
+  suggestedAction?: string;
+  confidence?: string;
+  section?: string;
+  signalType?: string;
+  resourceKind?: string;
+  resourceName?: string;
+  scope?: string;
+  scopeLocation?: string;
+  actualData?: string;
+  calculatedData?: string;
+};
+
+export type DashboardSignalFilter = {
+  id: string;
+  label: string;
+  count: number;
+  category?: string;
+  severity?: string;
+};
+
+export type DashboardSignalsPanel = {
+  total: number;
+  high: number;
+  medium: number;
+  low: number;
+  emptyNamespaces: number;
+  stuckHelmReleases: number;
+  abnormalJobs: number;
+  abnormalCronJobs: number;
+  emptyConfigMaps: number;
+  emptySecrets: number;
+  potentiallyUnusedPVCs: number;
+  potentiallyUnusedServiceAccounts: number;
+  quotaWarnings: number;
+  podRestartSignals: number;
+  serviceWarnings: number;
+  ingressWarnings: number;
+  pvcWarnings: number;
+  roleWarnings: number;
+  roleBindingWarnings: number;
+  filters?: DashboardSignalFilter[];
+  top?: DashboardSignalItem[];
+  items?: DashboardSignalItem[];
+  itemsTotal: number;
+  itemsOffset: number;
+  itemsLimit: number;
+  itemsFilter?: string;
+  itemsQuery?: string;
+  itemsHasMore?: boolean;
+  note?: string;
+  aggregateFreshness?: string;
+  aggregateDegradation?: string;
 };
 
 /** /api/dashboard/cluster response (Stage 5C bounded overview) */
@@ -248,76 +297,7 @@ export type ApiDashboardClusterResponse = {
       aggregateFreshness?: string;
       aggregateDegradation?: string;
     };
-    hotspots: {
-      unhealthyNamespaces: number;
-      degradedDeployments: number;
-      podsWithElevatedRestarts: number;
-      problematicResources: number;
-      topProblematicNamespaces?: Array<{ namespace: string; score: number }>;
-      topPodRestartHotspots?: PodRestartHotspotDTO[];
-      restartHotspotsTotal: number;
-      restartHotspotsOffset: number;
-      restartHotspotsLimit: number;
-      restartHotspotsQuery?: string;
-      restartHotspotsHasMore?: boolean;
-      note?: string;
-      aggregateFreshness?: string;
-      aggregateDegradation?: string;
-      highSeverityHotspotsInTopN: number;
-    };
-    findings?: {
-      total: number;
-      high: number;
-      medium: number;
-      low: number;
-      emptyNamespaces: number;
-      stuckHelmReleases: number;
-      abnormalJobs: number;
-      abnormalCronJobs: number;
-      emptyConfigMaps: number;
-      emptySecrets: number;
-      potentiallyUnusedPVCs: number;
-      potentiallyUnusedServiceAccounts: number;
-      quotaWarnings: number;
-      serviceWarnings: number;
-      ingressWarnings: number;
-      pvcWarnings: number;
-      roleWarnings: number;
-      roleBindingWarnings: number;
-      top?: Array<{
-        kind: string;
-        namespace?: string;
-        name?: string;
-        severity: string;
-        score: number;
-        reason: string;
-        likelyCause?: string;
-        suggestedAction?: string;
-        confidence?: string;
-        section?: string;
-      }>;
-      items?: Array<{
-        kind: string;
-        namespace?: string;
-        name?: string;
-        severity: string;
-        score: number;
-        reason: string;
-        likelyCause?: string;
-        suggestedAction?: string;
-        confidence?: string;
-        section?: string;
-      }>;
-      itemsTotal: number;
-      itemsOffset: number;
-      itemsLimit: number;
-      itemsFilter?: string;
-      itemsQuery?: string;
-      itemsHasMore?: boolean;
-      note?: string;
-      aggregateFreshness?: string;
-      aggregateDegradation?: string;
-    };
+    signals?: DashboardSignalsPanel;
     derived?: {
       nodes: {
         meta: {
@@ -379,15 +359,6 @@ export type ApiDashboardClusterResponse = {
         total: number;
         status?: Record<string, number>;
       };
-    };
-    workloadHints?: {
-      totalNamespacesVisible: number;
-      namespacesWithWorkloadCache: number;
-      topPodRestartHotspots?: PodRestartHotspotDTO[];
-      podsWithElevatedRestarts: number;
-      highSeverityHotspotsInTopN: number;
-      aggregateFreshness?: string;
-      aggregateDegradation?: string;
     };
     dataplane: {
       startedAt?: string;
