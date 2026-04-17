@@ -147,10 +147,10 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var cmd []string
 	if shell, ok := sess.Metadata["shell"]; ok && shell != "" {
 		// Explicit shell requested for this session.
-		cmd = []string{shell}
+		cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; exec \"$0\"", shell}
 	} else {
 		// Prefer bash when available, otherwise fall back to POSIX sh.
-		cmd = []string{"/bin/sh", "-c", "[ -x /bin/bash ] && exec /bin/bash || exec /bin/sh"}
+		cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; [ -x /bin/bash ] && exec /bin/bash || exec /bin/sh"}
 	}
 
 	restClient := clients.Clientset.CoreV1().RESTClient()
