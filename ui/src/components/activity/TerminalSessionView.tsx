@@ -57,9 +57,22 @@ export default function TerminalSessionView({
     term.loadAddon(fitAddon);
     termRef.current = term;
     fitRef.current = fitAddon;
+    let lastSentSize = { cols: 0, rows: 0 };
+
+    const sendResize = () => {
+      const cols = term.cols;
+      const rows = term.rows;
+      if (cols <= 0 || rows <= 0) return;
+      if (lastSentSize.cols === cols && lastSentSize.rows === rows) return;
+      const ws = socketRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: "resize", cols, rows }));
+      lastSentSize = { cols, rows };
+    };
 
     const tryFit = () => {
       fitRef.current?.fit();
+      sendResize();
     };
 
     if (containerRef.current) {
@@ -84,6 +97,7 @@ export default function TerminalSessionView({
     socketRef.current = ws;
 
     ws.onopen = () => {
+      sendResize();
       term.writeln("\x1b[32m[connected]\x1b[0m");
     };
 
@@ -108,8 +122,11 @@ export default function TerminalSessionView({
 
     const disposable = term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data);
+        ws.send(new TextEncoder().encode(data));
       }
+    });
+    const resizeDisposable = term.onResize(() => {
+      sendResize();
     });
 
     const onResize = () => {
@@ -126,6 +143,7 @@ export default function TerminalSessionView({
 
     return () => {
       disposable.dispose();
+      resizeDisposable.dispose();
       window.removeEventListener("resize", onResize);
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
@@ -202,4 +220,3 @@ export default function TerminalSessionView({
     </Box>
   );
 }
-

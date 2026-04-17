@@ -1,9 +1,11 @@
 package stream
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +23,67 @@ type TerminalWS struct {
 
 type wsWriter struct {
 	conn *websocket.Conn
+}
+
+type terminalControlMessage struct {
+	Type string `json:"type"`
+	Cols uint16 `json:"cols"`
+	Rows uint16 `json:"rows"`
+}
+
+type terminalSizeQueue struct {
+	mu     sync.Mutex
+	ch     chan remotecommand.TerminalSize
+	closed bool
+}
+
+func newTerminalSizeQueue() *terminalSizeQueue {
+	q := &terminalSizeQueue{ch: make(chan remotecommand.TerminalSize, 1)}
+	q.Push(80, 24)
+	return q
+}
+
+func (q *terminalSizeQueue) Push(cols, rows uint16) {
+	if cols == 0 || rows == 0 {
+		return
+	}
+	size := remotecommand.TerminalSize{Width: cols, Height: rows}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return
+	}
+	select {
+	case q.ch <- size:
+		return
+	default:
+	}
+	select {
+	case <-q.ch:
+	default:
+	}
+	select {
+	case q.ch <- size:
+	default:
+	}
+}
+
+func (q *terminalSizeQueue) Next() *remotecommand.TerminalSize {
+	size, ok := <-q.ch
+	if !ok {
+		return nil
+	}
+	return &size
+}
+
+func (q *terminalSizeQueue) Close() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return
+	}
+	q.closed = true
+	close(q.ch)
 }
 
 func (w *wsWriter) Write(p []byte) (int, error) {
@@ -123,6 +186,8 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = t.Sessions.Update(ctx, sess)
 
 	stdinReader, stdinWriter := io.Pipe()
+	sizeQueue := newTerminalSizeQueue()
+	defer sizeQueue.Close()
 
 	go func() {
 		defer stdinWriter.Close()
@@ -136,6 +201,13 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(msg) == 0 {
 				continue
+			}
+			if mt == websocket.TextMessage {
+				var control terminalControlMessage
+				if err := json.Unmarshal(msg, &control); err == nil && control.Type == "resize" {
+					sizeQueue.Push(control.Cols, control.Rows)
+					continue
+				}
 			}
 			if _, err := stdinWriter.Write(msg); err != nil {
 				return
@@ -152,10 +224,11 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = t.Sessions.Update(ctx, sess)
 
 	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  stdinReader,
-		Stdout: stdoutWriter,
-		Stderr: stdoutWriter,
-		Tty:    true,
+		Stdin:             stdinReader,
+		Stdout:            stdoutWriter,
+		Stderr:            stdoutWriter,
+		Tty:               true,
+		TerminalSizeQueue: sizeQueue,
 	})
 
 	if err != nil {
