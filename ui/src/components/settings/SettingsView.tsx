@@ -367,6 +367,19 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
           }
           label="Smart filters"
         />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={settings.appearance.releaseChecksEnabled}
+              onChange={(e) =>
+                setSettings((prev) =>
+                  updateAppearance(prev, { releaseChecksEnabled: e.target.checked }),
+                )
+              }
+            />
+          }
+          label="Check for kview updates"
+        />
         <TextField
           select
           size="small"

@@ -380,6 +380,7 @@ function AppInner() {
               section={section}
               onSelectSection={onSelectSection}
               buildVersion={backendVersion}
+              releaseChecksEnabled={settings.appearance.releaseChecksEnabled}
             />
           ) : null}
 

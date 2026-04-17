@@ -56,6 +56,7 @@ describe("user settings", () => {
     expect(parsed?.appearance.dashboardRefreshSec).toBe(0);
     expect(parsed?.appearance.smartFiltersEnabled).toBe(false);
     expect(parsed?.appearance.activityPanelInitiallyOpen).toBe(true);
+    expect(parsed?.appearance.releaseChecksEnabled).toBe(false);
     expect(parsed?.smartFilters.minCount).toBe(2);
     expect(parsed?.smartFilters.rules[0]).toMatchObject({
       id: "ticket",

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
+  Chip,
   Drawer,
   FormControl,
   InputLabel,
@@ -19,6 +20,13 @@ import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import type { Section } from "../state";
 import { getResourceLabel, isClusterScopedSection, sidebarGroups } from "../utils/k8sResources";
+import {
+  getLatestReleaseWithCache,
+  isComparableReleaseVersion,
+  isUpdateAvailable,
+  RELEASE_CHECK_INTERVAL_MS,
+  type LatestRelease,
+} from "../releaseCheck";
 
 type Props = {
   contexts: Array<{ name: string }>;
@@ -36,13 +44,16 @@ type Props = {
   section: Section;
   onSelectSection: (s: Section) => void;
   buildVersion?: string;
+  releaseChecksEnabled?: boolean;
 };
 
 const drawerWidth = 320;
 
 export default function Sidebar(props: Props) {
   const [nsInput, setNsInput] = useState("");
+  const [latestRelease, setLatestRelease] = useState<LatestRelease | null>(null);
   const isClusterScoped = isClusterScopedSection(props.section);
+  const currentVersion = props.buildVersion || "dev";
 
   const favSet = useMemo(() => new Set(props.favourites), [props.favourites]);
 
@@ -51,6 +62,42 @@ export default function Sidebar(props: Props) {
     const rest = props.namespaces.filter((n) => !favSet.has(n)).sort((a, b) => a.localeCompare(b));
     return [...fav, ...rest];
   }, [props.namespaces, favSet]);
+
+  useEffect(() => {
+    if (!props.releaseChecksEnabled) {
+      setLatestRelease(null);
+      return;
+    }
+    if (!isComparableReleaseVersion(currentVersion)) {
+      setLatestRelease(null);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const checkLatestRelease = async () => {
+      try {
+        const release = await getLatestReleaseWithCache(controller.signal);
+        if (!cancelled) setLatestRelease(release);
+      } catch {
+        if (!cancelled) setLatestRelease(null);
+      }
+    };
+
+    void checkLatestRelease();
+    const id = window.setInterval(checkLatestRelease, RELEASE_CHECK_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(id);
+    };
+  }, [currentVersion, props.releaseChecksEnabled]);
+
+  const updateAvailable = latestRelease
+    ? isUpdateAvailable(currentVersion, latestRelease.latestTag)
+    : false;
+  const updateRelease = updateAvailable ? latestRelease : null;
 
   return (
     <Drawer
@@ -167,8 +214,22 @@ export default function Sidebar(props: Props) {
         <Box sx={{ pt: 0.5 }}>
           <Divider sx={{ mb: 1 }} />
           <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-            kview {props.buildVersion || "dev"}
+            kview {currentVersion}
           </Typography>
+          {updateRelease ? (
+            <Chip
+              component="a"
+              href={updateRelease.latestUrl}
+              target="_blank"
+              rel="noreferrer"
+              clickable
+              size="small"
+              color="warning"
+              variant="outlined"
+              label={`Update ${updateRelease.latestTag}`}
+              sx={{ mt: 0.75, maxWidth: "100%" }}
+            />
+          ) : null}
         </Box>
       </Box>
     </Drawer>
