@@ -1,0 +1,1 @@
+export const POLL_STATUS_INTERVAL_MS = 5000;

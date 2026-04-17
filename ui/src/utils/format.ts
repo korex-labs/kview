@@ -1,3 +1,40 @@
+export function fmtAgeShort(ageSec?: number): string {
+  if (ageSec == null || !Number.isFinite(ageSec) || ageSec <= 0) return "";
+  if (ageSec < 3600) return `${Math.max(1, Math.round(ageSec / 60))}m`;
+  if (ageSec < 86400) return `${(ageSec / 3600).toFixed(1)}h`;
+  return `${(ageSec / 86400).toFixed(1)}d`;
+}
+
+export function fmtBytes(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let next = value;
+  let idx = 0;
+  while (next >= 1024 && idx < units.length - 1) {
+    next /= 1024;
+    idx++;
+  }
+  return `${next >= 100 || idx === 0 ? Math.round(next) : next.toFixed(1)} ${units[idx]}`;
+}
+
+export function fmtRate(value?: number, suffix = "/min"): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return `0${suffix}`;
+  if (value >= 100) return `${Math.round(value)}${suffix}`;
+  if (value >= 10) return `${value.toFixed(1)}${suffix}`;
+  return `${value.toFixed(2)}${suffix}`;
+}
+
+export function fmtByteRate(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "0 B/min";
+  return `${fmtBytes(value)}/min`;
+}
+
+export function fmtPercent(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "0%";
+  if (value >= 100) return "100%";
+  return `${value.toFixed(1)}%`;
+}
+
 export function fmtTs(unix?: number | null): string {
   if (!unix) return "-";
   const d = new Date(unix * 1000);

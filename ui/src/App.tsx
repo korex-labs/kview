@@ -52,35 +52,14 @@ import SettingsView from "./components/settings/SettingsView";
 import DataplaneQuickSearch from "./components/search/DataplaneQuickSearch";
 import DataplaneSearchDrawer from "./components/search/DataplaneSearchDrawer";
 import type { ApiDataplaneSearchItem } from "./types/api";
+import { POLL_STATUS_INTERVAL_MS } from "./constants/pollIntervals";
+import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import "./styles/theme.css";
 
 function getToken(): string {
   const u = new URL(window.location.href);
   return u.searchParams.get("token") || "";
 }
-
-const dataplaneSearchSectionByKind: Record<string, Section> = {
-  namespaces: "namespaces",
-  nodes: "nodes",
-  pods: "pods",
-  deployments: "deployments",
-  daemonsets: "daemonsets",
-  statefulsets: "statefulsets",
-  replicasets: "replicasets",
-  jobs: "jobs",
-  cronjobs: "cronjobs",
-  services: "services",
-  ingresses: "ingresses",
-  configmaps: "configmaps",
-  secrets: "secrets",
-  serviceaccounts: "serviceaccounts",
-  roles: "roles",
-  rolebindings: "rolebindings",
-  persistentvolumeclaims: "persistentvolumeclaims",
-  helmreleases: "helm",
-  resourcequotas: "namespaces",
-  limitranges: "namespaces",
-};
 
 function AppInner() {
   const token = useMemo(() => getToken(), []);
@@ -169,7 +148,7 @@ function AppInner() {
     };
 
     void pollStatus();
-    const id = window.setInterval(pollStatus, 5000);
+    const id = window.setInterval(pollStatus, POLL_STATUS_INTERVAL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(id);

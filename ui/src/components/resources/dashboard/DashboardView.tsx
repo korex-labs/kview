@@ -14,6 +14,7 @@ import {
 import { apiGet, apiGetWithContext } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
+import { fmtAgeShort, fmtBytes, fmtByteRate, fmtPercent, fmtRate } from "../../../utils/format";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
 import InfoHint from "../../shared/InfoHint";
@@ -45,43 +46,6 @@ type Props = {
 
 function stateChipColor(state: string): "success" | "warning" | "error" | "default" {
   return dataplaneCoarseStateChipColor(state) as "success" | "warning" | "error" | "default";
-}
-
-function formatAgeShort(ageSec?: number): string {
-  if (ageSec == null || !Number.isFinite(ageSec) || ageSec <= 0) return "";
-  if (ageSec < 3600) return `${Math.max(1, Math.round(ageSec / 60))}m`;
-  if (ageSec < 86400) return `${(ageSec / 3600).toFixed(1)}h`;
-  return `${(ageSec / 86400).toFixed(1)}d`;
-}
-
-function formatBytes(value?: number): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let next = value;
-  let idx = 0;
-  while (next >= 1024 && idx < units.length - 1) {
-    next /= 1024;
-    idx++;
-  }
-  return `${next >= 100 || idx === 0 ? Math.round(next) : next.toFixed(1)} ${units[idx]}`;
-}
-
-function formatRate(value?: number, suffix = "/min"): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return `0${suffix}`;
-  if (value >= 100) return `${Math.round(value)}${suffix}`;
-  if (value >= 10) return `${value.toFixed(1)}${suffix}`;
-  return `${value.toFixed(2)}${suffix}`;
-}
-
-function formatByteRate(value?: number): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return "0 B/min";
-  return `${formatBytes(value)}/min`;
-}
-
-function formatPercent(value?: number): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return "0%";
-  if (value >= 100) return "100%";
-  return `${value.toFixed(1)}%`;
 }
 
 function PanelTitle({ title, hint }: { title: string; hint: string }) {
@@ -534,10 +498,10 @@ export default function DashboardView(props: Props) {
                     hint="Session-lifetime dataplane metrics since app startup. This tracks dataplane snapshot traffic and cache state only, not direct kube reads outside dataplane."
                   />
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                    <Chip size="small" variant="outlined" label={`Uptime ${formatAgeShort(dataplane.uptimeSec) || "0m"}`} />
-                    <Chip size="small" variant="outlined" label={`Requests ${formatRate(dataplane.traffic.requestsPerMin)}`} />
-                    <Chip size="small" variant="outlined" label={`Traffic ${formatByteRate(dataplane.traffic.liveBytesPerMin)}`} />
-                    <Chip size="small" variant="outlined" label={`Avg fetch ${formatBytes(dataplane.traffic.avgBytesPerFetch)}`} />
+                    <Chip size="small" variant="outlined" label={`Uptime ${fmtAgeShort(dataplane.uptimeSec) || "0m"}`} />
+                    <Chip size="small" variant="outlined" label={`Requests ${fmtRate(dataplane.traffic.requestsPerMin)}`} />
+                    <Chip size="small" variant="outlined" label={`Traffic ${fmtByteRate(dataplane.traffic.liveBytesPerMin)}`} />
+                    <Chip size="small" variant="outlined" label={`Avg fetch ${fmtBytes(dataplane.traffic.avgBytesPerFetch)}`} />
                   </Box>
                   <Box sx={dashboardPanelSectionSx}>
                     <Table size="small">
@@ -553,7 +517,7 @@ export default function DashboardView(props: Props) {
                               ]}
                             />
                           }
-                          summary={`${formatPercent(dataplane.requests.hitRatio)} hit · ${dataplane.requests.freshHits}/${dataplane.requests.total} req`}
+                          summary={`${fmtPercent(dataplane.requests.hitRatio)} hit · ${dataplane.requests.freshHits}/${dataplane.requests.total} req`}
                         />
                         <DataplaneVisualRow
                           label="Traffic Mix"
@@ -566,7 +530,7 @@ export default function DashboardView(props: Props) {
                               ]}
                             />
                           }
-                          summary={`${formatBytes(dataplane.traffic.liveBytes)} live · ${formatBytes(dataplane.traffic.hydratedBytes)} restored`}
+                          summary={`${fmtBytes(dataplane.traffic.liveBytes)} live · ${fmtBytes(dataplane.traffic.hydratedBytes)} restored`}
                         />
                         <DataplaneVisualRow
                           label="Cache Footprint"
@@ -579,7 +543,7 @@ export default function DashboardView(props: Props) {
                               ]}
                             />
                           }
-                          summary={`${dataplane.cache.snapshotsStored} snapshots · ${formatBytes(dataplane.cache.avgBytesPerSnapshot)} avg`}
+                          summary={`${dataplane.cache.snapshotsStored} snapshots · ${fmtBytes(dataplane.cache.avgBytesPerSnapshot)} avg`}
                         />
                         <DataplaneVisualRow
                           label="Execution"
@@ -620,7 +584,7 @@ export default function DashboardView(props: Props) {
                                 ]}
                               />
                             }
-                            summary={`${formatPercent(source.requests > 0 ? ((source.requests - source.fetches) * 100) / source.requests : 0)} hit · ${Math.max(0, source.requests - source.fetches)}/${source.requests} req`}
+                            summary={`${fmtPercent(source.requests > 0 ? ((source.requests - source.fetches) * 100) / source.requests : 0)} hit · ${Math.max(0, source.requests - source.fetches)}/${source.requests} req`}
                           />
                         ))}
                       </TableBody>
