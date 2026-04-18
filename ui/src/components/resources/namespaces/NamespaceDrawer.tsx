@@ -3,7 +3,6 @@ import {
   Box,
   Chip,
   CircularProgress,
-  LinearProgress,
   Tab,
   Table,
   TableBody,
@@ -49,6 +48,7 @@ import CodeBlock from "../../shared/CodeBlock";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import MetadataSection from "../../shared/MetadataSection";
+import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import RightDrawer from "../../layout/RightDrawer";
@@ -103,18 +103,11 @@ function isNamespaceConditionHealthy(cond: NamespaceCondition): boolean {
   return cond.status === "False";
 }
 
-function quotaGaugeColor(ratio?: number): "success" | "warning" | "error" {
+function quotaGaugeTone(ratio?: number): GaugeTone {
   if (ratio == null) return "success";
   if (ratio >= 0.9) return "error";
   if (ratio >= 0.8) return "warning";
   return "success";
-}
-
-function quotaGaugeMuiColor(ratio?: number): string {
-  const level = quotaGaugeColor(ratio);
-  if (level === "error") return "#d32f2f";
-  if (level === "warning") return "#ed6c02";
-  return "#2e7d32";
 }
 
 function summarizeQuotaPressure(quotas: NamespaceResourceQuota[]): { critical: number; warning: number } {
@@ -517,41 +510,12 @@ export default function NamespaceDrawer(props: {
                               {quota.entries.map((entry) => {
                                 const entrySignals = signalsForQuotaEntry(quotaSignals, entry.key);
                                 const pct = entry.ratio != null ? Math.round(entry.ratio * 100) : null;
-                                const color = quotaGaugeMuiColor(entry.ratio);
+                                const tone = quotaGaugeTone(entry.ratio);
                                 return (
                                   <TableRow key={entry.key}>
                                     <TableCell sx={{ fontFamily: "monospace", fontSize: 13 }}>{entry.key}</TableCell>
                                     <TableCell>
-                                      <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
-                                        <LinearProgress
-                                          variant="determinate"
-                                          value={pct != null ? Math.min(pct, 100) : 0}
-                                          sx={{
-                                            width: "100%",
-                                            height: 20,
-                                            borderRadius: 1,
-                                            backgroundColor: "rgba(0,0,0,0.08)",
-                                            "& .MuiLinearProgress-bar": {
-                                              backgroundColor: color,
-                                              borderRadius: 1,
-                                            },
-                                          }}
-                                        />
-                                        <Typography
-                                          variant="caption"
-                                          sx={{
-                                            position: "absolute",
-                                            width: "100%",
-                                            textAlign: "center",
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            color: pct != null && pct >= 50 ? "#fff" : "text.primary",
-                                            lineHeight: "20px",
-                                          }}
-                                        >
-                                          {pct != null ? `${pct}%` : "-"}
-                                        </Typography>
-                                      </Box>
+                                      <GaugeBar value={pct != null ? pct : 0} tone={tone} label={pct != null ? `${pct}%` : "-"} height={20} />
                                     </TableCell>
                                     <TableCell sx={{ textAlign: "right", fontSize: 12, whiteSpace: "nowrap" }}>
                                       <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>

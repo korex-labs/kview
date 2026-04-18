@@ -4,15 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/alex-mamchenkov/kview/internal/cluster"
 	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+)
+
+const (
+	hpaGaugeWarnPercent = 80
+	hpaGaugeCritPercent = 100
 )
 
 func ListHorizontalPodAutoscalers(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.HorizontalPodAutoscalerDTO, error) {
@@ -88,6 +95,8 @@ func summarizeHPA(hpa autoscalingv2.HorizontalPodAutoscaler, now time.Time) dto.
 		MaxReplicas:      hpa.Spec.MaxReplicas,
 		CurrentReplicas:  hpa.Status.CurrentReplicas,
 		DesiredReplicas:  hpa.Status.DesiredReplicas,
+		CurrentGauge:     hpaGauge(hpa.Status.CurrentReplicas, hpa.Spec.MaxReplicas),
+		DesiredGauge:     hpaGauge(hpa.Status.DesiredReplicas, hpa.Spec.MaxReplicas),
 		CurrentMetrics:   hpaMetrics(hpa.Status.CurrentMetrics, hpa.Spec.Metrics),
 		Conditions:       hpaConditions(hpa.Status.Conditions),
 		AgeSec:           age,
@@ -111,6 +120,19 @@ func minReplicas(v *int32) int32 {
 		return 1
 	}
 	return *v
+}
+
+func hpaGauge(value, max int32) dto.HPAGaugeDTO {
+	out := dto.HPAGaugeDTO{
+		Value: float64(value),
+		Max:   float64(max),
+	}
+	if max <= 0 {
+		return out
+	}
+	out.Percent = clampPercent((float64(value) / float64(max)) * 100)
+	out.Tone = hpaGaugeTone(out.Percent)
+	return out
 }
 
 func scaleTargetRef(ref autoscalingv2.CrossVersionObjectReference) dto.ScaleTargetRefDTO {
@@ -145,24 +167,32 @@ func hpaMetrics(status []autoscalingv2.MetricStatus, spec []autoscalingv2.Metric
 	out := make([]dto.HPAMetricDTO, 0, max(len(status), len(spec)))
 	byKey := map[string]int{}
 	for _, metric := range spec {
+		target, targetValue := metricTarget(metric)
 		item := dto.HPAMetricDTO{
-			Type:   string(metric.Type),
-			Name:   metricSpecName(metric),
-			Target: metricTarget(metric),
+			Type:        string(metric.Type),
+			Name:        metricSpecName(metric),
+			Target:      target,
+			TargetValue: targetValue,
 		}
+		setMetricGauge(&item)
 		byKey[metricDTOKey(item)] = len(out)
 		out = append(out, item)
 	}
 	for _, metric := range status {
+		current, currentValue := metricCurrentValue(metric)
 		item := dto.HPAMetricDTO{
-			Type:    string(metric.Type),
-			Name:    metricStatusName(metric),
-			Current: metricCurrentValue(metric),
+			Type:         string(metric.Type),
+			Name:         metricStatusName(metric),
+			Current:      current,
+			CurrentValue: currentValue,
 		}
 		if idx, ok := byKey[metricDTOKey(item)]; ok {
 			out[idx].Current = item.Current
+			out[idx].CurrentValue = item.CurrentValue
+			setMetricGauge(&out[idx])
 			continue
 		}
+		setMetricGauge(&item)
 		out = append(out, item)
 	}
 	return out
@@ -224,7 +254,7 @@ func metricSpecName(metric autoscalingv2.MetricSpec) string {
 	return ""
 }
 
-func metricCurrentValue(metric autoscalingv2.MetricStatus) string {
+func metricCurrentValue(metric autoscalingv2.MetricStatus) (string, *float64) {
 	switch metric.Type {
 	case autoscalingv2.ResourceMetricSourceType:
 		if metric.Resource != nil {
@@ -235,8 +265,8 @@ func metricCurrentValue(metric autoscalingv2.MetricStatus) string {
 			return metricValue(metric.ContainerResource.Current)
 		}
 	case autoscalingv2.PodsMetricSourceType:
-		if metric.Pods != nil {
-			return metric.Pods.Current.AverageValue.String()
+		if metric.Pods != nil && metric.Pods.Current.AverageValue != nil {
+			return metric.Pods.Current.AverageValue.String(), quantityFloat64(metric.Pods.Current.AverageValue)
 		}
 	case autoscalingv2.ObjectMetricSourceType:
 		if metric.Object != nil {
@@ -247,10 +277,10 @@ func metricCurrentValue(metric autoscalingv2.MetricStatus) string {
 			return metricValue(metric.External.Current)
 		}
 	}
-	return ""
+	return "", nil
 }
 
-func metricTarget(metric autoscalingv2.MetricSpec) string {
+func metricTarget(metric autoscalingv2.MetricSpec) (string, *float64) {
 	switch metric.Type {
 	case autoscalingv2.ResourceMetricSourceType:
 		if metric.Resource != nil {
@@ -273,38 +303,80 @@ func metricTarget(metric autoscalingv2.MetricSpec) string {
 			return metricTargetValue(metric.External.Target)
 		}
 	}
-	return ""
+	return "", nil
 }
 
-func metricValue(value autoscalingv2.MetricValueStatus) string {
+func metricValue(value autoscalingv2.MetricValueStatus) (string, *float64) {
 	if value.AverageUtilization != nil {
-		return fmt.Sprintf("%d%%", *value.AverageUtilization)
+		v := float64(*value.AverageUtilization)
+		return fmt.Sprintf("%d%%", *value.AverageUtilization), &v
 	}
 	if value.AverageValue != nil {
-		return value.AverageValue.String()
+		return value.AverageValue.String(), quantityFloat64(value.AverageValue)
 	}
 	if value.Value != nil {
-		return value.Value.String()
+		return value.Value.String(), quantityFloat64(value.Value)
 	}
-	return ""
+	return "", nil
 }
 
-func metricTargetValue(target autoscalingv2.MetricTarget) string {
+func metricTargetValue(target autoscalingv2.MetricTarget) (string, *float64) {
 	switch target.Type {
 	case autoscalingv2.UtilizationMetricType:
 		if target.AverageUtilization != nil {
-			return fmt.Sprintf("%d%% average utilization", *target.AverageUtilization)
+			v := float64(*target.AverageUtilization)
+			return fmt.Sprintf("%d%% average utilization", *target.AverageUtilization), &v
 		}
 	case autoscalingv2.AverageValueMetricType:
 		if target.AverageValue != nil {
-			return target.AverageValue.String() + " average"
+			return target.AverageValue.String() + " average", quantityFloat64(target.AverageValue)
 		}
 	case autoscalingv2.ValueMetricType:
 		if target.Value != nil {
-			return target.Value.String()
+			return target.Value.String(), quantityFloat64(target.Value)
 		}
 	}
-	return string(target.Type)
+	return string(target.Type), nil
+}
+
+func quantityFloat64(q *apiresource.Quantity) *float64 {
+	if q == nil {
+		return nil
+	}
+	v := q.AsApproximateFloat64()
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return nil
+	}
+	return &v
+}
+
+func setMetricGauge(metric *dto.HPAMetricDTO) {
+	if metric == nil || metric.CurrentValue == nil || metric.TargetValue == nil || *metric.TargetValue <= 0 {
+		return
+	}
+	percent := clampPercent((*metric.CurrentValue / *metric.TargetValue) * 100)
+	metric.GaugePercent = &percent
+	metric.GaugeTone = hpaGaugeTone(percent)
+}
+
+func clampPercent(v float64) float64 {
+	if math.IsInf(v, 0) || math.IsNaN(v) || v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
+}
+
+func hpaGaugeTone(percent float64) string {
+	if percent >= hpaGaugeCritPercent {
+		return "error"
+	}
+	if percent >= hpaGaugeWarnPercent {
+		return "warning"
+	}
+	return "success"
 }
 
 func hpaAttentionReasons(hpa dto.HorizontalPodAutoscalerDTO) []string {

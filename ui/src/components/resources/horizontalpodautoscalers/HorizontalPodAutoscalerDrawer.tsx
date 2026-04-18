@@ -26,8 +26,14 @@ import AccessDeniedState from "../../shared/AccessDeniedState";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
+import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import type { ApiItemResponse, ApiListResponse, EventDTO } from "../../../types/api";
 import { drawerBodySx, drawerTabContentCompactSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
+
+const tabs = ["Signals", "Events", "Metadata", "YAML"] as const;
+const eventsTabIndex = tabs.indexOf("Events");
+const metadataTabIndex = tabs.indexOf("Metadata");
+const yamlTabIndex = tabs.indexOf("YAML");
 
 type HPA = {
   name: string;
@@ -37,6 +43,8 @@ type HPA = {
   maxReplicas: number;
   currentReplicas: number;
   desiredReplicas: number;
+  currentGauge?: HPAGauge;
+  desiredGauge?: HPAGauge;
   currentMetrics?: HPAMetric[];
   conditions?: HPACondition[];
   ageSec: number;
@@ -65,6 +73,17 @@ type HPAMetric = {
   name?: string;
   target?: string;
   current?: string;
+  currentValue?: number;
+  targetValue?: number;
+  gaugePercent?: number;
+  gaugeTone?: GaugeTone;
+};
+
+type HPAGauge = {
+  value: number;
+  max: number;
+  percent: number;
+  tone?: GaugeTone;
 };
 
 type HPACondition = {
@@ -79,6 +98,49 @@ function targetRefText(ref?: { kind?: string; name?: string; apiVersion?: string
   if (!ref?.kind && !ref?.name) return "-";
   const base = [ref.kind, ref.name].filter(Boolean).join("/");
   return ref.apiVersion ? `${base} (${ref.apiVersion})` : base;
+}
+
+function GaugeRow({
+  label,
+  gauge,
+  caption,
+}: {
+  label: string;
+  gauge?: HPAGauge;
+  caption: string;
+}) {
+  return (
+    <Box>
+      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">{label}</Typography>
+        <Typography variant="caption" color="text.secondary">{caption}</Typography>
+      </Box>
+      <GaugeBar value={gauge?.percent ?? 0} tone={gauge?.tone || "success"} />
+    </Box>
+  );
+}
+
+function HPAMetricGauge({ metric }: { metric: HPAMetric }) {
+  const showBar = typeof metric.gaugePercent === "number";
+  return (
+    <Box>
+      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {[metric.type, metric.name].filter(Boolean).join(" / ") || "Metric"}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {valueOrDash(metric.current)} / {valueOrDash(metric.target)}
+        </Typography>
+      </Box>
+      {showBar ? (
+        <GaugeBar value={metric.gaugePercent || 0} tone={metric.gaugeTone || "success"} />
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          Current and target metric values are not both available for a gauge yet.
+        </Typography>
+      )}
+    </Box>
+  );
 }
 
 export default function HorizontalPodAutoscalerDrawer(props: {
@@ -149,16 +211,111 @@ export default function HorizontalPodAutoscalerDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Metrics" />
-              <Tab label="Conditions" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              {tabs.map((label) => (
+                <Tab key={label} label={label} />
+              ))}
             </Tabs>
 
             <Box sx={drawerBodySx}>
               {tab === 0 && (
+                <Box sx={drawerTabContentCompactSx}>
+                  <Section
+                    title="Scaling signals"
+                    actions={
+                      <Chip
+                        size="small"
+                        label={details.summary.needsAttention ? "attention" : details.summary.healthBucket || "unknown"}
+                        color={deploymentHealthBucketColor(details.summary.healthBucket)}
+                      />
+                    }
+                  >
+                    <Box sx={panelBoxSx}>
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                        <GaugeRow
+                          label="Current replicas"
+                          gauge={details.summary.currentGauge}
+                          caption={`${details.summary.currentReplicas} current / ${details.summary.maxReplicas} max`}
+                        />
+                        <GaugeRow
+                          label="Desired replicas"
+                          gauge={details.summary.desiredGauge}
+                          caption={`${details.summary.desiredReplicas} desired / min ${details.summary.minReplicas}`}
+                        />
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                          <Chip size="small" variant="outlined" label={`Min ${details.summary.minReplicas}`} />
+                          <Chip size="small" variant="outlined" label={`Max ${details.summary.maxReplicas}`} />
+                          <Chip size="small" variant="outlined" label={`Last scale ${details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-"}`} />
+                        </Box>
+                      </Box>
+                    </Box>
+                    {details.summary.attentionReasons?.length ? (
+                      <Box sx={{ mt: 1, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                        {details.summary.attentionReasons.map((reason) => (
+                          <Chip key={reason} size="small" variant="outlined" label={reason} />
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        No HPA attention signals from the current status.
+                      </Typography>
+                    )}
+                  </Section>
+
+                  <Section title="Metric targets">
+                    {!details.metrics?.length ? (
+                      <EmptyState message="No metric targets configured." />
+                    ) : (
+                      <Box sx={panelBoxSx}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                          {details.metrics.map((metric, idx) => (
+                            <HPAMetricGauge key={`${metric.type}-${metric.name || idx}`} metric={metric} />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Section>
+
+                  <Section title="Conditions">
+                    {!details.conditions?.length ? (
+                      <EmptyState message="No conditions reported." />
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Type</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Reason</TableCell>
+                            <TableCell>Changed</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {details.conditions.map((cond) => (
+                            <TableRow key={cond.type}>
+                              <TableCell>{cond.type}</TableCell>
+                              <TableCell><Chip size="small" label={cond.status} color={conditionStatusColor(cond.status)} /></TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{valueOrDash(cond.reason)}</Typography>
+                                {cond.message ? (
+                                  <Typography variant="caption" color="text.secondary">{cond.message}</Typography>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>{cond.lastTransitionTime ? fmtTs(cond.lastTransitionTime) : "-"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </Section>
+                </Box>
+              )}
+
+              {tab === eventsTabIndex && (
+                <Box sx={drawerTabContentCompactSx}>
+                  <EventsList events={events} />
+                </Box>
+              )}
+
+              {tab === metadataTabIndex && (
                 <Box sx={drawerTabContentCompactSx}>
                   <Section
                     title="Summary"
@@ -173,7 +330,8 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                     <Box sx={panelBoxSx}>
                       <KeyValueTable
                         rows={[
-                          { label: "Namespace", value: details.summary.namespace },
+                          { label: "Name", value: details.summary.name, monospace: true },
+                          { label: "Namespace", value: details.summary.namespace, monospace: true },
                           { label: "Target", value: targetRefText(details.summary.scaleTargetRef) },
                           { label: "Replicas", value: `${details.summary.currentReplicas}/${details.summary.desiredReplicas}` },
                           { label: "Min / Max", value: `${details.summary.minReplicas} / ${details.summary.maxReplicas}` },
@@ -183,13 +341,6 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                         valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                       />
                     </Box>
-                    {details.summary.attentionReasons?.length ? (
-                      <Box sx={{ mt: 1, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-                        {details.summary.attentionReasons.map((reason) => (
-                          <Chip key={reason} size="small" color="warning" label={reason} />
-                        ))}
-                      </Box>
-                    ) : null}
                   </Section>
 
                   <Section title="Scaling Spec">
@@ -205,82 +356,14 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                       />
                     </Box>
                   </Section>
+
+                  <Section title="Labels and annotations">
+                    <MetadataSection labels={details.metadata?.labels} annotations={details.metadata?.annotations} wrapInSection={false} />
+                  </Section>
                 </Box>
               )}
 
-              {tab === 1 && (
-                <Box sx={drawerTabContentCompactSx}>
-                  {!details.metrics?.length ? (
-                    <EmptyState message="No current metrics reported." />
-                  ) : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Name</TableCell>
-                          <TableCell>Current</TableCell>
-                          <TableCell>Target</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {details.metrics.map((metric, idx) => (
-                          <TableRow key={`${metric.type}-${metric.name || idx}`}>
-                            <TableCell>{metric.type}</TableCell>
-                            <TableCell>{valueOrDash(metric.name)}</TableCell>
-                            <TableCell>{valueOrDash(metric.current)}</TableCell>
-                            <TableCell>{valueOrDash(metric.target)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </Box>
-              )}
-
-              {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
-                  {!details.conditions?.length ? (
-                    <EmptyState message="No conditions reported." />
-                  ) : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Reason</TableCell>
-                          <TableCell>Message</TableCell>
-                          <TableCell>Changed</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {details.conditions.map((cond) => (
-                          <TableRow key={cond.type}>
-                            <TableCell>{cond.type}</TableCell>
-                            <TableCell><Chip size="small" label={cond.status} color={conditionStatusColor(cond.status)} /></TableCell>
-                            <TableCell>{valueOrDash(cond.reason)}</TableCell>
-                            <TableCell><Typography variant="body2">{valueOrDash(cond.message)}</Typography></TableCell>
-                            <TableCell>{cond.lastTransitionTime ? fmtTs(cond.lastTransitionTime) : "-"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </Box>
-              )}
-
-              {tab === 3 && (
-                <Box sx={drawerTabContentCompactSx}>
-                  <EventsList events={events} />
-                </Box>
-              )}
-
-              {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
-                  <MetadataSection labels={details.metadata?.labels} annotations={details.metadata?.annotations} wrapInSection={false} />
-                </Box>
-              )}
-
-              {tab === 5 && (
+              {tab === yamlTabIndex && (
                 <Box sx={drawerTabContentCompactSx}>
                   <CodeBlock code={details.yaml || ""} language="yaml" />
                 </Box>

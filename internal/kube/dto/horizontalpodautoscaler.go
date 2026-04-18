@@ -8,6 +8,8 @@ type HorizontalPodAutoscalerDTO struct {
 	MaxReplicas      int32             `json:"maxReplicas"`
 	CurrentReplicas  int32             `json:"currentReplicas"`
 	DesiredReplicas  int32             `json:"desiredReplicas"`
+	CurrentGauge     HPAGaugeDTO       `json:"currentGauge"`
+	DesiredGauge     HPAGaugeDTO       `json:"desiredGauge"`
 	CurrentMetrics   []HPAMetricDTO    `json:"currentMetrics,omitempty"`
 	Conditions       []HPAConditionDTO `json:"conditions,omitempty"`
 	AgeSec           int64             `json:"ageSec"`
@@ -40,11 +42,22 @@ type HPASpecDTO struct {
 }
 
 type HPAMetricDTO struct {
-	Type        string `json:"type"`
-	Name        string `json:"name,omitempty"`
-	Target      string `json:"target,omitempty"`
-	Current     string `json:"current,omitempty"`
-	Utilization *int32 `json:"utilization,omitempty"`
+	Type         string   `json:"type"`
+	Name         string   `json:"name,omitempty"`
+	Target       string   `json:"target,omitempty"`
+	Current      string   `json:"current,omitempty"`
+	CurrentValue *float64 `json:"currentValue,omitempty"`
+	TargetValue  *float64 `json:"targetValue,omitempty"`
+	GaugePercent *float64 `json:"gaugePercent,omitempty"`
+	GaugeTone    string   `json:"gaugeTone,omitempty"`
+	Utilization  *int32   `json:"utilization,omitempty"`
+}
+
+type HPAGaugeDTO struct {
+	Value   float64 `json:"value"`
+	Max     float64 `json:"max"`
+	Percent float64 `json:"percent"`
+	Tone    string  `json:"tone,omitempty"`
 }
 
 type HPAConditionDTO struct {
