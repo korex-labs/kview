@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 var crdGVR = schema.GroupVersionResource{

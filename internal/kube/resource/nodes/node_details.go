@@ -10,9 +10,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	kubepods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
 
 func GetNodeDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.NodeDetailsDTO, error) {

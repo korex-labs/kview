@@ -10,8 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ServiceListItemDTO, error) {

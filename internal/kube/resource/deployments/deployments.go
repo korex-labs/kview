@@ -8,10 +8,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	kubeevents "github.com/alex-mamchenkov/kview/internal/kube/resource/events"
-	pods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
+	pods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
 
 func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.DeploymentListItemDTO, error) {

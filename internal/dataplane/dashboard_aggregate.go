@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 const (

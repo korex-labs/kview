@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 var crdGVR = schema.GroupVersionResource{

@@ -9,9 +9,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	kube "github.com/alex-mamchenkov/kview/internal/kube"
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	kube "github.com/korex-labs/kview/internal/kube"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 func GetRoleDetails(ctx context.Context, c *cluster.Clients, namespace, name string) (*dto.RoleDetailsDTO, error) {

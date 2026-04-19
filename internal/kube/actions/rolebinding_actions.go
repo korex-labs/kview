@@ -5,7 +5,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 // HandleRoleBindingDelete deletes a rolebinding.

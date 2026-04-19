@@ -3,7 +3,7 @@ package dataplane
 import (
 	"testing"
 
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 func TestEnrichNodeListItemsForAPI(t *testing.T) {

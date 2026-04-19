@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 type persistenceFailingClientsProvider struct{}

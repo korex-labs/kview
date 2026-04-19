@@ -20,9 +20,9 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	syaml "sigs.k8s.io/yaml"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	kube "github.com/alex-mamchenkov/kview/internal/kube"
-	kubeactions "github.com/alex-mamchenkov/kview/internal/kube/actions"
+	"github.com/korex-labs/kview/internal/cluster"
+	kube "github.com/korex-labs/kview/internal/kube"
+	kubeactions "github.com/korex-labs/kview/internal/kube/actions"
 )
 
 // helmActionConfig builds a Helm action.Configuration bound to a specific

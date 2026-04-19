@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 type clusterSnapshotDescriptor[I any] struct {

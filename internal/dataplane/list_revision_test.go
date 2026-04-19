@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
 func TestSetNamespacedSnapshot_BumpsPerNamespaceRevision(t *testing.T) {

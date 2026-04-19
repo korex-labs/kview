@@ -1,4 +1,4 @@
-module github.com/alex-mamchenkov/kview
+module github.com/korex-labs/kview
 
 go 1.25.0
 

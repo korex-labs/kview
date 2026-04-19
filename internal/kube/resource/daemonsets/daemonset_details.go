@@ -11,10 +11,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	deployments "github.com/alex-mamchenkov/kview/internal/kube/resource/deployments"
-	kubepods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
+	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
 
 func GetDaemonSetDetails(ctx context.Context, c *cluster.Clients, namespace, name string) (*dto.DaemonSetDetailsDTO, error) {

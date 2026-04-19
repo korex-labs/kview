@@ -12,9 +12,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	namespaces "github.com/alex-mamchenkov/kview/internal/kube/resource/namespaces"
-	"github.com/alex-mamchenkov/kview/internal/runtime"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	namespaces "github.com/korex-labs/kview/internal/kube/resource/namespaces"
+	"github.com/korex-labs/kview/internal/runtime"
 )
 
 const nsEnrichActivityTTL = 3 * time.Minute

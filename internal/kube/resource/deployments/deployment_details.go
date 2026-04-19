@@ -13,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	kubepods "github.com/alex-mamchenkov/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
 
 func GetDeploymentDetails(ctx context.Context, c *cluster.Clients, namespace, name string) (*dto.DeploymentDetailsDTO, error) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alex-mamchenkov/kview/internal/runtime"
+	"github.com/korex-labs/kview/internal/runtime"
 )
 
 const dataplaneSnapshotActivityTTL = 3 * time.Minute

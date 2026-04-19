@@ -8,9 +8,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	pvcs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumeclaims"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
 )
 
 func ListPersistentVolumes(ctx context.Context, c *cluster.Clients) ([]dto.PersistentVolumeDTO, error) {

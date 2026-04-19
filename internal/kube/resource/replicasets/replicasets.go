@@ -6,9 +6,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	deployments "github.com/alex-mamchenkov/kview/internal/kube/resource/deployments"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 )
 
 func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ReplicaSetDTO, error) {

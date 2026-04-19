@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 // HandleDeploymentScale patches spec.replicas to the requested value.

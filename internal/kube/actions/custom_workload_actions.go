@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 func HandleCustomWorkloadAction(ctx context.Context, c *cluster.Clients, req ActionRequest) (*ActionResult, error) {

@@ -16,7 +16,7 @@ type ParsedVersion = {
   prerelease: string;
 };
 
-const LATEST_RELEASE_URL = "https://api.github.com/repos/alex-mamchenkov/kview/releases/latest";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/korex-labs/kview/releases/latest";
 const CACHE_KEY = "kview:latestRelease:v1";
 
 export const RELEASE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;

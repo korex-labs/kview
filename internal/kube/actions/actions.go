@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/cluster"
 )
 
 // ErrUnknownAction is returned when an action is not registered.

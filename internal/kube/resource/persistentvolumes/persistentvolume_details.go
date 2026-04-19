@@ -11,9 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	"github.com/alex-mamchenkov/kview/internal/kube/dto"
-	pvcs "github.com/alex-mamchenkov/kview/internal/kube/resource/persistentvolumeclaims"
+	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube/dto"
+	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
 )
 
 func GetPersistentVolumeDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.PersistentVolumeDetailsDTO, error) {

@@ -8,12 +8,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/alex-mamchenkov/kview/internal/cluster"
-	kubehelm "github.com/alex-mamchenkov/kview/internal/kube/resource/helm"
-	kubeactions "github.com/alex-mamchenkov/kview/internal/kube/actions"
-	"github.com/alex-mamchenkov/kview/internal/launcher"
-	"github.com/alex-mamchenkov/kview/internal/runtime"
-	"github.com/alex-mamchenkov/kview/internal/server"
+	"github.com/korex-labs/kview/internal/cluster"
+	kubehelm "github.com/korex-labs/kview/internal/kube/resource/helm"
+	kubeactions "github.com/korex-labs/kview/internal/kube/actions"
+	"github.com/korex-labs/kview/internal/launcher"
+	"github.com/korex-labs/kview/internal/runtime"
+	"github.com/korex-labs/kview/internal/server"
 )
 
 // runtimeLogger mirrors kubeconfig discovery messages into both stderr and runtime logs.

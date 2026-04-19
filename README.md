@@ -49,7 +49,7 @@ On Windows, running kview from WSL is the simpler path because kubeconfig paths,
 If you have Go installed, you can install kview directly from the module:
 
 ```bash
-go install github.com/alex-mamchenkov/kview/cmd/kview@latest
+go install github.com/korex-labs/kview/cmd/kview@latest
 ```
 
 This places the `kview` binary in your Go install bin directory, usually `$(go env GOPATH)/bin` or `$(go env GOBIN)` if set. Make sure that directory is on your `PATH`, then run:
