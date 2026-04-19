@@ -10,6 +10,7 @@ import {
   labelForSmartFilterRules,
   loadUserSettings,
   parseUserSettingsJSON,
+  smartFilterResourceKeysForScope,
   validateUserSettings,
   USER_SETTINGS_KEY,
 } from "./settings";
@@ -278,6 +279,38 @@ describe("user settings", () => {
         resourceKey: "deployments",
       }),
     ).toBe("api");
+  });
+
+  it("limits smart filter resource choices to the selected scope", () => {
+    expect(smartFilterResourceKeysForScope("namespace")).toContain("pods");
+    expect(smartFilterResourceKeysForScope("namespace")).not.toContain("nodes");
+    expect(smartFilterResourceKeysForScope("cluster")).toContain("nodes");
+    expect(smartFilterResourceKeysForScope("cluster")).not.toContain("pods");
+  });
+
+  it("normalizes smart filter selected resources against cluster scope", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      smartFilters: {
+        minCount: 3,
+        rules: [
+          {
+            id: "cluster-only",
+            enabled: true,
+            context: "",
+            scope: "cluster",
+            namespace: "",
+            resourceScope: "selected",
+            resources: ["nodes", "pods"],
+            pattern: "^(node).*$",
+            flags: "",
+            display: "$1",
+          },
+        ],
+      },
+    });
+
+    expect(parsed?.smartFilters.rules[0].resources).toEqual(["nodes"]);
   });
 
   it("renders unanchored default capture rules from the match only", () => {

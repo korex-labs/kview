@@ -26,7 +26,6 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
-  allListResourceKeys,
   applyDataplaneProfile,
   customActionResourceKeys,
   dataplaneNamespaceWarmResourceKeys,
@@ -38,6 +37,7 @@ import {
   parseUserSettingsJSON,
   refreshIntervalOptions,
   sanitizeRegexFlags,
+  smartFilterResourceKeysForScope,
   type CustomActionDefinition,
   type CustomActionKind,
   type CustomActionPatchType,
@@ -220,6 +220,18 @@ function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
   return next;
 }
 
+function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
+  switch (scope) {
+    case "cluster":
+      return "Cluster-scoped resources only.";
+    case "namespace":
+      return "Namespace-scoped resources only.";
+    case "all":
+    default:
+      return "All list resources.";
+  }
+}
+
 export default function SettingsView({ contexts, namespaces, activeContext, activeNamespace, onClose }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
@@ -398,6 +410,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
 
   const renderRule = (rule: SmartFilterRule, index: number) => {
     const error = rulePatternError(rule);
+    const resourceOptions = smartFilterResourceKeysForScope(rule.scope);
     return (
       <Paper key={rule.id} variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={headerRowSx}>
@@ -441,7 +454,14 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
             size="small"
             label="Cluster scope"
             value={rule.scope}
-            onChange={(e) => setRule(index, { scope: e.target.value as SettingsScopeMode })}
+            onChange={(e) => {
+              const scope = e.target.value as SettingsScopeMode;
+              const allowed = new Set(smartFilterResourceKeysForScope(scope));
+              setRule(index, {
+                scope,
+                resources: rule.resources.filter((key) => allowed.has(key)),
+              });
+            }}
           >
             <MenuItem value="all">All</MenuItem>
             <MenuItem value="cluster">Cluster-scoped lists</MenuItem>
@@ -488,13 +508,16 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
               }}
               renderValue={(selected) => selected.map((key) => getResourceLabel(key)).join(", ")}
             >
-              {allListResourceKeys.map((key) => (
+              {resourceOptions.map((key) => (
                 <MenuItem key={key} value={key}>
                   <Checkbox checked={rule.resources.includes(key)} />
                   <ListItemText primary={getResourceLabel(key)} />
                 </MenuItem>
               ))}
             </Select>
+            <Typography variant="caption" color="text.secondary">
+              {smartFilterResourceHelperText(rule.scope)}
+            </Typography>
           </FormControl>
         ) : null}
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "minmax(260px, 2fr) minmax(120px, 0.6fr) minmax(180px, 1fr)" }}>

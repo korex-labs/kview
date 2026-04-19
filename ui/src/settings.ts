@@ -1,4 +1,4 @@
-import type { ListResourceKey } from "./utils/k8sResources";
+import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
 
 export type SettingsScopeMode = "all" | "cluster" | "namespace";
 export type SettingsResourceScopeMode = "any" | "selected";
@@ -501,6 +501,12 @@ function isListResourceKey(value: unknown): value is ListResourceKey {
   return typeof value === "string" && allListResourceKeys.includes(value as ListResourceKey);
 }
 
+export function smartFilterResourceKeysForScope(scope: SettingsScopeMode): ListResourceKey[] {
+  if (scope === "all") return [...allListResourceKeys];
+  const wantClusterScoped = scope === "cluster";
+  return allListResourceKeys.filter((key) => isClusterScopedResource(key) === wantClusterScoped);
+}
+
 function normalizeWarmResourceKinds(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return [...fallback];
   const allowed = new Set<string>(dataplaneNamespaceWarmResourceKeys);
@@ -524,7 +530,9 @@ function normalizeRule(input: unknown, fallbackId: string): SmartFilterRule | nu
     ? (raw.resourceScope as SettingsResourceScopeMode)
     : "any";
   const resources = Array.isArray(raw.resources)
-    ? Array.from(new Set(raw.resources.filter(isListResourceKey)))
+    ? Array.from(new Set(raw.resources.filter(isListResourceKey))).filter((key) =>
+        smartFilterResourceKeysForScope(scope).includes(key),
+      )
     : [];
 
   return {
