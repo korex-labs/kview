@@ -322,7 +322,7 @@ export default function HelmReleaseDrawer(props: {
                   {hooks.length === 0 ? (
                     <EmptyState message="No hooks found." />
                   ) : (
-                    <Table size="small">
+                    <Table size="small" sx={{ tableLayout: "fixed", width: "100%" }}>
                       <TableHead>
                         <TableRow>
                           <TableCell>Name</TableCell>
@@ -392,7 +392,9 @@ export default function HelmReleaseDrawer(props: {
                             <TableCell>{valueOrDash(rev.chart)}</TableCell>
                             <TableCell>{valueOrDash(rev.appVersion)}</TableCell>
                             <TableCell>{fmtTs(rev.updated)}</TableCell>
-                            <TableCell>{valueOrDash(rev.description)}</TableCell>
+                            <TableCell sx={{ whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                              {valueOrDash(rev.description)}
+                            </TableCell>
                             <TableCell align="right">
                               {name && canRollbackRevision(rev, summary?.revision) ? (
                                 <HelmRollbackActionButton
