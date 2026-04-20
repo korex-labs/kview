@@ -29,6 +29,7 @@ export type KviewUserSettingsV1 = {
     smartFiltersEnabled: boolean;
     activityPanelInitiallyOpen: boolean;
     releaseChecksEnabled: boolean;
+    resourceDrawerWidthPx: number;
   };
   smartFilters: {
     minCount: number;
@@ -197,6 +198,7 @@ export function defaultUserSettings(): KviewUserSettingsV1 {
       smartFiltersEnabled: true,
       activityPanelInitiallyOpen: true,
       releaseChecksEnabled: false,
+      resourceDrawerWidthPx: 820,
     },
     smartFilters: {
       minCount: 3,
@@ -880,6 +882,12 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV1 | null
         typeof rawAppearance.releaseChecksEnabled === "boolean"
           ? rawAppearance.releaseChecksEnabled
           : defaults.appearance.releaseChecksEnabled,
+      resourceDrawerWidthPx: validNumber(
+        rawAppearance.resourceDrawerWidthPx,
+        620,
+        1400,
+        defaults.appearance.resourceDrawerWidthPx,
+      ),
     },
     smartFilters: {
       minCount: validMinCount(rawSmartFilters.minCount, defaults.smartFilters.minCount),
