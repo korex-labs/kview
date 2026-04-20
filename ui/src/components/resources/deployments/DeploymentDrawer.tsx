@@ -435,7 +435,7 @@ export default function DeploymentDrawer(props: {
                                 hover
                                 onClick={() => rs.name && setDrawerReplicaSet(rs.name)}
                                 sx={{
-                                  backgroundColor: rs.unhealthyPods ? "rgba(255, 152, 0, 0.12)" : "transparent",
+                                  backgroundColor: rs.unhealthyPods ? "var(--chip-warning-bg)" : "transparent",
                                   cursor: rs.name ? "pointer" : "default",
                                 }}
                               >

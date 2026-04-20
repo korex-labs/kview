@@ -22,10 +22,10 @@ export default function WarningsSection({ warnings }: WarningsSectionProps) {
   return (
     <Box
       sx={{
-        border: "1px solid rgba(255, 152, 0, 0.5)",
+        border: "1px solid var(--chip-warning-border)",
         borderRadius: 2,
         p: 1.5,
-        backgroundColor: "rgba(255, 152, 0, 0.04)",
+        backgroundColor: "var(--chip-warning-bg)",
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>

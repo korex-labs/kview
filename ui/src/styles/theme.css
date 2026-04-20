@@ -29,6 +29,9 @@
   --chip-secondary-bg: #e8f9f7;
   --chip-secondary-fg: #0c5d57;
   --chip-secondary-border: #b7ece6;
+  --link-color: #0b5ed7;
+  --link-color-hover: #094db3;
+  --link-color-visited: #0b5ed7;
 }
 
 [data-theme="dark"] {
@@ -62,6 +65,9 @@
   --chip-secondary-bg: #1f3a3a;
   --chip-secondary-fg: #b8f0eb;
   --chip-secondary-border: #2f5e59;
+  --link-color: #7cb3ff;
+  --link-color-hover: #a7ccff;
+  --link-color-visited: #b89cff;
 }
 
 html,
@@ -77,6 +83,27 @@ body {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
+}
+
+/*
+ * Base styling for raw anchor elements (e.g. autolinked URLs, endpoint/host
+ * displays in drawers). MUI components that render as <a> (Chip, Link,
+ * ListItemButton, ...) define higher-specificity styles via their .Mui*
+ * classes and are not affected by these rules.
+ */
+a {
+  color: var(--link-color);
+  text-decoration-color: var(--link-color);
+}
+
+a:visited {
+  color: var(--link-color-visited);
+}
+
+a:hover,
+a:focus-visible {
+  color: var(--link-color-hover);
+  text-decoration-color: var(--link-color-hover);
 }
 
 /*

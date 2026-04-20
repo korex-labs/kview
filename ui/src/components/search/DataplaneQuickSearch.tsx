@@ -209,22 +209,22 @@ export default function DataplaneQuickSearch({ token, activeContext, disabled, o
           }}
           sx={{
             "& .MuiOutlinedInput-root": {
-              backgroundColor: "#fff",
-              color: "#111827",
+              backgroundColor: "var(--bg-primary)",
+              color: "var(--text-primary)",
               borderRadius: 1,
-              boxShadow: "0 1px 4px rgba(15,23,42,0.18)",
+              boxShadow: 1,
               "& fieldset": {
-                borderColor: "rgba(255,255,255,0.7)",
+                borderColor: "var(--border-subtle)",
               },
               "&:hover fieldset": {
-                borderColor: "#fff",
+                borderColor: "var(--border-subtle)",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "#fff",
+                borderColor: "var(--border-subtle)",
               },
             },
             "& .MuiInputBase-input::placeholder": {
-              color: "#475569",
+              color: "text.secondary",
               opacity: 1,
             },
           }}

@@ -426,10 +426,11 @@ export default function HelmReleaseDrawer(props: {
                       fontSize: "0.8rem",
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-all",
-                      bgcolor: "#f5f5f5",
+                      backgroundColor: "var(--code-bg)",
+                      color: "var(--code-text)",
                       p: 1.5,
                       borderRadius: 1,
-                      border: "1px solid #e0e0e0",
+                      border: "1px solid var(--code-border)",
                     }}
                   >
                     <AutolinkText text={notes} />

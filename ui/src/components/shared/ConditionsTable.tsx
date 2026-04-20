@@ -77,7 +77,7 @@ function ConditionsBody({
             <TableRow
               key={c.type || String(idx)}
               sx={{
-                backgroundColor: unhealthy ? "rgba(211, 47, 47, 0.08)" : "transparent",
+                backgroundColor: unhealthy ? "var(--chip-error-bg)" : "transparent",
               }}
             >
               <TableCell>{valueOrDash(c.type)}</TableCell>

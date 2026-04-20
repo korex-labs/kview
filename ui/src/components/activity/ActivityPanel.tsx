@@ -124,7 +124,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           sx={{
             height: 5,
             cursor: "ns-resize",
-            "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
+            "&:hover": { bgcolor: "action.hover" },
           }}
           onMouseDown={() => setDragging(true)}
         />
@@ -139,7 +139,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           borderBottom: open ? "1px solid var(--border-subtle)" : "none",
           bgcolor: "var(--bg-primary)",
           backdropFilter: "blur(10px)",
-          boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.16)",
+          boxShadow: 2,
           displayPrint: "none",
         }}
       >
@@ -237,7 +237,7 @@ function StatusDot({ ok, label }: { ok: boolean; label: string }) {
         height: 9,
         borderRadius: "50%",
         bgcolor: ok ? "success.main" : "error.main",
-        boxShadow: ok ? "0 0 0 2px rgba(46, 125, 50, 0.18)" : "0 0 0 2px rgba(211, 47, 47, 0.18)",
+        boxShadow: ok ? "0 0 0 2px var(--chip-success-border)" : "0 0 0 2px var(--chip-error-border)",
         flexShrink: 0,
       }}
     />

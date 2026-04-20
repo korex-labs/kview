@@ -1504,7 +1504,7 @@ export default function PodDrawer(props: {
                             }))
                           }
                           sx={{
-                            border: unhealthy ? "1px solid rgba(211, 47, 47, 0.6)" : "1px solid transparent",
+                            border: unhealthy ? "1px solid var(--chip-error-border)" : "1px solid transparent",
                           }}
                         >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
