@@ -62,6 +62,27 @@ function getToken(): string {
   return u.searchParams.get("token") || "";
 }
 
+const INITIAL_NAMESPACE_RETRY_ATTEMPTS = 5;
+const INITIAL_NAMESPACE_RETRY_DELAY_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function pickNamespace({
+  limited,
+  items,
+  preferred,
+}: {
+  limited: boolean;
+  items: string[];
+  preferred: string;
+}): string {
+  if (limited) return preferred || "";
+  if (preferred && items.includes(preferred)) return preferred;
+  return items[0] || "";
+}
+
 function AppInner() {
   const token = useMemo(() => getToken(), []);
   const { settings } = useUserSettings();
@@ -175,20 +196,16 @@ function AppInner() {
 
       // 2) namespaces
       const nsPath0 = namespacesListApiPath(appState, chosenCtx, appState.activeNamespace || "");
-      const { limited, items: nsItems } = await fetchNamespaces(token, nsPath0, chosenCtx);
+      const { limited, items: nsItems } = await fetchNamespacesWithWarmup(token, nsPath0, chosenCtx);
       setNsLimited(limited);
       setNamespaces(nsItems);
 
       // 3) pick namespace
-      let chosenNs = appState.activeNamespace || "";
-      if (!limited) {
-        if (!chosenNs || !nsItems.includes(chosenNs)) {
-          chosenNs = nsItems[0] || "";
-        }
-      } else {
-        // limited mode: keep what user had or blank
-        chosenNs = chosenNs || "";
-      }
+      const chosenNs = pickNamespace({
+        limited,
+        items: nsItems,
+        preferred: appState.activeNamespace || "",
+      });
       setNamespace(chosenNs);
 
       // 4) section
@@ -235,20 +252,36 @@ function AppInner() {
     }
   }
 
+  async function fetchNamespacesWithWarmup(
+    currentToken: string,
+    apiPath: string,
+    contextName: string,
+  ): Promise<{ limited: boolean; items: string[] }> {
+    let result = await fetchNamespaces(currentToken, apiPath, contextName);
+    if (result.limited || result.items.length > 0) return result;
+    for (let i = 0; i < INITIAL_NAMESPACE_RETRY_ATTEMPTS; i += 1) {
+      await sleep(INITIAL_NAMESPACE_RETRY_DELAY_MS);
+      result = await fetchNamespaces(currentToken, apiPath, contextName);
+      if (result.limited || result.items.length > 0) break;
+    }
+    return result;
+  }
+
   async function onSelectContext(name: string) {
     await apiPost("/api/context/select", token, { name });
     setActiveContext(name);
 
     const nsPath = namespacesListApiPath(appState, name, appState.activeNamespace || "");
-    const { limited, items: nsItems } = await fetchNamespaces(token, nsPath, name);
+    const { limited, items: nsItems } = await fetchNamespacesWithWarmup(token, nsPath, name);
     setNsLimited(limited);
     setNamespaces(nsItems);
 
     // pick namespace from state if possible
-    let chosenNs = appState.activeNamespace || "";
-    if (!limited) {
-      if (!chosenNs || !nsItems.includes(chosenNs)) chosenNs = nsItems[0] || "";
-    }
+    const chosenNs = pickNamespace({
+      limited,
+      items: nsItems,
+      preferred: appState.activeNamespace || "",
+    });
     setNamespace(chosenNs);
 
     // load favourites for this context
