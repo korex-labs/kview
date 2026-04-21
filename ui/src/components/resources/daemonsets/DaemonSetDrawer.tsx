@@ -27,12 +27,17 @@ import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
 import MetadataSection from "../../shared/MetadataSection";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import ConditionsTable from "../../shared/ConditionsTable";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -187,6 +192,68 @@ export default function DaemonSetDrawer(props: {
 
   const summary = details?.summary;
   const metadata = details?.metadata;
+  const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
+
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "daemonsets",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce + refreshNonce,
+  });
+
+  const daemonSetSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
+
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary) return undefined;
+    const desired = summary.desired ?? 0;
+    const ready = summary.ready ?? 0;
+    const updated = summary.updated ?? 0;
+    const tone: AttentionHealth["tone"] =
+      desired > 0 && ready === 0 ? "error" : ready < desired || updated < desired ? "warning" : "success";
+    return {
+      label: `Ready ${ready}/${desired} · Updated ${updated}/${desired}`,
+      tone,
+      tooltip: "DaemonSet readiness and rollout counters from backend summary.",
+    };
+  }, [summary]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    if (!summary) return [];
+    const reasons: AttentionReason[] = [];
+    if ((summary.desired ?? 0) > (summary.ready ?? 0)) {
+      reasons.push({
+        label: `${(summary.desired ?? 0) - (summary.ready ?? 0)} pod(s) not ready`,
+        severity: "warning",
+      });
+    }
+    if ((summary.desired ?? 0) > (summary.updated ?? 0)) {
+      reasons.push({
+        label: `${(summary.desired ?? 0) - (summary.updated ?? 0)} pod(s) not updated`,
+        severity: "warning",
+      });
+    }
+    if ((summary.desired ?? 0) > (summary.available ?? 0)) {
+      reasons.push({
+        label: `${(summary.desired ?? 0) - (summary.available ?? 0)} pod(s) not available`,
+        severity: "warning",
+      });
+    }
+    if (hasUnhealthyConditions) {
+      reasons.push({ label: "Unhealthy DaemonSet condition(s)", severity: "warning" });
+    }
+    return reasons;
+  }, [summary, hasUnhealthyConditions]);
+
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
+  );
   const summaryItems = useMemo(
     () => [
       { label: "Name", value: valueOrDash(summary?.name) },
@@ -231,6 +298,7 @@ export default function DaemonSetDrawer(props: {
               <Tab label="Pods" />
               <Tab label="Spec" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -250,17 +318,25 @@ export default function DaemonSetDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable
-                      rows={summaryItems}
-                      columns={3}
-                      valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={daemonSetSignals}
+                    onJumpToEvents={() => setTab(3)}
+                    onJumpToSpec={() => setTab(2)}
+                  />
 
-                  <ConditionsTable conditions={details?.conditions || []} isHealthy={(cond) => isConditionHealthy(cond as DaemonSetCondition)} />
+                  <ConditionsTable
+                    conditions={details?.conditions || []}
+                    isHealthy={(cond) => isConditionHealthy(cond as DaemonSetCondition)}
+                    unhealthyFirst
+                  />
 
-                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -521,18 +597,6 @@ export default function DaemonSetDrawer(props: {
                     </AccordionDetails>
                   </Accordion>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Template Metadata</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <MetadataSection
-                        labels={details?.spec?.metadata?.labels}
-                        annotations={details?.spec?.metadata?.annotations}
-                        wrapInSection={false}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
                 </Box>
               )}
 
@@ -543,8 +607,22 @@ export default function DaemonSetDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 4 && (
+                <Box sx={drawerTabContentCompactSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable
+                      rows={summaryItems}
+                      columns={3}
+                      valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    />
+                  </Box>
+                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
