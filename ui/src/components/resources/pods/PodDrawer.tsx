@@ -51,7 +51,12 @@ import NodeDrawer from "../nodes/NodeDrawer";
 import PodActions from "./PodActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type {
+  ApiItemResponse,
+  ApiListResponse,
+  DashboardSignalItem,
+} from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   panelBoxCompactSx,
@@ -68,7 +73,11 @@ import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
-import WarningsSection, { type Warning } from "../../shared/WarningsSection";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
+import MetadataSection from "../../shared/MetadataSection";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import { formatCPUMilli, formatMemoryBytes, formatPct, severityForPct } from "../../metrics/format";
@@ -89,7 +98,19 @@ type PodDetails = {
   lifecycle: PodLifecycle;
   containers: PodContainer[];
   resources: PodResources;
+  metadata?: {
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
   yaml: string;
+};
+
+// Response envelope for the pod details endpoint. The endpoint embeds
+// backend-derived detail-level signals (e.g. pod_young_frequent_restarts,
+// pod_succeeded_with_issues) alongside the item so the Overview tab can
+// merge them with snapshot-level signals from useResourceSignals.
+type PodDetailsResponse = ApiItemResponse<PodDetails> & {
+  detailSignals?: DashboardSignalItem[];
 };
 
 type EventDTO = {
@@ -494,6 +515,7 @@ export default function PodDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<PodDetails | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
+  const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [expandedContainers, setExpandedContainers] = useState<Record<string, boolean>>({});
   const [envQueryByContainer, setEnvQueryByContainer] = useState<Record<string, string>>({});
@@ -796,6 +818,7 @@ export default function PodDrawer(props: {
     setErr("");
     setDetails(null);
     setEvents([]);
+    setDetailSignals([]);
     setLogLines([]);
     setLogsFilter("");
     setPretty(false);
@@ -827,12 +850,13 @@ export default function PodDrawer(props: {
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<PodDetails>>(
+      const det = await apiGet<PodDetailsResponse>(
         `/api/namespaces/${encodeURIComponent(ns)}/pods/${encodeURIComponent(name)}`,
         props.token
       );
       const item: PodDetails | null = det?.item ?? null;
       setDetails(item);
+      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
 
       // default container
       const containers = item?.containers || [];
@@ -868,6 +892,21 @@ export default function PodDrawer(props: {
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.open, name, ns, props.token, retryNonce]);
+
+  // Snapshot-level per-resource signals from the dataplane cache
+  // (pod_restarts, pod_oomkilled, etc.). Detail-level signals
+  // (pod_young_frequent_restarts, pod_succeeded_with_issues) arrive
+  // through the details response as `detailSignals`; both are merged
+  // into AttentionSummary below.
+  const snapshotSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "pods",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce,
+  });
 
   useEffect(() => {
     if (!props.open || !name || tab !== 3) return;
@@ -1023,73 +1062,45 @@ export default function PodDrawer(props: {
     return events.filter((e) => parseContainerFromFieldPath(e.fieldPath) === eventsContainerFilter);
   }, [events, eventsContainerFilter]);
 
-  // Thresholds for "pod restarting frequently" warning
-  const RESTART_THRESHOLD = 5;
-  const YOUNG_POD_AGE_SEC = 30 * 60; // 30 minutes
+  // Merge detail-level signals (served inline with the pod details response,
+  // e.g. pod_young_frequent_restarts, pod_succeeded_with_issues) with
+  // snapshot-level signals from the per-resource signals endpoint
+  // (pod_restarts, …). AttentionSummary de-duplicates nothing — detail and
+  // snapshot signals are disjoint by construction so concatenation is safe.
+  const podSignals = useMemo<DashboardSignalItem[]>(
+    () => [...detailSignals, ...(snapshotSignals.signals || [])],
+    [detailSignals, snapshotSignals.signals],
+  );
 
-  const podWarnings = useMemo((): Warning[] => {
-    const warnings: Warning[] = [];
-    if (!details) return warnings;
+  // Backend-sourced health chip for AttentionSummary. Uses the phase string
+  // directly so we never re-derive "healthy/unhealthy" in the UI.
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    const phase = details?.summary?.phase;
+    if (!phase) return undefined;
+    const ready = details?.summary?.ready;
+    const restarts = details?.summary?.restarts;
+    const tooltipParts: string[] = [`phase ${phase}`];
+    if (ready) tooltipParts.push(`ready ${ready}`);
+    if (typeof restarts === "number") tooltipParts.push(`restarts ${restarts}`);
+    return {
+      label: `Phase: ${phase}`,
+      tone:
+        phase === "Running" || phase === "Succeeded"
+          ? "success"
+          : phase === "Pending"
+          ? "warning"
+          : phase === "Failed"
+          ? "error"
+          : "default",
+      tooltip: tooltipParts.join(" · "),
+    };
+  }, [details?.summary?.phase, details?.summary?.ready, details?.summary?.restarts]);
 
-    const containers = details.containers || [];
-    const summary = details.summary;
-    const podAgeSec = summary?.ageSec ?? 0;
-
-    // Sum total restarts across all containers
-    const totalRestarts = containers.reduce((sum, c) => sum + (c.restartCount ?? 0), 0);
-
-    // Find containers with high restarts and their termination reasons
-    const highRestartContainers = containers.filter((c) => (c.restartCount ?? 0) >= RESTART_THRESHOLD);
-
-    // Warn if total restarts >= 5 AND pod age <= 30 minutes (young pod with many restarts)
-    if (totalRestarts >= RESTART_THRESHOLD && podAgeSec <= YOUNG_POD_AGE_SEC) {
-      const terminationReasons = highRestartContainers
-        .filter((c) => c.lastTerminationReason)
-        .map((c) => `${c.name}: ${c.lastTerminationReason}`)
-        .slice(0, 3); // Limit to 3 reasons
-
-      warnings.push({
-        message: `Pod is restarting frequently (${totalRestarts} restarts in ${Math.floor(podAgeSec / 60)}m).`,
-        detail: terminationReasons.length > 0 ? `Last termination: ${terminationReasons.join(", ")}` : undefined,
-      });
-    }
-    // Also warn if any single container has high restarts regardless of pod age (chronic issue)
-    else if (highRestartContainers.length > 0) {
-      const containerInfo = highRestartContainers
-        .map((c) => {
-          const reason = c.lastTerminationReason ? ` (${c.lastTerminationReason})` : "";
-          return `${c.name}: ${c.restartCount ?? 0} restarts${reason}`;
-        })
-        .slice(0, 3); // Limit to 3 containers
-
-      warnings.push({
-        message: `Container(s) restarting frequently.`,
-        detail: containerInfo.join(", "),
-      });
-    }
-
-    // Phase vs health confusion hint:
-    // If phase is Succeeded but there are explicit unhealthy signals, add a subtle note.
-    if (summary?.phase === "Succeeded") {
-      const conditions = details.conditions || [];
-      const hasUnhealthyCond = conditions.some((c) => c.status !== "True");
-      const hasWaitingContainer = containers.some(
-        (c) => c.state === "Waiting" && c.reason
-      );
-      const hasWarningEvents = (events || []).some((e) => e.type === "Warning");
-
-      if (hasUnhealthyCond || hasWaitingContainer || hasWarningEvents) {
-        warnings.push({
-          message:
-            "Pod phase is Succeeded, but some conditions/events indicate issues.",
-          detail:
-            "This can happen with short-lived pods (e.g., init containers, Jobs) where phase reflects completion but conditions/events captured earlier problems.",
-        });
-      }
-    }
-
-    return warnings;
-  }, [details, events]);
+  // Reasons row is intentionally empty for pods: all attention-worthy
+  // derivations now come from backend signals. Kept as a typed local so
+  // future additions (e.g. backend-provided "degraded by node" reasons) can
+  // slot in without touching the AttentionSummary call site.
+  const attentionReasons: AttentionReason[] = [];
 
   const openController = (kind: string, name: string) => {
     switch (kind) {
@@ -1349,8 +1360,9 @@ export default function PodDrawer(props: {
               <Tab label="Resources" />
               <Tab label="Networking" />
               <Tab label="Events" />
-              <Tab label="YAML" />
               <Tab label="Logs" />
+              <Tab label="Metadata" />
+              <Tab label="YAML" />
             </Tabs>
             <Box sx={{ ...drawerBodySx, mt: 3 }}>
               {/* OVERVIEW */}
@@ -1419,15 +1431,17 @@ export default function PodDrawer(props: {
                     </Section>
                   )}
 
-                  <WarningsSection warnings={podWarnings} />
-
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable rows={summaryItems} columns={3} />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={podSignals}
+                    onJumpToEvents={() => setTab(4)}
+                  />
 
                   <ConditionsTable
                     conditions={details?.conditions || []}
                     title="Health & Conditions"
+                    unhealthyFirst
                   />
 
                   <Accordion
@@ -2225,13 +2239,8 @@ export default function PodDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
-              {tab === 5 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
-              )}
-
               {/* LOGS */}
-              {tab === 6 && (
+              {tab === 5 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%" }}>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                     <FormControl size="small" sx={{ minWidth: 220 }}>
@@ -2341,6 +2350,24 @@ export default function PodDrawer(props: {
                   </Box>
                 </Box>
         )}
+
+              {/* METADATA */}
+              {tab === 6 && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable rows={summaryItems} columns={3} />
+                  </Box>
+                  <MetadataSection
+                    labels={details?.metadata?.labels}
+                    annotations={details?.metadata?.annotations}
+                  />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 7 && (
+                <CodeBlock code={details?.yaml || ""} language="yaml" />
+              )}
       </Box>
       <PortForwardDialog
         open={portForwardDialogOpen}

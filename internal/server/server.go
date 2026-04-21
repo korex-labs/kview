@@ -1655,7 +1655,28 @@ func (s *Server) Router() http.Handler {
 				}
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			// Detail-level signals for the drawer's signals-first Overview.
+			// We pull the pod's events best-effort: an RBAC denial on events
+			// must not break rendering the pod drawer, so we silently drop
+			// event-derived signals if the list call fails.
+			var detailSignals []dto.NamespaceInsightSignalDTO
+			if det != nil {
+				evs, evErr := kubeevents.ListEventsForPod(ctx, clients, ns, name)
+				if evErr != nil {
+					evs = nil
+				}
+				signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs)
+				detailSignals = dataplane.NamespaceInsightSignalsFromDashboard(signals)
+			}
+			if detailSignals == nil {
+				detailSignals = []dto.NamespaceInsightSignalDTO{}
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{
+				"active":        active,
+				"item":          det,
+				"detailSignals": detailSignals,
+			})
 		})
 
 		api.Get("/namespaces/{ns}/pods/{name}/events", func(w http.ResponseWriter, r *http.Request) {

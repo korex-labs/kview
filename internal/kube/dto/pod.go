@@ -41,7 +41,17 @@ type PodDetailsDTO struct {
 	Lifecycle  PodLifecycleDTO   `json:"lifecycle"`
 	Containers []PodContainerDTO `json:"containers"`
 	Resources  PodResourcesDTO   `json:"resources"`
+	Metadata   PodMetadataDTO    `json:"metadata"`
 	YAML       string            `json:"yaml"`
+}
+
+// PodMetadataDTO carries the pod's labels and annotations for the
+// drawer's Metadata tab. Kept as a dedicated struct to mirror the
+// pattern used by DeploymentMetadataDTO and to keep the Summary struct
+// focused on runtime state.
+type PodMetadataDTO struct {
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type PodSummaryDTO struct {

@@ -120,6 +120,22 @@ For resources that have them, these remain **direct** `kube` reads:
 - Relation reads, e.g. `GET …/pods/{name}/services`, `GET …/services/{name}/ingresses`
 - `GET …/serviceaccounts/{name}/rolebindings`
 
+**Detail-level signals embedded in detail responses.** For drawers that have
+been migrated to the signals-first concept (see `docs/UI_UX_GUIDE.md`), the
+detail response envelope additionally carries a `detailSignals` array of
+`NamespaceInsightSignalDTO` items derived from the resource's full
+`*DetailsDTO` (and, where relevant, its events). These cover signals that the
+namespace aggregator cannot produce because it works only off list snapshots
+(e.g. Pod `pod_young_frequent_restarts`, `pod_succeeded_with_issues`). The UI
+merges them with snapshot-level signals from `/{kind}/{name}/signals` for
+display in `AttentionSummary`. The list of detail-level detectors lives in
+`internal/dataplane/dashboard_detail_signals.go`. Currently embedded by:
+
+- `GET /api/namespaces/{ns}/pods/{name}` → `detailSignals` from
+  `DetectPodDetailSignals` (best-effort: an RBAC denial on the resource's
+  events list silently suppresses event-derived signals rather than failing
+  the detail response).
+
 ### 4.5 Product and control-plane APIs
 
 | Route | Substrate |

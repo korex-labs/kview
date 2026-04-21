@@ -125,6 +125,15 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	return out, nil
 }
 
+// NamespaceInsightSignalsFromDashboard converts dashboard signal items into
+// the transport DTO shape used by both namespace insights and per-resource
+// signal responses. Public wrapper so packages outside dataplane (e.g. the
+// HTTP server) can marshal signals produced by the detail-level detectors
+// directly into their response envelopes without duplicating the conversion.
+func NamespaceInsightSignalsFromDashboard(items []ClusterDashboardSignal) []dto.NamespaceInsightSignalDTO {
+	return namespaceInsightSignalsFromDashboard(items)
+}
+
 func namespaceInsightSignalsFromDashboard(items []ClusterDashboardSignal) []dto.NamespaceInsightSignalDTO {
 	out := make([]dto.NamespaceInsightSignalDTO, 0, len(items))
 	for _, item := range items {

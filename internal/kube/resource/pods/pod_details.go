@@ -161,7 +161,11 @@ func GetPodDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 		Lifecycle:  lifecycle,
 		Containers: containers,
 		Resources:  resources,
-		YAML:       string(y),
+		Metadata: dto.PodMetadataDTO{
+			Labels:      pod.Labels,
+			Annotations: pod.Annotations,
+		},
+		YAML: string(y),
 	}, nil
 }
 
