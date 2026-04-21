@@ -23,10 +23,15 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import ServiceAccountActions from "./ServiceAccountActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -162,6 +167,15 @@ export default function ServiceAccountDrawer(props: {
   const metadata = details?.metadata;
   const accessDenied = err?.status === 401 || err?.status === 403;
   const roleBindingsAccessDenied = roleBindingsErr?.status === 401 || roleBindingsErr?.status === 403;
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "serviceaccounts",
+    name: name || "",
+    enabled: !!props.open && !!name && !accessDenied,
+    refreshKey: retryNonce,
+  });
 
   const summaryItems = useMemo(
     () => [
@@ -174,6 +188,42 @@ export default function ServiceAccountDrawer(props: {
       { label: "Created", value: summary?.createdAt ? fmtTs(summary.createdAt) : "-" },
     ],
     [summary]
+  );
+
+  const serviceAccountSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
+
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary) return undefined;
+    const hasPullSecrets = (summary.imagePullSecretsCount || 0) > 0;
+    const tone: AttentionHealth["tone"] = hasPullSecrets ? "success" : "default";
+    return {
+      label: `Pull secrets ${summary.imagePullSecretsCount || 0} · Secrets ${summary.secretsCount || 0}`,
+      tone,
+      tooltip: `Automount token ${summary.automountServiceAccountToken ? "enabled" : "disabled/unspecified"}`,
+    };
+  }, [summary]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    if (!summary) return [];
+    const reasons: AttentionReason[] = [];
+    if ((summary.imagePullSecretsCount || 0) === 0) {
+      reasons.push({ label: "No imagePullSecrets configured", severity: "info" });
+    }
+    if (summary.automountServiceAccountToken === true) {
+      reasons.push({ label: "Token automount enabled", severity: "warning" });
+    }
+    if (roleBindingsLoaded && !roleBindingsErr && roleBindings.length === 0) {
+      reasons.push({ label: "No RoleBindings reference this ServiceAccount", severity: "info" });
+    }
+    return reasons;
+  }, [summary, roleBindingsLoaded, roleBindingsErr, roleBindings.length]);
+
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
   );
 
   return (
@@ -203,6 +253,7 @@ export default function ServiceAccountDrawer(props: {
               <Tab label="Overview" />
               <Tab label="Role Bindings" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -221,11 +272,18 @@ export default function ServiceAccountDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable rows={summaryItems} columns={3} />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={serviceAccountSignals}
+                    onJumpToEvents={() => setTab(2)}
+                  />
 
-                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -276,8 +334,18 @@ export default function ServiceAccountDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 3 && (
+                <Box sx={drawerTabContentSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable rows={summaryItems} columns={3} />
+                  </Box>
+                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 4 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
