@@ -16,6 +16,7 @@ import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { conditionStatusColor, deploymentHealthBucketColor } from "../../../utils/k8sUi";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import Section from "../../shared/Section";
@@ -26,6 +27,10 @@ import AccessDeniedState from "../../shared/AccessDeniedState";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import type { ApiItemResponse, ApiListResponse, EventDTO } from "../../../types/api";
@@ -120,6 +125,16 @@ export default function HorizontalPodAutoscalerDrawer(props: {
   const ns = props.namespace;
   const name = props.hpaName;
 
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "horizontalpodautoscalers",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce,
+  });
+
   useEffect(() => {
     if (!props.open || !name) return;
     setLoading(true);
@@ -176,18 +191,31 @@ export default function HorizontalPodAutoscalerDrawer(props: {
             </Tabs>
 
             <Box sx={drawerBodySx}>
-              {tab === 0 && (
+              {tab === 0 && (() => {
+                const attentionHealth: AttentionHealth | undefined =
+                  details.summary.healthBucket || details.summary.needsAttention
+                    ? {
+                        label: details.summary.needsAttention
+                          ? "attention"
+                          : details.summary.healthBucket || "unknown",
+                        tone: deploymentHealthBucketColor(details.summary.healthBucket),
+                      }
+                    : undefined;
+                const attentionReasons: AttentionReason[] = (details.summary.attentionReasons || []).map((reason) => ({
+                  label: reason,
+                  severity: details.summary.needsAttention ? "warning" : "info",
+                }));
+                return (
                 <Box sx={drawerTabContentCompactSx}>
-                  <Section
-                    title="Scaling signals"
-                    actions={
-                      <Chip
-                        size="small"
-                        label={details.summary.needsAttention ? "attention" : details.summary.healthBucket || "unknown"}
-                        color={deploymentHealthBucketColor(details.summary.healthBucket)}
-                      />
-                    }
-                  >
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={resourceSignals.signals}
+                    onJumpToEvents={() => setTab(eventsTabIndex)}
+                    onJumpToSpec={() => setTab(metadataTabIndex)}
+                  />
+
+                  <Section title="Scaling signals">
                     <Box sx={panelBoxSx}>
                       <GaugeTableRow
                         label="Current replicas"
@@ -205,17 +233,6 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                         <Chip size="small" variant="outlined" label={`Last scale ${details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-"}`} />
                       </Box>
                     </Box>
-                    {details.summary.attentionReasons?.length ? (
-                      <Box sx={{ mt: 1, display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-                        {details.summary.attentionReasons.map((reason) => (
-                          <Chip key={reason} size="small" variant="outlined" label={reason} />
-                        ))}
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        No HPA attention signals from the current status.
-                      </Typography>
-                    )}
                   </Section>
 
                   <Section title="Metric targets">
@@ -267,7 +284,8 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                     )}
                   </Section>
                 </Box>
-              )}
+                );
+              })()}
 
               {tab === eventsTabIndex && (
                 <Box sx={drawerTabContentCompactSx}>

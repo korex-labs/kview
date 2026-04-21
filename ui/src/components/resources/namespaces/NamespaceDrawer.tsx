@@ -377,6 +377,8 @@ export default function NamespaceDrawer(props: {
                   onOpenHelmRelease={setDrawerHelmRelease}
                   onNavigate={navigateTo}
                   onSelectCapacityTab={() => setTab(2)}
+                  onJumpToEvents={() => setTab(eventsTabIndex)}
+                  onJumpToConditions={() => setTab(metadataTabIndex)}
                 />
               )}
 

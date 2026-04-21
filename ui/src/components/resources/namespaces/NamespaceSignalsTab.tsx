@@ -18,6 +18,10 @@ import type {
   WorkloadKindHealthRollup,
 } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import EmptyState from "../../shared/EmptyState";
 import Section from "../../shared/Section";
 import StackedMetricBar from "../../shared/StackedMetricBar";
@@ -87,7 +91,62 @@ type Props = {
   onOpenHelmRelease: (name: string | null) => void;
   onNavigate: (sectionKey: string) => void;
   onSelectCapacityTab: () => void;
+  onJumpToEvents?: () => void;
+  onJumpToConditions?: () => void;
 };
+
+/**
+ * buildAttentionSummary derives the props for the shared AttentionSummary
+ * block from backend-provided fields only:
+ *   - health: the dataplane coarse state of the namespace (ok / degraded / …);
+ *   - reasons: compact backend-sourced counts (problematic resources, quota
+ *     pressure). These are counts of backend-provided rows, not UI-derived
+ *     thresholds. See docs/UI_UX_GUIDE.md.
+ */
+function buildAttentionSummary(
+  signals: DashboardSignalItem[],
+  summaryMeta?: NamespaceSummaryMeta,
+  problematicCount?: number,
+  quotaPressure?: { critical: number; warning: number },
+): { health?: AttentionHealth; reasons: AttentionReason[] } {
+  const reasons: AttentionReason[] = [];
+  if (problematicCount && problematicCount > 0) {
+    reasons.push({
+      label: `${problematicCount} problematic resource${problematicCount === 1 ? "" : "s"}`,
+      severity: "warning",
+      tooltip: "Resources flagged by the backend as unhealthy or stuck.",
+    });
+  }
+  if (quotaPressure) {
+    if (quotaPressure.critical > 0) {
+      reasons.push({
+        label: `${quotaPressure.critical} quota entr${quotaPressure.critical === 1 ? "y" : "ies"} critical`,
+        severity: "error",
+        tooltip: "ResourceQuota entries at or above 90% usage (backend ratio).",
+      });
+    }
+    if (quotaPressure.warning > 0) {
+      reasons.push({
+        label: `${quotaPressure.warning} quota entr${quotaPressure.warning === 1 ? "y" : "ies"} warning`,
+        severity: "warning",
+        tooltip: "ResourceQuota entries at or above 80% usage (backend ratio).",
+      });
+    }
+  }
+
+  let health: AttentionHealth | undefined;
+  if (summaryMeta?.state) {
+    const tone = dataplaneCoarseStateChipColor(summaryMeta.state);
+    health = {
+      label: `state: ${summaryMeta.state}`,
+      tone,
+      tooltip: "Coarse namespace state reported by the dataplane.",
+    };
+  } else if (signals.length > 0) {
+    health = { label: `${signals.length} attention signal${signals.length === 1 ? "" : "s"}`, tone: "warning" };
+  }
+  return { health, reasons };
+}
 
 export default function NamespaceSignalsTab({
   token,
@@ -105,7 +164,10 @@ export default function NamespaceSignalsTab({
   onOpenHelmRelease,
   onNavigate,
   onSelectCapacityTab,
+  onJumpToEvents,
+  onJumpToConditions,
 }: Props) {
+  const attention = buildAttentionSummary(signals, summaryMeta, problematic.length, quotaPressure);
   function handleProblematic(resource: NamespaceProblematicResource) {
     switch (resource.kind) {
       case "Pod": onOpenPod(resource.name); return;
@@ -142,6 +204,14 @@ export default function NamespaceSignalsTab({
       <Section title="Actions" divider={false}>
         <NamespaceActions token={token} namespaceName={namespaceName} onDeleted={onClose} />
       </Section>
+
+      <AttentionSummary
+        health={attention.health}
+        reasons={attention.reasons}
+        signals={signals}
+        onJumpToEvents={onJumpToEvents}
+        onJumpToConditions={onJumpToConditions}
+      />
 
       {(workloadByKind || podHealth) && (
         <Section title="Health overview">
@@ -228,24 +298,6 @@ export default function NamespaceSignalsTab({
           </Box>
         </Section>
       )}
-
-      <Section title="Attention summary">
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-          <Chip
-            size="small"
-            color={signals.some((s) => s.severity === "high") ? "error" : signals.some((s) => s.severity === "medium") ? "warning" : "success"}
-            label={`Signals: ${signals.length}`}
-          />
-          {problematic.length > 0 && <Chip size="small" color="warning" label={`Problematic resources: ${problematic.length}`} />}
-          {(quotaPressure.critical > 0 || quotaPressure.warning > 0) && (
-            <Chip
-              size="small"
-              color={quotaPressure.critical > 0 ? "error" : "warning"}
-              label={`Quota pressure: ${quotaPressure.critical} critical · ${quotaPressure.warning} warning`}
-            />
-          )}
-        </Box>
-      </Section>
 
       {problematic.length > 0 && (
         <Section title="Problematic resources">
