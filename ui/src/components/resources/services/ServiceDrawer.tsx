@@ -30,13 +30,18 @@ import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import MetadataSection from "../../shared/MetadataSection";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import ServiceActions from "./ServiceActions";
 import { createPortForwardSession } from "../../../sessionsApi";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -256,6 +261,61 @@ export default function ServiceDrawer(props: {
   const summary = details?.summary;
   const endpoints = details?.endpoints;
   const totalEndpoints = (endpoints?.ready || 0) + (endpoints?.notReady || 0);
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "services",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce,
+  });
+
+  const serviceSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
+
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary || !endpoints) return undefined;
+    const ready = endpoints.ready || 0;
+    const notReady = endpoints.notReady || 0;
+    const tone: AttentionHealth["tone"] = notReady > 0 ? "warning" : ready > 0 ? "success" : "default";
+    return {
+      label: `${summary.type || "Service"} · Ready endpoints ${ready}`,
+      tone,
+      tooltip: `Ready ${ready}, Not ready ${notReady}, Total ${ready + notReady}`,
+    };
+  }, [summary, endpoints]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    const reasons: AttentionReason[] = [];
+    if (!summary || !endpoints) return reasons;
+    if ((endpoints.notReady || 0) > 0) {
+      reasons.push({
+        label: `${endpoints.notReady} endpoint(s) not ready`,
+        severity: "warning",
+      });
+    }
+    if ((endpoints.ready || 0) === 0) {
+      reasons.push({
+        label: "No ready endpoints",
+        severity: "warning",
+      });
+    }
+    if (summary.type === "ExternalName" && !summary.externalName) {
+      reasons.push({
+        label: "ExternalName service missing external name",
+        severity: "warning",
+      });
+    }
+    return reasons;
+  }, [summary, endpoints]);
+
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
+  );
 
   const knownServicePorts = useMemo(() => (details?.ports || []) as ServicePort[], [details]);
   const knownServicePortOptions = useMemo<PortForwardOption[]>(
@@ -372,6 +432,7 @@ export default function ServiceDrawer(props: {
               <Tab label="Endpoints" />
               <Tab label="Ingresses" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -405,9 +466,12 @@ export default function ServiceDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable rows={summaryItems} columns={3} />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={serviceSignals}
+                    onJumpToEvents={() => setTab(3)}
+                  />
 
                   <Section title="Ports">
                     {(details?.ports || []).length === 0 ? (
@@ -477,7 +541,11 @@ export default function ServiceDrawer(props: {
                     );
                   })()}
 
-                  <MetadataSection labels={details?.summary?.labels} annotations={details?.summary?.annotations} />
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -586,8 +654,18 @@ export default function ServiceDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 4 && (
+                <Box sx={drawerTabContentSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable rows={summaryItems} columns={3} />
+                  </Box>
+                  <MetadataSection labels={details?.summary?.labels} annotations={details?.summary?.annotations} />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
