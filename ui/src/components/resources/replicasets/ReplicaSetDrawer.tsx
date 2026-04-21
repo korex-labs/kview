@@ -29,13 +29,18 @@ import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import MetadataSection from "../../shared/MetadataSection";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import ConditionsTable from "../../shared/ConditionsTable";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -199,6 +204,53 @@ export default function ReplicaSetDrawer(props: {
   const owner = summary?.owner;
   const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
 
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "replicasets",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce + refreshNonce,
+  });
+
+  const replicaSetSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
+
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary) return undefined;
+    const desired = summary.desired ?? 0;
+    const ready = summary.ready ?? 0;
+    const tone: AttentionHealth["tone"] = desired > 0 && ready === 0 ? "error" : ready < desired ? "warning" : "success";
+    return {
+      label: `Ready ${ready}/${desired}`,
+      tone,
+      tooltip: "ReplicaSet readiness from backend summary counters.",
+    };
+  }, [summary]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    if (!summary) return [];
+    const reasons: AttentionReason[] = [];
+    if ((summary.desired ?? 0) > (summary.ready ?? 0)) {
+      reasons.push({
+        label: `${(summary.desired ?? 0) - (summary.ready ?? 0)} replica(s) not ready`,
+        severity: "warning",
+      });
+    }
+    if (hasUnhealthyConditions) {
+      reasons.push({ label: "Unhealthy ReplicaSet condition(s)", severity: "warning" });
+    }
+    return reasons;
+  }, [summary, hasUnhealthyConditions]);
+
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
+  );
+
   const summaryItems = useMemo(
     () => [
       { label: "Name", value: valueOrDash(summary?.name) },
@@ -271,6 +323,7 @@ export default function ReplicaSetDrawer(props: {
               <Tab label="Pods" />
               <Tab label="Spec" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -291,15 +344,25 @@ export default function ReplicaSetDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable
-                      rows={summaryItems}
-                      columns={3}
-                      valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={replicaSetSignals}
+                    onJumpToEvents={() => setTab(3)}
+                    onJumpToSpec={() => setTab(2)}
+                  />
 
-                  <ConditionsTable conditions={details?.conditions || []} isHealthy={(cond) => isConditionHealthy(cond as ReplicaSetCondition)} />
+                  <ConditionsTable
+                    conditions={details?.conditions || []}
+                    isHealthy={(cond) => isConditionHealthy(cond as ReplicaSetCondition)}
+                    unhealthyFirst
+                  />
+
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -475,18 +538,6 @@ export default function ReplicaSetDrawer(props: {
                     </AccordionDetails>
                   </Accordion>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Metadata</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <MetadataSection
-                        labels={details?.spec?.metadata?.labels}
-                        annotations={details?.spec?.metadata?.annotations}
-                        wrapInSection={false}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
                 </Box>
               )}
 
@@ -497,8 +548,25 @@ export default function ReplicaSetDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 4 && (
+                <Box sx={drawerTabContentCompactSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable
+                      rows={summaryItems}
+                      columns={3}
+                      valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    />
+                  </Box>
+                  <MetadataSection
+                    labels={details?.spec?.metadata?.labels}
+                    annotations={details?.spec?.metadata?.annotations}
+                  />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
