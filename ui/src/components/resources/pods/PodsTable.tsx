@@ -106,7 +106,6 @@ const baseColumns: GridColDef<Row>[] = [
     sortable: false,
   },
   { field: "restarts", headerName: "Restarts", width: 120, type: "number" },
-  { field: "node", headerName: "Node", flex: 1, minWidth: 180 },
   {
     field: "lastEvent",
     headerName: "Last Event",
