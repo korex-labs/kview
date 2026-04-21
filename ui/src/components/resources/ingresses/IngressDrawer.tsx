@@ -20,14 +20,18 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
-import WarningsSection, { type Warning } from "../../shared/WarningsSection";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import IngressActions from "./IngressActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -170,26 +174,54 @@ export default function IngressDrawer(props: {
   const backendWarnings = details?.warnings;
   const missingBackends = backendWarnings?.missingBackendServices || [];
   const noReadyBackends = backendWarnings?.noReadyEndpoints || [];
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "ingresses",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce,
+  });
 
-  const ingressWarnings = useMemo((): Warning[] => {
-    const warnings: Warning[] = [];
+  const ingressSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
 
-    // Warn for each backend service with no ready endpoints
-    noReadyBackends.forEach((svc) => {
-      warnings.push({
-        message: `Ingress routes to Service "${svc}" but it has no ready endpoints.`,
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary) return undefined;
+    const hostCount = summary.hosts?.length || 0;
+    const tone: AttentionHealth["tone"] =
+      missingBackends.length > 0 ? "error" : noReadyBackends.length > 0 ? "warning" : "success";
+    return {
+      label: `Hosts ${hostCount} · TLS ${summary.tlsCount || 0}`,
+      tone,
+      tooltip: `Addresses ${summary.addresses?.length || 0} · backend warnings ${missingBackends.length + noReadyBackends.length}`,
+    };
+  }, [summary, missingBackends.length, noReadyBackends.length]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    const reasons: AttentionReason[] = [];
+    if (noReadyBackends.length > 0) {
+      reasons.push({
+        label: `${noReadyBackends.length} backend service(s) without ready endpoints`,
+        severity: "warning",
       });
-    });
-
-    // Missing backend services are also a concern
-    missingBackends.forEach((svc) => {
-      warnings.push({
-        message: `Ingress references Service "${svc}" which does not exist.`,
+    }
+    if (missingBackends.length > 0) {
+      reasons.push({
+        label: `${missingBackends.length} missing backend service(s)`,
+        severity: "error",
       });
-    });
+    }
+    return reasons;
+  }, [missingBackends.length, noReadyBackends.length]);
 
-    return warnings;
-  }, [missingBackends, noReadyBackends]);
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
+  );
 
   const summaryItems = useMemo(
     () => [
@@ -227,6 +259,7 @@ export default function IngressDrawer(props: {
               <Tab label="Rules" />
               <Tab label="TLS" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -245,11 +278,12 @@ export default function IngressDrawer(props: {
                     </Section>
                   )}
 
-                  <WarningsSection warnings={ingressWarnings} />
-
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable rows={summaryItems} columns={3} />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={ingressSignals}
+                    onJumpToEvents={() => setTab(3)}
+                  />
 
                   {(() => {
                     const urls = buildIngressUrls(summary?.hosts, details?.tls);
@@ -288,7 +322,11 @@ export default function IngressDrawer(props: {
                     )}
                   </Section>
 
-                  <MetadataSection labels={summary?.labels} annotations={summary?.annotations} />
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -387,8 +425,18 @@ export default function IngressDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 4 && (
+                <Box sx={drawerTabContentSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable rows={summaryItems} columns={3} />
+                  </Box>
+                  <MetadataSection labels={summary?.labels} annotations={summary?.annotations} />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
