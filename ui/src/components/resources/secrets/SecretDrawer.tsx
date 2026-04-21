@@ -19,13 +19,18 @@ import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
+import AttentionSummary, {
+  type AttentionHealth,
+  type AttentionReason,
+} from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import SecretActions from "./SecretActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import type { ApiItemResponse, ApiListResponse } from "../../../types/api";
+import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -133,6 +138,15 @@ export default function SecretDrawer(props: {
 
   const summary = details?.summary;
   const metadata = details?.metadata;
+  const resourceSignals = useResourceSignals({
+    token: props.token,
+    scope: "namespace",
+    namespace: ns,
+    kind: "secrets",
+    name: name || "",
+    enabled: !!props.open && !!name,
+    refreshKey: retryNonce,
+  });
 
   const summaryItems = useMemo(
     () => [
@@ -149,6 +163,37 @@ export default function SecretDrawer(props: {
 
   const keys = details?.keys || [];
   const hasKeys = keys.length > 0;
+  const secretSignals = useMemo<DashboardSignalItem[]>(
+    () => resourceSignals.signals || [],
+    [resourceSignals.signals],
+  );
+
+  const attentionHealth = useMemo<AttentionHealth | undefined>(() => {
+    if (!summary) return undefined;
+    const tone: AttentionHealth["tone"] = summary.immutable ? "success" : "default";
+    return {
+      label: `Type ${summary.type || "-"} · Keys ${summary.keysCount || 0}`,
+      tone,
+      tooltip: `Immutable ${summary.immutable ? "yes" : "no"}`,
+    };
+  }, [summary]);
+
+  const attentionReasons = useMemo<AttentionReason[]>(() => {
+    const reasons: AttentionReason[] = [];
+    if (!summary) return reasons;
+    if ((summary.keysCount || 0) === 0) {
+      reasons.push({ label: "Secret has no keys", severity: "warning" });
+    }
+    if (summary.type === "kubernetes.io/tls" && (summary.keysCount || 0) < 2) {
+      reasons.push({ label: "TLS secret missing expected key pair", severity: "warning" });
+    }
+    return reasons;
+  }, [summary]);
+
+  const warningEvents = useMemo(
+    () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
+    [events],
+  );
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
@@ -175,6 +220,7 @@ export default function SecretDrawer(props: {
               <Tab label="Overview" />
               <Tab label="Keys" />
               <Tab label="Events" />
+              <Tab label="Metadata" />
               <Tab label="YAML" />
             </Tabs>
 
@@ -193,11 +239,18 @@ export default function SecretDrawer(props: {
                     </Section>
                   )}
 
-                  <Box sx={panelBoxSx}>
-                    <KeyValueTable rows={summaryItems} columns={3} />
-                  </Box>
+                  <AttentionSummary
+                    health={attentionHealth}
+                    reasons={attentionReasons}
+                    signals={secretSignals}
+                    onJumpToEvents={() => setTab(2)}
+                  />
 
-                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                  <Section title="Recent Warning events">
+                    <Box sx={panelBoxSx}>
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Box>
+                  </Section>
                 </Box>
               )}
 
@@ -247,8 +300,18 @@ export default function SecretDrawer(props: {
                 </Box>
               )}
 
-              {/* YAML */}
+              {/* METADATA */}
               {tab === 3 && (
+                <Box sx={drawerTabContentSx}>
+                  <Box sx={panelBoxSx}>
+                    <KeyValueTable rows={summaryItems} columns={3} />
+                  </Box>
+                  <MetadataSection labels={metadata?.labels} annotations={metadata?.annotations} />
+                </Box>
+              )}
+
+              {/* YAML */}
+              {tab === 4 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
