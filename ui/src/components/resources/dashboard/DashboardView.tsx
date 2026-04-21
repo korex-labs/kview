@@ -26,6 +26,8 @@ import InfoHint from "../../shared/InfoHint";
 import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
+import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
+import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import DashboardSignalsPanel from "./DashboardSignalsPanel";
 import DashboardDerivedPanel from "./DashboardDerivedPanel";
 import type { InspectTarget } from "./dashboardTypes";
@@ -225,6 +227,8 @@ export default function DashboardView(props: Props) {
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
+  const metricsStatus = useMetricsStatus(props.token);
+  const metricsUsable = isMetricsUsable(metricsStatus);
   const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
@@ -327,7 +331,7 @@ export default function DashboardView(props: Props) {
       {!loading && !err && data?.item && (
         <Box sx={{ px: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           {(() => {
-            const { plane, visibility, coverage, resources, signals, derived, dataplane } = data.item;
+            const { plane, visibility, coverage, resources, signals, derived, dataplane, usage } = data.item;
             const signalPanel = signals;
             const ns = visibility.namespaces;
             const nodes = visibility.nodes;
@@ -367,6 +371,22 @@ export default function DashboardView(props: Props) {
                     color={stateChipColor(nodes.state) === "default" ? "default" : stateChipColor(nodes.state)}
                     hint={`State ${nodes.state}, freshness ${nodes.freshness}, observer ${nodes.observerState || "unknown"}.`}
                   />
+                  {metricsUsable ? (
+                    <>
+                      <MetricCard
+                        label="Container near limit"
+                        value={signalPanel?.containerNearLimit ?? 0}
+                        color={(signalPanel?.containerNearLimit || 0) > 0 ? "warning" : "success"}
+                        hint="Containers using a high percentage of CPU or memory limit, sourced from metrics.k8s.io."
+                      />
+                      <MetricCard
+                        label="Node resource pressure"
+                        value={signalPanel?.nodeResourcePressure ?? 0}
+                        color={(signalPanel?.nodeResourcePressure || 0) > 0 ? "error" : "success"}
+                        hint="Nodes whose CPU or memory usage exceeds the configured pressure threshold against allocatable."
+                      />
+                    </>
+                  ) : null}
                 </Box>
 
                 <Box sx={{ display: "block" }}>
@@ -426,6 +446,48 @@ export default function DashboardView(props: Props) {
                     ))}
                   </Box>
                 </Paper>
+
+                {metricsUsable && usage ? (
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <PanelTitle
+                      title="Cluster usage"
+                      hint="Cluster-wide CPU and memory rolled up from cached metrics.k8s.io snapshots. Pod totals sum across known namespaces; node totals sum across sampled nodes."
+                    />
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
+                      {usage.freshness ? (
+                        <Chip size="small" variant="outlined" label={`Freshness ${usage.freshness}`} />
+                      ) : null}
+                      <Chip size="small" variant="outlined" label={`Pods sampled ${usage.podsWithMetrics}`} />
+                      <Chip size="small" variant="outlined" label={`Namespaces ${usage.namespaces}`} />
+                      {usage.nodesSampled != null ? (
+                        <Chip size="small" variant="outlined" label={`Nodes sampled ${usage.nodesSampled}`} />
+                      ) : null}
+                      {usage.note ? (
+                        <Chip size="small" color="warning" variant="outlined" label={usage.note} />
+                      ) : null}
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1 }}>
+                      <Box sx={dashboardPanelSectionSx}>
+                        <Typography variant="overline" color="text.secondary">Pods</Typography>
+                        <Table size="small">
+                          <TableBody>
+                            <StatCell label="CPU" value={formatCPUMilli(usage.podCpuMilli) || "—"} />
+                            <StatCell label="Memory" value={formatMemoryBytes(usage.podMemoryBytes) || "—"} />
+                          </TableBody>
+                        </Table>
+                      </Box>
+                      <Box sx={dashboardPanelSectionSx}>
+                        <Typography variant="overline" color="text.secondary">Nodes</Typography>
+                        <Table size="small">
+                          <TableBody>
+                            <StatCell label="CPU" value={usage.nodeCpuMilli != null ? (formatCPUMilli(usage.nodeCpuMilli) || "—") : "—"} />
+                            <StatCell label="Memory" value={usage.nodeMemoryBytes != null ? (formatMemoryBytes(usage.nodeMemoryBytes) || "—") : "—"} />
+                          </TableBody>
+                        </Table>
+                      </Box>
+                    </Box>
+                  </Paper>
+                ) : null}
 
                 {derived ? (
                   <DashboardDerivedPanel derived={derived} onInspect={setInspectTarget} />

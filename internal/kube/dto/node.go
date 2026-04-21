@@ -21,6 +21,13 @@ type NodeListItemDTO struct {
 	NamespaceCount    int      `json:"namespaceCount,omitempty"`
 	ProblematicPods   int      `json:"problematicPods,omitempty"`
 	RestartCount      int32    `json:"restartCount,omitempty"`
+
+	// Usage enrichment merged from cached NodeMetricsSnapshot.
+	CPUMilli        int64   `json:"cpuMilli,omitempty"`
+	MemoryBytes     int64   `json:"memoryBytes,omitempty"`
+	CPUPctAlloc     float64 `json:"cpuPctAllocatable,omitempty"`
+	MemoryPctAlloc  float64 `json:"memoryPctAllocatable,omitempty"`
+	UsageAvailable  bool    `json:"usageAvailable,omitempty"`
 }
 
 type NodeDetailsDTO struct {
@@ -75,6 +82,13 @@ type NodeCapacityDTO struct {
 	MemoryAllocatable string `json:"memoryAllocatable,omitempty"`
 	PodsCapacity      string `json:"podsCapacity,omitempty"`
 	PodsAllocatable   string `json:"podsAllocatable,omitempty"`
+
+	// Usage enrichment merged from cached NodeMetricsSnapshot.
+	CPUMilliUsed    int64   `json:"cpuMilliUsed,omitempty"`
+	MemoryBytesUsed int64   `json:"memoryBytesUsed,omitempty"`
+	CPUPctAlloc     float64 `json:"cpuPctAllocatable,omitempty"`
+	MemoryPctAlloc  float64 `json:"memoryPctAllocatable,omitempty"`
+	UsageAvailable  bool    `json:"usageAvailable,omitempty"`
 }
 
 type NodeTaintDTO struct {

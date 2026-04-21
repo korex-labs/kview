@@ -103,6 +103,20 @@ export type DataplaneSettings = {
     restartElevatedThreshold: number;
     signalLimit: number;
   };
+  /**
+   * Metrics integrates real-time pod and node usage from metrics.k8s.io.
+   * `enabled` is a soft gate that the backend pairs with capability detection
+   * (Installed + Allowed) before any UI widget is shown. TTLs control sample
+   * frequency; the percent thresholds drive heuristic signals
+   * (container near limit, node resource pressure).
+   */
+  metrics: {
+    enabled: boolean;
+    podMetricsTtlSec: number;
+    nodeMetricsTtlSec: number;
+    containerNearLimitPct: number;
+    nodePressurePct: number;
+  };
 };
 
 export type SmartFilterMatchContext = {
@@ -366,6 +380,13 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       restartElevatedThreshold: 3,
       signalLimit: 10,
     },
+    metrics: {
+      enabled: true,
+      podMetricsTtlSec: 30,
+      nodeMetricsTtlSec: 30,
+      containerNearLimitPct: 90,
+      nodePressurePct: 85,
+    },
   };
 }
 
@@ -418,6 +439,9 @@ export function applyDataplaneProfile(current: DataplaneSettings, profile: Datap
   return {
     ...next,
     persistence: { ...current.persistence },
+    // Operator-tuned metrics knobs survive profile changes so a switch
+    // doesn't unexpectedly re-enable polling or reset the alert thresholds.
+    metrics: { ...current.metrics },
   };
 }
 
@@ -662,6 +686,7 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
   const rawSweep = (rawEnrichment.sweep ?? {}) as Partial<DataplaneSettings["namespaceEnrichment"]["sweep"]>;
   const rawBudget = (raw.backgroundBudget ?? {}) as Partial<DataplaneSettings["backgroundBudget"]>;
   const rawDashboard = (raw.dashboard ?? {}) as Partial<DataplaneSettings["dashboard"]>;
+  const rawMetrics = (raw.metrics ?? {}) as Partial<DataplaneSettings["metrics"]>;
   const rawTtls = (rawSnapshots.ttlSec ?? {}) as Record<string, unknown>;
   const profile = allowedDataplaneProfiles.has(raw.profile as DataplaneProfile)
     ? (raw.profile as DataplaneProfile)
@@ -822,6 +847,13 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
         defaults.dashboard.restartElevatedThreshold,
       ),
       signalLimit: validNumber(rawDashboard.signalLimit, 1, 100, defaults.dashboard.signalLimit),
+    },
+    metrics: {
+      enabled: typeof rawMetrics.enabled === "boolean" ? rawMetrics.enabled : defaults.metrics.enabled,
+      podMetricsTtlSec: validNumber(rawMetrics.podMetricsTtlSec, 5, 600, defaults.metrics.podMetricsTtlSec),
+      nodeMetricsTtlSec: validNumber(rawMetrics.nodeMetricsTtlSec, 5, 600, defaults.metrics.nodeMetricsTtlSec),
+      containerNearLimitPct: validNumber(rawMetrics.containerNearLimitPct, 50, 100, defaults.metrics.containerNearLimitPct),
+      nodePressurePct: validNumber(rawMetrics.nodePressurePct, 50, 100, defaults.metrics.nodePressurePct),
     },
   };
 

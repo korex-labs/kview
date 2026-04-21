@@ -52,6 +52,22 @@ type NamespaceInsightsDTO struct {
 	ResourceSignals []NamespaceResourceSignalsDTO `json:"resourceSignals,omitempty"`
 	ResourceQuotas  []ResourceQuotaDTO            `json:"resourceQuotas,omitempty"`
 	LimitRanges     []LimitRangeDTO               `json:"limitRanges,omitempty"`
+	// ResourceUsage is populated from a cached pod metrics snapshot when
+	// metrics.k8s.io is installed and list-allowed. Missing or unavailable
+	// metrics leave this field nil so the UI can hide the section cleanly.
+	ResourceUsage *NamespaceResourceUsageDTO `json:"resourceUsage,omitempty"`
+}
+
+// NamespaceResourceUsageDTO rolls up point-in-time pod usage for a namespace.
+// CPU is aggregated milliCPU; memory is aggregated bytes; Pods is the number
+// of pods that contributed to the aggregate (pods missing from the metrics
+// snapshot are excluded). ObservedAt records when the underlying snapshot
+// was captured so the UI can show freshness.
+type NamespaceResourceUsageDTO struct {
+	CPUMilli    int64 `json:"cpuMilli"`
+	MemoryBytes int64 `json:"memoryBytes"`
+	Pods        int   `json:"pods"`
+	ObservedAt  int64 `json:"observedAt,omitempty"`
 }
 
 type NamespaceSummaryDTO struct {

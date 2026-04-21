@@ -57,6 +57,26 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	if lrErr == nil {
 		out.Insights.LimitRanges = append(out.Insights.LimitRanges, lrSnap.Items...)
 	}
+	// Optional pod metrics rollup: cache-only read. The insights drawer must
+	// never be able to block on metrics-server being down or RBAC-denied, so
+	// we read from the already-warmed cache and silently omit the usage
+	// panel if nothing has been observed yet. The background metrics warmer
+	// populates this cache when capability is healthy; the capability probe
+	// surfaces the "unavailable" state to the UI separately.
+	if pmSnap, ok := plane.podMetricsStore.getCached(namespace); ok && len(pmSnap.Items) > 0 {
+		usage := &dto.NamespaceResourceUsageDTO{}
+		for _, pm := range pmSnap.Items {
+			usage.Pods++
+			for _, cm := range pm.Containers {
+				usage.CPUMilli += cm.CPUMilli
+				usage.MemoryBytes += cm.MemoryBytes
+			}
+		}
+		if !pmSnap.Meta.ObservedAt.IsZero() {
+			usage.ObservedAt = pmSnap.Meta.ObservedAt.Unix()
+		}
+		out.Insights.ResourceUsage = usage
+	}
 
 	signals := newDashboardSignalStore()
 	signals.Add(detectDashboardSignals(time.Now(), namespace, dashboardSnapshotSet{

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/internal/cluster"
@@ -44,18 +45,45 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 			age = int64(now.Sub(p.CreationTimestamp.Time).Seconds())
 		}
 
+		cpuReq, cpuLim, memReq, memLim := sumContainerResources(p.Spec.Containers)
 		out = append(out, dto.PodListItemDTO{
-			Name:      p.Name,
-			Namespace: p.Namespace,
-			Node:      p.Spec.NodeName,
-			Phase:     string(p.Status.Phase),
-			Ready:     FmtReady(readyCount, totalCount),
-			Restarts:  restarts,
-			AgeSec:    age,
-			LastEvent: lastEvent,
+			Name:               p.Name,
+			Namespace:          p.Namespace,
+			Node:               p.Spec.NodeName,
+			Phase:              string(p.Status.Phase),
+			Ready:              FmtReady(readyCount, totalCount),
+			Restarts:           restarts,
+			AgeSec:             age,
+			LastEvent:          lastEvent,
+			CPURequestMilli:    cpuReq,
+			CPULimitMilli:      cpuLim,
+			MemoryRequestBytes: memReq,
+			MemoryLimitBytes:   memLim,
 		})
 	}
 	return out, nil
+}
+
+// sumContainerResources aggregates CPU (milli) and memory (bytes) requests and
+// limits across a pod's containers. Missing values contribute 0; the resulting
+// totals represent pod-level request/limit anchors used by downstream
+// percent-of-limit calculations.
+func sumContainerResources(containers []corev1.Container) (cpuReq, cpuLim, memReq, memLim int64) {
+	for _, c := range containers {
+		if q, ok := c.Resources.Requests[corev1.ResourceCPU]; ok {
+			cpuReq += q.MilliValue()
+		}
+		if q, ok := c.Resources.Limits[corev1.ResourceCPU]; ok {
+			cpuLim += q.MilliValue()
+		}
+		if q, ok := c.Resources.Requests[corev1.ResourceMemory]; ok {
+			memReq += q.Value()
+		}
+		if q, ok := c.Resources.Limits[corev1.ResourceMemory]; ok {
+			memLim += q.Value()
+		}
+	}
+	return
 }
 
 func FmtReady(ready, total int) string {

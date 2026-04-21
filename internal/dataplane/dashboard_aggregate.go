@@ -76,7 +76,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	now := time.Now()
 
 	for _, ns := range knownNS {
-		s := buildSnapshotSetForNamespace(plane, ns, int32(policy.RestartElevatedThreshold))
+		s := buildSnapshotSetForNamespace(plane, ns, int32(policy.RestartElevatedThreshold), m.Policy().Metrics.ContainerNearLimitPct)
 		if s.podsOK {
 			res.Pods += len(s.pods.Items)
 			aggregateMetas = append(aggregateMetas, s.pods.Meta)
@@ -154,6 +154,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		}
 		signals.Add(detectDashboardSignals(now, ns, s)...)
 	}
+	signals.Add(detectNodeResourcePressureSignals(now, plane, nodesSnap, m.Policy().Metrics.NodePressurePct)...)
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
@@ -176,7 +177,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 // a single namespace and returns a fully populated dashboardSnapshotSet ready
 // for signal detection and resource counting. Adding a new resource kind only
 // requires touching this function and the struct definition below.
-func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThreshold int32) dashboardSnapshotSet {
+func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThreshold int32, containerNearLimitPct int) dashboardSnapshotSet {
 	podsSnap, podsOK := plane.podsStore.getCached(ns)
 	depsSnap, depsOK := plane.depsStore.getCached(ns)
 	dsSnap, dsOK := plane.dsStore.getCached(ns)
@@ -196,6 +197,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 	helmReleasesSnap, helmReleasesOK := plane.helmReleasesStore.getCached(ns)
 	rqSnap, rqOK := plane.rqStore.getCached(ns)
 	lrSnap, lrOK := plane.lrStore.getCached(ns)
+	podMetricsSnap, podMetricsOK := plane.podMetricsStore.getCached(ns)
 	return dashboardSnapshotSet{
 		restartThreshold: restartThreshold,
 		pods:             podsSnap,
@@ -236,6 +238,9 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 		quotasOK:         rqOK && rqSnap.Err == nil,
 		limitRanges:      lrSnap,
 		limitRangesOK:    lrOK && lrSnap.Err == nil,
+		podMetrics:            podMetricsSnap,
+		podMetricsOK:          podMetricsOK && podMetricsSnap.Err == nil,
+		containerNearLimitPct: containerNearLimitPct,
 	}
 }
 
@@ -282,6 +287,11 @@ type dashboardSnapshotSet struct {
 	quotasOK       bool
 	limitRanges    LimitRangesSnapshot
 	limitRangesOK  bool
+	podMetrics     PodMetricsSnapshot
+	podMetricsOK   bool
+	// containerNearLimitPct is the minimum percent-of-limit required to raise
+	// a container_near_limit signal. Set from policy.Metrics.ContainerNearLimitPct.
+	containerNearLimitPct int
 }
 
 func detectDashboardSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
@@ -499,6 +509,10 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 		p.RoleBindingWarnings++
 	case "hpa_warnings":
 		p.HPAWarnings++
+	case "container_near_limit":
+		p.ContainerNearLimit++
+	case "node_resource_pressure":
+		p.NodeResourcePressure++
 	}
 }
 

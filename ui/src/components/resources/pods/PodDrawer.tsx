@@ -69,6 +69,10 @@ import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import WarningsSection, { type Warning } from "../../shared/WarningsSection";
+import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
+import GaugeTableRow from "../../shared/GaugeTableRow";
+import { formatCPUMilli, formatMemoryBytes, formatPct, severityForPct } from "../../metrics/format";
+import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import PortForwardDialog, { type PortForwardOption } from "../../shared/PortForwardDialog";
 import PortForwardCreatedSnackbar from "../../shared/PortForwardCreatedSnackbar";
 import { createTerminalSession, createPortForwardSession, runContainerCommand, type RunContainerCommandResult } from "../../../sessionsApi";
@@ -158,6 +162,15 @@ type PodContainer = {
     cpuLimit?: string;
     memoryRequest?: string;
     memoryLimit?: string;
+  };
+  /** Optional usage merged from metrics.k8s.io on the detail endpoint. */
+  usage?: {
+    cpuMilli: number;
+    memoryBytes: number;
+    cpuPctRequest?: number;
+    cpuPctLimit?: number;
+    memoryPctRequest?: number;
+    memoryPctLimit?: number;
   };
   ports?: {
     name?: string;
@@ -273,6 +286,17 @@ function tryPrettyJSONLine(line: string): string | null {
 
 function isConditionHealthy(cond: PodCondition) {
   return cond.status === "True";
+}
+
+function usageGaugeTone(pct: number | undefined): GaugeTone {
+  switch (severityForPct(pct)) {
+    case "critical":
+      return "error";
+    case "warn":
+      return "warning";
+    default:
+      return "success";
+  }
 }
 
 function isContainerHealthy(ctn: PodContainer) {
@@ -464,6 +488,8 @@ export default function PodDrawer(props: {
   const { open: openMutationDialog } = useMutationDialog();
   const offline = health === "unhealthy";
   const offlineReason = "Cluster connection is unavailable";
+  const metricsStatus = useMetricsStatus(props.token);
+  const metricsUsable = isMetricsUsable(metricsStatus);
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<PodDetails | null>(null);
@@ -1629,6 +1655,46 @@ export default function PodDrawer(props: {
                                   ]}
                                 />
                               </Section>
+
+                              {metricsUsable && ctn.usage ? (
+                                <Section title="Usage" dividerPlacement="content">
+                                  {(() => {
+                                    const u = ctn.usage!;
+                                    const cpuPct = u.cpuPctLimit ?? u.cpuPctRequest;
+                                    const memPct = u.memoryPctLimit ?? u.memoryPctRequest;
+                                    const cpuAnchor = u.cpuPctLimit != null ? "limit" : u.cpuPctRequest != null ? "request" : "";
+                                    const memAnchor = u.memoryPctLimit != null ? "limit" : u.memoryPctRequest != null ? "request" : "";
+                                    return (
+                                      <Box sx={{ mt: 1 }}>
+                                        <GaugeTableRow
+                                          label="CPU"
+                                          hint={cpuAnchor ? `Percentage of ${cpuAnchor}; sourced from metrics.k8s.io.` : "Live usage from metrics.k8s.io."}
+                                          bar={
+                                            cpuPct != null && cpuPct > 0 ? (
+                                              <GaugeBar value={cpuPct} tone={usageGaugeTone(cpuPct)} label={formatPct(cpuPct)} />
+                                            ) : (
+                                              <Box sx={{ fontSize: 12, color: "text.secondary" }}>No request/limit set</Box>
+                                            )
+                                          }
+                                          summary={formatCPUMilli(u.cpuMilli)}
+                                        />
+                                        <GaugeTableRow
+                                          label="Memory"
+                                          hint={memAnchor ? `Percentage of ${memAnchor}; sourced from metrics.k8s.io.` : "Live usage from metrics.k8s.io."}
+                                          bar={
+                                            memPct != null && memPct > 0 ? (
+                                              <GaugeBar value={memPct} tone={usageGaugeTone(memPct)} label={formatPct(memPct)} />
+                                            ) : (
+                                              <Box sx={{ fontSize: 12, color: "text.secondary" }}>No request/limit set</Box>
+                                            )
+                                          }
+                                          summary={formatMemoryBytes(u.memoryBytes)}
+                                        />
+                                      </Box>
+                                    );
+                                  })()}
+                                </Section>
+                              ) : null}
 
                               <Section
                                 title="Environment"

@@ -23,11 +23,11 @@ Clients are resolved via `cluster.Manager.GetClientsForContext`.
 
 Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dataplane snapshot execution (scheduler, TTL cache, normalized errors)—not in HTTP handlers for migrated list routes.
 
-**Cluster-scoped snapshot kinds:** namespaces, nodes.
+**Cluster-scoped snapshot kinds:** namespaces, nodes, **nodemetrics**.
 
-**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, horizontalpodautoscalers, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges.
+**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, horizontalpodautoscalers, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges, **podmetrics**.
 
-Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values).
+Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values). The metrics kinds (`podmetrics`, `nodemetrics`) default to a **~30s** TTL controlled by `policy.Metrics.PodMetricsTTLSeconds` / `NodeMetricsTTLSeconds`. Metrics snapshots set the per-descriptor `skipPersistence` flag and are therefore **never written to the bbolt cache**: the data is high-churn, short-lived, and meaningless across process restarts.
 
 Snapshot persistence is optional and enabled by default unless the user has explicitly disabled it in Settings. kview stores dataplane list snapshots in a local bbolt file under the user cache directory, together with a compact name index for cached quick-access search. Persisted snapshots hydrate a plane's empty in-memory snapshot stores when the plane is created or persistence is enabled, and they remain available as stale fallback data when a live refresh cannot replace them. Hydrated snapshots keep stale/degraded metadata rather than appearing fresh, and they do not overwrite already-loaded in-memory snapshots. Secret list snapshots contain list metadata such as name/type/key count, not secret values; detail drawers still perform targeted live reads.
 
@@ -138,8 +138,29 @@ Current policy knobs include:
 - optional background namespace sweep: per-cycle cap, per-hour cap, re-enrich interval, idle gate, system namespace inclusion
 - scheduler budget: per-cluster concurrency, transient retries, long-run snapshot activity threshold
 - dashboard projection hints: restart threshold and signal limit
+- metrics integration: enable/disable metrics.k8s.io polling, pod/node metrics TTLs, container near-limit threshold, node resource pressure threshold
 
 Validation keeps hard bounds on all numeric controls so wide/sweep settings can increase observability without unbounded cluster scans.
+
+---
+
+## Metrics integration (metrics.k8s.io)
+
+Real-time pod and node usage from the Kubernetes Metrics Server (`metrics.k8s.io/v1beta1`) is integrated as two additional dataplane snapshot kinds (`podmetrics`, `nodemetrics`) and a small set of enrichment helpers that overlay usage onto existing list/detail DTOs.
+
+- **Capability:** `dp.MetricsCapability(ctx, contextName)` reports `Installed` (discovery shows the `metrics.k8s.io` API group) and `Allowed` (a SelfSubjectAccessReview against `pods.metrics.k8s.io/list` succeeds). The result is cached with a short TTL so list/detail handlers and the `/api/dataplane/metrics/status` endpoint share one probe per cluster.
+- **Soft gate:** `policy.Metrics.Enabled` is an additional toggle on top of capability detection. The UI hides metric widgets unless the API is installed, RBAC allows it, **and** the operator has not turned the integration off in Settings.
+- **Snapshots:** `podMetricsStore` (per namespace) and `nodeMetricsStore` (cluster-scoped) live on the plane. Both are marked `skipPersistence: true` so they bypass the bbolt cache.
+- **Enrichment helpers** (in `metrics_enrich.go`) overlay usage onto already-fetched DTOs without an extra kube call:
+  - `EnrichPodListItemsWithMetrics` adds aggregated pod-level CPU/memory and percent-of-request/limit using the pod-level `CPURequestMilli`/`CPULimitMilli`/`MemoryRequestBytes`/`MemoryLimitBytes` already populated by the pod resource layer.
+  - `EnrichNodeListItemsWithMetrics` adds per-node CPU/memory and percent-of-allocatable using `NodeListItemDTO.CPUAllocatable` / `MemoryAllocatable`.
+  - `MergePodDetailsUsage` and `MergeNodeDetailsUsage` overlay per-container or per-node usage onto detail responses using only cached metrics snapshots (no live fetch).
+- **Projections:**
+  - `NamespaceInsightsProjection` adds an optional `resourceUsage` block (cluster pod metrics rolled up per namespace).
+  - `DashboardSummary` adds an optional `usage` panel (cluster-wide pod and node usage rollup) and exposes new signal counters `containerNearLimit` and `nodeResourcePressure`.
+- **Signals:** two new detectors live in `dashboard_signal_detectors.go`:
+  - `container_near_limit` (per-namespace) flags pods whose aggregated CPU or memory usage is above `policy.Metrics.ContainerNearLimitPct` (default 90%) of the aggregated limit. Pods without limits or without a matching metrics sample are skipped.
+  - `node_resource_pressure` (cluster-scoped) flags nodes whose CPU or memory usage is above `policy.Metrics.NodePressurePct` (default 85%) of allocatable. Uses cached `nodeMetricsStore` only — never triggers a live fetch.
 
 ---
 

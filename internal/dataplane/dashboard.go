@@ -16,6 +16,27 @@ type ClusterDashboardSummary struct {
 	Signals    ClusterDashboardSignalsPanel    `json:"signals"`
 	Derived    ClusterDashboardDerivedPanel    `json:"derived"`
 	Dataplane  ClusterDashboardDataplaneStats  `json:"dataplane"`
+	// Usage is populated only when metrics.k8s.io is installed and list-allowed.
+	// Absent Usage signals to the UI that metric widgets should be hidden for
+	// this cluster without implying an error.
+	Usage *ClusterDashboardUsagePanel `json:"usage,omitempty"`
+}
+
+// ClusterDashboardUsagePanel is the cluster-wide rollup of point-in-time
+// resource usage sampled from metrics.k8s.io. PodsWithMetrics counts pods
+// that were present in a cached PodMetricsSnapshot; Namespaces counts how
+// many namespaces contributed to the CPU/memory sums. Node fields aggregate
+// cached NodeMetricsSnapshot (absent when no node metrics snapshot is cached).
+type ClusterDashboardUsagePanel struct {
+	PodCPUMilli     int64  `json:"podCpuMilli"`
+	PodMemoryBytes  int64  `json:"podMemoryBytes"`
+	PodsWithMetrics int    `json:"podsWithMetrics"`
+	Namespaces      int    `json:"namespaces"`
+	NodeCPUMilli    int64  `json:"nodeCpuMilli,omitempty"`
+	NodeMemoryBytes int64  `json:"nodeMemoryBytes,omitempty"`
+	NodesSampled    int    `json:"nodesSampled,omitempty"`
+	Freshness       string `json:"freshness,omitempty"`
+	Note            string `json:"note,omitempty"`
 }
 
 type ClusterDashboardPlane struct {
@@ -127,6 +148,8 @@ type ClusterDashboardSignalsPanel struct {
 	RoleWarnings          int                            `json:"roleWarnings"`
 	RoleBindingWarnings   int                            `json:"roleBindingWarnings"`
 	HPAWarnings           int                            `json:"hpaWarnings"`
+	ContainerNearLimit    int                            `json:"containerNearLimit"`
+	NodeResourcePressure  int                            `json:"nodeResourcePressure"`
 	Filters               []ClusterDashboardSignalFilter `json:"filters,omitempty"`
 	Top                   []ClusterDashboardSignal       `json:"top,omitempty"`
 	Items                 []ClusterDashboardSignal       `json:"items,omitempty"`
@@ -290,6 +313,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 	}
 
 	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
+	usagePanel := m.aggregateClusterDashboardUsage(plane, nsNames)
 	if derivedPanel.Nodes.Total > nodeTotal {
 		nodeTotal = derivedPanel.Nodes.Total
 		if nodeState == "empty" {
@@ -344,7 +368,54 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		Signals:   signalsPanel,
 		Derived:   derivedPanel,
 		Dataplane: dpStats,
+		Usage:     usagePanel,
 	}
+}
+
+// aggregateClusterDashboardUsage rolls up cached pod and node metrics
+// snapshots (metrics.k8s.io) into a cluster-wide Usage panel. It only uses
+// already cached data (getCached / peekClusterSnapshot) so the dashboard
+// render never triggers a metrics-server fetch. Returns nil when no cached
+// metrics are available so the UI can hide the section cleanly.
+func (m *manager) aggregateClusterDashboardUsage(plane *clusterPlane, nsNames []string) *ClusterDashboardUsagePanel {
+	if plane == nil {
+		return nil
+	}
+	out := &ClusterDashboardUsagePanel{}
+	var metas []SnapshotMetadata
+	for _, ns := range nsNames {
+		snap, ok := plane.podMetricsStore.getCached(ns)
+		if !ok {
+			continue
+		}
+		if snap.Err != nil {
+			continue
+		}
+		out.Namespaces++
+		metas = append(metas, snap.Meta)
+		for _, pm := range snap.Items {
+			out.PodsWithMetrics++
+			for _, cm := range pm.Containers {
+				out.PodCPUMilli += cm.CPUMilli
+				out.PodMemoryBytes += cm.MemoryBytes
+			}
+		}
+	}
+	if nodeSnap, ok := peekClusterSnapshot(&plane.nodeMetricsStore); ok && nodeSnap.Err == nil {
+		metas = append(metas, nodeSnap.Meta)
+		for _, nm := range nodeSnap.Items {
+			out.NodesSampled++
+			out.NodeCPUMilli += nm.CPUMilli
+			out.NodeMemoryBytes += nm.MemoryBytes
+		}
+	}
+	if out.Namespaces == 0 && out.NodesSampled == 0 {
+		return nil
+	}
+	if len(metas) > 0 {
+		out.Freshness = string(WorstFreshnessFromSnapshots(metas...))
+	}
+	return out
 }
 
 func dashboardActivationMode(policy DataplanePolicy) string {

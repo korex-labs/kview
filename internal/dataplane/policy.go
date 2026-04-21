@@ -21,6 +21,20 @@ type DataplanePolicy struct {
 	NamespaceEnrichment NamespaceEnrichmentPolicy `json:"namespaceEnrichment"`
 	BackgroundBudget    BackgroundBudgetPolicy    `json:"backgroundBudget"`
 	Dashboard           DashboardPolicy           `json:"dashboard"`
+	Metrics             MetricsPolicy             `json:"metrics"`
+}
+
+// MetricsPolicy governs metrics.k8s.io integration. Enabled is a soft gate
+// (capability detection auto-disables metric widgets when Installed is false);
+// the TTLs control per-cluster sampling frequency; the threshold percents
+// drive usage-based signal detectors. All values have validation clamps that
+// pin them inside operator-sensible bounds and fall back to the defaults.
+type MetricsPolicy struct {
+	Enabled               bool `json:"enabled"`
+	PodMetricsTTLSeconds  int  `json:"podMetricsTtlSec"`
+	NodeMetricsTTLSeconds int  `json:"nodeMetricsTtlSec"`
+	ContainerNearLimitPct int  `json:"containerNearLimitPct"`
+	NodePressurePct       int  `json:"nodePressurePct"`
 }
 
 type SnapshotPolicy struct {
@@ -119,6 +133,8 @@ func DefaultDataplanePolicy() DataplanePolicy {
 				string(ResourceKindHelmReleases):        120,
 				string(ResourceKindResourceQuotas):      180,
 				string(ResourceKindLimitRanges):         180,
+				string(ResourceKindPodMetrics):          30,
+				string(ResourceKindNodeMetrics):         30,
 			},
 			ManualRefreshBypassesTTL:   true,
 			InvalidateAfterKnownWrites: true,
@@ -175,6 +191,13 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			RestartElevatedThreshold: 3,
 			SignalLimit:              10,
 		},
+		Metrics: MetricsPolicy{
+			Enabled:               true,
+			PodMetricsTTLSeconds:  30,
+			NodeMetricsTTLSeconds: 30,
+			ContainerNearLimitPct: 90,
+			NodePressurePct:       85,
+		},
 	}
 }
 
@@ -225,6 +248,16 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out.Dashboard.RefreshSec = clampInt(out.Dashboard.RefreshSec, 0, 3600, def.Dashboard.RefreshSec)
 	out.Dashboard.RestartElevatedThreshold = clampInt(out.Dashboard.RestartElevatedThreshold, 1, 1000, def.Dashboard.RestartElevatedThreshold)
 	out.Dashboard.SignalLimit = clampInt(out.Dashboard.SignalLimit, 1, 100, def.Dashboard.SignalLimit)
+
+	out.Metrics.PodMetricsTTLSeconds = clampInt(out.Metrics.PodMetricsTTLSeconds, 15, 300, def.Metrics.PodMetricsTTLSeconds)
+	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 15, 300, def.Metrics.NodeMetricsTTLSeconds)
+	out.Metrics.ContainerNearLimitPct = clampInt(out.Metrics.ContainerNearLimitPct, 50, 100, def.Metrics.ContainerNearLimitPct)
+	out.Metrics.NodePressurePct = clampInt(out.Metrics.NodePressurePct, 50, 100, def.Metrics.NodePressurePct)
+	// Mirror the validated metrics TTLs into the snapshot TTL map so
+	// SnapshotTTL(ResourceKindPodMetrics/NodeMetrics) agrees with the
+	// operator-facing Metrics knobs in a single place.
+	out.Snapshots.TTLSeconds[string(ResourceKindPodMetrics)] = out.Metrics.PodMetricsTTLSeconds
+	out.Snapshots.TTLSeconds[string(ResourceKindNodeMetrics)] = out.Metrics.NodeMetricsTTLSeconds
 
 	if out.Profile == DataplaneProfileManual {
 		out.Observers.Enabled = false

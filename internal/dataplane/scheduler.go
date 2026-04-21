@@ -43,6 +43,13 @@ const (
 	ResourceKindHPAs                ResourceKind = "horizontalpodautoscalers"
 	ResourceKindResourceQuotas      ResourceKind = "resourcequotas"
 	ResourceKindLimitRanges         ResourceKind = "limitranges"
+	// ResourceKindPodMetrics and ResourceKindNodeMetrics hold point-in-time
+	// usage samples from metrics.k8s.io. They are intentionally not in
+	// dataplaneNamespacedListResourceKinds — metrics are not a namespace list
+	// anchor, must not participate in enrichment warm kinds or nightly sweeps,
+	// and are not persisted (high churn, short TTLs).
+	ResourceKindPodMetrics  ResourceKind = "podmetrics"
+	ResourceKindNodeMetrics ResourceKind = "nodemetrics"
 )
 
 func dataplaneNamespacedListResourceKinds() []ResourceKind {

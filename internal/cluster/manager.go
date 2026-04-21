@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 // ErrUnknownContext is returned when a context name is not found in the kubeconfig.
@@ -59,6 +60,37 @@ type Clients struct {
 	RestConfig *rest.Config
 	Clientset  *kubernetes.Clientset
 	Discovery  discovery.DiscoveryInterface
+
+	metricsMu     sync.Mutex
+	metricsClient metricsclientset.Interface
+	metricsErr    error
+}
+
+// MetricsClient returns a lazily-initialized clientset for metrics.k8s.io.
+// The first caller builds the client from the stored RestConfig; subsequent
+// callers reuse the cached instance (or cached error). This avoids paying
+// any cost for the metrics API in clusters or operator flows that never
+// touch metrics.
+func (c *Clients) MetricsClient() (metricsclientset.Interface, error) {
+	if c == nil {
+		return nil, fmt.Errorf("nil clients")
+	}
+	c.metricsMu.Lock()
+	defer c.metricsMu.Unlock()
+	if c.metricsClient != nil || c.metricsErr != nil {
+		return c.metricsClient, c.metricsErr
+	}
+	if c.RestConfig == nil {
+		c.metricsErr = fmt.Errorf("nil rest config")
+		return nil, c.metricsErr
+	}
+	client, err := metricsclientset.NewForConfig(c.RestConfig)
+	if err != nil {
+		c.metricsErr = fmt.Errorf("new metrics client: %w", err)
+		return nil, c.metricsErr
+	}
+	c.metricsClient = client
+	return c.metricsClient, nil
 }
 
 func defaultKubeconfigPath() string {

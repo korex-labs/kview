@@ -316,6 +316,11 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
       dashboard: { ...prev.dataplane.dashboard, ...patch },
     }));
   };
+  const setDataplaneMetrics = (patch: Partial<DataplaneSettings["metrics"]>) => {
+    setSettings((prev) => updateDataplane(prev, {
+      metrics: { ...prev.dataplane.metrics, ...patch },
+    }));
+  };
 
   const importSettingsText = (text: string) => {
     try {
@@ -1144,6 +1149,43 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
             label="Persist dataplane snapshots"
           />
           {numField("Max persisted age (hours)", dp.persistence.maxAgeHours, (value) => setDataplanePersistence({ maxAgeHours: value }), "Older snapshots are ignored on restart.")}
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Typography variant="subtitle2">Metrics (metrics.k8s.io)</Typography>
+          <Alert severity="info" sx={{ py: 0 }}>
+            Real-time pod and node usage from metrics-server. Disabled automatically when the API is missing or RBAC denies it; this toggle adds a soft gate on top of capability detection.
+          </Alert>
+          <FormControlLabel
+            control={<Switch checked={dp.metrics.enabled} onChange={(e) => setDataplaneMetrics({ enabled: e.target.checked })} />}
+            label="Enable metrics integration"
+          />
+          <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+            {numField(
+              "Pod metrics TTL (sec)",
+              dp.metrics.podMetricsTtlSec,
+              (value) => setDataplaneMetrics({ podMetricsTtlSec: value }),
+              "How often pod usage is sampled per cluster.",
+            )}
+            {numField(
+              "Node metrics TTL (sec)",
+              dp.metrics.nodeMetricsTtlSec,
+              (value) => setDataplaneMetrics({ nodeMetricsTtlSec: value }),
+              "How often node usage is sampled per cluster.",
+            )}
+            {numField(
+              "Container near-limit (%)",
+              dp.metrics.containerNearLimitPct,
+              (value) => setDataplaneMetrics({ containerNearLimitPct: value }),
+              "Threshold above which containers raise a usage signal.",
+            )}
+            {numField(
+              "Node pressure (%)",
+              dp.metrics.nodePressurePct,
+              (value) => setDataplaneMetrics({ nodePressurePct: value }),
+              "Threshold above which nodes raise a resource-pressure signal.",
+            )}
+          </Box>
         </Paper>
 
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>

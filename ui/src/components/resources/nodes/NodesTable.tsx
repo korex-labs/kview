@@ -1,5 +1,5 @@
-import React, { useCallback } from "react";
-import { Chip } from "@mui/material";
+import React, { useCallback, useMemo } from "react";
+import { Box, Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import NodeDrawer from "./NodeDrawer";
@@ -10,10 +10,14 @@ import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
   type ApiDataplaneListResponse,
+  type NodeListItemUsage,
 } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
+import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
+import { formatCPUMilli, formatMemoryBytes, formatPct, severityForPct } from "../../metrics/format";
+import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 
-type Node = {
+type Node = NodeListItemUsage & {
   name: string;
   status: string;
   roles?: string[];
@@ -40,7 +44,33 @@ type Row = Node & { id: string };
 
 const resourceLabel = getResourceLabel("nodes");
 
-const columns: GridColDef<Row>[] = [
+function nodeUsageTone(pct: number | undefined): GaugeTone {
+  switch (severityForPct(pct, 70, 85)) {
+    case "critical":
+      return "error";
+    case "warn":
+      return "warning";
+    default:
+      return "success";
+  }
+}
+
+function renderNodeUsage(usage: number | undefined, pct: number | undefined, label: string): React.ReactNode {
+  if (usage == null) return "—";
+  if (pct == null || pct <= 0) return label;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+      <Box sx={{ flex: 1, minWidth: 60 }}>
+        <GaugeBar value={pct} tone={nodeUsageTone(pct)} label={formatPct(pct)} />
+      </Box>
+      <Box component="span" sx={{ fontSize: 12, minWidth: 60, textAlign: "right" }}>
+        {label}
+      </Box>
+    </Box>
+  );
+}
+
+const baseColumns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 220 },
   {
     field: "derived",
@@ -131,7 +161,47 @@ const columns: GridColDef<Row>[] = [
   },
 ];
 
+const metricsColumns: GridColDef<Row>[] = [
+  {
+    field: "cpuMilli",
+    headerName: "CPU usage",
+    width: 200,
+    sortable: true,
+    valueGetter: (_value, row) => row.cpuPctAllocatable ?? row.cpuMilli ?? 0,
+    renderCell: (p) => {
+      const usage = p.row.cpuMilli;
+      const pct = p.row.cpuPctAllocatable;
+      const label = usage != null ? formatCPUMilli(usage) : "—";
+      return renderNodeUsage(usage, pct, label);
+    },
+  },
+  {
+    field: "memoryBytes",
+    headerName: "Memory usage",
+    width: 220,
+    sortable: true,
+    valueGetter: (_value, row) => row.memoryPctAllocatable ?? row.memoryBytes ?? 0,
+    renderCell: (p) => {
+      const usage = p.row.memoryBytes;
+      const pct = p.row.memoryPctAllocatable;
+      const label = usage != null ? formatMemoryBytes(usage) : "—";
+      return renderNodeUsage(usage, pct, label);
+    },
+  },
+];
+
 export default function NodesTable({ token }: { token: string }) {
+  const metricsStatus = useMetricsStatus(token);
+  const columns = useMemo<GridColDef<Row>[]>(() => {
+    if (!isMetricsUsable(metricsStatus)) return baseColumns;
+    // Place usage gauges right after the static allocatable columns so
+    // operators can compare allocated vs live usage at a glance.
+    const memAllocIdx = baseColumns.findIndex((c) => c.field === "memoryAllocatable");
+    const insertAt = memAllocIdx >= 0 ? memAllocIdx + 1 : baseColumns.length;
+    const cols = baseColumns.slice();
+    cols.splice(insertAt, 0, ...metricsColumns);
+    return cols;
+  }, [metricsStatus]);
   const fetchRows = useCallback(async (contextName?: string) => {
     const res = await apiGetWithContext<ApiDataplaneListResponse<Node>>("/api/nodes", token, contextName || "");
     const items = res.items || [];

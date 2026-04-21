@@ -50,6 +50,8 @@ import ErrorState from "../../shared/ErrorState";
 import MetadataSection from "../../shared/MetadataSection";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
+import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
+import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import RightDrawer from "../../layout/RightDrawer";
@@ -196,6 +198,8 @@ export default function NamespaceDrawer(props: {
   onNavigate?: (section: string, namespace: string) => void;
 }) {
   const { retryNonce } = useConnectionState();
+  const metricsStatus = useMetricsStatus(props.token);
+  const metricsUsable = isMetricsUsable(metricsStatus);
   const [tab, setTab] = useState(0);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsErr, setInsightsErr] = useState("");
@@ -311,6 +315,7 @@ export default function NamespaceDrawer(props: {
   const resourceSignalMap = useMemo(() => buildResourceSignalMap(insights?.resourceSignals), [insights?.resourceSignals]);
   const quotas = insights?.resourceQuotas || [];
   const limitRanges = insights?.limitRanges || [];
+  const resourceUsage = insights?.resourceUsage;
   const quotaPressure = summarizeQuotaPressure(quotas);
   const summaryItems = useMemo(
     () => [
@@ -465,6 +470,26 @@ export default function NamespaceDrawer(props: {
 
               {tab === 2 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  {metricsUsable && resourceUsage ? (
+                    <Section title="Resource usage">
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+                        <Chip size="small" variant="outlined" label={`Pods sampled ${resourceUsage.pods}`} />
+                        {resourceUsage.observedAt ? (
+                          <Chip size="small" variant="outlined" label={`Observed ${fmtAge(Math.max(0, Math.round((Date.now() - resourceUsage.observedAt) / 1000)))} ago`} />
+                        ) : null}
+                      </Box>
+                      <Box sx={{ mt: 1 }}>
+                        <KeyValueTable
+                          columns={2}
+                          rows={[
+                            { label: "CPU", value: formatCPUMilli(resourceUsage.cpuMilli) || "—" },
+                            { label: "Memory", value: formatMemoryBytes(resourceUsage.memoryBytes) || "—" },
+                          ]}
+                        />
+                      </Box>
+                    </Section>
+                  ) : null}
+
                   <Section title="Capacity signals">
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
                       <Chip size="small" label={`ResourceQuotas: ${quotas.length}`} color={quotas.length > 0 ? "primary" : "default"} />

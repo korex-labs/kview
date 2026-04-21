@@ -33,6 +33,7 @@ var dashboardSignalDetectors = []dashboardSignalDetector{
 	{Type: "empty_secret", Detect: detectEmptySecretSignals},
 	{Type: "potentially_unused_pvc", Detect: detectPotentiallyUnusedPVCSignals},
 	{Type: "potentially_unused_serviceaccount", Detect: detectPotentiallyUnusedServiceAccountSignals},
+	{Type: "container_near_limit", Detect: detectContainerNearLimitSignals},
 }
 
 func detectEmptyNamespaceSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
@@ -330,4 +331,130 @@ func detectPotentiallyUnusedServiceAccountSignals(_ time.Time, ns string, s dash
 		}
 	}
 	return out
+}
+
+// detectContainerNearLimitSignals flags pods whose aggregated usage is close to
+// their aggregated CPU or memory limit. Uses pod-level CPU/MemoryLimit totals
+// populated by the pod list resource layer; pods with no limits set or no
+// matching metrics sample are skipped. The threshold comes from
+// policy.Metrics.ContainerNearLimitPct (default 90%), stored on the set.
+func detectContainerNearLimitSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.podsOK || !s.podMetricsOK {
+		return nil
+	}
+	threshold := s.containerNearLimitPct
+	if threshold <= 0 {
+		return nil
+	}
+	metricsByKey := make(map[string]dto.PodMetricsDTO, len(s.podMetrics.Items))
+	for _, pm := range s.podMetrics.Items {
+		metricsByKey[pm.Namespace+"/"+pm.Name] = pm
+	}
+	if len(metricsByKey) == 0 {
+		return nil
+	}
+	var out []ClusterDashboardSignal
+	for _, pod := range s.pods.Items {
+		if pod.CPULimitMilli <= 0 && pod.MemoryLimitBytes <= 0 {
+			continue
+		}
+		pm, ok := metricsByKey[pod.Namespace+"/"+pod.Name]
+		if !ok {
+			continue
+		}
+		var usageCPU, usageMem int64
+		for _, cm := range pm.Containers {
+			usageCPU += cm.CPUMilli
+			usageMem += cm.MemoryBytes
+		}
+		cpuPct := percentOfMilli(usageCPU, pod.CPULimitMilli)
+		memPct := percentOfBytes(usageMem, pod.MemoryLimitBytes)
+		if cpuPct < float64(threshold) && memPct < float64(threshold) {
+			continue
+		}
+		reason := containerNearLimitReason(cpuPct, memPct, threshold)
+		severity := "medium"
+		score := 70
+		if cpuPct >= 100 || memPct >= 100 {
+			severity = "high"
+			score = 85
+		}
+		f := dashboardSignalItem("container_near_limit", "Pod", ns, pod.Name, severity, score, reason, "high", "pods")
+		f.ActualData = fmt.Sprintf("cpu %.0f%%, memory %.0f%% of limit", cpuPct, memPct)
+		f.CalculatedData = fmt.Sprintf("threshold %d%%", threshold)
+		out = append(out, f)
+	}
+	return out
+}
+
+// detectNodeResourcePressureSignals flags nodes whose CPU or memory usage is
+// at or above the configured percentage of allocatable capacity. Runs once at
+// cluster scope (not per namespace). Uses the cached cluster-scope node
+// metrics snapshot and nodes snapshot so it never triggers a live fetch.
+func detectNodeResourcePressureSignals(_ time.Time, plane *clusterPlane, nodesSnap NodesSnapshot, thresholdPct int) []ClusterDashboardSignal {
+	if plane == nil || thresholdPct <= 0 || len(nodesSnap.Items) == 0 {
+		return nil
+	}
+	nodeMetricsSnap, ok := peekClusterSnapshot(&plane.nodeMetricsStore)
+	if !ok || nodeMetricsSnap.Err != nil || len(nodeMetricsSnap.Items) == 0 {
+		return nil
+	}
+	byName := make(map[string]dto.NodeMetricsDTO, len(nodeMetricsSnap.Items))
+	for _, nm := range nodeMetricsSnap.Items {
+		byName[nm.Name] = nm
+	}
+	var out []ClusterDashboardSignal
+	for _, n := range nodesSnap.Items {
+		nm, ok := byName[n.Name]
+		if !ok {
+			continue
+		}
+		cpuAlloc := parseCPUMilli(n.CPUAllocatable)
+		memAlloc := parseMemoryBytes(n.MemoryAllocatable)
+		cpuPct := percentOfMilli(nm.CPUMilli, cpuAlloc)
+		memPct := percentOfBytes(nm.MemoryBytes, memAlloc)
+		if cpuPct < float64(thresholdPct) && memPct < float64(thresholdPct) {
+			continue
+		}
+		reason := nodeResourcePressureReason(cpuPct, memPct, thresholdPct)
+		severity := "medium"
+		score := 72
+		if cpuPct >= 95 || memPct >= 95 {
+			severity = "high"
+			score = 90
+		}
+		f := dashboardSignalItem("node_resource_pressure", "Node", "", n.Name, severity, score, reason, "high", "nodes")
+		f.Scope = "cluster"
+		f.ScopeLocation = ""
+		f.ActualData = fmt.Sprintf("cpu %.0f%%, memory %.0f%% of allocatable", cpuPct, memPct)
+		f.CalculatedData = fmt.Sprintf("threshold %d%%", thresholdPct)
+		out = append(out, f)
+	}
+	return out
+}
+
+func nodeResourcePressureReason(cpuPct, memPct float64, threshold int) string {
+	cpuHit := cpuPct >= float64(threshold)
+	memHit := memPct >= float64(threshold)
+	switch {
+	case cpuHit && memHit:
+		return "Node CPU and memory usage are near or above allocatable capacity."
+	case cpuHit:
+		return "Node CPU usage is near or above allocatable capacity."
+	default:
+		return "Node memory usage is near or above allocatable capacity."
+	}
+}
+
+func containerNearLimitReason(cpuPct, memPct float64, threshold int) string {
+	cpuHit := cpuPct >= float64(threshold)
+	memHit := memPct >= float64(threshold)
+	switch {
+	case cpuHit && memHit:
+		return "Pod CPU and memory usage are near or above configured limits."
+	case cpuHit:
+		return "Pod CPU usage is near or above configured limit."
+	default:
+		return "Pod memory usage is near or above configured limit."
+	}
 }

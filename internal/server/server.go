@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/internal/buildinfo"
 	"github.com/korex-labs/kview/internal/cluster"
@@ -165,6 +166,28 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 			writeJSON(w, http.StatusOK, s.dp.SchedulerLiveWork())
+		})
+
+		api.Get("/dataplane/metrics/status", func(w http.ResponseWriter, r *http.Request) {
+			// Always return 200 with the canonical {active, enabled, capability}
+			// shape the UI expects. Returning 5xx here would flip the UI's
+			// backend-health signal to unhealthy and hide every resource list,
+			// which is a much worse UX than "metrics quietly unavailable".
+			active := s.readContextName(r)
+			resp := map[string]any{
+				"active":     active,
+				"enabled":    false,
+				"capability": dataplane.MetricsCapability{},
+			}
+			if s.dp == nil {
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
+			defer cancel()
+			resp["capability"] = s.dp.MetricsCapability(ctx, active)
+			resp["enabled"] = s.dp.Policy().Metrics.Enabled
+			writeJSON(w, http.StatusOK, resp)
 		})
 
 		api.Get("/dataplane/search", func(w http.ResponseWriter, r *http.Request) {
@@ -648,6 +671,11 @@ func (s *Server) Router() http.Handler {
 
 			// Ensure observers are running for the active cluster so snapshots stay reasonably fresh.
 			s.dp.EnsureObservers(ctx, active)
+			// Warm node metrics so the next dashboard render has cluster-wide
+			// usage rollup. Pod metrics warmups are driven by the namespace
+			// pod list since they are namespace-scoped and the dashboard only
+			// rolls up namespaces that already have cached pod metrics.
+			warmNodeMetricsAsync(s, active)
 
 			summary := s.dp.DashboardSummary(ctx, active, parseClusterDashboardListOptions(r))
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -1011,10 +1039,19 @@ func (s *Server) Router() http.Handler {
 			if s.dp != nil {
 				s.dp.EnsureObservers(ctx, active)
 			}
+			// Warm the node metrics cache in the background so the NEXT list
+			// render has usage columns. Current render reads whatever is in
+			// cache right now (may be empty on cold start). The warmer is a
+			// no-op when policy disables metrics.
+			warmNodeMetricsAsync(s, active)
 			snap, err := s.dp.NodesSnapshot(ctx, active)
+			// Pull cached node metrics best-effort; errors (including RBAC
+			// denial or missing metrics-server) degrade silently — the node
+			// list still renders without usage columns.
+			nodeMetricsIndex := nodeMetricsIndexOrNil(s, active)
 			if derived, derr := s.dp.DerivedNodesSnapshot(ctx, active); derr == nil && len(derived.Items) > 0 {
 				if len(snap.Items) == 0 {
-					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(derived.Items), derived.Meta, derived.Err)
+					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsWithMetrics(derived.Items, nodeMetricsIndex), derived.Meta, derived.Err)
 					return
 				}
 				merged := dataplane.MergeDirectAndDerivedNodeListItems(snap.Items, derived.Items)
@@ -1025,7 +1062,7 @@ func (s *Server) Router() http.Handler {
 					if meta.Degradation == dataplane.DegradationClassNone || meta.Degradation == "" {
 						meta.Degradation = dataplane.DegradationClassMinor
 					}
-					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(merged), meta, snap.Err)
+					writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsWithMetrics(merged, nodeMetricsIndex), meta, snap.Err)
 					return
 				}
 			}
@@ -1039,7 +1076,7 @@ func (s *Server) Router() http.Handler {
 					return
 				}
 			}
-			writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsForAPI(snap.Items), snap.Meta, snap.Err)
+			writeDataplaneListResponse(w, active, dataplane.EnrichNodeListItemsWithMetrics(snap.Items, nodeMetricsIndex), snap.Meta, snap.Err)
 		})
 
 		api.Get("/nodes/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -1073,8 +1110,28 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
+			// Merge cached node usage from the dataplane node metrics snapshot.
+			// Cache-only on purpose — never trigger a live metrics.k8s.io fetch
+			// here, otherwise a missing/denied metrics-server (or slow
+			// aggregator) would block the detail page for every request.
+			// The background warmer populates the cache when the capability is
+			// available; when not, the detail view renders without usage.
+			warmNodeMetricsAsync(s, active)
+			if s.dp != nil {
+				if snap, ok := s.dp.NodeMetricsCachedSnapshot(active); ok && len(snap.Items) > 0 {
+					dataplane.MergeNodeDetailsUsage(det, snap.Items)
+				}
+			}
+
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
 		})
+
+		// /nodemetrics is a dataplane-backed cluster list of point-in-time node
+		// usage from metrics.k8s.io. When metrics-server is missing or RBAC
+		// denies list, the standard list envelope carries a degraded/state
+		// classification and the UI hides metric widgets via the capability
+		// endpoint.
+		api.Get("/nodemetrics", dataplaneClusterListHandler(s, s.dp.NodeMetricsSnapshot, nil))
 
 		api.Get("/clusterroles", dataplaneClusterListHandler(s, s.dp.ClusterRolesSnapshot, func(items []dto.ClusterRoleListItemDTO) any {
 			return dataplane.EnrichClusterRoleListItemsForAPI(items)
@@ -1440,9 +1497,42 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 		})
 
-		api.Get("/namespaces/{ns}/pods", dataplaneNamespacedListHandler(s, s.dp.PodsSnapshot, func(items []dto.PodListItemDTO) any {
-			return dataplane.EnrichPodListItemsForAPI(items)
-		}))
+		api.Get("/namespaces/{ns}/pods", func(w http.ResponseWriter, r *http.Request) {
+			ns := chi.URLParam(r, "ns")
+			if ns == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+			defer cancel()
+			active := s.readContextName(r)
+			if s.dp != nil {
+				s.dp.EnsureObservers(ctx, active)
+			}
+			// Warm pod metrics cache in the background so the NEXT render
+			// has live usage. Current render reads from cache (may be empty
+			// on cold start). The scheduler dedupes concurrent warmups and
+			// honors TTL so auto-refreshing lists don't pile up work.
+			warmPodMetricsAsync(s, active, ns)
+			snap, err := s.dp.PodsSnapshot(ctx, active, ns)
+			if err != nil && listLength(snap.Items) == 0 {
+				writeDataplaneListError(w, active, err)
+				return
+			}
+			// Best-effort pod metrics merge. The pod list DTO carries
+			// pod-aggregated request/limit totals populated at list time so
+			// percent-of-request and percent-of-limit can be computed here
+			// without re-reading pod specs. The drawer merges per-container
+			// usage against each container's own spec in the detail handler.
+			items := dataplane.EnrichPodListItemsWithMetrics(snap.Items, podMetricsIndexOrNil(s, active, ns))
+			writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
+		})
+
+		// /namespaces/{ns}/podmetrics returns point-in-time pod usage from
+		// metrics.k8s.io in the same list envelope as other dataplane kinds.
+		// Rows omit request/limit percent here because those are merged into
+		// the standard pods list via EnrichPodListItemsForAPI instead.
+		api.Get("/namespaces/{ns}/podmetrics", dataplaneNamespacedListHandler(s, s.dp.PodMetricsSnapshot, nil))
 
 		api.Get("/namespaces/{ns}/pods/{name}", func(w http.ResponseWriter, r *http.Request) {
 			ns := chi.URLParam(r, "ns")
@@ -1465,6 +1555,18 @@ func (s *Server) Router() http.Handler {
 				}
 				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
 				return
+			}
+
+			// Best-effort merge of cached per-container usage. Cache-only on
+			// purpose (see nodeMetricsIndexOrNil for the rationale): a missing
+			// or RBAC-denied metrics-server must never be able to block this
+			// detail response. Cache is warmed asynchronously below so the
+			// NEXT open (or a drawer refresh) picks up fresh numbers.
+			warmPodMetricsAsync(s, active, ns)
+			if s.dp != nil {
+				if snap, ok := s.dp.PodMetricsCachedSnapshot(active, ns); ok && len(snap.Items) > 0 {
+					dataplane.MergePodDetailsUsage(det, snap.Items)
+				}
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
@@ -2997,6 +3099,7 @@ func isBackgroundPollingPath(p string) bool {
 		"/api/activity/runtime/logs",
 		"/api/dataplane/work/live",
 		"/api/dataplane/config",
+		"/api/dataplane/metrics/status",
 		"/api/dashboard/cluster",
 		"/api/sessions":
 		return true
@@ -3052,6 +3155,77 @@ func contentTypeByPath(p string) string {
 // Use {"message": msg} so the frontend can extract it consistently (see api.ts extractJsonMessage).
 func writeErrorResponse(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"message": message})
+}
+
+// nodeMetricsIndexOrNil returns a cluster node metrics index if one is
+// cached for the given cluster, or nil. This function is cache-only by design:
+// list/detail enrichment must NEVER trigger a synchronous metrics.k8s.io
+// fetch, otherwise a missing or RBAC-denied metrics-server (or a slow
+// aggregator) could block the underlying list/detail response for every
+// request. Cache population is handled by the background metrics warmer
+// (see runMetricsWarmer in the dataplane) and by the dedicated
+// /api/nodemetrics route. Every failure mode (dataplane down, cache cold,
+// capability unknown) collapses to nil so rows render without usage columns.
+func nodeMetricsIndexOrNil(s *Server, clusterName string) dataplane.NodeMetricsByName {
+	if s == nil || s.dp == nil {
+		return nil
+	}
+	snap, ok := s.dp.NodeMetricsCachedSnapshot(clusterName)
+	if !ok || len(snap.Items) == 0 {
+		return nil
+	}
+	return dataplane.BuildNodeMetricsIndex(snap.Items)
+}
+
+// podMetricsIndexOrNil returns a namespaced pod metrics index from the cache, or nil.
+// Cache-only by the same rules as nodeMetricsIndexOrNil.
+func podMetricsIndexOrNil(s *Server, clusterName, namespace string) dataplane.PodMetricsByKey {
+	if s == nil || s.dp == nil {
+		return nil
+	}
+	snap, ok := s.dp.PodMetricsCachedSnapshot(clusterName, namespace)
+	if !ok || len(snap.Items) == 0 {
+		return nil
+	}
+	return dataplane.BuildPodMetricsIndex(snap.Items)
+}
+
+// warmPodMetricsAsync fires a background fetch for the namespace pod metrics
+// snapshot without blocking the caller. The scheduler internally dedupes
+// concurrent work for the same key and respects the configured TTL, so hot
+// lists (and their auto-refresh loops) converge on one in-flight fetch per
+// TTL window without per-request cost.
+//
+// Errors are silent on purpose: metrics-server being unavailable or RBAC-denied
+// must never poison the underlying pod list. We gate on policy to avoid
+// churning scheduler slots when the operator disabled metrics explicitly.
+func warmPodMetricsAsync(s *Server, clusterName, namespace string) {
+	if s == nil || s.dp == nil {
+		return
+	}
+	if !s.dp.Policy().Metrics.Enabled {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), ctxTimeoutList)
+		defer cancel()
+		_, _ = s.dp.PodMetricsSnapshot(ctx, clusterName, namespace)
+	}()
+}
+
+// warmNodeMetricsAsync is the cluster-scoped counterpart to warmPodMetricsAsync.
+func warmNodeMetricsAsync(s *Server, clusterName string) {
+	if s == nil || s.dp == nil {
+		return
+	}
+	if !s.dp.Policy().Metrics.Enabled {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), ctxTimeoutList)
+		defer cancel()
+		_, _ = s.dp.NodeMetricsSnapshot(ctx, clusterName)
+	}()
 }
 
 func writeDataplaneListResponse(w http.ResponseWriter, active string, items any, meta dataplane.SnapshotMetadata, nerr *dataplane.NormalizedError) {
@@ -3229,6 +3403,27 @@ type statusDTO struct {
 
 const connectivityActivityTTL = 3 * time.Minute
 
+// isAccessDeniedOrUnauthorized reports whether err is a Kubernetes 401/403
+// response (or a transport-level wrap of one). Multi-tenant clusters behind
+// proxies frequently deny unauthenticated endpoints like /version while still
+// allowing namespace-scoped RBAC; we use this check to decide whether a
+// connectivity probe should fall back to a namespace-scoped read instead of
+// declaring the cluster unreachable.
+func isAccessDeniedOrUnauthorized(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+		return true
+	}
+	// REST transport wraps upstream responses as plain errors whose text
+	// contains "Forbidden"/"Unauthorized" when the proxy itself rejects the
+	// request before reaching the kube apiserver. Cover those too so the
+	// fallback still triggers for capsule-proxy-style gateways.
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "forbidden") || strings.Contains(msg, "unauthorized")
+}
+
 func (s *Server) buildStatus(parent context.Context, contextName string) statusDTO {
 	checkedAt := time.Now().UTC()
 	clusterStatus := statusClusterDTO{Context: contextName}
@@ -3249,14 +3444,43 @@ func (s *Server) buildStatus(parent context.Context, contextName string) statusD
 		if err == nil {
 			version, versionErr := clients.Discovery.ServerVersion()
 			if versionErr != nil {
-				err = versionErr
+				// On restricted / multi-tenant clusters (e.g. capsule-proxy,
+				// BYOK gateways) the global /version endpoint is commonly
+				// denied even when the user has namespace-scoped RBAC that
+				// works perfectly. Treating that as "cluster unreachable"
+				// would then hide every list in the UI for a cluster that is
+				// in reality perfectly usable. Fall back to a cheap
+				// namespace-level probe (LIST namespaces with limit=1) to
+				// decide. Any success at all means the cluster is reachable
+				// from the operator's identity — we just don't know the
+				// server version. If the fallback also fails, we surface the
+				// original /version error since that is the more meaningful
+				// signal for the operator.
+				if isAccessDeniedOrUnauthorized(versionErr) && clients.Clientset != nil {
+					probeCtx, probeCancel := context.WithTimeout(ctx, ctxTimeoutConnectivity)
+					if _, listErr := clients.Clientset.CoreV1().Namespaces().List(probeCtx, metav1.ListOptions{Limit: 1}); listErr == nil {
+						clusterStatus.OK = true
+						// ServerVersion stays empty; the UI treats it as
+						// "unknown version" without degrading connectivity.
+						clusterStatus.Message = "server version unavailable (RBAC-restricted); namespace probe succeeded"
+						probeCancel()
+					} else {
+						probeCancel()
+						// Both probes failed. Use the /version error because
+						// it is the canonical reachability signal and is
+						// typically the root cause; the namespace-probe
+						// error is often a follow-on of the same restriction.
+						err = versionErr
+					}
+				} else {
+					err = versionErr
+				}
 			} else {
 				clusterStatus.OK = true
 				clusterStatus.ServerVersion = version.GitVersion
 			}
 		}
-		if err != nil {
-			clusterStatus.OK = false
+		if err != nil && !clusterStatus.OK {
 			clusterStatus.Message = err.Error()
 		}
 	}

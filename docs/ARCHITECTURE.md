@@ -40,7 +40,7 @@ Lists stay visible while a **drawer** shows resource context. Navigation is list
 - `client-go` for Kubernetes
 - Generic mutations: `POST /api/actions` via a central **ActionRegistry**; resource mutation handlers live under `internal/kube/actions`
 - Capability detection: `POST /api/capabilities` and read access checks via `POST /api/auth/can-i`
-- **Read-side dataplane** under `internal/dataplane`: snapshots, scheduler, observers, projections (see [DATAPLANE.md](DATAPLANE.md))
+- **Read-side dataplane** under `internal/dataplane`: snapshots, scheduler, observers, projections, and optional `metrics.k8s.io` integration (see [DATAPLANE.md](DATAPLANE.md))
 - **Runtime**: activities, sessions, terminals, port-forwards, structured logs
 
 ---

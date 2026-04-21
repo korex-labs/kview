@@ -317,4 +317,22 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		SuggestedAction: "Check recent ownership and deploy history. If it is no longer needed, remove the namespace after confirming no retained data or policies still depend on it.",
 		Priority:        9,
 	},
+	"container_near_limit": {
+		Type:            "container_near_limit",
+		Label:           "Pods near CPU or memory limit",
+		SummaryCounter:  "container_near_limit",
+		CalculatedData:  "pod usage is at or above the configured percentage of the container limit",
+		LikelyCause:     "Actual workload traffic may have grown past what container limits allow, or the limits may be set too tight for the observed steady state.",
+		SuggestedAction: "Review pod usage trends and container limits; raise limits if the usage is legitimate or investigate the workload for a leak or load spike.",
+		Priority:        3,
+	},
+	"node_resource_pressure": {
+		Type:            "node_resource_pressure",
+		Label:           "Nodes under CPU or memory pressure",
+		SummaryCounter:  "node_resource_pressure",
+		CalculatedData:  "node usage is at or above the configured percentage of allocatable capacity",
+		LikelyCause:     "Too many workloads may have been scheduled on the node, a workload may be consuming more resources than budgeted, or allocatable capacity may be reduced by system daemons.",
+		SuggestedAction: "Review scheduled pods on the node, rebalance workloads, or scale the cluster; check for runaway processes if a single workload is dominating usage.",
+		Priority:        2,
+	},
 }

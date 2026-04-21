@@ -207,6 +207,8 @@ export type DashboardSignalsPanel = {
   roleWarnings: number;
   roleBindingWarnings: number;
   hpaWarnings: number;
+  containerNearLimit: number;
+  nodeResourcePressure: number;
   filters?: DashboardSignalFilter[];
   top?: DashboardSignalItem[];
   items?: DashboardSignalItem[];
@@ -408,7 +410,22 @@ export type ApiDashboardClusterResponse = {
         liveBytes: number;
       }>;
     };
+    /** Optional cluster-wide resource usage rollup from metrics.k8s.io. */
+    usage?: ClusterDashboardUsage;
   };
+};
+
+/** Cluster-wide resource usage rollup exposed on /api/dashboard/cluster when metrics.k8s.io is available. */
+export type ClusterDashboardUsage = {
+  podCpuMilli: number;
+  podMemoryBytes: number;
+  podsWithMetrics: number;
+  namespaces: number;
+  nodeCpuMilli?: number;
+  nodeMemoryBytes?: number;
+  nodesSampled?: number;
+  freshness?: string;
+  note?: string;
 };
 
 /** Event shape returned by .../events endpoints; used by EventsList and drawers */
@@ -608,6 +625,15 @@ export type NamespaceInsights = {
   resourceSignals?: NamespaceResourceSignals[];
   resourceQuotas?: NamespaceResourceQuota[];
   limitRanges?: NamespaceLimitRange[];
+  /** Per-namespace pod metrics rollup from metrics.k8s.io; omitted when unavailable. */
+  resourceUsage?: NamespaceResourceUsage;
+};
+
+export type NamespaceResourceUsage = {
+  cpuMilli: number;
+  memoryBytes: number;
+  pods: number;
+  observedAt?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -647,6 +673,12 @@ export type NodeCapacity = {
   memoryAllocatable?: string;
   podsCapacity?: string;
   podsAllocatable?: string;
+  // Live usage merged from metrics.k8s.io when available; gated by usageAvailable.
+  cpuMilliUsed?: number;
+  memoryBytesUsed?: number;
+  cpuPctAllocatable?: number;
+  memoryPctAllocatable?: number;
+  usageAvailable?: boolean;
 };
 
 export type NodeTaint = {
@@ -683,4 +715,97 @@ export type NodeDetails = {
     completeness?: string;
     note?: string;
   };
+};
+
+// ---------------------------------------------------------------------------
+// Metrics-server capability + metric-enriched list fields
+// ---------------------------------------------------------------------------
+
+/**
+ * MetricsCapability reflects dataplane probe of metrics.k8s.io for the active
+ * cluster. `installed` is API discovery; `allowed` is the SelfSubjectAccessReview
+ * outcome for listing pod/node metrics. UIs should show usage widgets only
+ * when both are true and the policy is enabled.
+ */
+export type MetricsCapability = {
+  installed: boolean;
+  allowed: boolean;
+  reason?: string;
+  lastProbedAt?: string;
+};
+
+/**
+ * ApiMetricsStatusResponse returned by GET /api/dataplane/metrics/status.
+ * `enabled` mirrors DataplanePolicy.Metrics.Enabled; when false the UI
+ * must hide metric-specific widgets even if the capability is present.
+ */
+export type ApiMetricsStatusResponse = {
+  active?: string;
+  enabled: boolean;
+  capability: MetricsCapability;
+};
+
+/**
+ * PodListItemUsage captures optional usage fields merged into pod list rows
+ * when metrics.k8s.io is available. `usageAvailable` is the UI gate; when
+ * false, no percent or raw usage values should be rendered.
+ */
+export type PodListItemUsage = {
+  cpuMilli?: number;
+  memoryBytes?: number;
+  cpuPctRequest?: number;
+  cpuPctLimit?: number;
+  memoryPctRequest?: number;
+  memoryPctLimit?: number;
+  usageAvailable?: boolean;
+  cpuRequestMilli?: number;
+  cpuLimitMilli?: number;
+  memoryRequestBytes?: number;
+  memoryLimitBytes?: number;
+};
+
+/** NodeListItemUsage captures optional usage fields merged into node list rows. */
+export type NodeListItemUsage = {
+  cpuMilli?: number;
+  memoryBytes?: number;
+  cpuPctAllocatable?: number;
+  memoryPctAllocatable?: number;
+  usageAvailable?: boolean;
+};
+
+/** ContainerUsage captures per-container usage merged into PodDetails.containers[].usage. */
+export type ContainerUsage = {
+  cpuMilli: number;
+  memoryBytes: number;
+  cpuPctRequest?: number;
+  cpuPctLimit?: number;
+  memoryPctRequest?: number;
+  memoryPctLimit?: number;
+};
+
+/**
+ * Raw PodMetrics row returned by /api/namespaces/{ns}/podmetrics.
+ * Useful for deeper drill-downs (per-container usage over time when paired
+ * with multiple samples). The pod list endpoint already merges aggregated
+ * values for row-level display, so most UI code should prefer that instead.
+ */
+export type PodMetricsItem = {
+  name: string;
+  namespace: string;
+  windowSec?: number;
+  capturedAt?: number;
+  containers?: Array<{
+    name: string;
+    cpuMilli: number;
+    memoryBytes: number;
+  }>;
+};
+
+/** Raw NodeMetrics row returned by /api/nodemetrics. */
+export type NodeMetricsItem = {
+  name: string;
+  windowSec?: number;
+  capturedAt?: number;
+  cpuMilli: number;
+  memoryBytes: number;
 };

@@ -29,6 +29,10 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
+import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
+import GaugeTableRow from "../../shared/GaugeTableRow";
+import { formatCPUMilli, formatMemoryBytes, formatPct, severityForPct } from "../../metrics/format";
+import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import NodeActions from "./NodeActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -73,6 +77,17 @@ function formatRoles(roles?: string[]) {
   );
 }
 
+function nodeUsageTone(pct: number | undefined): GaugeTone {
+  switch (severityForPct(pct, 70, 85)) {
+    case "critical":
+      return "error";
+    case "warn":
+      return "warning";
+    default:
+      return "success";
+  }
+}
+
 function formatOsArch(summary?: NodeSummary) {
   const os = valueOrDash(summary?.osImage);
   const arch = valueOrDash(summary?.architecture);
@@ -88,6 +103,8 @@ export default function NodeDrawer(props: {
 }) {
   const activeContext = useActiveContext();
   const { retryNonce } = useConnectionState();
+  const metricsStatus = useMetricsStatus(props.token);
+  const metricsUsable = isMetricsUsable(metricsStatus);
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<NodeDetails | null>(null);
@@ -228,6 +245,42 @@ export default function NodeDrawer(props: {
                           },
                         ]}
                       />
+                      {metricsUsable && details?.capacity?.usageAvailable ? (
+                        <Box sx={{ mt: 1.5 }}>
+                          <GaugeTableRow
+                            label="CPU usage"
+                            hint="Live CPU usage as percentage of allocatable; sourced from metrics.k8s.io."
+                            bar={
+                              details.capacity.cpuPctAllocatable != null && details.capacity.cpuPctAllocatable > 0 ? (
+                                <GaugeBar
+                                  value={details.capacity.cpuPctAllocatable}
+                                  tone={nodeUsageTone(details.capacity.cpuPctAllocatable)}
+                                  label={formatPct(details.capacity.cpuPctAllocatable)}
+                                />
+                              ) : (
+                                <Box sx={{ fontSize: 12, color: "text.secondary" }}>No allocatable reported</Box>
+                              )
+                            }
+                            summary={formatCPUMilli(details.capacity.cpuMilliUsed)}
+                          />
+                          <GaugeTableRow
+                            label="Memory usage"
+                            hint="Live memory usage as percentage of allocatable; sourced from metrics.k8s.io."
+                            bar={
+                              details.capacity.memoryPctAllocatable != null && details.capacity.memoryPctAllocatable > 0 ? (
+                                <GaugeBar
+                                  value={details.capacity.memoryPctAllocatable}
+                                  tone={nodeUsageTone(details.capacity.memoryPctAllocatable)}
+                                  label={formatPct(details.capacity.memoryPctAllocatable)}
+                                />
+                              ) : (
+                                <Box sx={{ fontSize: 12, color: "text.secondary" }}>No allocatable reported</Box>
+                              )
+                            }
+                            summary={formatMemoryBytes(details.capacity.memoryBytesUsed)}
+                          />
+                        </Box>
+                      ) : null}
                     </AccordionDetails>
                   </Accordion>
 

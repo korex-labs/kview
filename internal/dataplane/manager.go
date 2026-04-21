@@ -22,6 +22,7 @@ import (
 	ingresses "github.com/korex-labs/kview/internal/kube/resource/ingresses"
 	jobs "github.com/korex-labs/kview/internal/kube/resource/jobs"
 	limitranges "github.com/korex-labs/kview/internal/kube/resource/limitranges"
+	kubemetrics "github.com/korex-labs/kview/internal/kube/resource/metrics"
 	namespaces "github.com/korex-labs/kview/internal/kube/resource/namespaces"
 	nodes "github.com/korex-labs/kview/internal/kube/resource/nodes"
 	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
@@ -155,6 +156,24 @@ type DataPlaneManager interface {
 	ResourceQuotasSnapshot(ctx context.Context, clusterName, namespace string) (ResourceQuotasSnapshot, error)
 	// LimitRangesSnapshot returns a raw snapshot for limit ranges in the given namespace.
 	LimitRangesSnapshot(ctx context.Context, clusterName, namespace string) (LimitRangesSnapshot, error)
+	// NodeMetricsSnapshot returns a cluster-scoped node usage snapshot from metrics.k8s.io (not persisted).
+	// Triggers a live fetch via the scheduler when the cache is cold; intended for the
+	// background metrics warmer and for dedicated /api/nodemetrics callers, NOT for the
+	// pod/node list/detail enrichment path (use NodeMetricsCachedSnapshot for that).
+	NodeMetricsSnapshot(ctx context.Context, clusterName string) (NodeMetricsSnapshot, error)
+	// PodMetricsSnapshot returns a namespaced pod usage snapshot from metrics.k8s.io (not persisted).
+	// Same fetching semantics as NodeMetricsSnapshot.
+	PodMetricsSnapshot(ctx context.Context, clusterName, namespace string) (PodMetricsSnapshot, error)
+	// NodeMetricsCachedSnapshot returns the most recent cached node metrics snapshot
+	// without scheduling a fetch. Returns ok=false when no cache entry exists yet.
+	// Use this from handler enrichment paths so a missing or RBAC-denied metrics-server
+	// can never block the underlying list/detail response.
+	NodeMetricsCachedSnapshot(clusterName string) (NodeMetricsSnapshot, bool)
+	// PodMetricsCachedSnapshot returns the most recent cached pod metrics snapshot
+	// for a namespace without scheduling a fetch. See NodeMetricsCachedSnapshot.
+	PodMetricsCachedSnapshot(clusterName, namespace string) (PodMetricsSnapshot, bool)
+	// MetricsCapability reports whether metrics.k8s.io is installed and list-allowed for the cluster.
+	MetricsCapability(ctx context.Context, clusterName string) MetricsCapability
 
 	// EnsureObservers makes sure observers are running for the given cluster.
 	EnsureObservers(ctx context.Context, clusterName string)
@@ -419,6 +438,11 @@ type clusterPlane struct {
 	clusterRolesStore        snapshotStore[ClusterRolesSnapshot]
 	clusterRoleBindingsStore snapshotStore[ClusterRoleBindingsSnapshot]
 	crdsStore                snapshotStore[CRDsSnapshot]
+	// Metrics snapshots are cluster-scoped for nodes and namespaced for pods.
+	// These kinds are not persisted (see snapshot_exec.go skipPersistence);
+	// they are short-TTL and optional, only meaningful when metrics-server is
+	// installed and the caller has list RBAC on metrics.k8s.io.
+	nodeMetricsStore snapshotStore[NodeMetricsSnapshot]
 
 	// Namespace-scoped snapshots for first-wave resources.
 	podsStore         namespacedSnapshotStore[PodsSnapshot]
@@ -440,6 +464,7 @@ type clusterPlane struct {
 	hpaStore          namespacedSnapshotStore[HPAsSnapshot]
 	rqStore           namespacedSnapshotStore[ResourceQuotasSnapshot]
 	lrStore           namespacedSnapshotStore[LimitRangesSnapshot]
+	podMetricsStore   namespacedSnapshotStore[PodMetricsSnapshot]
 
 	// Observers state for this cluster.
 	obsMu     sync.Mutex
@@ -483,6 +508,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		hpaStore:          newNamespacedSnapshotStore[HPAsSnapshot](),
 		rqStore:           newNamespacedSnapshotStore[ResourceQuotasSnapshot](),
 		lrStore:           newNamespacedSnapshotStore[LimitRangesSnapshot](),
+		podMetricsStore:   newNamespacedSnapshotStore[PodMetricsSnapshot](),
 		policy:            policy,
 		persistence:       persistence,
 		stats:             stats,
@@ -512,6 +538,8 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 	p.hpaStore.configureTelemetry(stats, name, ResourceKindHPAs)
 	p.rqStore.configureTelemetry(stats, name, ResourceKindResourceQuotas)
 	p.lrStore.configureTelemetry(stats, name, ResourceKindLimitRanges)
+	p.nodeMetricsStore.configureTelemetry(stats, name, ResourceKindNodeMetrics)
+	p.podMetricsStore.configureTelemetry(stats, name, ResourceKindPodMetrics)
 	return p
 }
 
@@ -705,6 +733,13 @@ type CronJobsSnapshot = Snapshot[dto.CronJobDTO]
 type HPAsSnapshot = Snapshot[dto.HorizontalPodAutoscalerDTO]
 type ResourceQuotasSnapshot = Snapshot[dto.ResourceQuotaDTO]
 type LimitRangesSnapshot = Snapshot[dto.LimitRangeDTO]
+
+// Metrics snapshots hold point-in-time usage samples from metrics.k8s.io.
+// These snapshot cells are not persisted (no bbolt writes) because metric
+// samples churn every ~15s and would accumulate unbounded storage while
+// offering no recovery value after a restart.
+type PodMetricsSnapshot = Snapshot[dto.PodMetricsDTO]
+type NodeMetricsSnapshot = Snapshot[dto.NodeMetricsDTO]
 
 // NamespacesSnapshot returns a raw snapshot for namespaces plus metadata and any normalized error.
 func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (NamespaceSnapshot, error) {
@@ -1031,6 +1066,38 @@ func (p *clusterPlane) LimitRangesSnapshot(ctx context.Context, sched *workSched
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.lrStore, desc)
 }
 
+// NodeMetricsSnapshot returns a raw cluster-scoped node usage snapshot from
+// metrics.k8s.io. The snapshot is intentionally not persisted because metric
+// samples churn every ~15s and the data is not recoverable-by-design.
+// The capability registry learns RBAC outcomes under group "metrics.k8s.io".
+func (p *clusterPlane) NodeMetricsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (NodeMetricsSnapshot, error) {
+	desc := clusterSnapshotDescriptor[dto.NodeMetricsDTO]{
+		kind:            ResourceKindNodeMetrics,
+		ttl:             p.currentPolicy().SnapshotTTL(ResourceKindNodeMetrics),
+		capGroup:        kubemetrics.MetricsAPIGroup,
+		capResource:     "nodes",
+		capScope:        CapabilityScopeCluster,
+		fetch:           kubemetrics.ListNodeMetrics,
+		skipPersistence: true,
+	}
+	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.nodeMetricsStore, desc)
+}
+
+// PodMetricsSnapshot returns a namespaced pod usage snapshot from
+// metrics.k8s.io. Like NodeMetrics, this snapshot is not persisted.
+func (p *clusterPlane) PodMetricsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (PodMetricsSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.PodMetricsDTO]{
+		kind:            ResourceKindPodMetrics,
+		ttl:             p.currentPolicy().SnapshotTTL(ResourceKindPodMetrics),
+		capGroup:        kubemetrics.MetricsAPIGroup,
+		capResource:     "pods",
+		capScope:        CapabilityScopeNamespace,
+		fetch:           kubemetrics.ListPodMetrics,
+		skipPersistence: true,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.podMetricsStore, desc)
+}
+
 func (m *manager) NamespacesSnapshot(ctx context.Context, clusterName string) (NamespaceSnapshot, error) {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
@@ -1192,6 +1259,43 @@ func (m *manager) LimitRangesSnapshot(ctx context.Context, clusterName, namespac
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	return plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) NodeMetricsSnapshot(ctx context.Context, clusterName string) (NodeMetricsSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.NodeMetricsSnapshot(ctx, m.scheduler, m.clients, WorkPriorityCritical)
+}
+
+func (m *manager) PodMetricsSnapshot(ctx context.Context, clusterName, namespace string) (PodMetricsSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.PodMetricsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+// NodeMetricsCachedSnapshot returns the most recent cached node metrics snapshot without scheduling a fetch.
+// Returns ok=false (and a zero snapshot) when the cache is cold or the plane does not exist yet.
+// Handlers use this from enrichment paths so an unavailable/denied metrics-server can never block a list response.
+func (m *manager) NodeMetricsCachedSnapshot(clusterName string) (NodeMetricsSnapshot, bool) {
+	m.mu.RLock()
+	plane, ok := m.planes[clusterName]
+	m.mu.RUnlock()
+	if !ok {
+		return NodeMetricsSnapshot{}, false
+	}
+	return peekClusterSnapshot(&plane.nodeMetricsStore)
+}
+
+// PodMetricsCachedSnapshot returns the most recent cached pod metrics snapshot for a namespace
+// without scheduling a fetch. Same semantics as NodeMetricsCachedSnapshot.
+func (m *manager) PodMetricsCachedSnapshot(clusterName, namespace string) (PodMetricsSnapshot, bool) {
+	m.mu.RLock()
+	plane, ok := m.planes[clusterName]
+	m.mu.RUnlock()
+	if !ok {
+		return PodMetricsSnapshot{}, false
+	}
+	return plane.podMetricsStore.getCached(namespace)
 }
 
 func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {

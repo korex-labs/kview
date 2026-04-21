@@ -14,6 +14,10 @@ type clusterSnapshotDescriptor[I any] struct {
 	capResource string
 	capScope    CapabilityScope
 	fetch       func(context.Context, *cluster.Clients) ([]I, error)
+	// skipPersistence opts out of bbolt save/hydrate for snapshot kinds that
+	// are high-churn and short-TTL (e.g. metrics.k8s.io). Leaving this false
+	// preserves the default persistence path for every existing kind.
+	skipPersistence bool
 }
 
 type namespacedSnapshotDescriptor[I any] struct {
@@ -23,6 +27,9 @@ type namespacedSnapshotDescriptor[I any] struct {
 	capResource string
 	capScope    CapabilityScope
 	fetch       func(context.Context, *cluster.Clients, string) ([]I, error)
+	// skipPersistence opts out of bbolt save/hydrate; see the cluster
+	// descriptor for rationale.
+	skipPersistence bool
 }
 
 func (p *clusterPlane) snapshotMetaUnknown(now time.Time) SnapshotMetadata {
@@ -77,7 +84,7 @@ func executeClusterSnapshot[I any](
 
 	var persisted Snapshot[I]
 	var havePersisted bool
-	if sp := p.currentPersistence(); sp != nil {
+	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
 		var loaded Snapshot[I]
 		if ok, err := sp.Load(p.name, desc.kind, "", &loaded); err == nil && ok && markPersistedSnapshot(&loaded, p.currentPolicy().PersistenceMaxAge()) {
 			persisted = loaded
@@ -147,7 +154,7 @@ func executeClusterSnapshot[I any](
 		return fallback, runErr
 	}
 	setClusterSnapshot(store, out)
-	if runErr == nil && out.Err == nil {
+	if runErr == nil && out.Err == nil && !desc.skipPersistence {
 		if sp := p.currentPersistence(); sp != nil {
 			_ = sp.Save(p.name, desc.kind, "", out)
 		}
@@ -178,7 +185,7 @@ func executeNamespacedSnapshot[I any](
 
 	var persisted Snapshot[I]
 	var havePersisted bool
-	if sp := p.currentPersistence(); sp != nil {
+	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
 		var loaded Snapshot[I]
 		if ok, err := sp.Load(p.name, desc.kind, namespace, &loaded); err == nil && ok && markPersistedSnapshot(&loaded, p.currentPolicy().PersistenceMaxAge()) {
 			persisted = loaded
@@ -248,7 +255,7 @@ func executeNamespacedSnapshot[I any](
 		return fallback, runErr
 	}
 	setNamespacedSnapshot(store, namespace, out)
-	if runErr == nil && out.Err == nil {
+	if runErr == nil && out.Err == nil && !desc.skipPersistence {
 		if sp := p.currentPersistence(); sp != nil {
 			_ = sp.Save(p.name, desc.kind, namespace, out)
 		}

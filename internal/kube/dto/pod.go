@@ -12,6 +12,27 @@ type PodListItemDTO struct {
 	// List enrichment (Stage 5C): derived from snapshot row only, no extra kube reads.
 	RestartSeverity string `json:"restartSeverity,omitempty"` // none | low | medium | high
 	ListHealthHint  string `json:"listHealthHint,omitempty"`  // ok | attention | problem
+
+	// Aggregated per-pod request/limit totals from the pod spec (milliCPU and
+	// bytes). Populated by the pod list resource layer so projections and
+	// signal detectors can compute percent-of-request/limit without re-reading
+	// pod specs or pod details.
+	CPURequestMilli    int64 `json:"cpuRequestMilli,omitempty"`
+	CPULimitMilli      int64 `json:"cpuLimitMilli,omitempty"`
+	MemoryRequestBytes int64 `json:"memoryRequestBytes,omitempty"`
+	MemoryLimitBytes   int64 `json:"memoryLimitBytes,omitempty"`
+
+	// Optional usage enrichment merged from cached PodMetricsSnapshot.
+	// Percent values are 0..100 (or higher in rare overages) and are computed
+	// against container requests/limits summed at the pod level.
+	CPUMilli       int64   `json:"cpuMilli,omitempty"`
+	MemoryBytes    int64   `json:"memoryBytes,omitempty"`
+	CPUPctRequest  float64 `json:"cpuPctRequest,omitempty"`
+	CPUPctLimit    float64 `json:"cpuPctLimit,omitempty"`
+	MemoryPctReq   float64 `json:"memoryPctRequest,omitempty"`
+	MemoryPctLimit float64 `json:"memoryPctLimit,omitempty"`
+	// UsageAvailable reports whether cached pod metrics were merged for this row.
+	UsageAvailable bool `json:"usageAvailable,omitempty"`
 }
 
 type PodDetailsDTO struct {
@@ -73,6 +94,7 @@ type PodContainerDTO struct {
 	LastTerminationMessage string                `json:"lastTerminationMessage,omitempty"`
 	LastTerminationAt      int64                 `json:"lastTerminationAt,omitempty"`
 	Resources              ContainerResourcesDTO `json:"resources"`
+	Usage                  *ContainerUsageDTO    `json:"usage,omitempty"`
 	Ports                  []ContainerPortDTO    `json:"ports,omitempty"`
 	Env                    []EnvVarDTO           `json:"env"`
 	Mounts                 []MountDTO            `json:"mounts"`

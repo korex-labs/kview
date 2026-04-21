@@ -21,8 +21,8 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 
 | Route pattern | Snapshot / notes |
 |---------------|------------------|
-| `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. If direct node list is denied/unavailable and cached pod snapshots exist, returns explicitly marked derived node rows from cached pod snapshots instead. |
-| `GET /api/namespaces/{ns}/pods` | `PodsSnapshot`; rows may include projection-derived fields (`restartSeverity`, `listHealthHint`) from `EnrichPodListItemsForAPI`. |
+| `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. If direct node list is denied/unavailable and cached pod snapshots exist, returns explicitly marked derived node rows from cached pod snapshots instead. Rows may include CPU/memory `usage` (and percent of allocatable) overlaid from cached `NodeMetricsSnapshot` when metrics.k8s.io is installed/allowed and the policy enables it. |
+| `GET /api/namespaces/{ns}/pods` | `PodsSnapshot`; rows may include projection-derived fields (`restartSeverity`, `listHealthHint`) from `EnrichPodListItemsForAPI`, plus aggregated CPU/memory `usage` (and percent of request/limit) overlaid from cached `PodMetricsSnapshot` when metrics.k8s.io is installed/allowed and the policy enables it. |
 | `GET /api/namespaces/{ns}/deployments` | `DeploymentsSnapshot`; optional `EnrichDeploymentListItemsForAPI` fields. |
 | `GET /api/namespaces/{ns}/daemonsets` | `DaemonSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
 | `GET /api/namespaces/{ns}/statefulsets` | `StatefulSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
@@ -41,6 +41,8 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | `GET /api/namespaces/{ns}/helmreleases` | `HelmReleasesSnapshot`; backed by Helm's Secret storage in the namespace. |
 | `GET /api/namespaces/{ns}/resourcequotas` | `ResourceQuotasSnapshot`; also feeds namespace row quota pressure and dashboard signals. |
 | `GET /api/namespaces/{ns}/limitranges` | `LimitRangesSnapshot`; also feeds namespace row limit-range count and dashboard totals. |
+| `GET /api/namespaces/{ns}/podmetrics` | `PodMetricsSnapshot` (metrics.k8s.io); rows expose per-container CPU/memory usage. Returns the standard list envelope; absent metrics-server or RBAC denial surfaces via the metadata `state` and the capability endpoint. |
+| `GET /api/nodemetrics` | `NodeMetricsSnapshot` (metrics.k8s.io); cluster-scoped node usage rows. Same access-denied behavior as `podmetrics`. |
 
 ---
 
@@ -77,7 +79,7 @@ Background row enrichment is **narrow and user-aligned**:
 | Route | Behavior |
 |-------|----------|
 | `GET /api/namespaces/{name}/summary` | `NamespaceSummaryProjection`: counts, health rollups, RBAC counts (serviceaccounts/roles/rolebindings), HPA count, Helm release count/list, `workloadByKind`, and `NamespaceSummaryMetaDTO` from dataplane namespace-scoped snapshots only. Returns a degraded/partial usable payload when at least one contributing snapshot is usable. |
-| `GET /api/namespaces/{name}/insights` | `NamespaceInsightsProjection`: namespace summary plus sorted namespace-scoped signal rows under the `signals` JSON key, grouped `resourceSignals` keyed by resource identity, full `ResourceQuota` entries, and `LimitRange` items from dataplane namespace-scoped snapshots only. HPA warning signals are included when the HPA snapshot is available. Intended for the namespace drawer's observability-first view. |
+| `GET /api/namespaces/{name}/insights` | `NamespaceInsightsProjection`: namespace summary plus sorted namespace-scoped signal rows under the `signals` JSON key, grouped `resourceSignals` keyed by resource identity, full `ResourceQuota` entries, and `LimitRange` items from dataplane namespace-scoped snapshots only. HPA warning signals are included when the HPA snapshot is available. When metrics.k8s.io is installed/allowed and the policy enables it, an optional `resourceUsage` block aggregates pod metrics for the namespace. Intended for the namespace drawer's observability-first view. |
 
 ---
 
@@ -128,6 +130,7 @@ For resources that have them, these remain **direct** `kube` reads:
 | `GET /api/dataplane/revision` | Cheap list-cell revision metadata; does not schedule kube fetches. |
 | `GET /api/dataplane/work/live` | In-process snapshot of scheduler running/queued work (observability). |
 | `GET /api/dataplane/config`, `POST /api/dataplane/config` | Process-local dataplane policy read/update, synced from browser-local Settings. Does not itself read the Kubernetes API. |
+| `GET /api/dataplane/metrics/status` | Cluster metrics-server capability probe (`installed`, `allowed`) plus the policy `enabled` flag. Backed by a short-TTL cache so repeated UI mounts share one probe per cluster. UI uses this to gate metric widgets. |
 
 ---
 

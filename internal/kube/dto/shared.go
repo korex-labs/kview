@@ -7,6 +7,19 @@ type ContainerResourcesDTO struct {
 	MemoryLimit   string `json:"memoryLimit,omitempty"`
 }
 
+// ContainerUsageDTO is the per-container live usage sample paired with a
+// container-level request/limit percent breakdown. CPU is milliCPU, memory is
+// bytes. Percent values are 0..100 or higher in rare overages; the field is
+// omitted when the corresponding request/limit is absent or zero.
+type ContainerUsageDTO struct {
+	CPUMilli       int64   `json:"cpuMilli"`
+	MemoryBytes    int64   `json:"memoryBytes"`
+	CPUPctRequest  float64 `json:"cpuPctRequest,omitempty"`
+	CPUPctLimit    float64 `json:"cpuPctLimit,omitempty"`
+	MemoryPctReq   float64 `json:"memoryPctRequest,omitempty"`
+	MemoryPctLimit float64 `json:"memoryPctLimit,omitempty"`
+}
+
 type TolerationDTO struct {
 	Key      string `json:"key,omitempty"`
 	Operator string `json:"operator,omitempty"`
