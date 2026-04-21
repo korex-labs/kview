@@ -887,6 +887,92 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": evs})
 		})
 
+		// Per-resource signals — namespace-scoped.
+		// Returns dashboard signals attributed to a single resource from the
+		// dataplane's cached snapshots only. Safe to poll. Detail-level signals
+		// (computed from a resource's full DetailsDTO) are embedded by the
+		// per-kind detail endpoints during drawer migration; this endpoint
+		// only surfaces snapshot/aggregate signals.
+		api.Get("/namespaces/{ns}/{kind}/{name}/signals", func(w http.ResponseWriter, r *http.Request) {
+			ns := chi.URLParam(r, "ns")
+			route := chi.URLParam(r, "kind")
+			name := chi.URLParam(r, "name")
+			if ns == "" || route == "" || name == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace, kind, or name"})
+				return
+			}
+			kind, ok := dataplane.ResourceSignalKindFromRoute(dataplane.ResourceSignalsScopeNamespace, route)
+			if !ok {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "unknown resource kind for signals", "kind": route})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
+			defer cancel()
+			active := s.readContextName(r)
+
+			res, err := s.dp.ResourceSignals(ctx, active, dataplane.ResourceSignalsScopeNamespace, ns, kind, name)
+			if err != nil {
+				status := http.StatusInternalServerError
+				if apierrors.IsForbidden(err) {
+					status = http.StatusForbidden
+				}
+				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{
+				"active":  active,
+				"signals": res.Signals,
+				"meta": map[string]any{
+					"freshness":   string(res.Meta.Freshness),
+					"degradation": string(res.Meta.Degradation),
+				},
+			})
+		})
+
+		// Per-resource signals — cluster-scoped.
+		// Same contract as the namespace-scoped variant for cluster-level
+		// resources (Node, PersistentVolume, ClusterRole, …). Lives under the
+		// /cluster/ prefix to keep the URL surface unambiguous against the
+		// existing top-level cluster resource routes.
+		api.Get("/cluster/{kind}/{name}/signals", func(w http.ResponseWriter, r *http.Request) {
+			route := chi.URLParam(r, "kind")
+			name := chi.URLParam(r, "name")
+			if route == "" || name == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing kind or name"})
+				return
+			}
+			kind, ok := dataplane.ResourceSignalKindFromRoute(dataplane.ResourceSignalsScopeCluster, route)
+			if !ok {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "unknown cluster resource kind for signals", "kind": route})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
+			defer cancel()
+			active := s.readContextName(r)
+
+			res, err := s.dp.ResourceSignals(ctx, active, dataplane.ResourceSignalsScopeCluster, "", kind, name)
+			if err != nil {
+				status := http.StatusInternalServerError
+				if apierrors.IsForbidden(err) {
+					status = http.StatusForbidden
+				}
+				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{
+				"active":  active,
+				"signals": res.Signals,
+				"meta": map[string]any{
+					"freshness":   string(res.Meta.Freshness),
+					"degradation": string(res.Meta.Degradation),
+				},
+			})
+		})
+
 		api.Get("/namespaces/{name}/insights", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
 			if name == "" {

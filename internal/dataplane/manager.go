@@ -189,6 +189,11 @@ type DataPlaneManager interface {
 	// NamespaceInsightsProjection builds a namespace observability view from dataplane snapshots.
 	NamespaceInsightsProjection(ctx context.Context, clusterName, namespace string) (NamespaceInsightsProjection, error)
 
+	// ResourceSignals returns dataplane-derived signals attributed to a single resource (cache-only).
+	// scope must be one of ResourceSignalsScopeNamespace / ResourceSignalsScopeCluster.
+	// kind is the canonical Kubernetes kind (e.g. "Pod", "Deployment", "Node").
+	ResourceSignals(ctx context.Context, clusterName, scope, namespace, kind, name string) (ResourceSignalsResult, error)
+
 	// Policy returns the current dataplane behavior policy.
 	Policy() DataplanePolicy
 	// SetPolicy updates the current dataplane behavior policy for existing and future planes.
