@@ -22,5 +22,3 @@ export type InspectTarget = {
   name: string;
   chart?: HelmChart;
 };
-
-export type DerivedFilter = "all" | "nodes" | "helm" | "signals";

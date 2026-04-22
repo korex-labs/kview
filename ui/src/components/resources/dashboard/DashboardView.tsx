@@ -29,7 +29,6 @@ import GaugeTableRow from "../../shared/GaugeTableRow";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import DashboardSignalsPanel from "./DashboardSignalsPanel";
-import DashboardDerivedPanel from "./DashboardDerivedPanel";
 import type { InspectTarget } from "./dashboardTypes";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import PodDrawer from "../pods/PodDrawer";
@@ -72,7 +71,7 @@ const dashboardPanelSectionSx = {
   border: "1px solid var(--panel-border)",
   borderRadius: 1,
   p: 1.25,
-  backgroundColor: "var(--bg-secondary)",
+  backgroundColor: "transparent",
 };
 
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
@@ -291,7 +290,7 @@ export default function DashboardView(props: Props) {
   };
 
   return (
-    <Box
+    <Paper
       className="kview-dashboard-root"
       sx={{
         flex: 1,
@@ -306,6 +305,19 @@ export default function DashboardView(props: Props) {
         overflowX: "hidden",
         pb: 2,
         boxSizing: "border-box",
+        borderRadius: 0,
+        backgroundColor: "background.paper",
+        backgroundImage: (theme) =>
+          theme.palette.mode === "dark"
+            ? "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))"
+            : "none",
+        "&, & .MuiPaper-root": {
+          backgroundColor: "background.paper",
+          backgroundImage: (theme) =>
+            theme.palette.mode === "dark"
+              ? "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))"
+              : "none",
+        },
       }}
     >
       <Box sx={{ px: 2, pt: 1, display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -360,10 +372,10 @@ export default function DashboardView(props: Props) {
                     hint={`Pods above ${settings.dataplane.dashboard.restartElevatedThreshold} restarts in cached scope.`}
                   />
                   <MetricCard
-                    label="Namespace list"
-                    value={`${ns.total} ns`}
-                    color={stateChipColor(ns.state) === "default" ? "default" : stateChipColor(ns.state)}
-                    hint={`State ${ns.state}, freshness ${ns.freshness}, observer ${ns.observerState || "unknown"}.`}
+                    label="Quota pressure"
+                    value={signalPanel?.quotaWarnings ?? 0}
+                    color={(signalPanel?.quotaWarnings || 0) > 0 ? "warning" : "success"}
+                    hint="Namespace ResourceQuota usage nearing hard limits; available even when node capacity is not visible."
                   />
                   <MetricCard
                     label="Nodes"
@@ -401,6 +413,7 @@ export default function DashboardView(props: Props) {
                     signalsRowsPerPage={signalsRowsPerPage}
                     onSignalsRowsPerPageChange={setSignalsRowsPerPage}
                     onInspect={setInspectTarget}
+                    derived={derived}
                   />
                 </Box>
 
@@ -489,10 +502,6 @@ export default function DashboardView(props: Props) {
                   </Paper>
                 ) : null}
 
-                {derived ? (
-                  <DashboardDerivedPanel derived={derived} onInspect={setInspectTarget} />
-                ) : null}
-
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" }, gap: 2 }}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <PanelTitle
@@ -510,7 +519,7 @@ export default function DashboardView(props: Props) {
                       <TableBody>
                         <StatCell label="Namespaces total / unhealthy" value={`${ns.total} / ${ns.unhealthy}`} />
                         <StatCell label="Nodes total" value={nodes.total} />
-                        <StatCell label="Namespace list" value={`${ns.state} / ${ns.freshness} / ${ns.completeness}`} />
+                        <StatCell label="Namespace snapshot" value={`${ns.state} / ${ns.freshness} / ${ns.completeness}`} />
                         <StatCell label="Node list" value={`${nodes.state} / ${nodes.freshness} / ${nodes.completeness}`} />
                         <StatCell label="Namespace observer" value={ns.observerState || "-"} />
                         <StatCell label="Node observer" value={nodes.observerState || "-"} />
@@ -645,6 +654,6 @@ export default function DashboardView(props: Props) {
         onClose={() => setInspectTarget(null)}
         onNavigate={props.onNavigate}
       />
-    </Box>
+    </Paper>
   );
 }
