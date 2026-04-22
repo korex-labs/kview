@@ -111,12 +111,19 @@ export function dataplaneCoarseStateChipColor(state?: string | null): ChipColor 
 }
 
 export function jobStatusChipColor(status?: string | null): ChipColor {
-  switch (status) {
-    case "Complete":
+  switch ((status || "").toLowerCase()) {
+    case "complete":
+    case "completed":
+    case "healthy":
+    case "succeeded":
       return "success";
-    case "Failed":
+    case "failed":
+    case "degraded":
       return "error";
-    case "Running":
+    case "running":
+    case "progressing":
+    case "pending":
+    case "unknown":
       return "warning";
     default:
       return "default";
