@@ -118,10 +118,18 @@ func TestDetectPodDetailSignals_SucceededWithIssues(t *testing.T) {
 			wantSig: true,
 		},
 		{
-			name: "succeeded with unhealthy condition triggers hint",
+			name: "succeeded with pod completed condition stays quiet",
 			details: dto.PodDetailsDTO{
 				Summary:    dto.PodSummaryDTO{Name: "job-1", Phase: "Succeeded"},
 				Conditions: []dto.PodConditionDTO{{Type: "Ready", Status: "False", Reason: "PodCompleted"}},
+			},
+			wantSig: false,
+		},
+		{
+			name: "succeeded with non-completion unhealthy condition triggers hint",
+			details: dto.PodDetailsDTO{
+				Summary:    dto.PodSummaryDTO{Name: "job-1", Phase: "Succeeded"},
+				Conditions: []dto.PodConditionDTO{{Type: "Ready", Status: "False", Reason: "ContainersNotReady"}},
 			},
 			wantSig: true,
 		},
@@ -172,6 +180,129 @@ func TestDetectPodDetailSignals_SucceededWithIssues(t *testing.T) {
 			}
 			if hit != nil && hit.Severity != "low" {
 				t.Fatalf("expected low severity confusion hint, got %+v", hit)
+			}
+		})
+	}
+}
+
+func TestDetectPodDetailSignals_MissingSecretReference(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+
+	tests := []struct {
+		name       string
+		details    dto.PodDetailsDTO
+		events     []dto.EventDTO
+		wantSig    bool
+		wantActual string
+	}{
+		{
+			name: "secret volume missing event raises signal",
+			details: dto.PodDetailsDTO{
+				Summary: dto.PodSummaryDTO{Name: "api-0", Phase: "Pending"},
+				Resources: dto.PodResourcesDTO{
+					Volumes: []dto.VolumeDTO{{Name: "credentials", Type: "Secret", Source: "api-secret"}},
+				},
+			},
+			events: []dto.EventDTO{{
+				Type:    "Warning",
+				Reason:  "FailedMount",
+				Message: `MountVolume.SetUp failed for volume "credentials": secret "api-secret" not found`,
+			}},
+			wantSig:    true,
+			wantActual: "api-secret",
+		},
+		{
+			name: "image pull secret retrieval event raises signal",
+			details: dto.PodDetailsDTO{
+				Summary: dto.PodSummaryDTO{Name: "api-0", Phase: "Pending"},
+				Resources: dto.PodResourcesDTO{
+					ImagePullSecrets: []string{"registry-cred"},
+				},
+			},
+			events: []dto.EventDTO{{
+				Type:    "Warning",
+				Reason:  "FailedToRetrieveImagePullSecret",
+				Message: `Unable to retrieve some image pull secrets (registry-cred); attempting to pull the image may not succeed.`,
+			}},
+			wantSig:    true,
+			wantActual: "registry-cred",
+		},
+		{
+			name: "secret env var missing event raises signal",
+			details: dto.PodDetailsDTO{
+				Summary: dto.PodSummaryDTO{Name: "api-0", Phase: "Pending"},
+				Containers: []dto.PodContainerDTO{{
+					Name: "app",
+					Env:  []dto.EnvVarDTO{{Name: "TOKEN", Source: "Secret", SourceRef: "env-secret:token"}},
+				}},
+			},
+			events: []dto.EventDTO{{
+				Type:    "Warning",
+				Reason:  "CreateContainerConfigError",
+				Message: `Error: secret "env-secret" not found`,
+			}},
+			wantSig:    true,
+			wantActual: "env-secret",
+		},
+		{
+			name: "event for unreferenced secret stays silent",
+			details: dto.PodDetailsDTO{
+				Summary: dto.PodSummaryDTO{Name: "api-0", Phase: "Pending"},
+				Resources: dto.PodResourcesDTO{
+					Volumes: []dto.VolumeDTO{{Name: "credentials", Type: "Secret", Source: "api-secret"}},
+				},
+			},
+			events: []dto.EventDTO{{
+				Type:    "Warning",
+				Reason:  "FailedMount",
+				Message: `secret "other-secret" not found`,
+			}},
+			wantSig: false,
+		},
+		{
+			name: "normal warning without missing language stays silent",
+			details: dto.PodDetailsDTO{
+				Summary: dto.PodSummaryDTO{Name: "api-0", Phase: "Pending"},
+				Resources: dto.PodResourcesDTO{
+					ImagePullSecrets: []string{"registry-cred"},
+				},
+			},
+			events: []dto.EventDTO{{
+				Type:    "Warning",
+				Reason:  "BackOff",
+				Message: `Back-off pulling image while using secret registry-cred`,
+			}},
+			wantSig: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := DetectPodDetailSignals(now, "team-a", tt.details, tt.events)
+			var hit *ClusterDashboardSignal
+			for i := range got {
+				if got[i].SignalType == "pod_missing_secret_reference" {
+					hit = &got[i]
+					break
+				}
+			}
+			if tt.wantSig && hit == nil {
+				t.Fatalf("expected pod_missing_secret_reference, got none (all: %+v)", got)
+			}
+			if !tt.wantSig && hit != nil {
+				t.Fatalf("did not expect pod_missing_secret_reference, got %+v", hit)
+			}
+			if hit != nil {
+				if hit.Severity != "high" {
+					t.Fatalf("expected high severity, got %+v", hit)
+				}
+				if hit.ActualData != tt.wantActual {
+					t.Fatalf("actual data: want %q, got %q", tt.wantActual, hit.ActualData)
+				}
+				if hit.LikelyCause == "" || hit.SuggestedAction == "" {
+					t.Fatalf("expected registry advice, got %+v", hit)
+				}
 			}
 		})
 	}

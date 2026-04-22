@@ -9,7 +9,7 @@ import {
 } from "../../../types/api";
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
-import { eventChipColor, listSignalLabel, listSignalSeverityColor, phaseChipColor } from "../../../utils/k8sUi";
+import { listSignalLabel, listSignalSeverityColor, phaseChipColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -23,15 +23,8 @@ type Pod = PodListItemUsage & {
   node?: string;
   phase: string;
   ready: string;
-  restarts: number;
   ageSec: number;
-  lastEvent?: {
-    type: string;
-    reason: string;
-    lastSeen: number;
-  };
   /** Snapshot-derived (optional for older backends) */
-  restartSeverity?: string;
   listStatus?: string;
   listSignalSeverity?: string;
   listSignalCount?: number;
@@ -96,29 +89,6 @@ const baseColumns: GridColDef<Row>[] = [
     sortable: false,
   },
   {
-    field: "restartSeverity",
-    headerName: "Restart Δ",
-    width: 110,
-    renderCell: (p) => {
-      const sev = p.row.restartSeverity;
-      if (!sev || sev === "none") return "—";
-      return <Chip size="small" label={sev} variant="outlined" />;
-    },
-    sortable: false,
-  },
-  { field: "restarts", headerName: "Restarts", width: 120, type: "number" },
-  {
-    field: "lastEvent",
-    headerName: "Last Event",
-    width: 200,
-    renderCell: (p) => {
-      const ev = p.row.lastEvent;
-      if (!ev?.reason) return "-";
-      return <Chip size="small" label={ev.reason} color={eventChipColor(ev.type)} />;
-    },
-    sortable: false,
-  },
-  {
     field: "ageSec",
     headerName: "Age",
     width: 130,
@@ -167,10 +137,10 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
   const metricsStatus = useMetricsStatus(token);
   const columns = useMemo<GridColDef<Row>[]>(() => {
     if (!isMetricsUsable(metricsStatus)) return baseColumns;
-    // Insert metric columns before "Last Event"; keeping them adjacent to
-    // readiness/restart data keeps the scan-left-to-right health story.
-    const lastEventIdx = baseColumns.findIndex((c) => c.field === "lastEvent");
-    const insertAt = lastEventIdx >= 0 ? lastEventIdx : baseColumns.length;
+    // Insert metric columns before Age so the scan-left-to-right story stays:
+    // identity, health, signals, live usage, age.
+    const ageIdx = baseColumns.findIndex((c) => c.field === "ageSec");
+    const insertAt = ageIdx >= 0 ? ageIdx : baseColumns.length;
     const cols = baseColumns.slice();
     cols.splice(insertAt, 0, ...metricsColumns);
     return cols;
@@ -193,8 +163,8 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
       row.name.toLowerCase().includes(q) ||
       (row.node || "").toLowerCase().includes(q) ||
       (row.phase || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.restartSeverity || "").toLowerCase().includes(q)
+      (row.listStatus || "").toLowerCase().includes(q) ||
+      (row.listSignalSeverity || "").toLowerCase().includes(q)
     );
   }, []);
 

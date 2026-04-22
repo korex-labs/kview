@@ -352,6 +352,14 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		SuggestedAction: "Treat Succeeded as completion, not health: review the recorded conditions, container last-termination reasons, and Warning events to understand what happened.",
 		Priority:        5,
 	},
+	"pod_missing_secret_reference": {
+		Type:            "pod_missing_secret_reference",
+		Label:           "Pods with missing Secret references",
+		CalculatedData:  "pod warning events mention a referenced Secret could not be found or retrieved",
+		LikelyCause:     "The pod spec, environment, volume, or image pull secret references a Secret that is absent, misspelled, or not available in the namespace.",
+		SuggestedAction: "Create or restore the Secret, fix the pod/workload reference, or remove the reference if it is obsolete. Then restart or roll out the owning workload.",
+		Priority:        1,
+	},
 	"deployment_unavailable": {
 		Type:            "deployment_unavailable",
 		Label:           "Deployments unavailable for extended time",

@@ -1,16 +1,16 @@
-export type ChipColor = "success" | "warning" | "error" | "default";
+export type ChipColor = "success" | "warning" | "error" | "info" | "default";
 
 export function phaseChipColor(phase?: string | null): ChipColor {
-  switch (phase) {
-    case "Running":
+  switch ((phase || "").toLowerCase()) {
+    case "running":
       return "success";
-    case "Pending":
-    case "Unknown":
+    case "pending":
+    case "unknown":
       return "warning";
-    case "Failed":
+    case "failed":
       return "error";
-    case "Succeeded":
-      return "default";
+    case "succeeded":
+      return "info";
     default:
       return "default";
   }
@@ -186,7 +186,7 @@ export function listSignalSeverityColor(severity?: string | null): ChipColor {
     case "medium":
       return "warning";
     case "low":
-      return "default";
+      return "info";
     case "ok":
       return "success";
     default:

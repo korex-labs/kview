@@ -27,6 +27,7 @@ func TestEnrichPodListItemsForAPI(t *testing.T) {
 		{Name: "b", Phase: "Pending", Ready: "0/1", Restarts: 0},
 		{Name: "c", Phase: "Running", Ready: "0/1", Restarts: 4},
 		{Name: "d", Phase: "Running", Ready: "1/1", Restarts: 4},
+		{Name: "e", Phase: "Succeeded", Ready: "0/1", HealthReason: "PodCompleted"},
 	})
 	if out[0].ListHealthHint != podListHintOK || out[0].RestartSeverity != listRestartNone {
 		t.Fatalf("row0: %+v", out[0])
@@ -39,6 +40,9 @@ func TestEnrichPodListItemsForAPI(t *testing.T) {
 	}
 	if out[3].ListHealthHint != podListHintAttention {
 		t.Fatalf("row3 restarts only: %+v", out[3])
+	}
+	if out[4].ListHealthHint != podListHintOK || out[4].ListSignalSeverity != listSignalOK {
+		t.Fatalf("row4 succeeded pod completed should be ok: %+v", out[4])
 	}
 }
 

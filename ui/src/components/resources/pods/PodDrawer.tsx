@@ -48,6 +48,7 @@ import StatefulSetDrawer from "../statefulsets/StatefulSetDrawer";
 import DaemonSetDrawer from "../daemonsets/DaemonSetDrawer";
 import JobDrawer from "../jobs/JobDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
+import SecretDrawer from "../secrets/SecretDrawer";
 import PodActions from "./PodActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -364,6 +365,14 @@ function formatIngressTlsLabel(count?: number) {
   return num > 0 ? `Yes (${num})` : "No";
 }
 
+function displayImageName(image?: string) {
+  const trimmed = String(image || "").trim();
+  if (!trimmed) return "-";
+  const last = trimmed.split("/").filter(Boolean).pop() || trimmed;
+  const digestless = last.split("@")[0] || last;
+  return digestless;
+}
+
 function formatPretty(lines: string[]): string {
   const out: string[] = [];
   lines.forEach((line) => {
@@ -535,6 +544,7 @@ export default function PodDrawer(props: {
   const [drawerJob, setDrawerJob] = useState<string | null>(null);
   const [drawerNode, setDrawerNode] = useState<string | null>(null);
   const [drawerServiceAccount, setDrawerServiceAccount] = useState<string | null>(null);
+  const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
 
   // Logs UI state
@@ -658,7 +668,6 @@ export default function PodDrawer(props: {
       return;
     }
     return () => stopLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.open, name]);
 
   const openTerminalForContainer = async (containerName: string) => {
@@ -841,6 +850,7 @@ export default function PodDrawer(props: {
     setDrawerJob(null);
     setDrawerNode(null);
     setDrawerServiceAccount(null);
+    setDrawerSecret(null);
     setDrawerNamespace(null);
     stopLogs();
 
@@ -887,7 +897,6 @@ export default function PodDrawer(props: {
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.open, name, ns, props.token, retryNonce]);
 
   // Snapshot-level per-resource signals from the dataplane cache
@@ -1068,6 +1077,19 @@ export default function PodDrawer(props: {
     () => [...detailSignals, ...(snapshotSignals.signals || [])],
     [detailSignals, snapshotSignals.signals],
   );
+  const missingSecretSignalsByName = useMemo(() => {
+    const out = new Map<string, DashboardSignalItem>();
+    podSignals
+      .filter((signal) => signal.signalType === "pod_missing_secret_reference")
+      .forEach((signal) => {
+        (signal.actualData || "")
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .forEach((secretName) => out.set(secretName, signal));
+      });
+    return out;
+  }, [podSignals]);
 
   const openController = (kind: string, name: string) => {
     switch (kind) {
@@ -1403,25 +1425,17 @@ export default function PodDrawer(props: {
                     onJumpToEvents={() => setTab(4)}
                   />
 
-                  <ConditionsTable
-                    conditions={details?.conditions || []}
-                    title="Health & Conditions"
-                    unhealthyFirst
-                  />
+                  <Box sx={panelBoxSx}>
+                    <ConditionsTable
+                      conditions={details?.conditions || []}
+                      title="Health & Conditions"
+                      unhealthyFirst
+                      variant="section"
+                    />
+                  </Box>
 
-                  <Accordion
-                    defaultExpanded={
-                      !!details?.lifecycle?.priorityClass ||
-                      !!details?.lifecycle?.preemptionPolicy ||
-                      !!details?.lifecycle?.affinitySummary ||
-                      Object.keys(details?.lifecycle?.nodeSelector || {}).length > 0 ||
-                      (details?.lifecycle?.tolerations || []).length > 0
-                    }
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Lifecycle & Scheduling</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Lifecycle & Scheduling" dividerPlacement="content">
                       <KeyValueTable
                         columns={2}
                         rows={[
@@ -1478,8 +1492,8 @@ export default function PodDrawer(props: {
                           </Table>
                         )}
                       </Box>
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
@@ -1499,20 +1513,14 @@ export default function PodDrawer(props: {
                       );
 
                       return (
-                        <Accordion
+                        <Box
                           key={containerKey}
-                          expanded={!!expandedContainers[containerKey]}
-                          onChange={() =>
-                            setExpandedContainers((prev) => ({
-                              ...prev,
-                              [containerKey]: !prev[containerKey],
-                            }))
-                          }
                           sx={{
-                            border: unhealthy ? "1px solid var(--chip-error-border)" : "1px solid transparent",
+                            ...panelBoxSx,
+                            border: unhealthy ? "1px solid var(--chip-error-border)" : "1px solid var(--panel-border)",
                           }}
                         >
-                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box sx={{ pb: 1 }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flexGrow: 1 }}>
                               <Typography variant="subtitle2">{valueOrDash(ctn.name)}</Typography>
                               <Chip size="small" label={ctn.state || "Unknown"} color={containerStateColor(ctn.state)} />
@@ -1528,8 +1536,6 @@ export default function PodDrawer(props: {
                                 size="small"
                                 disabled={offline || creatingTerminal || !ctn.name}
                                 onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
                                   if (!ctn.name) return;
                                   void openTerminalForContainer(ctn.name);
                                 }}
@@ -1546,8 +1552,6 @@ export default function PodDrawer(props: {
                                   (matchingCommandsByContainer[ctn.name] || []).length === 0
                                 }
                                 onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
                                   if (!ctn.name) return;
                                   setCommandMenuContainer(ctn.name);
                                   setCommandMenuAnchor(e.currentTarget);
@@ -1556,8 +1560,7 @@ export default function PodDrawer(props: {
                                 Commands
                               </Button>
                             </Box>
-                          </AccordionSummary>
-                          <AccordionDetails>
+                          </Box>
                             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                               <Section title="Runtime" dividerPlacement="content">
                                 <KeyValueTable
@@ -1566,22 +1569,20 @@ export default function PodDrawer(props: {
                                   rows={[
                                     {
                                       label: "Image",
-                                      value: ctn.imageId ? (
-                                        <Tooltip title={`Image ID: ${ctn.imageId}`} arrow>
+                                      value: ctn.image ? (
+                                        <Tooltip
+                                          title={[`Image: ${ctn.image}`, ctn.imageId ? `Image ID: ${ctn.imageId}` : ""].filter(Boolean).join("\n")}
+                                          arrow
+                                        >
                                           <Typography
                                             variant="body2"
                                             sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                                           >
-                                            {valueOrDash(ctn.image)}
+                                            {displayImageName(ctn.image)}
                                           </Typography>
                                         </Tooltip>
                                       ) : (
-                                        <Typography
-                                          variant="body2"
-                                          sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                                        >
-                                          {valueOrDash(ctn.image)}
-                                        </Typography>
+                                        "-"
                                       ),
                                     },
                                     {
@@ -1675,39 +1676,41 @@ export default function PodDrawer(props: {
                                 </Section>
                               ) : null}
 
-                              <Section
-                                title="Environment"
-                                dividerPlacement="content"
-                                actions={
-                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                    <TextField
-                                      size="small"
-                                      label="Filter"
-                                      value={envQuery}
-                                      onChange={(e) =>
-                                        setEnvQueryByContainer((prev) => ({
-                                          ...prev,
-                                          [containerKey]: e.target.value,
-                                        }))
-                                      }
-                                    />
-                                    <FormControlLabel
-                                      control={
-                                        <Switch
-                                          checked={showRaw}
-                                          onChange={(e) =>
-                                            setEnvShowRawByContainer((prev) => ({
-                                              ...prev,
-                                              [containerKey]: e.target.checked,
-                                            }))
-                                          }
-                                        />
-                                      }
-                                      label="Raw values"
-                                    />
+                              <Accordion>
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", width: "100%" }}>
+                                    <Typography variant="subtitle2">Environment</Typography>
+                                    <Chip size="small" label={(ctn.env || []).length} />
                                   </Box>
-                                }
-                              >
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                                  <TextField
+                                    size="small"
+                                    label="Filter"
+                                    value={envQuery}
+                                    onChange={(e) =>
+                                      setEnvQueryByContainer((prev) => ({
+                                        ...prev,
+                                        [containerKey]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                  <FormControlLabel
+                                    control={
+                                      <Switch
+                                        checked={showRaw}
+                                        onChange={(e) =>
+                                          setEnvShowRawByContainer((prev) => ({
+                                            ...prev,
+                                            [containerKey]: e.target.checked,
+                                          }))
+                                        }
+                                      />
+                                    }
+                                    label="Raw values"
+                                  />
+                                </Box>
                                 {(ctn.env || []).length === 0 ? (
                                   <EmptyState message="No environment variables." sx={{ mt: 1 }} />
                                 ) : envFiltered.length === 0 ? (
@@ -1741,9 +1744,17 @@ export default function PodDrawer(props: {
                                     </TableBody>
                                   </Table>
                                 )}
-                              </Section>
+                                </AccordionDetails>
+                              </Accordion>
 
-                              <Section title="Mounts & Volumes" dividerPlacement="content">
+                              <Accordion>
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", width: "100%" }}>
+                                    <Typography variant="subtitle2">Mounts & Volumes</Typography>
+                                    <Chip size="small" label={(ctn.mounts || []).length} />
+                                  </Box>
+                                </AccordionSummary>
+                                <AccordionDetails>
                                 {(ctn.mounts || []).length === 0 ? (
                                   <EmptyState message="No mounts defined." sx={{ mt: 1 }} />
                                 ) : (
@@ -1770,9 +1781,26 @@ export default function PodDrawer(props: {
                                     </TableBody>
                                   </Table>
                                 )}
-                              </Section>
+                                </AccordionDetails>
+                              </Accordion>
 
-                              <Section title="Probes" divider={false}>
+                              <Accordion>
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", width: "100%" }}>
+                                    <Typography variant="subtitle2">Probes</Typography>
+                                    <Chip
+                                      size="small"
+                                      label={
+                                        [
+                                          ctn.probes?.liveness,
+                                          ctn.probes?.readiness,
+                                          ctn.probes?.startup,
+                                        ].filter(Boolean).length
+                                      }
+                                    />
+                                  </Box>
+                                </AccordionSummary>
+                                <AccordionDetails>
                                 <Table size="small" sx={{ mt: 1 }}>
                                   <TableHead>
                                     <TableRow>
@@ -1805,10 +1833,10 @@ export default function PodDrawer(props: {
                                     ))}
                                   </TableBody>
                                 </Table>
-                              </Section>
+                                </AccordionDetails>
+                              </Accordion>
                             </Box>
-                          </AccordionDetails>
-                        </Accordion>
+                        </Box>
                       );
                     })
                   )}
@@ -1818,11 +1846,8 @@ export default function PodDrawer(props: {
               {/* RESOURCES */}
               {tab === 2 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
-                  <Accordion defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Volumes</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Volumes" dividerPlacement="content">
                       {(details?.resources?.volumes || []).length === 0 ? (
                         <EmptyState message="No volumes defined." />
                       ) : (
@@ -1835,43 +1860,63 @@ export default function PodDrawer(props: {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {(details?.resources?.volumes || []).map((v, idx) => (
-                              <TableRow key={v.name || String(idx)}>
-                                <TableCell>{valueOrDash(v.name)}</TableCell>
-                                <TableCell>{valueOrDash(v.type)}</TableCell>
-                                <TableCell>{valueOrDash(v.source)}</TableCell>
-                              </TableRow>
-                            ))}
+                            {(details?.resources?.volumes || []).map((v, idx) => {
+                              const secretSignal = v.source ? missingSecretSignalsByName.get(v.source) : undefined;
+                              return (
+                                <TableRow key={v.name || String(idx)}>
+                                  <TableCell>{valueOrDash(v.name)}</TableCell>
+                                  <TableCell>{valueOrDash(v.type)}</TableCell>
+                                  <TableCell>
+                                    {String(v.type || "").toLowerCase() === "secret" && v.source ? (
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                                        <ResourceLinkChip label={v.source} onClick={() => setDrawerSecret(v.source || null)} />
+                                        {secretSignal ? (
+                                          <Tooltip title={secretSignal.reason || secretSignal.calculatedData || "Backend signal reports this Secret reference as missing."} arrow>
+                                            <Chip size="small" color="warning" label="Missing?" />
+                                          </Tooltip>
+                                        ) : null}
+                                      </Box>
+                                    ) : (
+                                      valueOrDash(v.source)
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Image Pull Secrets</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Image Pull Secrets" dividerPlacement="content">
                       {(details?.resources?.imagePullSecrets || []).length === 0 ? (
                         <EmptyState message="No image pull secrets." />
                       ) : (
                         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                           {(details?.resources?.imagePullSecrets || [])
                             .filter((s): s is string => !!s)
-                            .map((s) => (
-                              <Chip key={s} size="small" label={s} />
-                            ))}
+                            .map((s) => {
+                              const secretSignal = missingSecretSignalsByName.get(s);
+                              return (
+                                <Box key={s} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                  <ResourceLinkChip label={s} onClick={() => setDrawerSecret(s)} />
+                                  {secretSignal ? (
+                                    <Tooltip title={secretSignal.reason || secretSignal.calculatedData || "Backend signal reports this Secret reference as missing."} arrow>
+                                      <Chip size="small" color="warning" label="Missing?" />
+                                    </Tooltip>
+                                  ) : null}
+                                </Box>
+                              );
+                            })}
                         </Box>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Security Context</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Security Context" dividerPlacement="content">
                       <Typography variant="caption" color="text.secondary">
                         Pod Security Context
                       </Typography>
@@ -1963,14 +2008,11 @@ export default function PodDrawer(props: {
                           </Table>
                         )}
                       </Box>
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">DNS & Host Aliases</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="DNS & Host Aliases" dividerPlacement="content">
                       <Box sx={{ mb: 1 }}>
                         <Typography variant="caption" color="text.secondary">
                           DNS Policy
@@ -1995,16 +2037,13 @@ export default function PodDrawer(props: {
                               </TableRow>
                             ))}
                           </TableBody>
-                        </Table>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
+                          </Table>
+                        )}
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Topology Spread Constraints</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Topology Spread Constraints" dividerPlacement="content">
                       {(details?.resources?.topologySpreadConstraints || []).length === 0 ? (
                         <EmptyState message="No topology spread constraints." />
                       ) : (
@@ -2029,19 +2068,16 @@ export default function PodDrawer(props: {
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
               {/* NETWORKING */}
               {tab === 3 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
-                  <Accordion defaultExpanded={networkingServices.length > 0}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Services</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Services" dividerPlacement="content">
                       {networkingServicesLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
                           <CircularProgress size={22} />
@@ -2095,14 +2131,11 @@ export default function PodDrawer(props: {
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion defaultExpanded={networkingIngresses.length > 0}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Ingresses</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Ingresses" dividerPlacement="content">
                       {networkingIngressesLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
                           <CircularProgress size={22} />
@@ -2148,14 +2181,14 @@ export default function PodDrawer(props: {
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
               {/* EVENTS */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto", pt: 1 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <FormControl size="small" sx={{ minWidth: 220 }}>
                       <InputLabel id="events-container-label" shrink>Container</InputLabel>
@@ -2206,7 +2239,7 @@ export default function PodDrawer(props: {
 
               {/* LOGS */}
               {tab === 5 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%" }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", pt: 1 }}>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                     <FormControl size="small" sx={{ minWidth: 220 }}>
                       <InputLabel id="container-label">Container</InputLabel>
@@ -2493,6 +2526,13 @@ export default function PodDrawer(props: {
               token={props.token}
               namespace={ns}
               serviceAccountName={drawerServiceAccount}
+            />
+            <SecretDrawer
+              open={!!drawerSecret}
+              onClose={() => setDrawerSecret(null)}
+              token={props.token}
+              namespace={ns}
+              secretName={drawerSecret}
             />
             <NamespaceDrawer
               open={!!drawerNamespace}

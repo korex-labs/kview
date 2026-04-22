@@ -107,7 +107,7 @@ func podListHealthHint(p dto.PodListItemDTO) string {
 	if p.Restarts >= signalPodRestartNoteThreshold {
 		return podListHintProblem
 	}
-	if podListNotReady(p.Ready) {
+	if podListNotReady(p.Ready) && !podListCompletedSuccessfully(p) {
 		return podListHintProblem
 	}
 	if p.Restarts >= derivedNodeElevatedRestartMin {
@@ -117,6 +117,10 @@ func podListHealthHint(p dto.PodListItemDTO) string {
 		return podListHintAttention
 	}
 	return podListHintOK
+}
+
+func podListCompletedSuccessfully(p dto.PodListItemDTO) bool {
+	return strings.EqualFold(p.Phase, "Succeeded") && strings.EqualFold(p.HealthReason, "PodCompleted")
 }
 
 func podListNotReady(ready string) bool {

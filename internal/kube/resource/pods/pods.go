@@ -55,6 +55,7 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 			Restarts:           restarts,
 			AgeSec:             age,
 			LastEvent:          lastEvent,
+			HealthReason:       podHealthReason(p.Status.Conditions),
 			CPURequestMilli:    cpuReq,
 			CPULimitMilli:      cpuLim,
 			MemoryRequestBytes: memReq,
@@ -62,6 +63,15 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		})
 	}
 	return out, nil
+}
+
+func podHealthReason(conditions []corev1.PodCondition) string {
+	for _, cond := range conditions {
+		if cond.Status != corev1.ConditionTrue && cond.Reason != "" {
+			return cond.Reason
+		}
+	}
+	return ""
 }
 
 // sumContainerResources aggregates CPU (milli) and memory (bytes) requests and

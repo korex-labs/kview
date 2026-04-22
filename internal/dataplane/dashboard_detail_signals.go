@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,6 +39,9 @@ func DetectPodDetailSignals(now time.Time, namespace string, details dto.PodDeta
 		out = append(out, *s)
 	}
 	if s := detectPodSucceededWithIssuesSignal(namespace, details, events); s != nil {
+		out = append(out, *s)
+	}
+	if s := detectPodMissingSecretReferenceSignal(namespace, details, events); s != nil {
 		out = append(out, *s)
 	}
 	return out
@@ -122,6 +126,9 @@ func detectPodSucceededWithIssuesSignal(namespace string, details dto.PodDetails
 	issues := make([]string, 0, 3)
 
 	for _, cond := range details.Conditions {
+		if strings.EqualFold(cond.Reason, "PodCompleted") {
+			continue
+		}
 		if cond.Status != "True" {
 			issues = append(issues, fmt.Sprintf("condition %s=%s", cond.Type, cond.Status))
 			break
@@ -156,6 +163,110 @@ func detectPodSucceededWithIssuesSignal(namespace string, details dto.PodDetails
 	)
 	sig.ActualData = "phase Succeeded · " + strings.Join(issues, ", ")
 	return &sig
+}
+
+func detectPodMissingSecretReferenceSignal(namespace string, details dto.PodDetailsDTO, events []dto.EventDTO) *ClusterDashboardSignal {
+	summary := details.Summary
+	if summary.Name == "" {
+		return nil
+	}
+	refs := podSecretReferences(details)
+	if len(refs) == 0 || len(events) == 0 {
+		return nil
+	}
+
+	missing := map[string]struct{}{}
+	var evidence string
+	for _, event := range events {
+		if !strings.EqualFold(event.Type, "Warning") {
+			continue
+		}
+		if !eventLooksLikeMissingSecret(event) {
+			continue
+		}
+		for secretName := range refs {
+			if eventMentionsSecretName(event, secretName) {
+				missing[secretName] = struct{}{}
+				if evidence == "" {
+					evidence = strings.TrimSpace(event.Message)
+					if evidence == "" {
+						evidence = strings.TrimSpace(event.Reason)
+					}
+				}
+			}
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(missing))
+	for name := range missing {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	reason := fmt.Sprintf("Pod references missing Secret(s): %s.", strings.Join(names, ", "))
+	sig := dashboardSignalItem(
+		"pod_missing_secret_reference", "Pod",
+		namespace, summary.Name,
+		"high", 84,
+		reason, "high", "pods",
+	)
+	sig.ActualData = strings.Join(names, ", ")
+	if evidence != "" {
+		sig.CalculatedData = evidence
+	}
+	return &sig
+}
+
+func podSecretReferences(details dto.PodDetailsDTO) map[string]struct{} {
+	refs := map[string]struct{}{}
+	for _, volume := range details.Resources.Volumes {
+		if strings.EqualFold(volume.Type, "Secret") && strings.TrimSpace(volume.Source) != "" {
+			refs[strings.TrimSpace(volume.Source)] = struct{}{}
+		}
+	}
+	for _, secretName := range details.Resources.ImagePullSecrets {
+		if strings.TrimSpace(secretName) != "" {
+			refs[strings.TrimSpace(secretName)] = struct{}{}
+		}
+	}
+	for _, container := range details.Containers {
+		for _, env := range container.Env {
+			if !strings.EqualFold(env.Source, "Secret") {
+				continue
+			}
+			secretName := strings.TrimSpace(strings.SplitN(env.SourceRef, ":", 2)[0])
+			if secretName != "" {
+				refs[secretName] = struct{}{}
+			}
+		}
+	}
+	return refs
+}
+
+func eventLooksLikeMissingSecret(event dto.EventDTO) bool {
+	reason := strings.ToLower(event.Reason)
+	message := strings.ToLower(event.Message)
+	if !strings.Contains(reason+" "+message, "secret") {
+		return false
+	}
+	return strings.Contains(reason, "failed") ||
+		strings.Contains(message, "not found") ||
+		strings.Contains(message, "couldn't find") ||
+		strings.Contains(message, "could not find") ||
+		strings.Contains(message, "failed to retrieve") ||
+		strings.Contains(message, "failed to fetch")
+}
+
+func eventMentionsSecretName(event dto.EventDTO, secretName string) bool {
+	needle := strings.ToLower(strings.TrimSpace(secretName))
+	if needle == "" {
+		return false
+	}
+	text := strings.ToLower(event.Reason + " " + event.Message)
+	return strings.Contains(text, needle)
 }
 
 func detectDeploymentUnavailableSignal(now time.Time, namespace string, details dto.DeploymentDetailsDTO) *ClusterDashboardSignal {
