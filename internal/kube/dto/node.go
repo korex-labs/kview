@@ -23,14 +23,14 @@ type NodeListItemDTO struct {
 	RestartCount      int32    `json:"restartCount,omitempty"`
 
 	// Usage enrichment merged from cached NodeMetricsSnapshot.
-	CPUMilli        int64   `json:"cpuMilli,omitempty"`
-	MemoryBytes     int64   `json:"memoryBytes,omitempty"`
-	CPUPctAlloc     float64 `json:"cpuPctAllocatable,omitempty"`
-	MemoryPctAlloc  float64 `json:"memoryPctAllocatable,omitempty"`
-	UsageAvailable  bool    `json:"usageAvailable,omitempty"`
-	ListStatus      string  `json:"listStatus,omitempty"`
-	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount int     `json:"listSignalCount,omitempty"`
+	CPUMilli           int64   `json:"cpuMilli,omitempty"`
+	MemoryBytes        int64   `json:"memoryBytes,omitempty"`
+	CPUPctAlloc        float64 `json:"cpuPctAllocatable,omitempty"`
+	MemoryPctAlloc     float64 `json:"memoryPctAllocatable,omitempty"`
+	UsageAvailable     bool    `json:"usageAvailable,omitempty"`
+	ListStatus         string  `json:"listStatus,omitempty"`
+	ListSignalSeverity string  `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount    int     `json:"listSignalCount,omitempty"`
 }
 
 type NodeDetailsDTO struct {
@@ -87,14 +87,14 @@ type NodeCapacityDTO struct {
 	PodsAllocatable   string `json:"podsAllocatable,omitempty"`
 
 	// Usage enrichment merged from cached NodeMetricsSnapshot.
-	CPUMilliUsed    int64   `json:"cpuMilliUsed,omitempty"`
-	MemoryBytesUsed int64   `json:"memoryBytesUsed,omitempty"`
-	CPUPctAlloc     float64 `json:"cpuPctAllocatable,omitempty"`
-	MemoryPctAlloc  float64 `json:"memoryPctAllocatable,omitempty"`
-	UsageAvailable  bool    `json:"usageAvailable,omitempty"`
-	ListStatus      string  `json:"listStatus,omitempty"`
-	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount int     `json:"listSignalCount,omitempty"`
+	CPUMilliUsed       int64   `json:"cpuMilliUsed,omitempty"`
+	MemoryBytesUsed    int64   `json:"memoryBytesUsed,omitempty"`
+	CPUPctAlloc        float64 `json:"cpuPctAllocatable,omitempty"`
+	MemoryPctAlloc     float64 `json:"memoryPctAllocatable,omitempty"`
+	UsageAvailable     bool    `json:"usageAvailable,omitempty"`
+	ListStatus         string  `json:"listStatus,omitempty"`
+	ListSignalSeverity string  `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount    int     `json:"listSignalCount,omitempty"`
 }
 
 type NodeTaintDTO struct {

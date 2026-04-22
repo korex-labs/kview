@@ -6,21 +6,19 @@ import {
   Tab,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import JobDrawer from "../jobs/JobDrawer";
+import SecretDrawer from "../secrets/SecretDrawer";
+import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
 import CronJobActions from "./CronJobActions";
-import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
+import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { jobStatusChipColor } from "../../../utils/k8sUi";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
@@ -32,6 +30,7 @@ import AttentionSummary, {
 } from "../../shared/AttentionSummary";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
+import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
@@ -51,6 +50,10 @@ type CronJobDetails = {
   spec: CronJobSpec;
   metadata: CronJobMetadata;
   yaml: string;
+};
+
+type CronJobDetailsResponse = ApiItemResponse<CronJobDetails> & {
+  detailSignals?: DashboardSignalItem[];
 };
 
 type EventDTO = {
@@ -108,6 +111,7 @@ type CronJobSpec = {
     }[];
   };
   volumes?: { name: string; type?: string; source?: string }[];
+  missingReferences?: { kind: string; name: string; source?: string }[];
   metadata: {
     labels?: Record<string, string>;
     annotations?: Record<string, string>;
@@ -157,8 +161,11 @@ export default function CronJobDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CronJobDetails | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
+  const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerJob, setDrawerJob] = useState<string | null>(null);
+  const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
+  const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
 
   const ns = props.namespace;
   const name = props.cronJobName;
@@ -170,16 +177,20 @@ export default function CronJobDrawer(props: {
     setErr("");
     setDetails(null);
     setEvents([]);
+    setDetailSignals([]);
     setDrawerJob(null);
+    setDrawerSecret(null);
+    setDrawerConfigMap(null);
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<CronJobDetails>>(
+      const det = await apiGet<CronJobDetailsResponse>(
         `/api/namespaces/${encodeURIComponent(ns)}/cronjobs/${encodeURIComponent(name)}`,
         props.token
       );
       const item: CronJobDetails | null = det?.item ?? null;
       setDetails(item);
+      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
 
       const ev = await apiGet<ApiListResponse<EventDTO>>(
         `/api/namespaces/${encodeURIComponent(ns)}/cronjobs/${encodeURIComponent(name)}/events`,
@@ -207,8 +218,8 @@ export default function CronJobDrawer(props: {
   });
 
   const cronJobSignals = useMemo<DashboardSignalItem[]>(
-    () => resourceSignals.signals || [],
-    [resourceSignals.signals],
+    () => [...detailSignals, ...(resourceSignals.signals || [])],
+    [detailSignals, resourceSignals.signals],
   );
 
   const warningEvents = useMemo(
@@ -238,8 +249,8 @@ export default function CronJobDrawer(props: {
           "-"
         ),
       },
-      { label: "Last Schedule", value: summary?.lastScheduleTime ? fmtTs(summary.lastScheduleTime) : "-" },
-      { label: "Last Successful", value: summary?.lastSuccessfulTime ? fmtTs(summary.lastSuccessfulTime) : "-" },
+      { label: "Last Schedule", value: summary?.lastScheduleTime ? fmtTimeAgo(summary.lastScheduleTime) : "-" },
+      { label: "Last Successful", value: summary?.lastSuccessfulTime ? fmtTimeAgo(summary.lastSuccessfulTime) : "-" },
       { label: "Age", value: fmtAge(summary?.ageSec) },
     ],
     [summary]
@@ -293,11 +304,12 @@ export default function CronJobDrawer(props: {
                     onJumpToSpec={() => setTab(2)}
                   />
 
-                  <Accordion defaultExpanded={hasPolicy}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Key policy state</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section
+                      title="Key policy state"
+                      dividerPlacement="content"
+                      actions={hasPolicy ? <Chip size="small" color="info" label="Configured" /> : null}
+                    >
                       <KeyValueTable
                         columns={2}
                         rows={[
@@ -315,8 +327,8 @@ export default function CronJobDrawer(props: {
                           },
                         ]}
                       />
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
                   <Section title="Recent Warning events">
                     <Box sx={panelBoxSx}>
@@ -357,8 +369,8 @@ export default function CronJobDrawer(props: {
                             <TableCell>
                               <Chip size="small" label={valueOrDash(j.status)} color={jobStatusChipColor(j.status)} />
                             </TableCell>
-                            <TableCell>{j.startTime ? fmtTs(j.startTime) : "-"}</TableCell>
-                            <TableCell>{j.completionTime ? fmtTs(j.completionTime) : "-"}</TableCell>
+                            <TableCell>{j.startTime ? fmtTimeAgo(j.startTime) : "-"}</TableCell>
+                            <TableCell>{j.completionTime ? fmtTimeAgo(j.completionTime) : "-"}</TableCell>
                             <TableCell>{formatDuration(j.durationSec)}</TableCell>
                             <TableCell>{fmtAge(j.ageSec)}</TableCell>
                           </TableRow>
@@ -372,134 +384,15 @@ export default function CronJobDrawer(props: {
               {/* SPEC */}
               {tab === 2 && (
                 <Box sx={drawerTabContentCompactSx}>
-                  <Accordion defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Job Template Summary</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Typography variant="caption" color="text.secondary">
-                        Containers
-                      </Typography>
-                      {(details?.spec?.jobTemplate?.containers || []).length === 0 ? (
-                        <EmptyState message="No containers defined." sx={{ mt: 0.5 }} />
-                      ) : (
-                        <Table size="small" sx={{ mt: 0.5 }}>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Name</TableCell>
-                              <TableCell>Image</TableCell>
-                              <TableCell>CPU Req/Lim</TableCell>
-                              <TableCell>Memory Req/Lim</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {(details?.spec?.jobTemplate?.containers || []).map((c, idx) => (
-                              <TableRow key={c.name || String(idx)}>
-                                <TableCell>{valueOrDash(c.name)}</TableCell>
-                                <TableCell sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                                  {valueOrDash(c.image)}
-                                </TableCell>
-                                <TableCell>
-                                  {valueOrDash(c.cpuRequest)} / {valueOrDash(c.cpuLimit)}
-                                </TableCell>
-                                <TableCell>
-                                  {valueOrDash(c.memoryRequest)} / {valueOrDash(c.memoryLimit)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Scheduling & Placement</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <KeyValueTable
-                        columns={2}
-                        rows={[{ label: "Affinity", value: details?.spec?.scheduling?.affinitySummary }]}
-                      />
-
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Node Selectors
-                        </Typography>
-                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
-                          {Object.entries(details?.spec?.scheduling?.nodeSelector || {}).length === 0 ? (
-                            <EmptyState message="None" />
-                          ) : (
-                            Object.entries(details?.spec?.scheduling?.nodeSelector || {}).map(([k, v]) => (
-                              <Chip key={k} size="small" label={`${k}=${v}`} />
-                            ))
-                          )}
-                        </Box>
-                      </Box>
-
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Tolerations
-                        </Typography>
-                        {(details?.spec?.scheduling?.tolerations || []).length === 0 ? (
-                          <EmptyState message="None" sx={{ mt: 0.5 }} />
-                        ) : (
-                          <Table size="small" sx={{ mt: 0.5 }}>
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Key</TableCell>
-                                <TableCell>Operator</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Effect</TableCell>
-                                <TableCell>Seconds</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {(details?.spec?.scheduling?.tolerations || []).map((t, idx) => (
-                                <TableRow key={`${t.key || "tol"}-${idx}`}>
-                                  <TableCell>{valueOrDash(t.key)}</TableCell>
-                                  <TableCell>{valueOrDash(t.operator)}</TableCell>
-                                  <TableCell>{valueOrDash(t.value)}</TableCell>
-                                  <TableCell>{valueOrDash(t.effect)}</TableCell>
-                                  <TableCell>{valueOrDash(t.seconds)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        )}
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Volumes</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {(details?.spec?.volumes || []).length === 0 ? (
-                        <EmptyState message="No volumes defined." />
-                      ) : (
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Name</TableCell>
-                              <TableCell>Type</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {(details?.spec?.volumes || []).map((v, idx) => (
-                              <TableRow key={v.name || String(idx)}>
-                                <TableCell>{valueOrDash(v.name)}</TableCell>
-                                <TableCell>{valueOrDash(v.type)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-
+                  <WorkloadSpecPanels
+                    template={details?.spec?.jobTemplate}
+                    scheduling={details?.spec?.scheduling}
+                    volumes={details?.spec?.volumes}
+                    missingReferences={details?.spec?.missingReferences}
+                    templateTitle="Job Template Summary"
+                    onOpenSecret={setDrawerSecret}
+                    onOpenConfigMap={setDrawerConfigMap}
+                  />
                 </Box>
               )}
 
@@ -542,6 +435,20 @@ export default function CronJobDrawer(props: {
               token={props.token}
               namespace={ns}
               jobName={drawerJob}
+            />
+            <SecretDrawer
+              open={!!drawerSecret}
+              onClose={() => setDrawerSecret(null)}
+              token={props.token}
+              namespace={ns}
+              secretName={drawerSecret}
+            />
+            <ConfigMapDrawer
+              open={!!drawerConfigMap}
+              onClose={() => setDrawerConfigMap(null)}
+              token={props.token}
+              namespace={ns}
+              configMapName={drawerConfigMap}
             />
           </>
         )}

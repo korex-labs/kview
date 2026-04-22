@@ -55,7 +55,45 @@ func DetectDeploymentDetailSignals(now time.Time, namespace string, details dto.
 	if s := detectDeploymentUnavailableSignal(now, namespace, details); s != nil {
 		out = append(out, *s)
 	}
+	if s := detectMissingTemplateReferenceSignal("Deployment", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		out = append(out, *s)
+	}
 	return out
+}
+
+func DetectDaemonSetDetailSignals(namespace string, details dto.DaemonSetDetailsDTO) []ClusterDashboardSignal {
+	if s := detectMissingTemplateReferenceSignal("DaemonSet", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		return []ClusterDashboardSignal{*s}
+	}
+	return nil
+}
+
+func DetectStatefulSetDetailSignals(namespace string, details dto.StatefulSetDetailsDTO) []ClusterDashboardSignal {
+	if s := detectMissingTemplateReferenceSignal("StatefulSet", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		return []ClusterDashboardSignal{*s}
+	}
+	return nil
+}
+
+func DetectReplicaSetDetailSignals(namespace string, details dto.ReplicaSetDetailsDTO) []ClusterDashboardSignal {
+	if s := detectMissingTemplateReferenceSignal("ReplicaSet", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		return []ClusterDashboardSignal{*s}
+	}
+	return nil
+}
+
+func DetectJobDetailSignals(namespace string, details dto.JobDetailsDTO) []ClusterDashboardSignal {
+	if s := detectMissingTemplateReferenceSignal("Job", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		return []ClusterDashboardSignal{*s}
+	}
+	return nil
+}
+
+func DetectCronJobDetailSignals(namespace string, details dto.CronJobDetailsDTO) []ClusterDashboardSignal {
+	if s := detectMissingTemplateReferenceSignal("CronJob", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
+		return []ClusterDashboardSignal{*s}
+	}
+	return nil
 }
 
 func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetailsDTO) *ClusterDashboardSignal {
@@ -335,6 +373,45 @@ func detectDeploymentUnavailableSignal(now time.Time, namespace string, details 
 	)
 	sig.ActualData = fmt.Sprintf("desired %d, available 0, age %s", desired, formatMinutesHuman(summary.AgeSec))
 	sig.CalculatedData = "no Available condition recorded"
+	return &sig
+}
+
+func detectMissingTemplateReferenceSignal(kind, namespace, name string, missing []dto.MissingReferenceDTO) *ClusterDashboardSignal {
+	if strings.TrimSpace(kind) == "" || strings.TrimSpace(name) == "" || len(missing) == 0 {
+		return nil
+	}
+
+	refs := make([]string, 0, len(missing))
+	descriptions := make([]string, 0, len(missing))
+	for _, ref := range missing {
+		refKind := strings.TrimSpace(ref.Kind)
+		refName := strings.TrimSpace(ref.Name)
+		if refKind == "" || refName == "" {
+			continue
+		}
+		refs = append(refs, strings.ToLower(refKind)+"/"+refName)
+		if ref.Source != "" {
+			descriptions = append(descriptions, fmt.Sprintf("%s %s (%s)", refKind, refName, ref.Source))
+		} else {
+			descriptions = append(descriptions, fmt.Sprintf("%s %s", refKind, refName))
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	sort.Strings(refs)
+	sort.Strings(descriptions)
+
+	signalType := strings.ToLower(kind) + "_missing_template_reference"
+	reason := fmt.Sprintf("%s pod template references missing object(s): %s.", kind, strings.Join(descriptions, ", "))
+	sig := dashboardSignalItem(
+		signalType, kind,
+		namespace, name,
+		"high", 85,
+		reason, "high", "workloads",
+	)
+	sig.ActualData = strings.Join(refs, ", ")
+	sig.CalculatedData = "pod template imagePullSecrets and Secret/ConfigMap volumes were checked by the backend"
 	return &sig
 }
 

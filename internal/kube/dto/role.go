@@ -1,15 +1,15 @@
 package dto
 
 type RoleListItemDTO struct {
-	Name             string `json:"name"`
-	Namespace        string `json:"namespace"`
-	RulesCount       int    `json:"rulesCount"`
-	AgeSec           int64  `json:"ageSec"`
-	PrivilegeBreadth string `json:"privilegeBreadth,omitempty"`
-	NeedsAttention   bool   `json:"needsAttention,omitempty"`
-	ListStatus       string `json:"listStatus,omitempty"`
+	Name               string `json:"name"`
+	Namespace          string `json:"namespace"`
+	RulesCount         int    `json:"rulesCount"`
+	AgeSec             int64  `json:"ageSec"`
+	PrivilegeBreadth   string `json:"privilegeBreadth,omitempty"`
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
+	ListStatus         string `json:"listStatus,omitempty"`
 	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount  int    `json:"listSignalCount,omitempty"`
+	ListSignalCount    int    `json:"listSignalCount,omitempty"`
 }
 
 type RoleDetailsDTO struct {

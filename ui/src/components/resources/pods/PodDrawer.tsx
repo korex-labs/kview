@@ -36,9 +36,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
+import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { eventChipColor, phaseChipColor } from "../../../utils/k8sUi";
-import ConditionsTable from "../../shared/ConditionsTable";
+import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
 import CodeBlock from "../../shared/CodeBlock";
 import IngressDrawer from "../ingresses/IngressDrawer";
 import ServiceDrawer from "../services/ServiceDrawer";
@@ -74,6 +74,7 @@ import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
+import ContainerImageLabel from "../../shared/ContainerImageLabel";
 import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
@@ -363,14 +364,6 @@ function formatIngressAddresses(addrs?: string[]) {
 function formatIngressTlsLabel(count?: number) {
   const num = Number(count || 0);
   return num > 0 ? `Yes (${num})` : "No";
-}
-
-function displayImageName(image?: string) {
-  const trimmed = String(image || "").trim();
-  if (!trimmed) return "-";
-  const last = trimmed.split("/").filter(Boolean).pop() || trimmed;
-  const digestless = last.split("@")[0] || last;
-  return digestless;
 }
 
 function formatPretty(lines: string[]): string {
@@ -1061,7 +1054,6 @@ export default function PodDrawer(props: {
     });
     return opts.sort((a, b) => Number(a.value) - Number(b.value));
   }, [details]);
-  const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
   const eventContainers = (details?.containers || []).map((c) => c.name).filter((n): n is string => !!n);
   const filteredEvents = useMemo(() => {
     if (!eventsContainerFilter) return events;
@@ -1141,7 +1133,7 @@ export default function PodDrawer(props: {
       { label: "Pod IP", value: valueOrDash(summary?.podIP) },
       { label: "Host IP", value: valueOrDash(summary?.hostIP) },
       { label: "QoS Class", value: valueOrDash(summary?.qosClass) },
-      { label: "Start Time", value: summary?.startTime ? fmtTs(summary.startTime) : "-" },
+      { label: "Start Time", value: summary?.startTime ? fmtTimeAgo(summary.startTime) : "-" },
       { label: "Age", value: fmtAge(summary?.ageSec) },
       {
         label: "Controller",
@@ -1425,14 +1417,7 @@ export default function PodDrawer(props: {
                     onJumpToEvents={() => setTab(4)}
                   />
 
-                  <Box sx={panelBoxSx}>
-                    <ConditionsTable
-                      conditions={details?.conditions || []}
-                      title="Health & Conditions"
-                      unhealthyFirst
-                      variant="section"
-                    />
-                  </Box>
+                  <HealthConditionsPanel conditions={details?.conditions || []} />
 
                   <Box sx={panelBoxSx}>
                     <Section title="Lifecycle & Scheduling" dividerPlacement="content">
@@ -1569,21 +1554,7 @@ export default function PodDrawer(props: {
                                   rows={[
                                     {
                                       label: "Image",
-                                      value: ctn.image ? (
-                                        <Tooltip
-                                          title={[`Image: ${ctn.image}`, ctn.imageId ? `Image ID: ${ctn.imageId}` : ""].filter(Boolean).join("\n")}
-                                          arrow
-                                        >
-                                          <Typography
-                                            variant="body2"
-                                            sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                                          >
-                                            {displayImageName(ctn.image)}
-                                          </Typography>
-                                        </Tooltip>
-                                      ) : (
-                                        "-"
-                                      ),
+                                      value: <ContainerImageLabel image={ctn.image} imageId={ctn.imageId} />,
                                     },
                                     {
                                       label: "State",
@@ -1602,8 +1573,8 @@ export default function PodDrawer(props: {
                                         </Typography>
                                       ),
                                     },
-                                    { label: "Started At", value: ctn.startedAt ? fmtTs(ctn.startedAt) : "-" },
-                                    { label: "Finished At", value: ctn.finishedAt ? fmtTs(ctn.finishedAt) : "-" },
+                                    { label: "Started At", value: ctn.startedAt ? fmtTimeAgo(ctn.startedAt) : "-" },
+                                    { label: "Finished At", value: ctn.finishedAt ? fmtTimeAgo(ctn.finishedAt) : "-" },
                                     { label: "Last Termination Reason", value: valueOrDash(ctn.lastTerminationReason) },
                                     {
                                       label: "Last Termination Message",
@@ -1613,7 +1584,7 @@ export default function PodDrawer(props: {
                                         </Typography>
                                       ),
                                     },
-                                    { label: "Last Termination At", value: ctn.lastTerminationAt ? fmtTs(ctn.lastTerminationAt) : "-" },
+                                    { label: "Last Termination At", value: ctn.lastTerminationAt ? fmtTimeAgo(ctn.lastTerminationAt) : "-" },
                                   ]}
                                 />
                               </Section>
@@ -2225,7 +2196,7 @@ export default function PodDrawer(props: {
                             )}
                           </Box>
                           <Typography variant="caption" color="text.secondary">
-                            {fmtTs(e.lastSeen)}
+                            {fmtTimeAgo(e.lastSeen)}
                           </Typography>
                         </Box>
                         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>

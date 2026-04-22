@@ -6,22 +6,20 @@ import {
   Tab,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
+import SecretDrawer from "../secrets/SecretDrawer";
+import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
 import ReplicaSetActions from "./ReplicaSetActions";
-import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
+import { fmtAge, valueOrDash } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
@@ -30,9 +28,10 @@ import Section from "../../shared/Section";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import MetadataSection from "../../shared/MetadataSection";
 import AttentionSummary from "../../shared/AttentionSummary";
-import ConditionsTable from "../../shared/ConditionsTable";
+import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
+import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -52,6 +51,10 @@ type ReplicaSetDetails = {
   spec: ReplicaSetSpec;
   linkedPods: ReplicaSetPodsSummary;
   yaml: string;
+};
+
+type ReplicaSetDetailsResponse = ApiItemResponse<ReplicaSetDetails> & {
+  detailSignals?: DashboardSignalItem[];
 };
 
 type EventDTO = {
@@ -113,6 +116,7 @@ type ReplicaSetSpec = {
     }[];
   };
   volumes?: { name: string; type?: string; source?: string }[];
+  missingReferences?: { kind: string; name: string; source?: string }[];
   metadata: {
     labels?: Record<string, string>;
     annotations?: Record<string, string>;
@@ -157,10 +161,13 @@ export default function ReplicaSetDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ReplicaSetDetails | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
+  const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerDeployment, setDrawerDeployment] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
+  const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
+  const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   const ns = props.namespace;
@@ -173,18 +180,22 @@ export default function ReplicaSetDrawer(props: {
     setErr("");
     setDetails(null);
     setEvents([]);
+    setDetailSignals([]);
     setDrawerPod(null);
     setDrawerDeployment(null);
     setDrawerNamespace(null);
+    setDrawerSecret(null);
+    setDrawerConfigMap(null);
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<ReplicaSetDetails>>(
+      const det = await apiGet<ReplicaSetDetailsResponse>(
         `/api/namespaces/${encodeURIComponent(ns)}/replicasets/${encodeURIComponent(name)}`,
         props.token
       );
       const item: ReplicaSetDetails | null = det?.item ?? null;
       setDetails(item);
+      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
 
       const ev = await apiGet<ApiListResponse<EventDTO>>(
         `/api/namespaces/${encodeURIComponent(ns)}/replicasets/${encodeURIComponent(name)}/events`,
@@ -199,7 +210,6 @@ export default function ReplicaSetDrawer(props: {
   const summary = details?.summary;
   const linkedPods = details?.linkedPods;
   const owner = summary?.owner;
-  const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
 
   const resourceSignals = useResourceSignals({
     token: props.token,
@@ -212,8 +222,8 @@ export default function ReplicaSetDrawer(props: {
   });
 
   const replicaSetSignals = useMemo<DashboardSignalItem[]>(
-    () => resourceSignals.signals || [],
-    [resourceSignals.signals],
+    () => [...detailSignals, ...(resourceSignals.signals || [])],
+    [detailSignals, resourceSignals.signals],
   );
 
   const warningEvents = useMemo(
@@ -320,10 +330,9 @@ export default function ReplicaSetDrawer(props: {
                     onJumpToSpec={() => setTab(2)}
                   />
 
-                  <ConditionsTable
+                  <HealthConditionsPanel
                     conditions={details?.conditions || []}
                     isHealthy={(cond) => isConditionHealthy(cond as ReplicaSetCondition)}
-                    unhealthyFirst
                   />
 
                   <Section title="Recent Warning events">
@@ -378,134 +387,14 @@ export default function ReplicaSetDrawer(props: {
               {/* SPEC */}
               {tab === 2 && (
                 <Box sx={drawerTabContentCompactSx}>
-                  <Accordion defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Pod Template Summary</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Typography variant="caption" color="text.secondary">
-                        Containers
-                      </Typography>
-                      {(details?.spec?.podTemplate?.containers || []).length === 0 ? (
-                        <EmptyState message="No containers defined." sx={{ mt: 0.5 }} />
-                      ) : (
-                        <Table size="small" sx={{ mt: 0.5 }}>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Name</TableCell>
-                              <TableCell>Image</TableCell>
-                              <TableCell>CPU Req/Lim</TableCell>
-                              <TableCell>Memory Req/Lim</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {(details?.spec?.podTemplate?.containers || []).map((c, idx) => (
-                              <TableRow key={c.name || String(idx)}>
-                                <TableCell>{valueOrDash(c.name)}</TableCell>
-                                <TableCell sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                                  {valueOrDash(c.image)}
-                                </TableCell>
-                                <TableCell>
-                                  {valueOrDash(c.cpuRequest)} / {valueOrDash(c.cpuLimit)}
-                                </TableCell>
-                                <TableCell>
-                                  {valueOrDash(c.memoryRequest)} / {valueOrDash(c.memoryLimit)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Scheduling & Placement</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <KeyValueTable
-                        columns={2}
-                        rows={[{ label: "Affinity", value: details?.spec?.scheduling?.affinitySummary }]}
-                      />
-
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Node Selectors
-                        </Typography>
-                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
-                          {Object.entries(details?.spec?.scheduling?.nodeSelector || {}).length === 0 ? (
-                            <EmptyState message="None" />
-                          ) : (
-                            Object.entries(details?.spec?.scheduling?.nodeSelector || {}).map(([k, v]) => (
-                              <Chip key={k} size="small" label={`${k}=${v}`} />
-                            ))
-                          )}
-                        </Box>
-                      </Box>
-
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Tolerations
-                        </Typography>
-                        {(details?.spec?.scheduling?.tolerations || []).length === 0 ? (
-                          <EmptyState message="None" sx={{ mt: 0.5 }} />
-                        ) : (
-                          <Table size="small" sx={{ mt: 0.5 }}>
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Key</TableCell>
-                                <TableCell>Operator</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Effect</TableCell>
-                                <TableCell>Seconds</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {(details?.spec?.scheduling?.tolerations || []).map((t, idx) => (
-                                <TableRow key={`${t.key ?? "toleration"}-${idx}`}>
-                                  <TableCell>{valueOrDash(t.key)}</TableCell>
-                                  <TableCell>{valueOrDash(t.operator)}</TableCell>
-                                  <TableCell>{valueOrDash(t.value)}</TableCell>
-                                  <TableCell>{valueOrDash(t.effect)}</TableCell>
-                                  <TableCell>{t.seconds !== undefined ? t.seconds : "-"}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        )}
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Volumes</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {(details?.spec?.volumes || []).length === 0 ? (
-                        <EmptyState message="No volumes defined." />
-                      ) : (
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Name</TableCell>
-                              <TableCell>Type</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {(details?.spec?.volumes || []).map((v, idx) => (
-                              <TableRow key={v.name || String(idx)}>
-                                <TableCell>{valueOrDash(v.name)}</TableCell>
-                                <TableCell>{valueOrDash(v.type)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-
+                  <WorkloadSpecPanels
+                    template={details?.spec?.podTemplate}
+                    scheduling={details?.spec?.scheduling}
+                    volumes={details?.spec?.volumes}
+                    missingReferences={details?.spec?.missingReferences}
+                    onOpenSecret={setDrawerSecret}
+                    onOpenConfigMap={setDrawerConfigMap}
+                  />
                 </Box>
               )}
 
@@ -557,6 +446,20 @@ export default function ReplicaSetDrawer(props: {
               onClose={() => setDrawerNamespace(null)}
               token={props.token}
               namespaceName={drawerNamespace}
+            />
+            <SecretDrawer
+              open={!!drawerSecret}
+              onClose={() => setDrawerSecret(null)}
+              token={props.token}
+              namespace={ns}
+              secretName={drawerSecret}
+            />
+            <ConfigMapDrawer
+              open={!!drawerConfigMap}
+              onClose={() => setDrawerConfigMap(null)}
+              token={props.token}
+              namespace={ns}
+              configMapName={drawerConfigMap}
             />
           </>
         )}

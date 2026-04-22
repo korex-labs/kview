@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import JobDrawer from "./JobDrawer";
 import { fmtAge } from "../../../utils/format";
-import { listSignalLabel, listSignalSeverityColor, statusChipColor } from "../../../utils/k8sUi";
+import { jobStatusChipColor, listSignalLabel, listSignalSeverityColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -36,7 +36,7 @@ const columns: GridColDef<Row>[] = [
     width: 140,
     renderCell: (p) => {
       const status = String(p.row.listStatus || p.row.status || "");
-      return <Chip size="small" label={status || "-"} color={statusChipColor(status)} />;
+      return <Chip size="small" label={status || "-"} color={jobStatusChipColor(status)} />;
     },
   },
   {

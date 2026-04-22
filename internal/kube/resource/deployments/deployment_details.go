@@ -155,11 +155,13 @@ func GetDeploymentDetails(ctx context.Context, c *cluster.Clients, namespace, na
 		return nil, err
 	}
 
+	volumes := kubepods.MapVolumes(dep.Spec.Template.Spec.Volumes)
+	imagePullSecrets := kubepods.MapImagePullSecrets(dep.Spec.Template.Spec.ImagePullSecrets)
 	spec := dto.DeploymentSpecDTO{
 		PodTemplate: dto.PodTemplateSummaryDTO{
 			Containers:       MapContainerSummaries(dep.Spec.Template.Spec.Containers),
 			InitContainers:   MapContainerSummaries(dep.Spec.Template.Spec.InitContainers),
-			ImagePullSecrets: kubepods.MapImagePullSecrets(dep.Spec.Template.Spec.ImagePullSecrets),
+			ImagePullSecrets: imagePullSecrets,
 		},
 		Scheduling: dto.DeploymentSchedulingDTO{
 			NodeSelector:              dep.Spec.Template.Spec.NodeSelector,
@@ -167,7 +169,7 @@ func GetDeploymentDetails(ctx context.Context, c *cluster.Clients, namespace, na
 			Tolerations:               kubepods.MapTolerations(dep.Spec.Template.Spec.Tolerations),
 			TopologySpreadConstraints: kubepods.MapTopologySpread(dep.Spec.Template.Spec.TopologySpreadConstraints),
 		},
-		Volumes: kubepods.MapVolumes(dep.Spec.Template.Spec.Volumes),
+		Volumes: volumes,
 		Metadata: dto.DeploymentMetadataDTO{
 			Labels:      dep.Spec.Template.Labels,
 			Annotations: dep.Spec.Template.Annotations,

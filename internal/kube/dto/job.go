@@ -1,19 +1,19 @@
 package dto
 
 type JobDTO struct {
-	Name           string `json:"name"`
-	Namespace      string `json:"namespace"`
-	Active         int32  `json:"active"`
-	Succeeded      int32  `json:"succeeded"`
-	Failed         int32  `json:"failed"`
-	DurationSec    int64  `json:"durationSec,omitempty"`
-	AgeSec         int64  `json:"ageSec"`
-	Status         string `json:"status"`
-	HealthBucket   string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
-	NeedsAttention bool   `json:"needsAttention,omitempty"`
-	ListStatus     string `json:"listStatus,omitempty"`
+	Name               string `json:"name"`
+	Namespace          string `json:"namespace"`
+	Active             int32  `json:"active"`
+	Succeeded          int32  `json:"succeeded"`
+	Failed             int32  `json:"failed"`
+	DurationSec        int64  `json:"durationSec,omitempty"`
+	AgeSec             int64  `json:"ageSec"`
+	Status             string `json:"status"`
+	HealthBucket       string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
+	ListStatus         string `json:"listStatus,omitempty"`
 	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount int `json:"listSignalCount,omitempty"`
+	ListSignalCount    int    `json:"listSignalCount,omitempty"`
 }
 
 type JobDetailsDTO struct {
@@ -21,6 +21,7 @@ type JobDetailsDTO struct {
 	Conditions []JobConditionDTO `json:"conditions"`
 	Pods       []JobPodDTO       `json:"pods"`
 	LinkedPods JobPodsSummaryDTO `json:"linkedPods"`
+	Spec       JobSpecDTO        `json:"spec"`
 	Metadata   JobMetadataDTO    `json:"metadata"`
 	Selector   string            `json:"selector,omitempty"`
 	YAML       string            `json:"yaml"`
@@ -63,6 +64,26 @@ type JobPodDTO struct {
 type JobPodsSummaryDTO struct {
 	Total int32 `json:"total"`
 	Ready int32 `json:"ready"`
+}
+
+type JobSpecDTO struct {
+	PodTemplate       PodTemplateSummaryDTO  `json:"podTemplate"`
+	Scheduling        JobSchedulingDTO       `json:"scheduling"`
+	Volumes           []VolumeDTO            `json:"volumes,omitempty"`
+	MissingReferences []MissingReferenceDTO  `json:"missingReferences,omitempty"`
+	Metadata          JobTemplateMetadataDTO `json:"metadata"`
+}
+
+type JobSchedulingDTO struct {
+	NodeSelector              map[string]string             `json:"nodeSelector,omitempty"`
+	AffinitySummary           string                        `json:"affinitySummary,omitempty"`
+	Tolerations               []TolerationDTO               `json:"tolerations,omitempty"`
+	TopologySpreadConstraints []TopologySpreadConstraintDTO `json:"topologySpreadConstraints,omitempty"`
+}
+
+type JobTemplateMetadataDTO struct {
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type JobMetadataDTO struct {

@@ -1,14 +1,14 @@
 package dto
 
 type ClusterRoleListItemDTO struct {
-	Name             string `json:"name"`
-	RulesCount       int    `json:"rulesCount"`
-	AgeSec           int64  `json:"ageSec"`
-	PrivilegeBreadth string `json:"privilegeBreadth,omitempty"`
-	NeedsAttention   bool   `json:"needsAttention,omitempty"`
-	ListStatus       string `json:"listStatus,omitempty"`
+	Name               string `json:"name"`
+	RulesCount         int    `json:"rulesCount"`
+	AgeSec             int64  `json:"ageSec"`
+	PrivilegeBreadth   string `json:"privilegeBreadth,omitempty"`
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
+	ListStatus         string `json:"listStatus,omitempty"`
 	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount  int    `json:"listSignalCount,omitempty"`
+	ListSignalCount    int    `json:"listSignalCount,omitempty"`
 }
 
 type ClusterRoleDetailsDTO struct {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/korex-labs/kview/internal/cluster"
 	"github.com/korex-labs/kview/internal/kube/dto"
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
 	pods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
 
@@ -20,17 +19,9 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 		return nil, err
 	}
 
-	latestEvents, _ := kubeevents.LatestEventsByObject(ctx, c, namespace, "Deployment")
-
 	now := time.Now()
 	out := make([]dto.DeploymentListItemDTO, 0, len(deps.Items))
 	for _, d := range deps.Items {
-		var lastEvent *dto.EventBriefDTO
-		if ev, ok := latestEvents[d.Name]; ok {
-			evCopy := ev
-			lastEvent = &evCopy
-		}
-
 		desired := int32(0)
 		if d.Spec.Replicas != nil {
 			desired = *d.Spec.Replicas
@@ -49,18 +40,39 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 		status := DeploymentStatus(d, desired)
 
 		out = append(out, dto.DeploymentListItemDTO{
-			Name:      d.Name,
-			Namespace: d.Namespace,
-			Ready:     pods.FmtReady(int(d.Status.AvailableReplicas), int(desired)),
-			UpToDate:  d.Status.UpdatedReplicas,
-			Available: d.Status.AvailableReplicas,
-			Strategy:  strategy,
-			AgeSec:    age,
-			LastEvent: lastEvent,
-			Status:    status,
+			Name:                d.Name,
+			Namespace:           d.Namespace,
+			Ready:               pods.FmtReady(int(d.Status.AvailableReplicas), int(desired)),
+			UpToDate:            d.Status.UpdatedReplicas,
+			Available:           d.Status.AvailableReplicas,
+			Strategy:            strategy,
+			AgeSec:              age,
+			LastRolloutComplete: deploymentLastRolloutComplete(d),
+			Status:              status,
 		})
 	}
 	return out, nil
+}
+
+func deploymentLastRolloutComplete(d appsv1.Deployment) int64 {
+	var progressingCond *appsv1.DeploymentCondition
+	var availableCond *appsv1.DeploymentCondition
+	for i := range d.Status.Conditions {
+		cond := &d.Status.Conditions[i]
+		switch cond.Type {
+		case appsv1.DeploymentProgressing:
+			progressingCond = cond
+		case appsv1.DeploymentAvailable:
+			availableCond = cond
+		}
+	}
+	if availableCond != nil && availableCond.Status == corev1.ConditionTrue {
+		return conditionUpdateTime(availableCond)
+	}
+	if progressingCond != nil && progressingCond.Reason == "NewReplicaSetAvailable" {
+		return conditionUpdateTime(progressingCond)
+	}
+	return 0
 }
 
 func DeploymentStatus(d appsv1.Deployment, desired int32) string {

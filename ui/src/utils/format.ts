@@ -44,6 +44,12 @@ export function fmtTs(unix?: number | null): string {
   )}:${pad(d.getSeconds())}`;
 }
 
+export function fmtTimeAgo(unix?: number | null): string {
+  if (!unix) return "-";
+  const ageSec = Math.max(0, Math.floor(Date.now() / 1000) - unix);
+  return `${fmtAge(ageSec)} ago`;
+}
+
 export function valueOrDash(val?: string | number | null): string {
   if (val === undefined || val === null || val === "") return "-";
   return String(val);

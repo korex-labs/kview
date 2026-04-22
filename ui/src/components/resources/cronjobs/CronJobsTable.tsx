@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import CronJobDrawer from "./CronJobDrawer";
-import { fmtAge, fmtTs } from "../../../utils/format";
+import { fmtAge, fmtTimeAgo } from "../../../utils/format";
 import { listSignalLabel, listSignalSeverityColor, statusChipColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
@@ -74,7 +74,7 @@ const columns: GridColDef<Row>[] = [
     width: 180,
     renderCell: (p) => {
       const ts = Number(p.row?.lastScheduleTime);
-      return ts > 0 ? fmtTs(ts) : "-";
+      return ts > 0 ? fmtTimeAgo(ts) : "-";
     },
   },
   {
@@ -83,7 +83,7 @@ const columns: GridColDef<Row>[] = [
     width: 180,
     renderCell: (p) => {
       const ts = Number(p.row?.lastSuccessfulTime);
-      return ts > 0 ? fmtTs(ts) : "-";
+      return ts > 0 ? fmtTimeAgo(ts) : "-";
     },
   },
   {

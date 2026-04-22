@@ -1,16 +1,16 @@
 package dto
 
 type ConfigMapDTO struct {
-	Name           string `json:"name"`
-	Namespace      string `json:"namespace"`
-	KeysCount      int    `json:"keysCount"`
-	Immutable      bool   `json:"immutable"`
-	AgeSec         int64  `json:"ageSec"`
-	ContentHint    string `json:"contentHint,omitempty"`
-	NeedsAttention bool   `json:"needsAttention,omitempty"`
-	ListStatus     string `json:"listStatus,omitempty"`
+	Name               string `json:"name"`
+	Namespace          string `json:"namespace"`
+	KeysCount          int    `json:"keysCount"`
+	Immutable          bool   `json:"immutable"`
+	AgeSec             int64  `json:"ageSec"`
+	ContentHint        string `json:"contentHint,omitempty"`
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
+	ListStatus         string `json:"listStatus,omitempty"`
 	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount int   `json:"listSignalCount,omitempty"`
+	ListSignalCount    int    `json:"listSignalCount,omitempty"`
 }
 
 type ConfigMapDetailsDTO struct {

@@ -82,6 +82,68 @@ type Server struct {
 	clusterOnline  map[string]bool
 }
 
+func missingTemplateRefsFromDataplane(ctx context.Context, dp dataplane.DataPlaneManager, clusterName, namespace string, template dto.PodTemplateSummaryDTO, volumes []dto.VolumeDTO) []dto.MissingReferenceDTO {
+	secretRefs := map[string]string{}
+	configMapRefs := map[string]string{}
+	for _, name := range template.ImagePullSecrets {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			secretRefs[name] = "imagePullSecret"
+		}
+	}
+	for _, volume := range volumes {
+		source := strings.TrimSpace(volume.Source)
+		if source == "" {
+			continue
+		}
+		switch strings.ToLower(volume.Type) {
+		case "secret":
+			if _, exists := secretRefs[source]; !exists {
+				secretRefs[source] = "volume/" + volume.Name
+			}
+		case "configmap":
+			configMapRefs[source] = "volume/" + volume.Name
+		}
+	}
+
+	out := []dto.MissingReferenceDTO{}
+	if len(secretRefs) > 0 {
+		if snap, err := dp.SecretsSnapshot(ctx, clusterName, namespace); err == nil {
+			existing := map[string]struct{}{}
+			for _, item := range snap.Items {
+				existing[item.Name] = struct{}{}
+			}
+			for name, source := range secretRefs {
+				if _, ok := existing[name]; !ok {
+					out = append(out, dto.MissingReferenceDTO{Kind: "Secret", Name: name, Source: source})
+				}
+			}
+		}
+	}
+	if len(configMapRefs) > 0 {
+		if snap, err := dp.ConfigMapsSnapshot(ctx, clusterName, namespace); err == nil {
+			existing := map[string]struct{}{}
+			for _, item := range snap.Items {
+				existing[item.Name] = struct{}{}
+			}
+			for name, source := range configMapRefs {
+				if _, ok := existing[name]; !ok {
+					out = append(out, dto.MissingReferenceDTO{Kind: "ConfigMap", Name: name, Source: source})
+				}
+			}
+		}
+	}
+	return out
+}
+
+func detailSignalsResponse(signals []dataplane.ClusterDashboardSignal) []dto.NamespaceInsightSignalDTO {
+	out := dataplane.NamespaceInsightSignalsFromDashboard(signals)
+	if out == nil {
+		return []dto.NamespaceInsightSignalDTO{}
+	}
+	return out
+}
+
 func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server {
 	dpMgr := dataplane.NewManager(dataplane.ManagerConfig{
 		ClusterManager: mgr,
@@ -1659,7 +1721,7 @@ func (s *Server) Router() http.Handler {
 			// We pull the pod's events best-effort: an RBAC denial on events
 			// must not break rendering the pod drawer, so we silently drop
 			// event-derived signals if the list call fails.
-			var detailSignals []dto.NamespaceInsightSignalDTO
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				evs, evErr := kubeevents.ListEventsForPod(ctx, clients, ns, name)
 				if evErr != nil {
@@ -1763,11 +1825,8 @@ func (s *Server) Router() http.Handler {
 
 			var detailSignals []dto.NamespaceInsightSignalDTO
 			if det != nil {
-				signals := dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det)
-				detailSignals = dataplane.NamespaceInsightSignalsFromDashboard(signals)
-			}
-			if detailSignals == nil {
-				detailSignals = []dto.NamespaceInsightSignalDTO{}
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -1833,7 +1892,13 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
+			if det != nil {
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectDaemonSetDetailSignals(ns, *det))
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
 		})
 
 		api.Get("/namespaces/{ns}/daemonsets/{name}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -1915,7 +1980,13 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
+			if det != nil {
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectStatefulSetDetailSignals(ns, *det))
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
 		})
 
 		api.Get("/namespaces/{ns}/statefulsets/{name}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -1997,7 +2068,13 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
+			if det != nil {
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectReplicaSetDetailSignals(ns, *det))
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
 		})
 
 		api.Get("/namespaces/{ns}/replicasets/{name}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -2053,7 +2130,13 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
+			if det != nil {
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectJobDetailSignals(ns, *det))
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
 		})
 
 		api.Get("/namespaces/{ns}/jobs/{name}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -2109,7 +2192,13 @@ func (s *Server) Router() http.Handler {
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+			detailSignals := []dto.NamespaceInsightSignalDTO{}
+			if det != nil {
+				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.JobTemplate, det.Spec.Volumes)
+				detailSignals = detailSignalsResponse(dataplane.DetectCronJobDetailSignals(ns, *det))
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
 		})
 
 		api.Get("/namespaces/{ns}/cronjobs/{name}/events", func(w http.ResponseWriter, r *http.Request) {

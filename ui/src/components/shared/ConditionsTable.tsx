@@ -12,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { fmtTs, valueOrDash } from "../../utils/format";
+import { fmtTimeAgo, valueOrDash } from "../../utils/format";
 import { conditionStatusColor } from "../../utils/k8sUi";
 import type { ChipColor } from "../../utils/k8sUi";
 import Section from "./Section";
@@ -114,7 +114,7 @@ function ConditionsBody({
                 {valueOrDash(c.message)}
               </TableCell>
               <TableCell>
-                {c.lastTransitionTime ? fmtTs(c.lastTransitionTime) : "-"}
+                {c.lastTransitionTime ? fmtTimeAgo(c.lastTransitionTime) : "-"}
               </TableCell>
             </TableRow>
           );

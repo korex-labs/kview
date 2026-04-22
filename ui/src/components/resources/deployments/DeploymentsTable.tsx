@@ -4,8 +4,8 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import DeploymentDrawer from "./DeploymentDrawer";
-import { fmtAge } from "../../../utils/format";
-import { eventChipColor, listSignalLabel, listSignalSeverityColor, statusChipColor } from "../../../utils/k8sUi";
+import { fmtAge, fmtTimeAgo } from "../../../utils/format";
+import { deploymentHealthBucketColor, listSignalLabel, listSignalSeverityColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -18,12 +18,8 @@ type Deployment = {
   available: number;
   strategy: string;
   ageSec: number;
+  lastRolloutComplete?: number;
   status: string;
-  lastEvent?: {
-    type: string;
-    reason: string;
-    lastSeen: number;
-  };
   rolloutNeedsAttention?: boolean;
   listStatus?: string;
   listSignalSeverity?: string;
@@ -42,7 +38,7 @@ const columns: GridColDef<Row>[] = [
     width: 150,
     renderCell: (p) => {
       const status = String(p.row.listStatus || p.value || "");
-      return <Chip size="small" label={status || "-"} color={statusChipColor(status)} />;
+      return <Chip size="small" label={status || "-"} color={deploymentHealthBucketColor(status)} />;
     },
   },
   {
@@ -60,15 +56,14 @@ const columns: GridColDef<Row>[] = [
   { field: "available", headerName: "Available", width: 120, type: "number" },
   { field: "strategy", headerName: "Strategy", width: 140 },
   {
-    field: "lastEvent",
-    headerName: "Last Event",
-    width: 200,
+    field: "lastRolloutComplete",
+    headerName: "Last Rollout Complete",
+    width: 190,
+    type: "number",
     renderCell: (p) => {
-      const ev = p.row.lastEvent;
-      if (!ev?.reason) return "-";
-      return <Chip size="small" label={ev.reason} color={eventChipColor(ev.type)} />;
+      const ts = Number(p.row.lastRolloutComplete || 0);
+      return ts > 0 ? fmtTimeAgo(ts) : "-";
     },
-    sortable: false,
   },
   {
     field: "ageSec",

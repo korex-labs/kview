@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Chip, Typography } from "@mui/material";
-import { fmtTs, valueOrDash } from "../../utils/format";
+import { fmtTimeAgo, valueOrDash } from "../../utils/format";
 import { eventChipColor } from "../../utils/k8sUi";
 import { panelBoxCompactSx } from "../../theme/sxTokens";
 import EmptyState from "./EmptyState";
@@ -61,7 +61,7 @@ export default function EventsList({
               ) : null}
             </Box>
             <Typography variant="caption" color="text.secondary">
-              {fmtTs(e.lastSeen)}
+              {fmtTimeAgo(e.lastSeen)}
             </Typography>
           </Box>
           <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>

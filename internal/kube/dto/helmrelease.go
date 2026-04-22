@@ -1,23 +1,23 @@
 package dto
 
 type HelmReleaseDTO struct {
-	Name            string `json:"name"`
-	Namespace       string `json:"namespace"`
-	Status          string `json:"status"`
-	Revision        int    `json:"revision"`
-	Chart           string `json:"chart"`
-	ChartName       string `json:"chartName"`
-	ChartVersion    string `json:"chartVersion"`
-	AppVersion      string `json:"appVersion"`
-	Description     string `json:"description,omitempty"`
-	Updated         int64  `json:"updated"`
-	StorageBackend  string `json:"storageBackend"`
-	StabilityBucket string `json:"stabilityBucket,omitempty"`
-	Transitional    bool   `json:"transitional,omitempty"`
-	NeedsAttention  bool   `json:"needsAttention,omitempty"`
-	ListStatus      string `json:"listStatus,omitempty"`
+	Name               string `json:"name"`
+	Namespace          string `json:"namespace"`
+	Status             string `json:"status"`
+	Revision           int    `json:"revision"`
+	Chart              string `json:"chart"`
+	ChartName          string `json:"chartName"`
+	ChartVersion       string `json:"chartVersion"`
+	AppVersion         string `json:"appVersion"`
+	Description        string `json:"description,omitempty"`
+	Updated            int64  `json:"updated"`
+	StorageBackend     string `json:"storageBackend"`
+	StabilityBucket    string `json:"stabilityBucket,omitempty"`
+	Transitional       bool   `json:"transitional,omitempty"`
+	NeedsAttention     bool   `json:"needsAttention,omitempty"`
+	ListStatus         string `json:"listStatus,omitempty"`
 	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount int    `json:"listSignalCount,omitempty"`
+	ListSignalCount    int    `json:"listSignalCount,omitempty"`
 }
 
 type HelmReleaseDetailsDTO struct {

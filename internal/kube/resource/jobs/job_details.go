@@ -14,6 +14,7 @@ import (
 
 	"github.com/korex-labs/kview/internal/cluster"
 	"github.com/korex-labs/kview/internal/kube/dto"
+	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
 )
@@ -89,6 +90,25 @@ func GetJobDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 		Ready: readyPods,
 	}
 
+	spec := dto.JobSpecDTO{
+		PodTemplate: dto.PodTemplateSummaryDTO{
+			Containers:       deployments.MapContainerSummaries(job.Spec.Template.Spec.Containers),
+			InitContainers:   deployments.MapContainerSummaries(job.Spec.Template.Spec.InitContainers),
+			ImagePullSecrets: kubepods.MapImagePullSecrets(job.Spec.Template.Spec.ImagePullSecrets),
+		},
+		Scheduling: dto.JobSchedulingDTO{
+			NodeSelector:              job.Spec.Template.Spec.NodeSelector,
+			AffinitySummary:           kubepods.SummarizeAffinity(job.Spec.Template.Spec.Affinity),
+			Tolerations:               kubepods.MapTolerations(job.Spec.Template.Spec.Tolerations),
+			TopologySpreadConstraints: kubepods.MapTopologySpread(job.Spec.Template.Spec.TopologySpreadConstraints),
+		},
+		Volumes: kubepods.MapVolumes(job.Spec.Template.Spec.Volumes),
+		Metadata: dto.JobTemplateMetadataDTO{
+			Labels:      job.Spec.Template.Labels,
+			Annotations: job.Spec.Template.Annotations,
+		},
+	}
+
 	metadata := dto.JobMetadataDTO{
 		Labels:      job.Labels,
 		Annotations: job.Annotations,
@@ -99,6 +119,7 @@ func GetJobDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 		Conditions: conditions,
 		Pods:       pods,
 		LinkedPods: linked,
+		Spec:       spec,
 		Metadata:   metadata,
 		Selector:   selector,
 		YAML:       string(y),

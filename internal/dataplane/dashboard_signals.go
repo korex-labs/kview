@@ -368,4 +368,12 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		SuggestedAction: "Inspect the latest rollout, the active ReplicaSet, pod events, and probe configuration. Roll back or fix the failing template/dependency to restore available replicas.",
 		Priority:        1,
 	},
+	"deployment_missing_template_reference": {
+		Type:            "deployment_missing_template_reference",
+		Label:           "Deployments with missing template references",
+		CalculatedData:  "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The Deployment template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, update the Deployment template reference, then restart the rollout if pods are stuck on the old template.",
+		Priority:        1,
+	},
 }

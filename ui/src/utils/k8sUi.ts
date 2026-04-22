@@ -35,14 +35,30 @@ export function conditionStatusColor(status?: string | null): ChipColor {
 }
 
 export function statusChipColor(status?: string | null): ChipColor {
-  switch (status) {
-    case "Available":
+  switch ((status || "").toLowerCase()) {
+    case "available":
+    case "active":
+    case "complete":
+    case "completed":
+    case "healthy":
+    case "ok":
+    case "ready":
+    case "running":
+    case "succeeded":
       return "success";
-    case "Progressing":
+    case "progressing":
+    case "pending":
+    case "suspended":
+    case "unknown":
+    case "waiting":
       return "warning";
-    case "Paused":
-      return "default";
-    case "ScaledDown":
+    case "degraded":
+    case "error":
+    case "failed":
+    case "notready":
+      return "error";
+    case "paused":
+    case "scaleddown":
       return "default";
     default:
       return "default";

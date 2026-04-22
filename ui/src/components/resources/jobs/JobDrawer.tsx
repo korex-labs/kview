@@ -6,32 +6,31 @@ import {
   Tab,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
 import CronJobDrawer from "../cronjobs/CronJobDrawer";
+import SecretDrawer from "../secrets/SecretDrawer";
+import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
 import JobActions from "./JobActions";
-import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
-import { eventChipColor, jobStatusChipColor, phaseChipColor } from "../../../utils/k8sUi";
+import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
+import { jobStatusChipColor, phaseChipColor } from "../../../utils/k8sUi";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import AttentionSummary from "../../shared/AttentionSummary";
-import ConditionsTable from "../../shared/ConditionsTable";
+import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
+import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
@@ -47,7 +46,12 @@ type JobDetails = {
   conditions: JobCondition[];
   pods: JobPod[];
   linkedPods: JobPodsSummary;
+  spec: JobSpec;
   yaml: string;
+};
+
+type JobDetailsResponse = ApiItemResponse<JobDetails> & {
+  detailSignals?: DashboardSignalItem[];
 };
 
 type EventDTO = {
@@ -103,6 +107,46 @@ type JobPodsSummary = {
   ready: number;
 };
 
+type JobSpec = {
+  podTemplate: {
+    containers?: ContainerSummary[];
+    initContainers?: ContainerSummary[];
+    imagePullSecrets?: string[];
+  };
+  scheduling: {
+    nodeSelector?: Record<string, string>;
+    affinitySummary?: string;
+    tolerations?: {
+      key?: string;
+      operator?: string;
+      value?: string;
+      effect?: string;
+      seconds?: number;
+    }[];
+    topologySpreadConstraints?: {
+      maxSkew: number;
+      topologyKey?: string;
+      whenUnsatisfiable?: string;
+      labelSelector?: string;
+    }[];
+  };
+  volumes?: { name: string; type?: string; source?: string }[];
+  missingReferences?: { kind: string; name: string; source?: string }[];
+  metadata: {
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+};
+
+type ContainerSummary = {
+  name: string;
+  image?: string;
+  cpuRequest?: string;
+  cpuLimit?: string;
+  memoryRequest?: string;
+  memoryLimit?: string;
+};
+
 function isConditionHealthy(cond: JobCondition) {
   if (cond.type === "Failed") {
     return cond.status !== "True";
@@ -127,9 +171,12 @@ export default function JobDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<JobDetails | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
+  const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerCronJob, setDrawerCronJob] = useState<string | null>(null);
+  const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
+  const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
 
   const ns = props.namespace;
   const name = props.jobName;
@@ -141,17 +188,21 @@ export default function JobDrawer(props: {
     setErr("");
     setDetails(null);
     setEvents([]);
+    setDetailSignals([]);
     setDrawerPod(null);
     setDrawerCronJob(null);
+    setDrawerSecret(null);
+    setDrawerConfigMap(null);
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<JobDetails>>(
+      const det = await apiGet<JobDetailsResponse>(
         `/api/namespaces/${encodeURIComponent(ns)}/jobs/${encodeURIComponent(name)}`,
         props.token
       );
       const item: JobDetails | null = det?.item ?? null;
       setDetails(item);
+      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
 
       const ev = await apiGet<ApiListResponse<EventDTO>>(
         `/api/namespaces/${encodeURIComponent(ns)}/jobs/${encodeURIComponent(name)}/events`,
@@ -165,7 +216,6 @@ export default function JobDrawer(props: {
 
   const summary = details?.summary;
   const linkedPods = details?.linkedPods;
-  const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
 
   const resourceSignals = useResourceSignals({
     token: props.token,
@@ -178,8 +228,8 @@ export default function JobDrawer(props: {
   });
 
   const jobSignals = useMemo<DashboardSignalItem[]>(
-    () => resourceSignals.signals || [],
-    [resourceSignals.signals],
+    () => [...detailSignals, ...(resourceSignals.signals || [])],
+    [detailSignals, resourceSignals.signals],
   );
 
   const warningEvents = useMemo(
@@ -216,8 +266,8 @@ export default function JobDrawer(props: {
         value: `${valueOrDash(summary?.completions)} / ${valueOrDash(summary?.parallelism)}`,
       },
       { label: "Backoff Limit", value: valueOrDash(summary?.backoffLimit) },
-      { label: "Start Time", value: summary?.startTime ? fmtTs(summary.startTime) : "-" },
-      { label: "Completion Time", value: summary?.completionTime ? fmtTs(summary.completionTime) : "-" },
+      { label: "Start Time", value: summary?.startTime ? fmtTimeAgo(summary.startTime) : "-" },
+      { label: "Completion Time", value: summary?.completionTime ? fmtTimeAgo(summary.completionTime) : "-" },
       { label: "Duration", value: formatDuration(summary?.durationSec) },
       { label: "Age", value: fmtAge(summary?.ageSec) },
       { label: "Linked Pods", value: linkedPods ? `${linkedPods.ready}/${linkedPods.total}` : "-" },
@@ -246,6 +296,7 @@ export default function JobDrawer(props: {
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab label="Overview" />
               <Tab label="Pods" />
+              <Tab label="Spec" />
               <Tab label="Events" />
               <Tab label="Metadata" />
               <Tab label="YAML" />
@@ -268,13 +319,13 @@ export default function JobDrawer(props: {
 
                   <AttentionSummary
                     signals={jobSignals}
-                    onJumpToEvents={() => setTab(2)}
+                    onJumpToEvents={() => setTab(3)}
+                    onJumpToSpec={() => setTab(2)}
                   />
 
-                  <ConditionsTable
+                  <HealthConditionsPanel
                     conditions={details?.conditions || []}
                     isHealthy={(cond) => isConditionHealthy(cond as JobCondition)}
-                    unhealthyFirst
                   />
 
                   <Section title="Recent Warning events">
@@ -326,15 +377,29 @@ export default function JobDrawer(props: {
                 </Box>
               )}
 
-              {/* EVENTS */}
+              {/* SPEC */}
               {tab === 2 && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                  <WorkloadSpecPanels
+                    template={details?.spec?.podTemplate}
+                    scheduling={details?.spec?.scheduling}
+                    volumes={details?.spec?.volumes}
+                    missingReferences={details?.spec?.missingReferences}
+                    onOpenSecret={setDrawerSecret}
+                    onOpenConfigMap={setDrawerConfigMap}
+                  />
+                </Box>
+              )}
+
+              {/* EVENTS */}
+              {tab === 3 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsList events={events} emptyMessage="No events found for this Job." />
                 </Box>
               )}
 
               {/* METADATA */}
-              {tab === 3 && (
+              {tab === 4 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
@@ -347,7 +412,7 @@ export default function JobDrawer(props: {
               )}
 
               {/* YAML */}
-              {tab === 4 && (
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
@@ -364,6 +429,20 @@ export default function JobDrawer(props: {
               token={props.token}
               namespace={ns}
               cronJobName={drawerCronJob}
+            />
+            <SecretDrawer
+              open={!!drawerSecret}
+              onClose={() => setDrawerSecret(null)}
+              token={props.token}
+              namespace={ns}
+              secretName={drawerSecret}
+            />
+            <ConfigMapDrawer
+              open={!!drawerConfigMap}
+              onClose={() => setDrawerConfigMap(null)}
+              token={props.token}
+              namespace={ns}
+              configMapName={drawerConfigMap}
             />
           </>
         )}

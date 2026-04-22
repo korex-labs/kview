@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { fmtTs, valueOrDash, fmtAge } from "./format";
+import { describe, it, expect, vi } from "vitest";
+import { fmtTs, valueOrDash, fmtAge, fmtTimeAgo } from "./format";
 
 describe("format", () => {
   describe("fmtTs", () => {
@@ -41,6 +41,18 @@ describe("format", () => {
       expect(fmtAge(120)).toBe("2m");
       expect(fmtAge(7200)).toBe("2h");
       expect(fmtAge(172800)).toBe("2d");
+    });
+  });
+
+  describe("fmtTimeAgo", () => {
+    it("formats unix timestamps as relative age", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2025-01-15T14:00:00Z"));
+      try {
+        expect(fmtTimeAgo(Date.parse("2025-01-15T12:00:00Z") / 1000)).toBe("2h ago");
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

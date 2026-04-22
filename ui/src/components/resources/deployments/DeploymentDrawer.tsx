@@ -6,33 +6,33 @@ import {
   Tab,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
+  Tooltip,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import DeploymentActions from "./DeploymentActions";
 import Section from "../../shared/Section";
 import PodDrawer from "../pods/PodDrawer";
 import ReplicaSetDrawer from "../replicasets/ReplicaSetDrawer";
-import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
+import SecretDrawer from "../secrets/SecretDrawer";
+import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
+import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
-import ConditionsTable from "../../shared/ConditionsTable";
+import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
 import EventsList from "../../shared/EventsList";
 import CodeBlock from "../../shared/CodeBlock";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
+import ContainerImageLabel from "../../shared/ContainerImageLabel";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -151,6 +151,7 @@ type DeploymentSpec = {
     }[];
   };
   volumes?: { name: string; type?: string; source?: string }[];
+  missingReferences?: { kind: string; name: string; source?: string }[];
   metadata: {
     labels?: Record<string, string>;
     annotations?: Record<string, string>;
@@ -190,6 +191,8 @@ export default function DeploymentDrawer(props: {
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerReplicaSet, setDrawerReplicaSet] = useState<string | null>(null);
+  const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
+  const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
 
   const ns = props.namespace;
@@ -206,6 +209,8 @@ export default function DeploymentDrawer(props: {
     setDetailSignals([]);
     setDrawerPod(null);
     setDrawerReplicaSet(null);
+    setDrawerSecret(null);
+    setDrawerConfigMap(null);
     setDrawerNamespace(null);
     setLoading(true);
 
@@ -226,11 +231,9 @@ export default function DeploymentDrawer(props: {
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);
 
   const summary = details?.summary;
-  const hasUnhealthyConditions = (details?.conditions || []).some((c) => !isConditionHealthy(c));
   const rollout = details?.rollout;
   const rolloutNeedsAttention =
     !!rollout &&
@@ -254,6 +257,19 @@ export default function DeploymentDrawer(props: {
     () => [...detailSignals, ...(snapshotSignals.signals || [])],
     [detailSignals, snapshotSignals.signals],
   );
+  const missingRefSignalsByKey = useMemo(() => {
+    const out = new Map<string, DashboardSignalItem>();
+    deploymentSignals
+      .filter((signal) => signal.signalType === "deployment_missing_template_reference")
+      .forEach((signal) => {
+        (signal.actualData || "")
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .forEach((ref) => out.set(ref.toLowerCase(), signal));
+      });
+    return out;
+  }, [deploymentSignals]);
 
   const warningEvents = useMemo(
     () => events.filter((e) => String(e.type).toLowerCase() === "warning").slice(0, 5),
@@ -316,8 +332,7 @@ export default function DeploymentDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab label="Overview" />
-              <Tab label="Rollout" />
-              <Tab label="Pods" />
+              <Tab label="Inventory" />
               <Tab label="Spec" />
               <Tab label="Events" />
               <Tab label="Metadata" />
@@ -343,33 +358,30 @@ export default function DeploymentDrawer(props: {
 
                   <AttentionSummary
                     signals={deploymentSignals}
-                    onJumpToEvents={() => setTab(4)}
-                    onJumpToSpec={() => setTab(3)}
+                    onJumpToEvents={() => setTab(3)}
+                    onJumpToSpec={() => setTab(2)}
                   />
 
-                  <ConditionsTable
+                  <HealthConditionsPanel
                     conditions={details?.conditions || []}
                     isHealthy={(cond) => isConditionHealthy(cond as DeploymentCondition)}
-                    unhealthyFirst
                   />
 
-                  <Section title="Recent Warning events">
-                    <Box sx={panelBoxSx}>
-                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
-                    </Box>
-                  </Section>
-
-                  <Accordion defaultExpanded={!!rollout && (rollout.inProgress || rollout.progressDeadlineExceeded)}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Rollout Summary</Typography>
-                      {!!rollout && rollout.progressDeadlineExceeded && (
-                        <Chip size="small" color="error" label="Deadline Exceeded" sx={{ ml: 1 }} />
-                      )}
-                      {!!rollout && rollout.inProgress && !rollout.progressDeadlineExceeded && (
-                        <Chip size="small" color="warning" label="In progress" sx={{ ml: 1 }} />
-                      )}
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section
+                      title="Rollout Summary"
+                      dividerPlacement="content"
+                      actions={
+                        <>
+                          {!!rollout && rollout.progressDeadlineExceeded && (
+                            <Chip size="small" color="error" label="Deadline Exceeded" />
+                          )}
+                          {!!rollout && rollout.inProgress && !rollout.progressDeadlineExceeded && (
+                            <Chip size="small" color="warning" label="In progress" />
+                          )}
+                        </>
+                      }
+                    >
                       <KeyValueTable
                         columns={2}
                         rows={[
@@ -387,26 +399,109 @@ export default function DeploymentDrawer(props: {
                                 ? "Exceeded"
                                 : "OK",
                           },
-                          { label: "Last Rollout Start", value: rollout?.lastRolloutStart ? fmtTs(rollout.lastRolloutStart) : "-" },
+                          { label: "Last Rollout Start", value: rollout?.lastRolloutStart ? fmtTimeAgo(rollout.lastRolloutStart) : "-" },
                           {
                             label: "Last Rollout Complete",
-                            value: rollout?.lastRolloutComplete ? fmtTs(rollout.lastRolloutComplete) : "-",
+                            value: rollout?.lastRolloutComplete ? fmtTimeAgo(rollout.lastRolloutComplete) : "-",
                           },
                         ]}
                       />
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
+
+                  <Box sx={panelBoxSx}>
+                    <Section
+                      title="Rollout Diagnostics"
+                      dividerPlacement="content"
+                      actions={rolloutNeedsAttention ? <Chip size="small" color="warning" label="Attention" /> : null}
+                    >
+                      {!rollout ? (
+                        <EmptyState message="No rollout diagnostics available." />
+                      ) : (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                            {rollout.progressDeadlineExceeded && (
+                              <Chip size="small" color="error" label="ProgressDeadlineExceeded" />
+                            )}
+                            {rollout.missingReplicas > 0 && (
+                              <Chip size="small" color="warning" label={`Missing replicas: ${rollout.missingReplicas}`} />
+                            )}
+                            {rollout.unavailableReplicas > 0 && (
+                              <Chip
+                                size="small"
+                                color="warning"
+                                label={`Unavailable replicas: ${rollout.unavailableReplicas}`}
+                              />
+                            )}
+                            {rollout.inProgress && <Chip size="small" color="info" label="Rollout in progress" />}
+                          </Box>
+                          {(rollout.warnings || []).length === 0 ? (
+                            <EmptyState message="No warnings reported." />
+                          ) : (
+                            (rollout.warnings || []).map((w, idx) => (
+                              <Typography key={`${w}-${idx}`} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                                {w}
+                              </Typography>
+                            ))
+                          )}
+                        </Box>
+                      )}
+                    </Section>
+                  </Box>
+
+                  <Box sx={panelBoxSx}>
+                    <Section title="Recent Warning events" dividerPlacement="content">
+                      <EventsList events={warningEvents} emptyMessage="No recent warning events." />
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
-              {/* ROLLOUT */}
+              {/* INVENTORY */}
               {tab === 1 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-                  <Accordion defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">ReplicaSets</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Pods" dividerPlacement="content">
+                      {(details?.pods || []).length === 0 ? (
+                        <EmptyState message="No pods found for this Deployment." />
+                      ) : (
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Pod</TableCell>
+                              <TableCell>Phase</TableCell>
+                              <TableCell>Ready</TableCell>
+                              <TableCell>Restarts</TableCell>
+                              <TableCell>Node</TableCell>
+                              <TableCell>Age</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {(details?.pods || []).map((p, idx) => (
+                              <TableRow
+                                key={p.name || String(idx)}
+                                hover
+                                onClick={() => p.name && setDrawerPod(p.name)}
+                                sx={{ cursor: p.name ? "pointer" : "default" }}
+                              >
+                                <TableCell>{valueOrDash(p.name)}</TableCell>
+                                <TableCell>
+                                  <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
+                                </TableCell>
+                                <TableCell>{valueOrDash(p.ready)}</TableCell>
+                                <TableCell>{valueOrDash(p.restarts)}</TableCell>
+                                <TableCell>{valueOrDash(p.node)}</TableCell>
+                                <TableCell>{fmtAge(p.ageSec)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </Section>
+                  </Box>
+
+                  <Box sx={panelBoxSx}>
+                    <Section title="ReplicaSets" dividerPlacement="content">
                       {(details?.replicaSets || []).length === 0 ? (
                         <EmptyState message="No ReplicaSets found for this Deployment." />
                       ) : (
@@ -455,100 +550,16 @@ export default function DeploymentDrawer(props: {
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
-
-                  <Accordion defaultExpanded={rolloutNeedsAttention}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Rollout Diagnostics</Typography>
-                      {rolloutNeedsAttention && <Chip size="small" color="warning" label="Attention" sx={{ ml: 1 }} />}
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {!rollout ? (
-                        <EmptyState message="No rollout diagnostics available." />
-                      ) : (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                            {rollout.progressDeadlineExceeded && (
-                              <Chip size="small" color="error" label="ProgressDeadlineExceeded" />
-                            )}
-                            {rollout.missingReplicas > 0 && (
-                              <Chip size="small" color="warning" label={`Missing replicas: ${rollout.missingReplicas}`} />
-                            )}
-                            {rollout.unavailableReplicas > 0 && (
-                              <Chip
-                                size="small"
-                                color="warning"
-                                label={`Unavailable replicas: ${rollout.unavailableReplicas}`}
-                              />
-                            )}
-                            {rollout.inProgress && <Chip size="small" color="info" label="Rollout in progress" />}
-                          </Box>
-                          {(rollout.warnings || []).length === 0 ? (
-                            <EmptyState message="No warnings reported." />
-                          ) : (
-                            (rollout.warnings || []).map((w, idx) => (
-                              <Typography key={`${w}-${idx}`} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                                {w}
-                              </Typography>
-                            ))
-                          )}
-                        </Box>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-                </Box>
-              )}
-
-              {/* PODS */}
-              {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
-                  {(details?.pods || []).length === 0 ? (
-                    <EmptyState message="No pods found for this Deployment." />
-                  ) : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Pod</TableCell>
-                          <TableCell>Phase</TableCell>
-                          <TableCell>Ready</TableCell>
-                          <TableCell>Restarts</TableCell>
-                          <TableCell>Node</TableCell>
-                          <TableCell>Age</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(details?.pods || []).map((p, idx) => (
-                          <TableRow
-                            key={p.name || String(idx)}
-                            hover
-                            onClick={() => p.name && setDrawerPod(p.name)}
-                            sx={{ cursor: p.name ? "pointer" : "default" }}
-                          >
-                            <TableCell>{valueOrDash(p.name)}</TableCell>
-                            <TableCell>
-                              <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
-                            </TableCell>
-                            <TableCell>{valueOrDash(p.ready)}</TableCell>
-                            <TableCell>{valueOrDash(p.restarts)}</TableCell>
-                            <TableCell>{valueOrDash(p.node)}</TableCell>
-                            <TableCell>{fmtAge(p.ageSec)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
               {/* SPEC */}
-              {tab === 3 && (
+              {tab === 2 && (
                 <Box sx={drawerTabContentCompactSx}>
-                  <Accordion defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Pod Template Summary</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Pod Template Summary" dividerPlacement="content">
                       <Typography variant="caption" color="text.secondary">
                         Containers
                       </Typography>
@@ -569,7 +580,7 @@ export default function DeploymentDrawer(props: {
                               <TableRow key={c.name || String(idx)}>
                                 <TableCell>{valueOrDash(c.name)}</TableCell>
                                 <TableCell sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                                  {valueOrDash(c.image)}
+                                  <ContainerImageLabel image={c.image} />
                                 </TableCell>
                                 <TableCell>
                                   {valueOrDash(c.cpuRequest)} / {valueOrDash(c.cpuLimit)}
@@ -600,11 +611,11 @@ export default function DeploymentDrawer(props: {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                            {(details?.spec?.podTemplate?.initContainers || []).map((c, idx) => (
-                              <TableRow key={c.name || String(idx)}>
-                                <TableCell>{valueOrDash(c.name)}</TableCell>
+                              {(details?.spec?.podTemplate?.initContainers || []).map((c, idx) => (
+                                <TableRow key={c.name || String(idx)}>
+                                  <TableCell>{valueOrDash(c.name)}</TableCell>
                                   <TableCell sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                                    {valueOrDash(c.image)}
+                                    <ContainerImageLabel image={c.image} />
                                   </TableCell>
                                   <TableCell>
                                     {valueOrDash(c.cpuRequest)} / {valueOrDash(c.cpuLimit)}
@@ -629,20 +640,27 @@ export default function DeploymentDrawer(props: {
                           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
                             {(details?.spec?.podTemplate?.imagePullSecrets || [])
                               .filter((s): s is string => !!s)
-                              .map((s) => (
-                                <Chip key={s} size="small" label={s} />
-                              ))}
+                              .map((s) => {
+                                const secretSignal = missingRefSignalsByKey.get(`secret/${s}`.toLowerCase());
+                                return (
+                                  <Box key={s} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                    <ResourceLinkChip label={s} onClick={() => setDrawerSecret(s)} />
+                                    {secretSignal ? (
+                                      <Tooltip title={secretSignal.reason || secretSignal.calculatedData || "Backend signal reports this Secret reference as missing."} arrow>
+                                        <Chip size="small" color="warning" label="Missing?" />
+                                      </Tooltip>
+                                    ) : null}
+                                  </Box>
+                                );
+                              })}
                           </Box>
                         )}
                       </Box>
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Scheduling & Placement</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Scheduling & Placement" dividerPlacement="content">
                       <KeyValueTable
                         columns={2}
                         rows={[{ label: "Affinity", value: details?.spec?.scheduling?.affinitySummary }]}
@@ -724,14 +742,11 @@ export default function DeploymentDrawer(props: {
                           </Table>
                         )}
                       </Box>
-                    </AccordionDetails>
-                  </Accordion>
+                    </Section>
+                  </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Volumes</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
+                  <Box sx={panelBoxSx}>
+                    <Section title="Volumes" dividerPlacement="content">
                       {(details?.spec?.volumes || []).length === 0 ? (
                         <EmptyState message="No volumes defined." />
                       ) : (
@@ -748,27 +763,48 @@ export default function DeploymentDrawer(props: {
                               <TableRow key={v.name || String(idx)}>
                                 <TableCell>{valueOrDash(v.name)}</TableCell>
                                 <TableCell>{valueOrDash(v.type)}</TableCell>
-                                <TableCell>{valueOrDash(v.source)}</TableCell>
+                                <TableCell>
+                                  {String(v.type || "").toLowerCase() === "secret" && v.source ? (
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                                      <ResourceLinkChip label={v.source} onClick={() => setDrawerSecret(v.source || null)} />
+                                      {missingRefSignalsByKey.get(`secret/${v.source}`.toLowerCase()) ? (
+                                        <Tooltip title={missingRefSignalsByKey.get(`secret/${v.source}`.toLowerCase())?.reason || "Backend signal reports this Secret reference as missing."} arrow>
+                                          <Chip size="small" color="warning" label="Missing?" />
+                                        </Tooltip>
+                                      ) : null}
+                                    </Box>
+                                  ) : String(v.type || "").toLowerCase() === "configmap" && v.source ? (
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                                      <ResourceLinkChip label={v.source} onClick={() => setDrawerConfigMap(v.source || null)} />
+                                      {missingRefSignalsByKey.get(`configmap/${v.source}`.toLowerCase()) ? (
+                                        <Tooltip title={missingRefSignalsByKey.get(`configmap/${v.source}`.toLowerCase())?.reason || "Backend signal reports this ConfigMap reference as missing."} arrow>
+                                          <Chip size="small" color="warning" label="Missing?" />
+                                        </Tooltip>
+                                      ) : null}
+                                    </Box>
+                                  ) : (
+                                    valueOrDash(v.source)
+                                  )}
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
                         </Table>
                       )}
-                    </AccordionDetails>
-                  </Accordion>
-
+                    </Section>
+                  </Box>
                 </Box>
               )}
 
               {/* EVENTS */}
-              {tab === 4 && (
+              {tab === 3 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsList events={events} emptyMessage="No events found for this Deployment." />
                 </Box>
               )}
 
               {/* METADATA */}
-              {tab === 5 && (
+              {tab === 4 && (
                 <Box sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
@@ -785,7 +821,7 @@ export default function DeploymentDrawer(props: {
               )}
 
               {/* YAML */}
-              {tab === 6 && (
+              {tab === 5 && (
                 <CodeBlock code={details?.yaml || ""} language="yaml" />
               )}
             </Box>
@@ -802,6 +838,20 @@ export default function DeploymentDrawer(props: {
               token={props.token}
               namespace={ns}
               replicaSetName={drawerReplicaSet}
+            />
+            <SecretDrawer
+              open={!!drawerSecret}
+              onClose={() => setDrawerSecret(null)}
+              token={props.token}
+              namespace={ns}
+              secretName={drawerSecret}
+            />
+            <ConfigMapDrawer
+              open={!!drawerConfigMap}
+              onClose={() => setDrawerConfigMap(null)}
+              token={props.token}
+              namespace={ns}
+              configMapName={drawerConfigMap}
             />
             <NamespaceDrawer
               open={!!drawerNamespace}

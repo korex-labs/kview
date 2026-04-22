@@ -57,10 +57,11 @@ type CronJobJobDTO struct {
 }
 
 type CronJobSpecDTO struct {
-	JobTemplate PodTemplateSummaryDTO      `json:"jobTemplate"`
-	Scheduling  CronJobSchedulingDTO       `json:"scheduling"`
-	Volumes     []VolumeDTO                `json:"volumes,omitempty"`
-	Metadata    CronJobTemplateMetadataDTO `json:"metadata"`
+	JobTemplate       PodTemplateSummaryDTO      `json:"jobTemplate"`
+	Scheduling        CronJobSchedulingDTO       `json:"scheduling"`
+	Volumes           []VolumeDTO                `json:"volumes,omitempty"`
+	MissingReferences []MissingReferenceDTO      `json:"missingReferences,omitempty"`
+	Metadata          CronJobTemplateMetadataDTO `json:"metadata"`
 }
 
 type CronJobSchedulingDTO struct {

@@ -40,3 +40,9 @@ type VolumeDTO struct {
 	Type   string `json:"type,omitempty"`
 	Source string `json:"source,omitempty"`
 }
+
+type MissingReferenceDTO struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Source string `json:"source,omitempty"`
+}

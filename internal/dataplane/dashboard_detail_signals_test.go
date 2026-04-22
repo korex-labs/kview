@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -427,6 +428,35 @@ func TestDetectDeploymentDetailSignals_EmptyDeploymentIsSafe(t *testing.T) {
 	}
 }
 
+func TestDetectDeploymentDetailSignals_MissingTemplateReferences(t *testing.T) {
+	got := DetectDeploymentDetailSignals(time.Unix(1, 0), "team-a", dto.DeploymentDetailsDTO{
+		Summary: dto.DeploymentSummaryDTO{Name: "web", Namespace: "team-a", Desired: 1, Available: 1},
+		Spec: dto.DeploymentSpecDTO{
+			MissingReferences: []dto.DeploymentMissingReferenceDTO{
+				{Kind: "Secret", Name: "registry-cred", Source: "imagePullSecret"},
+				{Kind: "ConfigMap", Name: "app-config", Source: "volume/config"},
+			},
+		},
+	})
+
+	var hit *ClusterDashboardSignal
+	for i := range got {
+		if got[i].SignalType == "deployment_missing_template_reference" {
+			hit = &got[i]
+			break
+		}
+	}
+	if hit == nil {
+		t.Fatalf("expected deployment_missing_template_reference, got %+v", got)
+	}
+	if hit.ResourceKind != "Deployment" || hit.ResourceName != "web" || hit.Namespace != "team-a" {
+		t.Fatalf("identity mismatch: %+v", hit)
+	}
+	if !strings.Contains(hit.ActualData, "secret/registry-cred") || !strings.Contains(hit.ActualData, "configmap/app-config") {
+		t.Fatalf("actual data did not include missing refs: %+v", hit)
+	}
+}
+
 func TestDashboardSignalDefinitionRegistry_NewDetailSignalsRegistered(t *testing.T) {
 	cases := []struct {
 		signalType     string
@@ -436,6 +466,7 @@ func TestDashboardSignalDefinitionRegistry_NewDetailSignalsRegistered(t *testing
 		{"pod_young_frequent_restarts", "Pods restarting frequently in short lifetime", "pod accumulated at least 5 restarts while age is 30 minutes or less"},
 		{"pod_succeeded_with_issues", "Pods Succeeded with recorded issues", "phase Succeeded while conditions, container states, or Warning events indicate problems"},
 		{"deployment_unavailable", "Deployments unavailable for extended time", "Available=False for more than 10 minutes, or no available replicas for a mature deployment"},
+		{"deployment_missing_template_reference", "Deployments with missing template references", "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
 	}
 	for _, tc := range cases {
 		tc := tc
