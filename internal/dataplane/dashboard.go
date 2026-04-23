@@ -184,6 +184,7 @@ type ClusterDashboardSignal struct {
 	Confidence      string `json:"confidence,omitempty"`
 	Section         string `json:"section,omitempty"`
 	SignalType      string `json:"signalType,omitempty"`
+	SignalPriority  int    `json:"signalPriority,omitempty"`
 	ResourceKind    string `json:"resourceKind,omitempty"`
 	ResourceName    string `json:"resourceName,omitempty"`
 	Scope           string `json:"scope,omitempty"`         // cluster | namespace

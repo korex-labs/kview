@@ -154,9 +154,9 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			res.LimitRanges += len(s.limitRanges.Items)
 			aggregateMetas = append(aggregateMetas, s.limitRanges.Meta)
 		}
-		signals.Add(detectDashboardSignals(now, ns, s)...)
+		signals.Add(applySignalPolicy(detectDashboardSignals(now, ns, s), p, plane.name)...)
 	}
-	signals.Add(detectNodeResourcePressureSignals(now, plane, nodesSnap, m.Policy().Metrics.NodePressurePct)...)
+	signals.Add(applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, p.Metrics.NodePressurePct), p, plane.name)...)
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
@@ -201,48 +201,48 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 	lrSnap, lrOK := plane.lrStore.getCached(ns)
 	podMetricsSnap, podMetricsOK := plane.podMetricsStore.getCached(ns)
 	return dashboardSnapshotSet{
-		restartThreshold: restartThreshold,
-		pods:             podsSnap,
-		podsOK:           podsOK && podsSnap.Err == nil,
-		deps:             depsSnap,
-		depsOK:           depsOK && depsSnap.Err == nil,
-		ds:               dsSnap,
-		dsOK:             dsOK && dsSnap.Err == nil,
-		sts:              stsSnap,
-		stsOK:            stsOK && stsSnap.Err == nil,
-		rs:               rsSnap,
-		rsOK:             rsOK && rsSnap.Err == nil,
-		jobs:             jobsSnap,
-		jobsOK:           jobsOK && jobsSnap.Err == nil,
-		cjs:              cjSnap,
-		cjsOK:            cjOK && cjSnap.Err == nil,
-		hpas:             hpaSnap,
-		hpasOK:           hpaOK && hpaSnap.Err == nil,
-		svcs:             svcsSnap,
-		svcsOK:           svcsOK && svcsSnap.Err == nil,
-		ings:             ingsSnap,
-		ingsOK:           ingsOK && ingsSnap.Err == nil,
-		pvcs:             pvcSnap,
-		pvcsOK:           pvcOK && pvcSnap.Err == nil,
-		cms:              cmSnap,
-		cmsOK:            cmOK && cmSnap.Err == nil,
-		secs:             secSnap,
-		secsOK:           secOK && secSnap.Err == nil,
-		sas:              saSnap,
-		sasOK:            saOK && saSnap.Err == nil,
-		roles:            rolesSnap,
-		rolesOK:          rolesOK && rolesSnap.Err == nil,
-		roleBindings:     roleBindingsSnap,
-		roleBindingsOK:   roleBindingsOK && roleBindingsSnap.Err == nil,
-		helmReleases:     helmReleasesSnap,
-		helmOK:           helmReleasesOK && helmReleasesSnap.Err == nil,
-		resourceQuotas:   rqSnap,
-		quotasOK:         rqOK && rqSnap.Err == nil,
-		limitRanges:      lrSnap,
-		limitRangesOK:    lrOK && lrSnap.Err == nil,
-		podMetrics:            podMetricsSnap,
-		podMetricsOK:          podMetricsOK && podMetricsSnap.Err == nil,
-		containerNearLimitPct: containerNearLimitPct,
+		restartThreshold:       restartThreshold,
+		pods:                   podsSnap,
+		podsOK:                 podsOK && podsSnap.Err == nil,
+		deps:                   depsSnap,
+		depsOK:                 depsOK && depsSnap.Err == nil,
+		ds:                     dsSnap,
+		dsOK:                   dsOK && dsSnap.Err == nil,
+		sts:                    stsSnap,
+		stsOK:                  stsOK && stsSnap.Err == nil,
+		rs:                     rsSnap,
+		rsOK:                   rsOK && rsSnap.Err == nil,
+		jobs:                   jobsSnap,
+		jobsOK:                 jobsOK && jobsSnap.Err == nil,
+		cjs:                    cjSnap,
+		cjsOK:                  cjOK && cjSnap.Err == nil,
+		hpas:                   hpaSnap,
+		hpasOK:                 hpaOK && hpaSnap.Err == nil,
+		svcs:                   svcsSnap,
+		svcsOK:                 svcsOK && svcsSnap.Err == nil,
+		ings:                   ingsSnap,
+		ingsOK:                 ingsOK && ingsSnap.Err == nil,
+		pvcs:                   pvcSnap,
+		pvcsOK:                 pvcOK && pvcSnap.Err == nil,
+		cms:                    cmSnap,
+		cmsOK:                  cmOK && cmSnap.Err == nil,
+		secs:                   secSnap,
+		secsOK:                 secOK && secSnap.Err == nil,
+		sas:                    saSnap,
+		sasOK:                  saOK && saSnap.Err == nil,
+		roles:                  rolesSnap,
+		rolesOK:                rolesOK && rolesSnap.Err == nil,
+		roleBindings:           roleBindingsSnap,
+		roleBindingsOK:         roleBindingsOK && roleBindingsSnap.Err == nil,
+		helmReleases:           helmReleasesSnap,
+		helmOK:                 helmReleasesOK && helmReleasesSnap.Err == nil,
+		resourceQuotas:         rqSnap,
+		quotasOK:               rqOK && rqSnap.Err == nil,
+		limitRanges:            lrSnap,
+		limitRangesOK:          lrOK && lrSnap.Err == nil,
+		podMetrics:             podMetricsSnap,
+		podMetricsOK:           podMetricsOK && podMetricsSnap.Err == nil,
+		containerNearLimitPct:  containerNearLimitPct,
 		longRunningJobDuration: thresholds.LongRunningJobDuration,
 		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
 		staleHelmReleaseAge:    thresholds.StaleHelmReleaseDuration,
@@ -299,7 +299,7 @@ type dashboardSnapshotSet struct {
 	podMetricsOK   bool
 	// containerNearLimitPct is the minimum percent-of-limit required to raise
 	// a container_near_limit signal. Set from policy.Metrics.ContainerNearLimitPct.
-	containerNearLimitPct int
+	containerNearLimitPct  int
 	longRunningJobDuration time.Duration
 	cronJobNoSuccessAge    time.Duration
 	staleHelmReleaseAge    time.Duration
@@ -344,6 +344,7 @@ func dashboardSignalItem(signalType, kind, namespace, name, severity string, sco
 		Confidence:      confidence,
 		Section:         section,
 		SignalType:      def.Type,
+		SignalPriority:  def.Priority,
 		ResourceKind:    kind,
 		ResourceName:    resourceName,
 		Scope:           scope,
@@ -443,6 +444,9 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 	sort.Slice(signals, func(i, j int) bool {
 		if si, sj := dashboardSignalSeverityPriority(signals[i].Severity), dashboardSignalSeverityPriority(signals[j].Severity); si != sj {
 			return si < sj
+		}
+		if pi, pj := dashboardSignalPriority(signals[i]), dashboardSignalPriority(signals[j]); pi != pj {
+			return pi < pj
 		}
 		if pi, pj := dashboardSignalKindPriority(signals[i].Kind), dashboardSignalKindPriority(signals[j].Kind); pi != pj {
 			return pi < pj
@@ -547,6 +551,7 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 		id       string
 		count    int
 		severity string
+		priority int
 	}
 	byType := map[string]signalTypeCount{}
 	for _, signal := range signals {
@@ -577,6 +582,7 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 		current.id = id
 		current.count++
 		current.severity = worstSignalSeverity(current.severity, signal.Severity)
+		current.priority = dashboardSignalPriority(signal)
 		byType[id] = current
 	}
 	kinds := countedFiltersFromMap(kindFilters)
@@ -606,7 +612,7 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 		if si, sj := dashboardSignalSeverityPriority(signalTypes[i].severity), dashboardSignalSeverityPriority(signalTypes[j].severity); si != sj {
 			return si < sj
 		}
-		if pi, pj := dashboardSignalTypePriority(strings.TrimPrefix(signalTypes[i].id, "signal:")), dashboardSignalTypePriority(strings.TrimPrefix(signalTypes[j].id, "signal:")); pi != pj {
+		if pi, pj := signalTypes[i].priority, signalTypes[j].priority; pi != pj {
 			return pi < pj
 		}
 		return signalTypes[i].id < signalTypes[j].id
@@ -806,6 +812,13 @@ func dashboardSignalKindPriority(kind string) int {
 
 func dashboardSignalTypePriority(signalType string) int {
 	return dashboardSignalDefinitionForType(signalType).Priority
+}
+
+func dashboardSignalPriority(signal ClusterDashboardSignal) int {
+	if signal.SignalPriority > 0 {
+		return signal.SignalPriority
+	}
+	return dashboardSignalTypePriority(signal.SignalType)
 }
 
 func visibleNamespacesWithCachedDataplaneLists(plane *clusterPlane, visibleSorted []string) []string {

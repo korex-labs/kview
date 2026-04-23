@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
   Button,
+  Chip,
   Checkbox,
   Divider,
   FormControl,
@@ -54,17 +55,21 @@ import {
   type KviewUserSettingsV1,
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
+  type SignalOverride,
   type SmartFilterRule,
 } from "../../settings";
 import { useUserSettings } from "../../settingsContext";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
 import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
+import { apiGetWithContext } from "../../api";
+import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 
 type SettingsSection = "appearance" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 
 type Props = {
+  token: string;
   contexts: Array<{ name: string }>;
   namespaces: string[];
   activeContext: string;
@@ -293,12 +298,16 @@ function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
   }
 }
 
-export default function SettingsView({ contexts, namespaces, activeContext, activeNamespace, onClose }: Props) {
+export default function SettingsView({ token, contexts, namespaces, activeContext, activeNamespace, onClose }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
+  const [signalCatalog, setSignalCatalog] = useState<DataplaneSignalCatalogItem[]>([]);
+  const [signalCatalogError, setSignalCatalogError] = useState<string | null>(null);
+  const [signalOverrideScope, setSignalOverrideScope] = useState<"global" | "context">("global");
+  const [signalCatalogQuery, setSignalCatalogQuery] = useState("");
 
   const contextOptions = useMemo(
     () => Array.from(new Set([activeContext, ...contexts.map((c) => c.name)].filter(Boolean))),
@@ -308,6 +317,24 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
     () => Array.from(new Set([activeNamespace, ...namespaces].filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [activeNamespace, namespaces],
   );
+
+  useEffect(() => {
+    if (section !== "dataplane" || dataplaneTab !== "signals") return;
+    let cancelled = false;
+    apiGetWithContext<ApiDataplaneSignalCatalogResponse>("/api/dataplane/signals/catalog", token, activeContext)
+      .then((res) => {
+        if (cancelled) return;
+        setSignalCatalog(res.items || []);
+        setSignalCatalogError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSignalCatalogError((err as Error).message || "Failed to load signal catalog.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeContext, dataplaneTab, section, settings.dataplane.signals.overrides, settings.dataplane.signals.contextOverrides, token]);
 
   const setRule = (index: number, patch: Partial<SmartFilterRule>) => {
     setSettings((prev) => {
@@ -395,6 +422,70 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
         return next;
       })(),
     }));
+  };
+
+  const setSignalOverride = (signalType: string, scope: "global" | "context", patch: Partial<SignalOverride>) => {
+    if (!signalType) return;
+    setSettings((prev) => {
+      const signals = prev.dataplane.signals;
+      const cleanOverride = (override: SignalOverride): SignalOverride | null => {
+        const next: SignalOverride = { ...override, ...patch };
+        if (next.enabled === undefined) delete next.enabled;
+        if (next.severity === undefined) delete next.severity;
+        if (next.priority === undefined) delete next.priority;
+        return Object.keys(next).length > 0 ? next : null;
+      };
+      if (scope === "global") {
+        const overrides = { ...signals.overrides };
+        const next = cleanOverride(overrides[signalType] || {});
+        if (next) overrides[signalType] = next;
+        else delete overrides[signalType];
+        return updateDataplane(prev, { signals: { ...signals, overrides } });
+      }
+      const contextName = activeContext.trim();
+      if (!contextName) return prev;
+      const contextOverrides = { ...signals.contextOverrides };
+      const current = { ...(contextOverrides[contextName] || {}) };
+      const next = cleanOverride(current[signalType] || {});
+      if (next) current[signalType] = next;
+      else delete current[signalType];
+      if (Object.keys(current).length > 0) contextOverrides[contextName] = current;
+      else delete contextOverrides[contextName];
+      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+    });
+  };
+
+  const resetSignalOverride = (signalType: string, scope: "global" | "context") => {
+    setSettings((prev) => {
+      const signals = prev.dataplane.signals;
+      if (scope === "global") {
+        const overrides = { ...signals.overrides };
+        delete overrides[signalType];
+        return updateDataplane(prev, { signals: { ...signals, overrides } });
+      }
+      const contextName = activeContext.trim();
+      if (!contextName) return prev;
+      const contextOverrides = { ...signals.contextOverrides };
+      const current = { ...(contextOverrides[contextName] || {}) };
+      delete current[signalType];
+      if (Object.keys(current).length > 0) contextOverrides[contextName] = current;
+      else delete contextOverrides[contextName];
+      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+    });
+  };
+
+  const resetSignalOverrides = (scope: "global" | "context") => {
+    setSettings((prev) => {
+      const signals = prev.dataplane.signals;
+      if (scope === "global") {
+        return updateDataplane(prev, { signals: { ...signals, overrides: {} } });
+      }
+      const contextName = activeContext.trim();
+      if (!contextName) return prev;
+      const contextOverrides = { ...signals.contextOverrides };
+      delete contextOverrides[contextName];
+      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+    });
   };
 
   const importSettingsText = (text: string) => {
@@ -1049,6 +1140,31 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
     const estimatedSweepHours = sweep.maxNamespacesPerHour > 0 && namespaces.length > 0
       ? Math.ceil(namespaces.length / sweep.maxNamespacesPerHour)
       : 0;
+    const activeContextSignalOverrides = activeContext ? (dp.signals.contextOverrides[activeContext] || {}) : {};
+    const filteredSignalCatalog = signalCatalog.filter((item) => {
+      const q = signalCatalogQuery.trim().toLowerCase();
+      if (!q) return true;
+      return [
+        item.type,
+        item.label,
+        item.defaultSeverity,
+        item.effectiveSeverity,
+        item.likelyCause,
+        item.suggestedAction,
+      ].some((value) => String(value || "").toLowerCase().includes(q));
+    });
+    const severityColor = (severity?: string): "error" | "warning" | "info" | "default" => {
+      switch (severity) {
+        case "high":
+          return "error";
+        case "medium":
+          return "warning";
+        case "low":
+          return "info";
+        default:
+          return "default";
+      }
+    };
 
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
@@ -1423,6 +1539,145 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
               (value) => setDataplaneSignals({ quotaCriticalPercent: value }),
               `Default: ${signalDefaults.quotaCriticalPercent}`,
               "Quota usage percent that marks quota pressure as critical. Must be greater than warn.",
+            )}
+          </Box>
+          <Divider />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+              {sectionTitle(
+                "Signal Catalog",
+                "Global overrides apply everywhere. This context overrides inherit from global values and only affect the active Kubernetes context.",
+              )}
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                <TextField
+                  select
+                  size="small"
+                  label="Edit scope"
+                  value={signalOverrideScope}
+                  onChange={(e) => setSignalOverrideScope(e.target.value as "global" | "context")}
+                  sx={{ minWidth: 180 }}
+                >
+                  <MenuItem value="global">Global defaults</MenuItem>
+                  <MenuItem value="context" disabled={!activeContext}>This context</MenuItem>
+                </TextField>
+                <Button size="small" onClick={() => resetSignalOverrides(signalOverrideScope)}>
+                  Reset {signalOverrideScope === "global" ? "global" : "context"} overrides
+                </Button>
+              </Box>
+            </Box>
+            <TextField
+              size="small"
+              label="Filter signals"
+              value={signalCatalogQuery}
+              onChange={(e) => setSignalCatalogQuery(e.target.value)}
+              helperText={signalOverrideScope === "context" && activeContext ? `Editing local overrides for ${activeContext}.` : "Editing global signal defaults."}
+            />
+            {signalCatalogError ? <Alert severity="warning">{signalCatalogError}</Alert> : null}
+            {filteredSignalCatalog.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No signal definitions match the current filter.
+              </Typography>
+            ) : (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {filteredSignalCatalog.map((item) => {
+                  const globalOverride = dp.signals.overrides[item.type] || {};
+                  const contextOverride = activeContextSignalOverrides[item.type] || {};
+                  const override = signalOverrideScope === "global"
+                    ? globalOverride
+                    : contextOverride;
+                  const inheritedEnabled = signalOverrideScope === "context"
+                    ? (globalOverride.enabled ?? item.defaultEnabled)
+                    : item.defaultEnabled;
+                  const inheritedSeverity = signalOverrideScope === "context"
+                    ? (globalOverride.severity || item.defaultSeverity || "low")
+                    : (item.defaultSeverity || "low");
+                  const effectiveSeverity = contextOverride.severity || globalOverride.severity || item.defaultSeverity;
+                  const enabledChecked = override.enabled ?? inheritedEnabled;
+                  const severityValue = override.severity || "inherit";
+                  const changed = Object.keys(override).length > 0;
+                  return (
+                    <Paper key={item.type} variant="outlined" sx={{ p: 1, display: "flex", flexDirection: "column", gap: 0.75 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                            <Typography variant="subtitle2">{item.label}</Typography>
+                            <Chip size="small" variant="outlined" label={item.type} />
+                            {changed ? <Chip size="small" color="info" label="custom" /> : null}
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {item.likelyCause || item.calculatedData || "Backend-defined dataplane signal."}
+                          </Typography>
+                          {item.suggestedAction ? (
+                            <Typography variant="caption" color="text.secondary">
+                              {item.suggestedAction}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                        <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
+                          <Chip size="small" color={severityColor(item.defaultSeverity)} label={`Default ${item.defaultSeverity || "dynamic"}`} />
+                          <Chip size="small" color={severityColor(effectiveSeverity)} label={`Effective ${effectiveSeverity || "dynamic"}`} />
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={enabledChecked}
+                                onChange={(e) => setSignalOverride(item.type, signalOverrideScope, { enabled: e.target.checked })}
+                              />
+                            }
+                            label="Enabled"
+                          />
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minHeight: 24 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {override.enabled === undefined ? `Inherits ${inheritedEnabled ? "enabled" : "disabled"}` : "Overrides inherited state"}
+                            </Typography>
+                            {override.enabled !== undefined ? (
+                              <Button size="small" onClick={() => setSignalOverride(item.type, signalOverrideScope, { enabled: undefined })}>
+                                Inherit
+                              </Button>
+                            ) : null}
+                          </Box>
+                        </Box>
+                        <TextField
+                          select
+                          size="small"
+                          label="Severity"
+                          value={severityValue}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSignalOverride(item.type, signalOverrideScope, {
+                              severity: value === "inherit" ? undefined : value as SignalOverride["severity"],
+                            });
+                          }}
+                          helperText={severityValue === "inherit" ? `Inherits ${inheritedSeverity}` : "Forces emitted severity for this signal."}
+                        >
+                          <MenuItem value="inherit">Inherit</MenuItem>
+                          <MenuItem value="low">Low</MenuItem>
+                          <MenuItem value="medium">Medium</MenuItem>
+                          <MenuItem value="high">High</MenuItem>
+                        </TextField>
+                        <TextField
+                          size="small"
+                          type="number"
+                          label="Display priority"
+                          value={override.priority ?? ""}
+                          onChange={(e) => setSignalOverride(item.type, signalOverrideScope, {
+                            priority: e.target.value === "" ? undefined : Math.round(Number(e.target.value) || 0),
+                          })}
+                          helperText={`Inherits ${signalOverrideScope === "context" ? (globalOverride.priority ?? item.defaultPriority) : item.defaultPriority}`}
+                        />
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Button size="small" disabled={!changed} onClick={() => resetSignalOverride(item.type, signalOverrideScope)}>
+                            Reset signal
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </Box>
             )}
           </Box>
         </Paper>

@@ -8,6 +8,13 @@ export type CustomActionKind = "set" | "unset" | "patch";
 export type CustomActionTarget = "env" | "image";
 export type CustomActionPatchType = "json" | "merge";
 export type DataplaneProfile = "manual" | "focused" | "balanced" | "wide" | "diagnostic";
+export type SignalSeverityOverride = "low" | "medium" | "high";
+
+export type SignalOverride = {
+  enabled?: boolean;
+  severity?: SignalSeverityOverride;
+  priority?: number;
+};
 
 export type SmartFilterRule = {
   id: string;
@@ -126,6 +133,8 @@ export type DataplaneSettings = {
     deploymentUnavailableSec: number;
     quotaWarnPercent: number;
     quotaCriticalPercent: number;
+    overrides: Record<string, SignalOverride>;
+    contextOverrides: Record<string, Record<string, SignalOverride>>;
   };
 };
 
@@ -185,6 +194,7 @@ const allowedActionKinds = new Set<CustomActionKind>(["set", "unset", "patch"]);
 const allowedActionTargets = new Set<CustomActionTarget>(["env", "image"]);
 const allowedActionPatchTypes = new Set<CustomActionPatchType>(["json", "merge"]);
 const allowedDataplaneProfiles = new Set<DataplaneProfile>(["manual", "focused", "balanced", "wide", "diagnostic"]);
+const allowedSignalSeverityOverrides = new Set<SignalSeverityOverride>(["low", "medium", "high"]);
 const customActionResourceKeys: ListResourceKey[] = ["deployments", "daemonsets", "statefulsets", "replicasets"];
 export const dataplaneTTLResourceKeys = [
   "namespaces",
@@ -406,6 +416,8 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       deploymentUnavailableSec: 10 * 60,
       quotaWarnPercent: 80,
       quotaCriticalPercent: 90,
+      overrides: {},
+      contextOverrides: {},
     },
   };
 }
@@ -560,6 +572,44 @@ function normalizeWarmResourceKinds(value: unknown, fallback: string[]): string[
   const allowed = new Set<string>(dataplaneNamespaceWarmResourceKeys);
   const out = Array.from(new Set(value.filter((item): item is string => typeof item === "string" && allowed.has(item))));
   return out.length ? out : [...fallback];
+}
+
+function normalizeSignalOverride(input: unknown): SignalOverride | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<SignalOverride>;
+  const out: SignalOverride = {};
+  if (typeof raw.enabled === "boolean") out.enabled = raw.enabled;
+  if (allowedSignalSeverityOverrides.has(raw.severity as SignalSeverityOverride)) {
+    out.severity = raw.severity as SignalSeverityOverride;
+  }
+  if (typeof raw.priority === "number" && Number.isFinite(raw.priority)) {
+    out.priority = validNumber(raw.priority, 0, 100, 10);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function normalizeSignalOverrides(input: unknown): Record<string, SignalOverride> {
+  if (!input || typeof input !== "object") return {};
+  const out: Record<string, SignalOverride> = {};
+  for (const [rawKey, rawValue] of Object.entries(input as Record<string, unknown>)) {
+    const key = rawKey.trim();
+    if (!key) continue;
+    const override = normalizeSignalOverride(rawValue);
+    if (override) out[key] = override;
+  }
+  return out;
+}
+
+function normalizeContextSignalOverrides(input: unknown): Record<string, Record<string, SignalOverride>> {
+  if (!input || typeof input !== "object") return {};
+  const out: Record<string, Record<string, SignalOverride>> = {};
+  for (const [rawContext, rawOverrides] of Object.entries(input as Record<string, unknown>)) {
+    const contextName = rawContext.trim();
+    if (!contextName) continue;
+    const overrides = normalizeSignalOverrides(rawOverrides);
+    if (Object.keys(overrides).length > 0) out[contextName] = overrides;
+  }
+  return out;
 }
 
 function normalizeRule(input: unknown, fallbackId: string): SmartFilterRule | null {
@@ -887,6 +937,8 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
       deploymentUnavailableSec: validNumber(rawSignals.deploymentUnavailableSec, 60, 86400, defaults.signals.deploymentUnavailableSec),
       quotaWarnPercent: validNumber(rawSignals.quotaWarnPercent, 1, 99, defaults.signals.quotaWarnPercent),
       quotaCriticalPercent: validNumber(rawSignals.quotaCriticalPercent, 1, 100, defaults.signals.quotaCriticalPercent),
+      overrides: normalizeSignalOverrides(rawSignals.overrides),
+      contextOverrides: normalizeContextSignalOverrides(rawSignals.contextOverrides),
     },
   };
 

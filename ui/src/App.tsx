@@ -515,6 +515,7 @@ function AppInner() {
             <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               {settingsOpen ? (
                 <SettingsView
+                  token={token}
                   contexts={contexts}
                   namespaces={namespaces}
                   activeContext={activeContext}

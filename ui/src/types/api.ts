@@ -178,12 +178,42 @@ export type DashboardSignalItem = {
   confidence?: string;
   section?: string;
   signalType?: string;
+  signalPriority?: number;
   resourceKind?: string;
   resourceName?: string;
   scope?: string;
   scopeLocation?: string;
   actualData?: string;
   calculatedData?: string;
+};
+
+export type SignalOverride = {
+  enabled?: boolean;
+  severity?: "low" | "medium" | "high";
+  priority?: number;
+};
+
+export type DataplaneSignalCatalogItem = {
+  type: string;
+  label: string;
+  summaryCounter?: string;
+  actualData?: string;
+  calculatedData?: string;
+  likelyCause?: string;
+  suggestedAction?: string;
+  defaultEnabled: boolean;
+  defaultSeverity?: string;
+  defaultPriority: number;
+  globalOverride?: SignalOverride;
+  contextOverride?: SignalOverride;
+  effectiveEnabled: boolean;
+  effectiveSeverity?: string;
+  effectivePriority: number;
+};
+
+export type ApiDataplaneSignalCatalogResponse = {
+  active?: string;
+  items?: DataplaneSignalCatalogItem[];
 };
 
 export type DashboardSignalFilter = {

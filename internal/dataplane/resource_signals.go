@@ -124,11 +124,11 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 			policy.Metrics.ContainerNearLimitPct,
 			thresholds,
 		)
-		store.Add(detectDashboardSignals(now, namespace, s)...)
+		store.Add(applySignalPolicy(detectDashboardSignals(now, namespace, s), policy, clusterName)...)
 		meta = mergeSnapshotMetaForResourceSignals(s)
 	case ResourceSignalsScopeCluster:
 		nodesSnap, _ := peekClusterSnapshot(&plane.nodesStore)
-		store.Add(detectNodeResourcePressureSignals(now, plane, nodesSnap, policy.Metrics.NodePressurePct)...)
+		store.Add(applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, policy.Metrics.NodePressurePct), policy, clusterName)...)
 		meta = nodesSnap.Meta
 	}
 
@@ -139,7 +139,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	items := store.SignalsForResource(kind, name, scope, scopeLocation)
 	out := namespaceInsightSignalsFromDashboard(items)
 	if len(out) == 0 {
-		out = append(out, fallbackSignalsForResource(now, scope, namespace, kind, name, plane, int32(policy.Dashboard.RestartElevatedThreshold))...)
+		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, int32(policy.Dashboard.RestartElevatedThreshold)), policy, clusterName)...)
 	}
 	out = dedupeNamespaceSignals(out)
 	if out == nil {
@@ -463,6 +463,24 @@ func dedupeNamespaceSignals(items []dto.NamespaceInsightSignalDTO) []dto.Namespa
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Score > out[j].Score
 	})
+	return out
+}
+
+func applyNamespaceSignalPolicy(items []dto.NamespaceInsightSignalDTO, policy DataplanePolicy, contextName string) []dto.NamespaceInsightSignalDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]dto.NamespaceInsightSignalDTO, 0, len(items))
+	for _, item := range items {
+		effective := effectiveSignalSettings(policy, contextName, item.SignalType)
+		if !effective.enabled {
+			continue
+		}
+		if isSignalSeverityOverride(effective.severity) {
+			item.Severity = effective.severity
+		}
+		out = append(out, item)
+	}
 	return out
 }
 

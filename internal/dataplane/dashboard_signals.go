@@ -1,6 +1,9 @@
 package dataplane
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 type dashboardSignalStore struct {
 	items      []ClusterDashboardSignal
@@ -31,6 +34,24 @@ type dashboardSignalDefinition struct {
 	LikelyCause     string
 	SuggestedAction string
 	Priority        int
+}
+
+type SignalCatalogItem struct {
+	Type              string          `json:"type"`
+	Label             string          `json:"label"`
+	SummaryCounter    string          `json:"summaryCounter,omitempty"`
+	ActualData        string          `json:"actualData,omitempty"`
+	CalculatedData    string          `json:"calculatedData,omitempty"`
+	LikelyCause       string          `json:"likelyCause,omitempty"`
+	SuggestedAction   string          `json:"suggestedAction,omitempty"`
+	DefaultEnabled    bool            `json:"defaultEnabled"`
+	DefaultSeverity   string          `json:"defaultSeverity,omitempty"`
+	DefaultPriority   int             `json:"defaultPriority"`
+	GlobalOverride    *SignalOverride `json:"globalOverride,omitempty"`
+	ContextOverride   *SignalOverride `json:"contextOverride,omitempty"`
+	EffectiveEnabled  bool            `json:"effectiveEnabled"`
+	EffectiveSeverity string          `json:"effectiveSeverity,omitempty"`
+	EffectivePriority int             `json:"effectivePriority"`
 }
 
 func newDashboardSignalStore() dashboardSignalStore {
@@ -140,6 +161,145 @@ func dashboardSignalDefinitionForType(signalType string) dashboardSignalDefiniti
 		return def
 	}
 	return dashboardSignalDefinition{Type: signalType, Label: signalType, Priority: 10}
+}
+
+func dashboardSignalTypeKey(signalType string) string {
+	return strings.TrimSpace(signalType)
+}
+
+func knownDashboardSignalType(signalType string) bool {
+	_, ok := dashboardSignalDefinitions[signalType]
+	return ok
+}
+
+func isSignalSeverityOverride(severity string) bool {
+	switch severity {
+	case "low", "medium", "high":
+		return true
+	default:
+		return false
+	}
+}
+
+func applySignalPolicy(items []ClusterDashboardSignal, policy DataplanePolicy, contextName string) []ClusterDashboardSignal {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]ClusterDashboardSignal, 0, len(items))
+	for _, item := range items {
+		effective := effectiveSignalSettings(policy, contextName, item.SignalType)
+		if !effective.enabled {
+			continue
+		}
+		if isSignalSeverityOverride(effective.severity) {
+			item.Severity = effective.severity
+		}
+		item.SignalPriority = effective.priority
+		out = append(out, item)
+	}
+	return out
+}
+
+// ApplySignalPolicy applies the active global/context signal overrides to
+// detector output. It is exported for server-side detail detectors that live
+// outside the dataplane manager methods.
+func ApplySignalPolicy(items []ClusterDashboardSignal, policy DataplanePolicy, contextName string) []ClusterDashboardSignal {
+	return applySignalPolicy(items, policy, contextName)
+}
+
+type effectiveSignalPolicy struct {
+	enabled  bool
+	severity string
+	priority int
+}
+
+func effectiveSignalSettings(policy DataplanePolicy, contextName, signalType string) effectiveSignalPolicy {
+	def := dashboardSignalDefinitionForType(signalType)
+	out := effectiveSignalPolicy{
+		enabled:  true,
+		priority: def.Priority,
+	}
+	applySignalOverrideToEffective(&out, policy.Signals.Overrides[signalType])
+	if contextName != "" {
+		applySignalOverrideToEffective(&out, policy.Signals.ContextOverrides[contextName][signalType])
+	}
+	return out
+}
+
+func applySignalOverrideToEffective(out *effectiveSignalPolicy, override SignalOverride) {
+	if override.Enabled != nil {
+		out.enabled = *override.Enabled
+	}
+	if isSignalSeverityOverride(override.Severity) {
+		out.severity = override.Severity
+	}
+	if override.Priority != nil {
+		out.priority = *override.Priority
+	}
+}
+
+func DashboardSignalCatalog(policy DataplanePolicy, contextName string) []SignalCatalogItem {
+	keys := make([]string, 0, len(dashboardSignalDefinitions))
+	for signalType := range dashboardSignalDefinitions {
+		keys = append(keys, signalType)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		ei := effectiveSignalSettings(policy, contextName, keys[i])
+		ej := effectiveSignalSettings(policy, contextName, keys[j])
+		if ei.priority != ej.priority {
+			return ei.priority < ej.priority
+		}
+		return dashboardSignalDefinitions[keys[i]].Label < dashboardSignalDefinitions[keys[j]].Label
+	})
+
+	out := make([]SignalCatalogItem, 0, len(keys))
+	for _, signalType := range keys {
+		def := dashboardSignalDefinitionForType(signalType)
+		effective := effectiveSignalSettings(policy, contextName, signalType)
+		defaultSeverity := defaultDashboardSignalSeverity(signalType)
+		effectiveSeverity := defaultSeverity
+		if isSignalSeverityOverride(effective.severity) {
+			effectiveSeverity = effective.severity
+		}
+		item := SignalCatalogItem{
+			Type:              signalType,
+			Label:             def.Label,
+			SummaryCounter:    def.SummaryCounter,
+			ActualData:        def.ActualData,
+			CalculatedData:    def.CalculatedData,
+			LikelyCause:       def.LikelyCause,
+			SuggestedAction:   def.SuggestedAction,
+			DefaultEnabled:    true,
+			DefaultSeverity:   defaultSeverity,
+			DefaultPriority:   def.Priority,
+			EffectiveEnabled:  effective.enabled,
+			EffectiveSeverity: effectiveSeverity,
+			EffectivePriority: effective.priority,
+		}
+		if override, ok := policy.Signals.Overrides[signalType]; ok {
+			copy := cloneSignalOverride(override)
+			item.GlobalOverride = &copy
+		}
+		if contextName != "" {
+			if override, ok := policy.Signals.ContextOverrides[contextName][signalType]; ok {
+				copy := cloneSignalOverride(override)
+				item.ContextOverride = &copy
+			}
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func defaultDashboardSignalSeverity(signalType string) string {
+	switch signalType {
+	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference":
+		return "high"
+	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference":
+		return "medium"
+	default:
+		return "low"
+	}
 }
 
 var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{

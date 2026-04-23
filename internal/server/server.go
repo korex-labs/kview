@@ -275,6 +275,18 @@ func (s *Server) Router() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"item": s.dp.Policy()})
 		})
 
+		api.Get("/dataplane/signals/catalog", func(w http.ResponseWriter, r *http.Request) {
+			if s.dp == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+				return
+			}
+			contextName := s.readContextName(r)
+			writeJSON(w, http.StatusOK, map[string]any{
+				"active": contextName,
+				"items":  dataplane.DashboardSignalCatalog(s.dp.Policy(), contextName),
+			})
+		})
+
 		api.Post("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {
 			if s.dp == nil {
 				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
@@ -1728,7 +1740,9 @@ func (s *Server) Router() http.Handler {
 				if evErr != nil {
 					evs = nil
 				}
-				signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs, dataplane.SignalThresholdsFromPolicy(s.dp.Policy()))
+				policy := s.dp.Policy()
+				signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs, dataplane.SignalThresholdsFromPolicy(policy))
+				signals = dataplane.ApplySignalPolicy(signals, policy, active)
 				detailSignals = dataplane.NamespaceInsightSignalsFromDashboard(signals)
 			}
 			if detailSignals == nil {
@@ -1827,7 +1841,8 @@ func (s *Server) Router() http.Handler {
 			var detailSignals []dto.NamespaceInsightSignalDTO
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det, dataplane.SignalThresholdsFromPolicy(s.dp.Policy())))
+				policy := s.dp.Policy()
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det, dataplane.SignalThresholdsFromPolicy(policy)), policy, active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -1896,7 +1911,7 @@ func (s *Server) Router() http.Handler {
 			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectDaemonSetDetailSignals(ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectDaemonSetDetailSignals(ns, *det), s.dp.Policy(), active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -1984,7 +1999,7 @@ func (s *Server) Router() http.Handler {
 			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectStatefulSetDetailSignals(ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectStatefulSetDetailSignals(ns, *det), s.dp.Policy(), active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -2072,7 +2087,7 @@ func (s *Server) Router() http.Handler {
 			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectReplicaSetDetailSignals(ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectReplicaSetDetailSignals(ns, *det), s.dp.Policy(), active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -2134,7 +2149,7 @@ func (s *Server) Router() http.Handler {
 			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectJobDetailSignals(ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectJobDetailSignals(ns, *det), s.dp.Policy(), active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -2196,7 +2211,7 @@ func (s *Server) Router() http.Handler {
 			detailSignals := []dto.NamespaceInsightSignalDTO{}
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.JobTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectCronJobDetailSignals(ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectCronJobDetailSignals(ns, *det), s.dp.Policy(), active))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -3309,6 +3324,7 @@ func isBackgroundPollingPath(p string) bool {
 		"/api/activity/runtime/logs",
 		"/api/dataplane/work/live",
 		"/api/dataplane/config",
+		"/api/dataplane/signals/catalog",
 		"/api/dataplane/metrics/status",
 		"/api/dashboard/cluster",
 		"/api/sessions":

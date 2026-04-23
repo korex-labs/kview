@@ -1,6 +1,9 @@
 package dataplane
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type DataplaneProfile string
 
@@ -50,6 +53,17 @@ type SignalsPolicy struct {
 	DeploymentUnavailableSec  int `json:"deploymentUnavailableSec"`
 	QuotaWarnPercent          int `json:"quotaWarnPercent"`
 	QuotaCriticalPercent      int `json:"quotaCriticalPercent"`
+
+	Overrides        map[string]SignalOverride            `json:"overrides,omitempty"`
+	ContextOverrides map[string]map[string]SignalOverride `json:"contextOverrides,omitempty"`
+}
+
+// SignalOverride customizes a signal type. Nil fields inherit from the next
+// outer layer: built-in defaults -> global overrides -> context overrides.
+type SignalOverride struct {
+	Enabled  *bool  `json:"enabled,omitempty"`
+	Severity string `json:"severity,omitempty"`
+	Priority *int   `json:"priority,omitempty"`
 }
 
 type SnapshotPolicy struct {
@@ -290,6 +304,8 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 		out.Signals.QuotaWarnPercent = def.Signals.QuotaWarnPercent
 		out.Signals.QuotaCriticalPercent = def.Signals.QuotaCriticalPercent
 	}
+	out.Signals.Overrides = normalizeSignalOverrides(out.Signals.Overrides)
+	out.Signals.ContextOverrides = normalizeContextSignalOverrides(out.Signals.ContextOverrides)
 	// Mirror the validated metrics TTLs into the snapshot TTL map so
 	// SnapshotTTL(ResourceKindPodMetrics/NodeMetrics) agrees with the
 	// operator-facing Metrics knobs in a single place.
@@ -309,6 +325,8 @@ func CloneDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out := in
 	out.Snapshots.TTLSeconds = cloneStringIntMap(in.Snapshots.TTLSeconds)
 	out.NamespaceEnrichment.WarmResourceKinds = append([]string(nil), in.NamespaceEnrichment.WarmResourceKinds...)
+	out.Signals.Overrides = cloneSignalOverrideMap(in.Signals.Overrides)
+	out.Signals.ContextOverrides = cloneContextSignalOverrideMap(in.Signals.ContextOverrides)
 	return out
 }
 
@@ -373,4 +391,101 @@ func clampInt(value, min, max, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func normalizeSignalOverrides(in map[string]SignalOverride) map[string]SignalOverride {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]SignalOverride, len(in))
+	for rawType, raw := range in {
+		signalType := dashboardSignalTypeKey(rawType)
+		if signalType == "" || !knownDashboardSignalType(signalType) {
+			continue
+		}
+		override := normalizeSignalOverride(raw)
+		if signalOverrideEmpty(override) {
+			continue
+		}
+		out[signalType] = override
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeContextSignalOverrides(in map[string]map[string]SignalOverride) map[string]map[string]SignalOverride {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]SignalOverride, len(in))
+	for rawContext, rawOverrides := range in {
+		contextName := strings.TrimSpace(rawContext)
+		if contextName == "" {
+			continue
+		}
+		overrides := normalizeSignalOverrides(rawOverrides)
+		if len(overrides) == 0 {
+			continue
+		}
+		out[contextName] = overrides
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeSignalOverride(in SignalOverride) SignalOverride {
+	out := SignalOverride{
+		Enabled: in.Enabled,
+	}
+	if isSignalSeverityOverride(in.Severity) {
+		out.Severity = in.Severity
+	}
+	if in.Priority != nil {
+		p := clampInt(*in.Priority, 0, 100, 10)
+		out.Priority = &p
+	}
+	return out
+}
+
+func signalOverrideEmpty(in SignalOverride) bool {
+	return in.Enabled == nil && in.Severity == "" && in.Priority == nil
+}
+
+func cloneSignalOverrideMap(in map[string]SignalOverride) map[string]SignalOverride {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]SignalOverride, len(in))
+	for k, v := range in {
+		out[k] = cloneSignalOverride(v)
+	}
+	return out
+}
+
+func cloneContextSignalOverrideMap(in map[string]map[string]SignalOverride) map[string]map[string]SignalOverride {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]SignalOverride, len(in))
+	for k, v := range in {
+		out[k] = cloneSignalOverrideMap(v)
+	}
+	return out
+}
+
+func cloneSignalOverride(in SignalOverride) SignalOverride {
+	out := in
+	if in.Enabled != nil {
+		v := *in.Enabled
+		out.Enabled = &v
+	}
+	if in.Priority != nil {
+		v := *in.Priority
+		out.Priority = &v
+	}
+	return out
 }
