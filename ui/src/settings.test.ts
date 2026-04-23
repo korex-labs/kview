@@ -3,6 +3,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   applyDataplaneProfile,
+  defaultDataplaneSettings,
   defaultUserSettings,
   exportUserSettingsJSON,
   customCommandsForContainer,
@@ -38,6 +39,12 @@ describe("user settings", () => {
   it("enables dataplane persistence by default", () => {
     expect(defaultUserSettings().dataplane.persistence.enabled).toBe(true);
     expect(validateUserSettings({ v: 1 })?.dataplane.persistence.enabled).toBe(true);
+  });
+
+  it("applies dataplane signal defaults on first startup", () => {
+    const defaults = defaultDataplaneSettings().signals;
+    expect(defaultUserSettings().dataplane.signals).toEqual(defaults);
+    expect(validateUserSettings({ v: 1 })?.dataplane.signals).toEqual(defaults);
   });
 
   it("falls back to defaults for unsupported versions", () => {
@@ -138,6 +145,21 @@ describe("user settings", () => {
     expect(next.profile).toBe("wide");
     expect(next.namespaceEnrichment.sweep.enabled).toBe(true);
     expect(next.persistence).toEqual({ enabled: false, maxAgeHours: 12 });
+  });
+
+  it("keeps dataplane signal thresholds unchanged when applying a profile", () => {
+    const current = {
+      ...defaultUserSettings().dataplane,
+      signals: {
+        ...defaultUserSettings().dataplane.signals,
+        longRunningJobSec: 7200,
+        quotaWarnPercent: 70,
+        quotaCriticalPercent: 85,
+      },
+    };
+    const next = applyDataplaneProfile(current, "wide");
+    expect(next.profile).toBe("wide");
+    expect(next.signals).toEqual(current.signals);
   });
 
   it("provides and matches default custom commands", () => {

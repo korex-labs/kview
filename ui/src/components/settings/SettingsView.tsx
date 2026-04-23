@@ -28,6 +28,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
   applyDataplaneProfile,
   customActionResourceKeys,
+  defaultDataplaneSettings,
   dataplaneNamespaceWarmResourceKeys,
   dataplaneTTLResourceKeys,
   exportUserSettingsJSON,
@@ -319,6 +320,19 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
   const setDataplaneMetrics = (patch: Partial<DataplaneSettings["metrics"]>) => {
     setSettings((prev) => updateDataplane(prev, {
       metrics: { ...prev.dataplane.metrics, ...patch },
+    }));
+  };
+  const setDataplaneSignals = (patch: Partial<DataplaneSettings["signals"]>) => {
+    setSettings((prev) => updateDataplane(prev, {
+      signals: (() => {
+        const next = { ...prev.dataplane.signals, ...patch };
+        if (next.quotaCriticalPercent <= next.quotaWarnPercent) {
+          const defaults = defaultDataplaneSettings().signals;
+          next.quotaWarnPercent = defaults.quotaWarnPercent;
+          next.quotaCriticalPercent = defaults.quotaCriticalPercent;
+        }
+        return next;
+      })(),
     }));
   };
 
@@ -953,6 +967,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
     const dp = settings.dataplane;
     const ne = dp.namespaceEnrichment;
     const sweep = ne.sweep;
+    const signalDefaults = defaultDataplaneSettings().signals;
     const estimatedSweepHours = sweep.maxNamespacesPerHour > 0 && namespaces.length > 0
       ? Math.ceil(namespaces.length / sweep.maxNamespacesPerHour)
       : 0;
@@ -1184,6 +1199,73 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
               dp.metrics.nodePressurePct,
               (value) => setDataplaneMetrics({ nodePressurePct: value }),
               "Threshold above which nodes raise a resource-pressure signal.",
+            )}
+          </Box>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+            <Typography variant="subtitle2">Signals Thresholds</Typography>
+            <Button
+              size="small"
+              onClick={() => {
+                setDataplaneSignals(signalDefaults);
+              }}
+            >
+              Reset signal thresholds
+            </Button>
+          </Box>
+          <Alert severity="info" sx={{ py: 0 }}>
+            These values control when dataplane signals trigger. Defaults are applied automatically on first startup; use reset to return to system defaults.
+          </Alert>
+          <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            {numField(
+              "Long-running job (sec)",
+              dp.signals.longRunningJobSec,
+              (value) => setDataplaneSignals({ longRunningJobSec: value }),
+              `Default: ${signalDefaults.longRunningJobSec}`,
+            )}
+            {numField(
+              "CronJob no recent success (sec)",
+              dp.signals.cronJobNoRecentSuccessSec,
+              (value) => setDataplaneSignals({ cronJobNoRecentSuccessSec: value }),
+              `Default: ${signalDefaults.cronJobNoRecentSuccessSec}`,
+            )}
+            {numField(
+              "Stale Helm release (sec)",
+              dp.signals.staleHelmReleaseSec,
+              (value) => setDataplaneSignals({ staleHelmReleaseSec: value }),
+              `Default: ${signalDefaults.staleHelmReleaseSec}`,
+            )}
+            {numField(
+              "Unused resource age (sec)",
+              dp.signals.unusedResourceAgeSec,
+              (value) => setDataplaneSignals({ unusedResourceAgeSec: value }),
+              `Default: ${signalDefaults.unusedResourceAgeSec}`,
+            )}
+            {numField(
+              "Young pod restart window (sec)",
+              dp.signals.podYoungRestartWindowSec,
+              (value) => setDataplaneSignals({ podYoungRestartWindowSec: value }),
+              `Default: ${signalDefaults.podYoungRestartWindowSec}`,
+            )}
+            {numField(
+              "Deployment unavailable (sec)",
+              dp.signals.deploymentUnavailableSec,
+              (value) => setDataplaneSignals({ deploymentUnavailableSec: value }),
+              `Default: ${signalDefaults.deploymentUnavailableSec}`,
+            )}
+            {numField(
+              "Quota warn (%)",
+              dp.signals.quotaWarnPercent,
+              (value) => setDataplaneSignals({ quotaWarnPercent: value }),
+              `Default: ${signalDefaults.quotaWarnPercent}`,
+            )}
+            {numField(
+              "Quota critical (%)",
+              dp.signals.quotaCriticalPercent,
+              (value) => setDataplaneSignals({ quotaCriticalPercent: value }),
+              `Default: ${signalDefaults.quotaCriticalPercent}`,
             )}
           </Box>
         </Paper>

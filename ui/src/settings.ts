@@ -117,6 +117,16 @@ export type DataplaneSettings = {
     containerNearLimitPct: number;
     nodePressurePct: number;
   };
+  signals: {
+    longRunningJobSec: number;
+    cronJobNoRecentSuccessSec: number;
+    staleHelmReleaseSec: number;
+    unusedResourceAgeSec: number;
+    podYoungRestartWindowSec: number;
+    deploymentUnavailableSec: number;
+    quotaWarnPercent: number;
+    quotaCriticalPercent: number;
+  };
 };
 
 export type SmartFilterMatchContext = {
@@ -387,6 +397,16 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       containerNearLimitPct: 90,
       nodePressurePct: 85,
     },
+    signals: {
+      longRunningJobSec: 6 * 60 * 60,
+      cronJobNoRecentSuccessSec: 24 * 60 * 60,
+      staleHelmReleaseSec: 15 * 60,
+      unusedResourceAgeSec: 24 * 60 * 60,
+      podYoungRestartWindowSec: 30 * 60,
+      deploymentUnavailableSec: 10 * 60,
+      quotaWarnPercent: 80,
+      quotaCriticalPercent: 90,
+    },
   };
 }
 
@@ -442,6 +462,8 @@ export function applyDataplaneProfile(current: DataplaneSettings, profile: Datap
     // Operator-tuned metrics knobs survive profile changes so a switch
     // doesn't unexpectedly re-enable polling or reset the alert thresholds.
     metrics: { ...current.metrics },
+    // Keep operator-tuned signal thresholds across profile switches.
+    signals: { ...current.signals },
   };
 }
 
@@ -687,6 +709,7 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
   const rawBudget = (raw.backgroundBudget ?? {}) as Partial<DataplaneSettings["backgroundBudget"]>;
   const rawDashboard = (raw.dashboard ?? {}) as Partial<DataplaneSettings["dashboard"]>;
   const rawMetrics = (raw.metrics ?? {}) as Partial<DataplaneSettings["metrics"]>;
+  const rawSignals = (raw.signals ?? {}) as Partial<DataplaneSettings["signals"]>;
   const rawTtls = (rawSnapshots.ttlSec ?? {}) as Record<string, unknown>;
   const profile = allowedDataplaneProfiles.has(raw.profile as DataplaneProfile)
     ? (raw.profile as DataplaneProfile)
@@ -855,7 +878,22 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
       containerNearLimitPct: validNumber(rawMetrics.containerNearLimitPct, 50, 100, defaults.metrics.containerNearLimitPct),
       nodePressurePct: validNumber(rawMetrics.nodePressurePct, 50, 100, defaults.metrics.nodePressurePct),
     },
+    signals: {
+      longRunningJobSec: validNumber(rawSignals.longRunningJobSec, 60, 604800, defaults.signals.longRunningJobSec),
+      cronJobNoRecentSuccessSec: validNumber(rawSignals.cronJobNoRecentSuccessSec, 300, 2592000, defaults.signals.cronJobNoRecentSuccessSec),
+      staleHelmReleaseSec: validNumber(rawSignals.staleHelmReleaseSec, 60, 86400, defaults.signals.staleHelmReleaseSec),
+      unusedResourceAgeSec: validNumber(rawSignals.unusedResourceAgeSec, 300, 2592000, defaults.signals.unusedResourceAgeSec),
+      podYoungRestartWindowSec: validNumber(rawSignals.podYoungRestartWindowSec, 60, 86400, defaults.signals.podYoungRestartWindowSec),
+      deploymentUnavailableSec: validNumber(rawSignals.deploymentUnavailableSec, 60, 86400, defaults.signals.deploymentUnavailableSec),
+      quotaWarnPercent: validNumber(rawSignals.quotaWarnPercent, 1, 99, defaults.signals.quotaWarnPercent),
+      quotaCriticalPercent: validNumber(rawSignals.quotaCriticalPercent, 1, 100, defaults.signals.quotaCriticalPercent),
+    },
   };
+
+  if (normalized.signals.quotaCriticalPercent <= normalized.signals.quotaWarnPercent) {
+    normalized.signals.quotaWarnPercent = defaults.signals.quotaWarnPercent;
+    normalized.signals.quotaCriticalPercent = defaults.signals.quotaCriticalPercent;
+  }
 
   if (normalized.profile === "manual") {
     normalized.observers.enabled = false;
