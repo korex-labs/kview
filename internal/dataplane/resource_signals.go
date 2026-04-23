@@ -111,6 +111,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	}
 
 	policy := m.Policy()
+	thresholds := signalThresholdsFromPolicy(policy)
 	store := newDashboardSignalStore()
 	now := time.Now()
 	var meta SnapshotMetadata
@@ -121,6 +122,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 			plane, namespace,
 			int32(policy.Dashboard.RestartElevatedThreshold),
 			policy.Metrics.ContainerNearLimitPct,
+			thresholds,
 		)
 		store.Add(detectDashboardSignals(now, namespace, s)...)
 		meta = mergeSnapshotMetaForResourceSignals(s)

@@ -345,7 +345,7 @@ func TestDashboardSignalFiltersSortEachGroupBySeverity(t *testing.T) {
 }
 
 func TestDashboardPodRestartSignalUsesSignalShape(t *testing.T) {
-	item := dashboardPodRestartSignal("team-a", dto.PodListItemDTO{Name: "api-0", Restarts: 10, AgeSec: int64((48 * time.Hour).Seconds())})
+	item := dashboardPodRestartSignal("team-a", dto.PodListItemDTO{Name: "api-0", Restarts: 10, AgeSec: int64((48 * time.Hour).Seconds())}, 5)
 	summary := summarizeDashboardSignals([]ClusterDashboardSignal{item}, 10, ClusterDashboardListOptions{SignalsFilter: "signal:pod_restarts", SignalsLimit: 10})
 
 	if summary.PodRestartSignals != 1 || summary.ItemsTotal != 1 || len(summary.Items) != 1 {
@@ -355,7 +355,7 @@ func TestDashboardPodRestartSignalUsesSignalShape(t *testing.T) {
 	if got.SignalType != "pod_restarts" || got.ResourceKind != "Pod" || got.ResourceName != "api-0" {
 		t.Fatalf("pod restart identity missing: %+v", got)
 	}
-	if got.ActualData != "10 restarts · age 2.0d" || got.CalculatedData != "5.0/day restart rate" {
+	if got.ActualData != "10 restarts · age 2.0d" || got.CalculatedData != "restart count is at least 5 (rate 5.0/day)" {
 		t.Fatalf("pod restart signal data mismatch: %+v", got)
 	}
 	if !dashboardSignalFilterExists(summary.Filters, "signal:pod_restarts", "Pod restarts", 1) {
@@ -405,7 +405,7 @@ func TestDashboardSignalDefinitionRegistryPreservesKnownMetadata(t *testing.T) {
 	}
 
 	longRunningJob := dashboardSignalDefinitionForType("long_running_job")
-	if longRunningJob.Type != "long_running_job" || longRunningJob.CalculatedData != "running for more than 6 hours" {
+	if longRunningJob.Type != "long_running_job" || longRunningJob.CalculatedData != "running for longer than configured duration" {
 		t.Fatalf("long-running job signal mismatch: %+v", longRunningJob)
 	}
 

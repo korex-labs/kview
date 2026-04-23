@@ -33,9 +33,9 @@ import (
 // message. List-level signals (e.g. chronic pod_restarts) are still produced
 // by the namespace aggregator and combined with these by the per-resource
 // signals endpoint.
-func DetectPodDetailSignals(now time.Time, namespace string, details dto.PodDetailsDTO, events []dto.EventDTO) []ClusterDashboardSignal {
+func DetectPodDetailSignals(now time.Time, namespace string, details dto.PodDetailsDTO, events []dto.EventDTO, thresholds resolvedSignalThresholds) []ClusterDashboardSignal {
 	var out []ClusterDashboardSignal
-	if s := detectPodYoungFrequentRestartsSignal(namespace, details); s != nil {
+	if s := detectPodYoungFrequentRestartsSignal(namespace, details, thresholds); s != nil {
 		out = append(out, *s)
 	}
 	if s := detectPodSucceededWithIssuesSignal(namespace, details, events); s != nil {
@@ -50,9 +50,9 @@ func DetectPodDetailSignals(now time.Time, namespace string, details dto.PodDeta
 // DetectDeploymentDetailSignals returns per-resource signals derived from a
 // deployment's detail DTO. The caller provides `now` so tests can freeze time
 // and so the detector can measure condition transition age deterministically.
-func DetectDeploymentDetailSignals(now time.Time, namespace string, details dto.DeploymentDetailsDTO) []ClusterDashboardSignal {
+func DetectDeploymentDetailSignals(now time.Time, namespace string, details dto.DeploymentDetailsDTO, thresholds resolvedSignalThresholds) []ClusterDashboardSignal {
 	var out []ClusterDashboardSignal
-	if s := detectDeploymentUnavailableSignal(now, namespace, details); s != nil {
+	if s := detectDeploymentUnavailableSignal(now, namespace, details, thresholds); s != nil {
 		out = append(out, *s)
 	}
 	if s := detectMissingTemplateReferenceSignal("Deployment", namespace, details.Summary.Name, details.Spec.MissingReferences); s != nil {
@@ -96,7 +96,7 @@ func DetectCronJobDetailSignals(namespace string, details dto.CronJobDetailsDTO)
 	return nil
 }
 
-func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetailsDTO) *ClusterDashboardSignal {
+func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetailsDTO, thresholds resolvedSignalThresholds) *ClusterDashboardSignal {
 	summary := details.Summary
 	if summary.Name == "" {
 		return nil
@@ -106,13 +106,19 @@ func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetai
 		return nil
 	}
 
+	youngWindow := thresholds.PodYoungRestartDuration
+	if youngWindow <= 0 {
+		youngWindow = signalPodYoungRestartDuration
+	}
+	restartThreshold := signalRestartMinThreshold
+
 	ageSec := summary.AgeSec
 	if ageSec < 0 {
 		ageSec = 0
 	}
 	// Only fire when the pod is "young" enough; chronic restarts on older pods
 	// are covered by the list-level pod_restarts signal.
-	if ageSec > int64(signalPodYoungRestartDuration.Seconds()) {
+	if ageSec > int64(youngWindow.Seconds()) {
 		return nil
 	}
 
@@ -122,13 +128,13 @@ func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetai
 			totalRestarts += c.RestartCount
 		}
 	}
-	if totalRestarts < signalRestartMinThreshold {
+	if totalRestarts < restartThreshold {
 		return nil
 	}
 
 	highRestart := make([]dto.PodContainerDTO, 0, len(containers))
 	for _, c := range containers {
-		if c.RestartCount >= signalRestartMinThreshold {
+		if c.RestartCount >= restartThreshold {
 			highRestart = append(highRestart, c)
 		}
 	}
@@ -146,8 +152,9 @@ func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetai
 		reason, "high", "pods",
 	)
 	sig.ActualData = fmt.Sprintf("%d total restarts in %dm", totalRestarts, mins)
+	sig.CalculatedData = fmt.Sprintf("at least %d restarts while age is %s or less", restartThreshold, humanizeSignalDuration(youngWindow))
 	if reasons := podTerminationReasonsSummary(highRestart, 3); reasons != "" {
-		sig.CalculatedData = fmt.Sprintf("last termination: %s", reasons)
+		sig.CalculatedData = fmt.Sprintf("%s; last termination: %s", sig.CalculatedData, reasons)
 	}
 	return &sig
 }
@@ -307,7 +314,7 @@ func eventMentionsSecretName(event dto.EventDTO, secretName string) bool {
 	return strings.Contains(text, needle)
 }
 
-func detectDeploymentUnavailableSignal(now time.Time, namespace string, details dto.DeploymentDetailsDTO) *ClusterDashboardSignal {
+func detectDeploymentUnavailableSignal(now time.Time, namespace string, details dto.DeploymentDetailsDTO, thresholds resolvedSignalThresholds) *ClusterDashboardSignal {
 	summary := details.Summary
 	if summary.Name == "" {
 		return nil
@@ -318,7 +325,11 @@ func detectDeploymentUnavailableSignal(now time.Time, namespace string, details 
 		return nil
 	}
 
-	thresholdSec := int64(signalDeploymentUnavailableDuration.Seconds())
+	threshold := thresholds.DeploymentUnavailableAge
+	if threshold <= 0 {
+		threshold = signalDeploymentUnavailableDuration
+	}
+	thresholdSec := int64(threshold.Seconds())
 	nowSec := now.Unix()
 
 	var availableCond *dto.DeploymentConditionDTO
@@ -356,6 +367,9 @@ func detectDeploymentUnavailableSignal(now time.Time, namespace string, details 
 		if detail != "" {
 			sig.CalculatedData = detail
 		}
+		if strings.TrimSpace(sig.CalculatedData) == "" {
+			sig.CalculatedData = fmt.Sprintf("Available=False for more than %s", humanizeSignalDuration(threshold))
+		}
 		return &sig
 	}
 
@@ -372,7 +386,7 @@ func detectDeploymentUnavailableSignal(now time.Time, namespace string, details 
 		reason, "medium", "workloads",
 	)
 	sig.ActualData = fmt.Sprintf("desired %d, available 0, age %s", desired, formatMinutesHuman(summary.AgeSec))
-	sig.CalculatedData = "no Available condition recorded"
+	sig.CalculatedData = fmt.Sprintf("no Available condition recorded; threshold %s", humanizeSignalDuration(threshold))
 	return &sig
 }
 

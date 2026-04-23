@@ -56,7 +56,7 @@ func detectPodRestartSignals(_ time.Time, ns string, s dashboardSnapshotSet) []C
 	}
 	for _, p := range s.pods.Items {
 		if p.Restarts >= threshold {
-			out = append(out, dashboardPodRestartSignal(ns, p))
+			out = append(out, dashboardPodRestartSignal(ns, p, threshold))
 		}
 	}
 	return out
@@ -79,10 +79,14 @@ func detectLongRunningJobSignals(_ time.Time, ns string, s dashboardSnapshotSet)
 	if !s.jobsOK {
 		return nil
 	}
+	duration := s.longRunningJobDuration
+	if duration <= 0 {
+		duration = signalLongRunningJobDuration
+	}
 	var out []ClusterDashboardSignal
 	for _, j := range EnrichJobListItemsForAPI(s.jobs.Items) {
-		if !j.NeedsAttention && j.Status == "Running" && j.AgeSec >= int64(signalLongRunningJobDuration.Seconds()) {
-			out = append(out, dashboardSignalItem("long_running_job", "Job", ns, j.Name, "medium", 62, "Job has been running for more than 6 hours.", "medium", "jobs"))
+		if !j.NeedsAttention && j.Status == "Running" && j.AgeSec >= int64(duration.Seconds()) {
+			out = append(out, dashboardSignalItem("long_running_job", "Job", ns, j.Name, "medium", 62, fmt.Sprintf("Job has been running for more than %s.", humanizeSignalDuration(duration)), "medium", "jobs"))
 		}
 	}
 	return out
@@ -105,10 +109,14 @@ func detectCronJobNoRecentSuccessSignals(_ time.Time, ns string, s dashboardSnap
 	if !s.cjsOK {
 		return nil
 	}
+	duration := s.cronJobNoSuccessAge
+	if duration <= 0 {
+		duration = signalCronJobNoSuccessDuration
+	}
 	var out []ClusterDashboardSignal
 	for _, cj := range EnrichCronJobListItemsForAPI(s.cjs.Items) {
-		if !cj.NeedsAttention && !cj.Suspend && cj.AgeSec >= int64(signalCronJobNoSuccessDuration.Seconds()) && cj.LastSuccessfulTime == 0 {
-			out = append(out, dashboardSignalItem("cronjob_no_recent_success", "CronJob", ns, cj.Name, "medium", 60, "CronJob has no successful run recorded after more than 24 hours.", "medium", "cronjobs"))
+		if !cj.NeedsAttention && !cj.Suspend && cj.AgeSec >= int64(duration.Seconds()) && cj.LastSuccessfulTime == 0 {
+			out = append(out, dashboardSignalItem("cronjob_no_recent_success", "CronJob", ns, cj.Name, "medium", 60, fmt.Sprintf("CronJob has no successful run recorded after more than %s.", humanizeSignalDuration(duration)), "medium", "cronjobs"))
 		}
 	}
 	return out
@@ -149,6 +157,10 @@ func detectStaleTransitionalHelmReleaseSignals(now time.Time, ns string, s dashb
 	if !s.helmOK {
 		return nil
 	}
+	duration := s.staleHelmReleaseAge
+	if duration <= 0 {
+		duration = signalStaleHelmReleaseDuration
+	}
 	var out []ClusterDashboardSignal
 	for _, rel := range s.helmReleases.Items {
 		if !isTransitionalHelmStatus(rel.Status) {
@@ -158,8 +170,8 @@ func detectStaleTransitionalHelmReleaseSignals(now time.Time, ns string, s dashb
 		stale := rel.Updated == 0
 		if rel.Updated > 0 {
 			d := now.Sub(time.Unix(rel.Updated, 0))
-			stale = d >= signalStaleHelmReleaseDuration
-			age = "status has been transitional for more than 15 minutes"
+			stale = d >= duration
+			age = fmt.Sprintf("status has been transitional for more than %s", humanizeSignalDuration(duration))
 		}
 		if stale {
 			out = append(out, dashboardSignalItem("stale_transitional_helm_release", "HelmRelease", ns, rel.Name, "high", 86, age, "medium", "helm"))
@@ -259,16 +271,24 @@ func detectResourceQuotaPressureSignals(_ time.Time, ns string, s dashboardSnaps
 	if !s.quotasOK {
 		return nil
 	}
+	warnRatio := s.quotaWarnRatio
+	if warnRatio <= 0 {
+		warnRatio = quotaWarnRatio
+	}
+	critRatio := s.quotaCritRatio
+	if critRatio <= 0 {
+		critRatio = quotaCritRatio
+	}
 	var out []ClusterDashboardSignal
 	for _, quota := range s.resourceQuotas.Items {
 		for _, entry := range quota.Entries {
-			if entry.Ratio == nil || *entry.Ratio < quotaWarnRatio {
+			if entry.Ratio == nil || *entry.Ratio < warnRatio {
 				continue
 			}
 			ratio := *entry.Ratio
 			severity := "medium"
 			score := 68
-			if ratio >= quotaCritRatio {
+			if ratio >= critRatio {
 				severity = "high"
 				score = 92
 			}
@@ -311,9 +331,13 @@ func detectPotentiallyUnusedPVCSignals(_ time.Time, ns string, s dashboardSnapsh
 	if !s.pvcsOK || !s.podsOK || len(s.pods.Items) > 0 {
 		return nil
 	}
+	minAge := s.unusedResourceAge
+	if minAge <= 0 {
+		minAge = signalUnusedResourceAgeDuration
+	}
 	var out []ClusterDashboardSignal
 	for _, pvc := range EnrichPVCListItemsForAPI(s.pvcs.Items) {
-		if !pvc.NeedsAttention && pvc.AgeSec >= int64(signalUnusedResourceAgeDuration.Seconds()) {
+		if !pvc.NeedsAttention && pvc.AgeSec >= int64(minAge.Seconds()) {
 			out = append(out, dashboardSignalItem("potentially_unused_pvc", "PersistentVolumeClaim", ns, pvc.Name, "low", 30, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "persistentvolumeclaims"))
 		}
 	}
@@ -324,13 +348,45 @@ func detectPotentiallyUnusedServiceAccountSignals(_ time.Time, ns string, s dash
 	if !s.sasOK || !s.podsOK || len(s.pods.Items) > 0 {
 		return nil
 	}
+	minAge := s.unusedResourceAge
+	if minAge <= 0 {
+		minAge = signalUnusedResourceAgeDuration
+	}
 	var out []ClusterDashboardSignal
 	for _, sa := range s.sas.Items {
-		if sa.Name != "default" && sa.AgeSec >= int64(signalUnusedResourceAgeDuration.Seconds()) {
+		if sa.Name != "default" && sa.AgeSec >= int64(minAge.Seconds()) {
 			out = append(out, dashboardSignalItem("potentially_unused_serviceaccount", "ServiceAccount", ns, sa.Name, "low", 25, "Potentially unused: no pods are present in the cached namespace snapshot.", "low", "serviceaccounts"))
 		}
 	}
 	return out
+}
+
+func humanizeSignalDuration(d time.Duration) string {
+	if d <= 0 {
+		return "0 minutes"
+	}
+	if d%(24*time.Hour) == 0 {
+		days := int(d / (24 * time.Hour))
+		if days == 1 {
+			return "24 hours"
+		}
+		return fmt.Sprintf("%d days", days)
+	}
+	if d%time.Hour == 0 {
+		hours := int(d / time.Hour)
+		if hours == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", hours)
+	}
+	if d%time.Minute == 0 {
+		minutes := int(d / time.Minute)
+		if minutes == 1 {
+			return "1 minute"
+		}
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+	return d.Round(time.Second).String()
 }
 
 // detectContainerNearLimitSignals flags pods whose aggregated usage is close to

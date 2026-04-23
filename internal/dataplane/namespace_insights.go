@@ -30,6 +30,8 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	plane := planeAny.(*clusterPlane)
 	ctx = ContextWithWorkSourceIfUnset(ctx, WorkSourceProjection)
 	prio := WorkPriorityHigh
+	policy := m.Policy()
+	thresholds := signalThresholdsFromPolicy(policy)
 
 	podsSnap, podsErr := plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	depsSnap, depsErr := plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
@@ -80,6 +82,7 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 
 	signals := newDashboardSignalStore()
 	signals.Add(detectDashboardSignals(time.Now(), namespace, dashboardSnapshotSet{
+		restartThreshold: int32(policy.Dashboard.RestartElevatedThreshold),
 		pods:           podsSnap,
 		podsOK:         podsErr == nil,
 		deps:           depsSnap,
@@ -118,6 +121,12 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 		quotasOK:       rqErr == nil,
 		limitRanges:    lrSnap,
 		limitRangesOK:  lrErr == nil,
+		longRunningJobDuration: thresholds.LongRunningJobDuration,
+		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
+		staleHelmReleaseAge:    thresholds.StaleHelmReleaseDuration,
+		unusedResourceAge:      thresholds.UnusedResourceAge,
+		quotaWarnRatio:         thresholds.QuotaWarnRatio,
+		quotaCritRatio:         thresholds.QuotaCritRatio,
 	})...)
 	sorted := signals.Summary(signals.Len(), ClusterDashboardListOptions{SignalsLimit: signals.Len()})
 	out.Insights.Signals = namespaceInsightSignalsFromDashboard(sorted.Items)

@@ -72,7 +72,7 @@ func TestDetectPodDetailSignals_YoungFrequentRestarts(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectPodDetailSignals(now, "team-a", tt.details, nil)
+			got := DetectPodDetailSignals(now, "team-a", tt.details, nil, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 			var got1 *ClusterDashboardSignal
 			for i := range got {
 				if got[i].SignalType == "pod_young_frequent_restarts" {
@@ -165,7 +165,7 @@ func TestDetectPodDetailSignals_SucceededWithIssues(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectPodDetailSignals(now, "team-a", tt.details, tt.events)
+			got := DetectPodDetailSignals(now, "team-a", tt.details, tt.events, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 			var hit *ClusterDashboardSignal
 			for i := range got {
 				if got[i].SignalType == "pod_succeeded_with_issues" {
@@ -280,7 +280,7 @@ func TestDetectPodDetailSignals_MissingSecretReference(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectPodDetailSignals(now, "team-a", tt.details, tt.events)
+			got := DetectPodDetailSignals(now, "team-a", tt.details, tt.events, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 			var hit *ClusterDashboardSignal
 			for i := range got {
 				if got[i].SignalType == "pod_missing_secret_reference" {
@@ -381,7 +381,7 @@ func TestDetectDeploymentDetailSignals_Unavailable(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectDeploymentDetailSignals(now, "team-a", tt.details)
+			got := DetectDeploymentDetailSignals(now, "team-a", tt.details, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 			var hit *ClusterDashboardSignal
 			for i := range got {
 				if got[i].SignalType == "deployment_unavailable" {
@@ -415,14 +415,14 @@ func TestDetectPodDetailSignals_EmptyPodIsSafe(t *testing.T) {
 	// A zero-valued PodDetailsDTO (no name) must not produce any signal and
 	// must not panic, since detectors may be invoked before the detail
 	// response is populated.
-	got := DetectPodDetailSignals(time.Unix(1, 0), "", dto.PodDetailsDTO{}, nil)
+	got := DetectPodDetailSignals(time.Unix(1, 0), "", dto.PodDetailsDTO{}, nil, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 	if len(got) != 0 {
 		t.Fatalf("expected no signals for empty pod, got %+v", got)
 	}
 }
 
 func TestDetectDeploymentDetailSignals_EmptyDeploymentIsSafe(t *testing.T) {
-	got := DetectDeploymentDetailSignals(time.Unix(1, 0), "", dto.DeploymentDetailsDTO{})
+	got := DetectDeploymentDetailSignals(time.Unix(1, 0), "", dto.DeploymentDetailsDTO{}, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 	if len(got) != 0 {
 		t.Fatalf("expected no signals for empty deployment, got %+v", got)
 	}
@@ -437,7 +437,7 @@ func TestDetectDeploymentDetailSignals_MissingTemplateReferences(t *testing.T) {
 				{Kind: "ConfigMap", Name: "app-config", Source: "volume/config"},
 			},
 		},
-	})
+	}, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
 
 	var hit *ClusterDashboardSignal
 	for i := range got {
@@ -463,9 +463,9 @@ func TestDashboardSignalDefinitionRegistry_NewDetailSignalsRegistered(t *testing
 		wantLabel      string
 		wantCalculated string
 	}{
-		{"pod_young_frequent_restarts", "Pods restarting frequently in short lifetime", "pod accumulated at least 5 restarts while age is 30 minutes or less"},
+		{"pod_young_frequent_restarts", "Pods restarting frequently in short lifetime", "pod accumulated frequent restarts within configured young-pod window"},
 		{"pod_succeeded_with_issues", "Pods Succeeded with recorded issues", "phase Succeeded while conditions, container states, or Warning events indicate problems"},
-		{"deployment_unavailable", "Deployments unavailable for extended time", "Available=False for more than 10 minutes, or no available replicas for a mature deployment"},
+		{"deployment_unavailable", "Deployments unavailable for extended time", "Available=False longer than configured threshold, or no available replicas for a mature deployment"},
 		{"deployment_missing_template_reference", "Deployments with missing template references", "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
 	}
 	for _, tc := range cases {

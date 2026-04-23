@@ -22,6 +22,7 @@ type DataplanePolicy struct {
 	BackgroundBudget    BackgroundBudgetPolicy    `json:"backgroundBudget"`
 	Dashboard           DashboardPolicy           `json:"dashboard"`
 	Metrics             MetricsPolicy             `json:"metrics"`
+	Signals             SignalsPolicy             `json:"signals"`
 }
 
 // MetricsPolicy governs metrics.k8s.io integration. Enabled is a soft gate
@@ -35,6 +36,20 @@ type MetricsPolicy struct {
 	NodeMetricsTTLSeconds int  `json:"nodeMetricsTtlSec"`
 	ContainerNearLimitPct int  `json:"containerNearLimitPct"`
 	NodePressurePct       int  `json:"nodePressurePct"`
+}
+
+// SignalsPolicy governs detector thresholds used by dashboard, namespace insights,
+// and per-resource signals. Values are validated and clamped in
+// ValidateDataplanePolicy.
+type SignalsPolicy struct {
+	LongRunningJobSec         int `json:"longRunningJobSec"`
+	CronJobNoRecentSuccessSec int `json:"cronJobNoRecentSuccessSec"`
+	StaleHelmReleaseSec       int `json:"staleHelmReleaseSec"`
+	UnusedResourceAgeSec      int `json:"unusedResourceAgeSec"`
+	PodYoungRestartWindowSec  int `json:"podYoungRestartWindowSec"`
+	DeploymentUnavailableSec  int `json:"deploymentUnavailableSec"`
+	QuotaWarnPercent          int `json:"quotaWarnPercent"`
+	QuotaCriticalPercent      int `json:"quotaCriticalPercent"`
 }
 
 type SnapshotPolicy struct {
@@ -198,6 +213,16 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			ContainerNearLimitPct: 90,
 			NodePressurePct:       85,
 		},
+		Signals: SignalsPolicy{
+			LongRunningJobSec:         int(signalLongRunningJobDuration.Seconds()),
+			CronJobNoRecentSuccessSec: int(signalCronJobNoSuccessDuration.Seconds()),
+			StaleHelmReleaseSec:       int(signalStaleHelmReleaseDuration.Seconds()),
+			UnusedResourceAgeSec:      int(signalUnusedResourceAgeDuration.Seconds()),
+			PodYoungRestartWindowSec:  int(signalPodYoungRestartDuration.Seconds()),
+			DeploymentUnavailableSec:  int(signalDeploymentUnavailableDuration.Seconds()),
+			QuotaWarnPercent:          int(quotaWarnRatio * 100),
+			QuotaCriticalPercent:      int(quotaCritRatio * 100),
+		},
 	}
 }
 
@@ -253,6 +278,18 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 15, 300, def.Metrics.NodeMetricsTTLSeconds)
 	out.Metrics.ContainerNearLimitPct = clampInt(out.Metrics.ContainerNearLimitPct, 50, 100, def.Metrics.ContainerNearLimitPct)
 	out.Metrics.NodePressurePct = clampInt(out.Metrics.NodePressurePct, 50, 100, def.Metrics.NodePressurePct)
+	out.Signals.LongRunningJobSec = clampInt(out.Signals.LongRunningJobSec, 60, 604800, def.Signals.LongRunningJobSec)
+	out.Signals.CronJobNoRecentSuccessSec = clampInt(out.Signals.CronJobNoRecentSuccessSec, 300, 2592000, def.Signals.CronJobNoRecentSuccessSec)
+	out.Signals.StaleHelmReleaseSec = clampInt(out.Signals.StaleHelmReleaseSec, 60, 86400, def.Signals.StaleHelmReleaseSec)
+	out.Signals.UnusedResourceAgeSec = clampInt(out.Signals.UnusedResourceAgeSec, 300, 2592000, def.Signals.UnusedResourceAgeSec)
+	out.Signals.PodYoungRestartWindowSec = clampInt(out.Signals.PodYoungRestartWindowSec, 60, 86400, def.Signals.PodYoungRestartWindowSec)
+	out.Signals.DeploymentUnavailableSec = clampInt(out.Signals.DeploymentUnavailableSec, 60, 86400, def.Signals.DeploymentUnavailableSec)
+	out.Signals.QuotaWarnPercent = clampInt(out.Signals.QuotaWarnPercent, 1, 99, def.Signals.QuotaWarnPercent)
+	out.Signals.QuotaCriticalPercent = clampInt(out.Signals.QuotaCriticalPercent, 1, 100, def.Signals.QuotaCriticalPercent)
+	if out.Signals.QuotaCriticalPercent <= out.Signals.QuotaWarnPercent {
+		out.Signals.QuotaWarnPercent = def.Signals.QuotaWarnPercent
+		out.Signals.QuotaCriticalPercent = def.Signals.QuotaCriticalPercent
+	}
 	// Mirror the validated metrics TTLs into the snapshot TTL map so
 	// SnapshotTTL(ResourceKindPodMetrics/NodeMetrics) agrees with the
 	// operator-facing Metrics knobs in a single place.

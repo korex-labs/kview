@@ -1728,7 +1728,7 @@ func (s *Server) Router() http.Handler {
 				if evErr != nil {
 					evs = nil
 				}
-				signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs)
+				signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs, dataplane.SignalThresholdsFromPolicy(s.dp.Policy()))
 				detailSignals = dataplane.NamespaceInsightSignalsFromDashboard(signals)
 			}
 			if detailSignals == nil {
@@ -1827,7 +1827,7 @@ func (s *Server) Router() http.Handler {
 			var detailSignals []dto.NamespaceInsightSignalDTO
 			if det != nil {
 				det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-				detailSignals = detailSignalsResponse(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det))
+				detailSignals = detailSignalsResponse(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det, dataplane.SignalThresholdsFromPolicy(s.dp.Policy())))
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{

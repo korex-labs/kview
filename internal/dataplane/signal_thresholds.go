@@ -47,3 +47,33 @@ const (
 	derivedNodeElevatedRestartMin = 3
 	derivedNodeNonRunningMin      = 5
 )
+
+type resolvedSignalThresholds struct {
+	LongRunningJobDuration   time.Duration
+	CronJobNoSuccessDuration time.Duration
+	StaleHelmReleaseDuration time.Duration
+	UnusedResourceAge        time.Duration
+	PodYoungRestartDuration  time.Duration
+	DeploymentUnavailableAge time.Duration
+	QuotaWarnRatio           float64
+	QuotaCritRatio           float64
+}
+
+func signalThresholdsFromPolicy(policy DataplanePolicy) resolvedSignalThresholds {
+	return resolvedSignalThresholds{
+		LongRunningJobDuration:   time.Duration(policy.Signals.LongRunningJobSec) * time.Second,
+		CronJobNoSuccessDuration: time.Duration(policy.Signals.CronJobNoRecentSuccessSec) * time.Second,
+		StaleHelmReleaseDuration: time.Duration(policy.Signals.StaleHelmReleaseSec) * time.Second,
+		UnusedResourceAge:        time.Duration(policy.Signals.UnusedResourceAgeSec) * time.Second,
+		PodYoungRestartDuration:  time.Duration(policy.Signals.PodYoungRestartWindowSec) * time.Second,
+		DeploymentUnavailableAge: time.Duration(policy.Signals.DeploymentUnavailableSec) * time.Second,
+		QuotaWarnRatio:           float64(policy.Signals.QuotaWarnPercent) / 100,
+		QuotaCritRatio:           float64(policy.Signals.QuotaCriticalPercent) / 100,
+	}
+}
+
+// SignalThresholdsFromPolicy resolves validated runtime thresholds from the
+// dataplane policy for detector calls outside this package (e.g. HTTP handlers).
+func SignalThresholdsFromPolicy(policy DataplanePolicy) resolvedSignalThresholds {
+	return signalThresholdsFromPolicy(policy)
+}

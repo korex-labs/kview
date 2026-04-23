@@ -38,7 +38,9 @@ func resourceTotalsCompletenessLabel(visible, withCachedDataplaneLists int) stri
 func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
 	opts = normalizeClusterDashboardListOptions(opts)
 	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
-	policy := m.Policy().Dashboard
+	p := m.Policy()
+	policy := p.Dashboard
+	thresholds := signalThresholdsFromPolicy(p)
 
 	knownNS := visibleNamespacesWithCachedDataplaneLists(plane, nsNamesSorted)
 	cov.NamespacesInResourceTotals = len(knownNS)
@@ -76,7 +78,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	now := time.Now()
 
 	for _, ns := range knownNS {
-		s := buildSnapshotSetForNamespace(plane, ns, int32(policy.RestartElevatedThreshold), m.Policy().Metrics.ContainerNearLimitPct)
+		s := buildSnapshotSetForNamespace(plane, ns, int32(policy.RestartElevatedThreshold), p.Metrics.ContainerNearLimitPct, thresholds)
 		if s.podsOK {
 			res.Pods += len(s.pods.Items)
 			aggregateMetas = append(aggregateMetas, s.pods.Meta)
@@ -177,7 +179,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 // a single namespace and returns a fully populated dashboardSnapshotSet ready
 // for signal detection and resource counting. Adding a new resource kind only
 // requires touching this function and the struct definition below.
-func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThreshold int32, containerNearLimitPct int) dashboardSnapshotSet {
+func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThreshold int32, containerNearLimitPct int, thresholds resolvedSignalThresholds) dashboardSnapshotSet {
 	podsSnap, podsOK := plane.podsStore.getCached(ns)
 	depsSnap, depsOK := plane.depsStore.getCached(ns)
 	dsSnap, dsOK := plane.dsStore.getCached(ns)
@@ -241,6 +243,12 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 		podMetrics:            podMetricsSnap,
 		podMetricsOK:          podMetricsOK && podMetricsSnap.Err == nil,
 		containerNearLimitPct: containerNearLimitPct,
+		longRunningJobDuration: thresholds.LongRunningJobDuration,
+		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
+		staleHelmReleaseAge:    thresholds.StaleHelmReleaseDuration,
+		unusedResourceAge:      thresholds.UnusedResourceAge,
+		quotaWarnRatio:         thresholds.QuotaWarnRatio,
+		quotaCritRatio:         thresholds.QuotaCritRatio,
 	}
 }
 
@@ -292,6 +300,12 @@ type dashboardSnapshotSet struct {
 	// containerNearLimitPct is the minimum percent-of-limit required to raise
 	// a container_near_limit signal. Set from policy.Metrics.ContainerNearLimitPct.
 	containerNearLimitPct int
+	longRunningJobDuration time.Duration
+	cronJobNoSuccessAge    time.Duration
+	staleHelmReleaseAge    time.Duration
+	unusedResourceAge      time.Duration
+	quotaWarnRatio         float64
+	quotaCritRatio         float64
 }
 
 func detectDashboardSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
@@ -339,7 +353,7 @@ func dashboardSignalItem(signalType, kind, namespace, name, severity string, sco
 	}
 }
 
-func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO) ClusterDashboardSignal {
+func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO, threshold int32) ClusterDashboardSignal {
 	severity := restartSeverityFromCount(pod.Restarts)
 	score := 61
 	if severity == restartSeverityHigh {
@@ -350,7 +364,10 @@ func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO) Cluster
 	if pod.AgeSec > 0 {
 		f.ActualData = fmt.Sprintf("%s · age %.1fd", f.ActualData, float64(pod.AgeSec)/float64((24*time.Hour).Seconds()))
 	}
-	f.CalculatedData = fmt.Sprintf("%.1f/day restart rate", restartRatePerDay(pod.Restarts, pod.AgeSec))
+	if threshold <= 0 {
+		threshold = signalRestartMinThreshold
+	}
+	f.CalculatedData = fmt.Sprintf("restart count is at least %d (rate %.1f/day)", threshold, restartRatePerDay(pod.Restarts, pod.AgeSec))
 	return f
 }
 
