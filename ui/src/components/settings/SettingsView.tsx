@@ -16,11 +16,14 @@ import {
   Paper,
   Select,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import type { Theme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -56,8 +59,10 @@ import {
 import { useUserSettings } from "../../settingsContext";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
 import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
+import InfoHint from "../shared/InfoHint";
 
-type SettingsSection = "appearance" | "smartFilters" | "commands" | "actions" | "nsEnrichment" | "importExport";
+type SettingsSection = "appearance" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
+type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 
 type Props = {
   contexts: Array<{ name: string }>;
@@ -72,16 +77,71 @@ function dataplaneWarmResourceLabel(kind: string): string {
   return getResourceLabel(kind as ListResourceKey);
 }
 
+function dataplaneProfileLabel(profile: DataplaneProfile): string {
+  switch (profile) {
+    case "manual":
+      return "Manual";
+    case "balanced":
+      return "Balanced";
+    case "wide":
+      return "Wide";
+    case "diagnostic":
+      return "Diagnostic";
+    case "focused":
+    default:
+      return "Focused";
+  }
+}
+
+function dataplaneProfileEnrichmentText(profile: DataplaneProfile): string {
+  switch (profile) {
+    case "manual":
+      return "Manual mode disables automatic namespace enrichment and background sweep; live reads still populate snapshots when you open lists.";
+    case "balanced":
+      return "Balanced enrichment warms more namespace targets and key resource lists while keeping background work modest.";
+    case "wide":
+      return "Wide enrichment warms all namespaced dataplane list kinds and enables a measured idle sweep across more namespaces.";
+    case "diagnostic":
+      return "Diagnostic enrichment is the most aggressive profile for troubleshooting broad cluster state and stale signal coverage.";
+    case "focused":
+    default:
+      return "Focused enrichment keeps high-value data warm for the active namespace, recent namespaces, and favourites.";
+  }
+}
+
 const sections: Array<{ id: SettingsSection; label: string }> = [
   { id: "appearance", label: "Appearance" },
   { id: "smartFilters", label: "Smart Filters" },
   { id: "commands", label: "Custom Commands" },
   { id: "actions", label: "Custom Actions" },
-  { id: "nsEnrichment", label: "NS Enrichment" },
+  { id: "dataplane", label: "Dataplane" },
   { id: "importExport", label: "Import / Export" },
 ];
 
 const headerRowSx = { display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" };
+
+const settingsShellSx = {
+  flex: 1,
+  minHeight: 0,
+  display: "flex",
+  overflow: "hidden",
+  backgroundColor: "var(--bg-primary)",
+};
+
+const settingsMainSurfaceSx = {
+  flex: 1,
+  minWidth: 0,
+  overflow: "auto",
+  p: 1.25,
+  backgroundColor: "background.paper",
+  backgroundImage: (theme: Theme) =>
+    theme.palette.mode === "dark" ? "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))" : "none",
+  "& .MuiPaper-root": {
+    backgroundColor: "background.paper",
+    backgroundImage: (theme: Theme) =>
+      theme.palette.mode === "dark" ? "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))" : "none",
+  },
+};
 
 function ReorderButtons({
   label,
@@ -236,6 +296,7 @@ function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
 export default function SettingsView({ contexts, namespaces, activeContext, activeNamespace, onClose }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
+  const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
 
@@ -952,22 +1013,39 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
     value: number,
     onChange: (value: number) => void,
     helperText?: string,
+    hint?: string,
   ) => (
     <TextField
       size="small"
       type="number"
-      label={label}
+      label={hint ? labelWithHint(label, hint) : label}
       value={value}
       onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
       helperText={helperText}
     />
   );
 
-  const renderNsEnrichment = () => {
+  const labelWithHint = (label: string, hint: string) => (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+      {label}
+      <InfoHint title={hint} />
+    </Box>
+  );
+
+  const sectionTitle = (title: string, hint: string) => (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Typography variant="subtitle2">{title}</Typography>
+      <InfoHint title={hint} />
+    </Box>
+  );
+
+  const renderDataplane = () => {
     const dp = settings.dataplane;
     const ne = dp.namespaceEnrichment;
     const sweep = ne.sweep;
     const signalDefaults = defaultDataplaneSettings().signals;
+    const profileLabel = dataplaneProfileLabel(dp.profile);
+    const profileEnrichmentText = dataplaneProfileEnrichmentText(dp.profile);
     const estimatedSweepHours = sweep.maxNamespacesPerHour > 0 && namespaces.length > 0
       ? Math.ceil(namespaces.length / sweep.maxNamespacesPerHour)
       : 0;
@@ -975,20 +1053,40 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
         <Box>
-          <Typography variant="h6">NS Enrichment</Typography>
+          <Typography variant="h6">Dataplane</Typography>
           <Typography variant="body2" color="text.secondary">
-            Dataplane stays in front of all list reads. Focused enrichment covers current, recent, and favourite namespaces;
-            the background sweep is opt-in for slow discovery across large clusters.
+            Dataplane controls cached Kubernetes snapshots, namespace enrichment, metrics sampling, and the signals derived
+            from that data.
           </Typography>
         </Box>
 
+        <Paper variant="outlined" sx={{ px: 1, pt: 0.5 }}>
+          <Tabs
+            value={dataplaneTab}
+            onChange={(_, value: DataplaneTab) => setDataplaneTab(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            aria-label="Dataplane settings groups"
+          >
+            <Tab value="overview" label="Overview" />
+            <Tab value="enrichment" label="Enrichment" />
+            <Tab value="metrics" label="Metrics" />
+            <Tab value="signals" label="Signals" />
+            <Tab value="cache" label="Cache" />
+          </Tabs>
+        </Paper>
+
+        {dataplaneTab === "overview" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Profile</Typography>
+          {sectionTitle(
+            "Profile and Scheduler",
+            "Profiles tune observers, enrichment scope, sweep behavior, and scheduler limits together. Manual keeps cached dataplane reads but turns off automatic background work.",
+          )}
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <TextField
               select
               size="small"
-              label="Dataplane profile"
+              label={labelWithHint("Dataplane profile", "Choose the overall dataplane behavior. Profile changes preserve operator-tuned metrics, signals, and persistence settings.")}
               value={dp.profile}
               onChange={(e) =>
                 setSettings((prev) =>
@@ -1006,66 +1104,81 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
             {numField("Scheduler concurrency", dp.backgroundBudget.maxConcurrentPerCluster, (value) =>
               setDataplaneBudget({ maxConcurrentPerCluster: value }),
               "Max snapshot workers per cluster.",
+              "Upper bound for all dataplane snapshot work running at once per cluster.",
+            )}
+            {numField("Background concurrency", dp.backgroundBudget.maxBackgroundConcurrentPerCluster, (value) =>
+              setDataplaneBudget({ maxBackgroundConcurrentPerCluster: value }),
+              "Max background workers per cluster.",
+              "Upper bound for non-interactive enrichment and sweep work per cluster.",
             )}
             {numField("Long-run notice (sec)", dp.backgroundBudget.longRunNoticeSec, (value) =>
               setDataplaneBudget({ longRunNoticeSec: value }),
               "0 disables long-running snapshot activity notices.",
+              "How long snapshot work can run before the activity panel calls attention to it.",
             )}
             {numField("Transient retries", dp.backgroundBudget.transientRetries, (value) =>
               setDataplaneBudget({ transientRetries: value }),
+              undefined,
+              "Retry budget for transient dataplane list failures before surfacing the error.",
             )}
           </Box>
-          {dp.profile === "manual" ? (
-            <Alert severity="info">
-              Manual mode keeps the dataplane cache and metadata, but disables observers, focused enrichment, and sweep.
-            </Alert>
-          ) : null}
         </Paper>
+        ) : null}
 
+        {dataplaneTab === "enrichment" ? (
+        <>
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Focused Namespace Enrichment</Typography>
+          {sectionTitle(
+            `${profileLabel} Namespace Enrichment`,
+            "Enrichment warms namespace snapshots ahead of direct navigation. Profile defaults set the breadth; these controls let you tune the current browser profile.",
+          )}
+          <Typography variant="body2" color="text.secondary">
+            {profileEnrichmentText}
+          </Typography>
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <FormControlLabel
               control={<Switch checked={ne.enabled} onChange={(e) => setNamespaceEnrichment({ enabled: e.target.checked })} />}
-              label="Enabled"
+              label={labelWithHint("Enabled", "Allows automatic namespace enrichment for selected targets. Manual profile disables this by default.")}
             />
             <FormControlLabel
               control={<Switch checked={ne.includeFocus} onChange={(e) => setNamespaceEnrichment({ includeFocus: e.target.checked })} />}
-              label="Current namespace"
+              label={labelWithHint("Current namespace", "Keep the active namespace at the front of the enrichment queue.")}
             />
             <FormControlLabel
               control={<Switch checked={ne.includeRecent} onChange={(e) => setNamespaceEnrichment({ includeRecent: e.target.checked })} />}
-              label="Recent"
+              label={labelWithHint("Recent", "Include recently visited namespaces as enrichment targets.")}
             />
             <FormControlLabel
               control={<Switch checked={ne.includeFavourites} onChange={(e) => setNamespaceEnrichment({ includeFavourites: e.target.checked })} />}
-              label="Favourites"
+              label={labelWithHint("Favourites", "Include favourited namespaces as enrichment targets.")}
             />
           </Box>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            {numField("Max targets", ne.maxTargets, (value) => setNamespaceEnrichment({ maxTargets: value }))}
-            {numField("Max parallel", ne.maxParallel, (value) => setNamespaceEnrichment({ maxParallel: value }))}
-            {numField("Idle quiet (ms)", ne.idleQuietMs, (value) => setNamespaceEnrichment({ idleQuietMs: value }))}
-            {numField("Poll interval (ms)", ne.pollMs, (value) => setNamespaceEnrichment({ pollMs: value }))}
-            {numField("Recent hint limit", ne.recentLimit, (value) => setNamespaceEnrichment({ recentLimit: value }))}
-            {numField("Favourite hint limit", ne.favouriteLimit, (value) => setNamespaceEnrichment({ favouriteLimit: value }))}
+            {numField("Max targets", ne.maxTargets, (value) => setNamespaceEnrichment({ maxTargets: value }), undefined, "Maximum namespaces considered for focused enrichment in one planning pass.")}
+            {numField("Max parallel", ne.maxParallel, (value) => setNamespaceEnrichment({ maxParallel: value }), undefined, "Maximum focused enrichment workers running at once.")}
+            {numField("Idle quiet (ms)", ne.idleQuietMs, (value) => setNamespaceEnrichment({ idleQuietMs: value }), undefined, "How long the UI should be quiet before background enrichment starts.")}
+            {numField("Poll interval (ms)", ne.pollMs, (value) => setNamespaceEnrichment({ pollMs: value }), undefined, "How often the UI polls enrichment progress while work is active.")}
+            {numField("Recent hint limit", ne.recentLimit, (value) => setNamespaceEnrichment({ recentLimit: value }), undefined, "Maximum recent namespaces eligible for focused enrichment.")}
+            {numField("Favourite hint limit", ne.favouriteLimit, (value) => setNamespaceEnrichment({ favouriteLimit: value }), undefined, "Maximum favourite namespaces eligible for focused enrichment.")}
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <FormControlLabel
               control={<Switch checked={ne.enrichDetails} onChange={(e) => setNamespaceEnrichment({ enrichDetails: e.target.checked })} />}
-              label="Namespace details"
+              label={labelWithHint("Namespace details", "Warm namespace detail snapshots used by summaries and navigation hints.")}
             />
             <FormControlLabel
               control={<Switch checked={ne.enrichPods} onChange={(e) => setNamespaceEnrichment({ enrichPods: e.target.checked })} />}
-              label="Pods"
+              label={labelWithHint("Pods", "Warm pod snapshots for namespace summaries, workload projections, and pod-derived signals.")}
             />
             <FormControlLabel
               control={<Switch checked={ne.enrichDeployments} onChange={(e) => setNamespaceEnrichment({ enrichDeployments: e.target.checked })} />}
-              label="Deployments"
+              label={labelWithHint("Deployments", "Warm deployment snapshots for rollout projections and namespace workload summaries.")}
             />
           </Box>
           <FormControl size="small" fullWidth>
-            <InputLabel id="namespace-warm-kinds-label">Resource snapshots warmed by enrichment</InputLabel>
+            <InputLabel id="namespace-warm-kinds-label">
+              {labelWithHint("Resource snapshots warmed by enrichment", "Namespaced list kinds that enrichment will keep warm for selected namespace targets.")}
+            </InputLabel>
             <Select
               labelId="namespace-warm-kinds-label"
               multiple
@@ -1093,87 +1206,117 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
         </Paper>
 
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Background Namespace Sweep</Typography>
-          <Alert severity={sweep.enabled ? "warning" : "info"}>
-            Sweep slowly enriches namespaces outside the focused set while the app is idle. On this context,{" "}
-            {namespaces.length || "unknown"} namespaces would take about {estimatedSweepHours || "?"} idle hour(s) at the current hourly cap.
-          </Alert>
+          {sectionTitle(
+            "Background Namespace Sweep",
+            `Sweep slowly enriches namespaces outside the focused set while the app is idle. On this context, ${namespaces.length || "unknown"} namespaces would take about ${estimatedSweepHours || "?"} idle hour(s) at the current hourly cap.`,
+          )}
           <FormControlLabel
             control={<Switch checked={sweep.enabled} onChange={(e) => setNamespaceSweep({ enabled: e.target.checked })} />}
-            label="Enable background sweep"
+            label={labelWithHint("Enable background sweep", "Allows slow idle discovery across namespaces that are not current, recent, or favourites.")}
           />
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            {numField("Idle quiet (ms)", sweep.idleQuietMs, (value) => setNamespaceSweep({ idleQuietMs: value }))}
-            {numField("Namespaces / cycle", sweep.maxNamespacesPerCycle, (value) => setNamespaceSweep({ maxNamespacesPerCycle: value }))}
-            {numField("Namespaces / hour", sweep.maxNamespacesPerHour, (value) => setNamespaceSweep({ maxNamespacesPerHour: value }))}
-            {numField("Re-enrich after (min)", sweep.minReenrichIntervalMinutes, (value) => setNamespaceSweep({ minReenrichIntervalMinutes: value }))}
-            {numField("Max parallel", sweep.maxParallel, (value) => setNamespaceSweep({ maxParallel: value }))}
+            {numField("Idle quiet (ms)", sweep.idleQuietMs, (value) => setNamespaceSweep({ idleQuietMs: value }), undefined, "How long the app should be idle before sweep work starts.")}
+            {numField("Namespaces / cycle", sweep.maxNamespacesPerCycle, (value) => setNamespaceSweep({ maxNamespacesPerCycle: value }), undefined, "Maximum namespaces selected for each sweep planning cycle.")}
+            {numField("Namespaces / hour", sweep.maxNamespacesPerHour, (value) => setNamespaceSweep({ maxNamespacesPerHour: value }), undefined, "Hourly cap that keeps sweep work gentle on large clusters.")}
+            {numField("Re-enrich after (min)", sweep.minReenrichIntervalMinutes, (value) => setNamespaceSweep({ minReenrichIntervalMinutes: value }), undefined, "Minimum age before a namespace is eligible for sweep enrichment again.")}
+            {numField("Max parallel", sweep.maxParallel, (value) => setNamespaceSweep({ maxParallel: value }), undefined, "Maximum sweep workers running at once.")}
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <FormControlLabel
               control={<Switch checked={sweep.pauseOnUserActivity} onChange={(e) => setNamespaceSweep({ pauseOnUserActivity: e.target.checked })} />}
-              label="Pause on activity"
+              label={labelWithHint("Pause on activity", "Stop sweep work while the operator is actively navigating or filtering.")}
             />
             <FormControlLabel
               control={<Switch checked={sweep.pauseWhenSchedulerBusy} onChange={(e) => setNamespaceSweep({ pauseWhenSchedulerBusy: e.target.checked })} />}
-              label="Pause when busy"
+              label={labelWithHint("Pause when busy", "Stop sweep work while the dataplane scheduler is already occupied.")}
             />
             <FormControlLabel
               control={<Switch checked={sweep.pauseOnRateLimitOrConnectivityIssues} onChange={(e) => setNamespaceSweep({ pauseOnRateLimitOrConnectivityIssues: e.target.checked })} />}
-              label="Pause on rate limits"
+              label={labelWithHint("Pause on rate limits", "Stop sweep work when recent requests suggest rate limiting or connectivity trouble.")}
             />
             <FormControlLabel
               control={<Switch checked={sweep.includeSystemNamespaces} onChange={(e) => setNamespaceSweep({ includeSystemNamespaces: e.target.checked })} />}
-              label="Include system namespaces"
+              label={labelWithHint("Include system namespaces", "Allows sweep to include kube-system and other system namespaces.")}
             />
           </Box>
         </Paper>
+        </>
+        ) : null}
 
+        {dataplaneTab === "overview" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Observers and Dashboard</Typography>
+          {sectionTitle(
+            "Observers and Dashboard",
+            "Observers keep cluster-wide namespace and node snapshots reasonably fresh. Dashboard controls decide how cached dataplane data is summarized.",
+          )}
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <FormControlLabel
               control={<Switch checked={dp.observers.enabled} onChange={(e) => setDataplaneObservers({ enabled: e.target.checked })} />}
-              label="Observers"
+              label={labelWithHint("Observers", "Master switch for passive namespace and node observers.")}
             />
             <FormControlLabel
               control={<Switch checked={dp.observers.namespacesEnabled} onChange={(e) => setDataplaneObservers({ namespacesEnabled: e.target.checked })} />}
-              label="Namespace observer"
+              label={labelWithHint("Namespace observer", "Periodically refreshes the namespace list snapshot for the active cluster.")}
             />
             <FormControlLabel
               control={<Switch checked={dp.observers.nodesEnabled} onChange={(e) => setDataplaneObservers({ nodesEnabled: e.target.checked })} />}
-              label="Node observer"
+              label={labelWithHint("Node observer", "Periodically refreshes node snapshots when node list access is available.")}
+            />
+            <FormControlLabel
+              control={<Switch checked={dp.dashboard.useCachedTotalsOnly} onChange={(e) => setDataplaneDashboard({ useCachedTotalsOnly: e.target.checked })} />}
+              label={labelWithHint("Use cached dashboard totals", "Uses only cached namespace list snapshots for dashboard resource totals instead of triggering broader reads.")}
             />
           </Box>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            {numField("Namespace observer (sec)", dp.observers.namespacesIntervalSec, (value) => setDataplaneObservers({ namespacesIntervalSec: value }))}
-            {numField("Node observer (sec)", dp.observers.nodesIntervalSec, (value) => setDataplaneObservers({ nodesIntervalSec: value }))}
-            {numField("Node backoff max (sec)", dp.observers.nodesBackoffMaxSec, (value) => setDataplaneObservers({ nodesBackoffMaxSec: value }))}
-            {numField("Restart threshold", dp.dashboard.restartElevatedThreshold, (value) => setDataplaneDashboard({ restartElevatedThreshold: value }))}
-            {numField("Signal limit", dp.dashboard.signalLimit, (value) => setDataplaneDashboard({ signalLimit: value }))}
+            {numField("Namespace observer (sec)", dp.observers.namespacesIntervalSec, (value) => setDataplaneObservers({ namespacesIntervalSec: value }), undefined, "Seconds between passive namespace list refreshes.")}
+            {numField("Node observer (sec)", dp.observers.nodesIntervalSec, (value) => setDataplaneObservers({ nodesIntervalSec: value }), undefined, "Seconds between passive node list refreshes.")}
+            {numField("Node backoff max (sec)", dp.observers.nodesBackoffMaxSec, (value) => setDataplaneObservers({ nodesBackoffMaxSec: value }), undefined, "Maximum node observer backoff after access or connectivity failures.")}
+            {numField("Dashboard refresh (sec)", dp.dashboard.refreshSec, (value) => setDataplaneDashboard({ refreshSec: value }), undefined, "Dataplane dashboard refresh interval in seconds.")}
+            {numField("Restart threshold", dp.dashboard.restartElevatedThreshold, (value) => setDataplaneDashboard({ restartElevatedThreshold: value }), undefined, "Pod restart count above which dashboard restart signals become elevated.")}
+            {numField("Signal limit", dp.dashboard.signalLimit, (value) => setDataplaneDashboard({ signalLimit: value }), undefined, "Maximum number of top dashboard signals shown by default.")}
           </Box>
         </Paper>
+        ) : null}
 
+        {dataplaneTab === "cache" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Persisted Dataplane Cache</Typography>
-          <Alert severity={dp.persistence.enabled ? "warning" : "info"}>
-            Persisted snapshots keep the last observed list data on this device for restart recovery and cached quick access search. Results are stale until refreshed by the cluster.
-          </Alert>
-          <FormControlLabel
-            control={<Switch checked={dp.persistence.enabled} onChange={(e) => setDataplanePersistence({ enabled: e.target.checked })} />}
-            label="Persist dataplane snapshots"
-          />
-          {numField("Max persisted age (hours)", dp.persistence.maxAgeHours, (value) => setDataplanePersistence({ maxAgeHours: value }), "Older snapshots are ignored on restart.")}
+          {sectionTitle(
+            "Persisted Dataplane Cache",
+            "Persisted snapshots keep the last observed list data on this device for restart recovery and cached quick access search. Results are stale until refreshed by the cluster.",
+          )}
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <FormControlLabel
+              control={<Switch checked={dp.persistence.enabled} onChange={(e) => setDataplanePersistence({ enabled: e.target.checked })} />}
+              label={labelWithHint("Persist dataplane snapshots", "Stores eligible dataplane list snapshots on disk so kview can hydrate the cache on restart.")}
+            />
+            <FormControlLabel
+              control={<Switch checked={dp.snapshots.manualRefreshBypassesTtl} onChange={(e) => setDataplaneSnapshots({ manualRefreshBypassesTtl: e.target.checked })} />}
+              label={labelWithHint("Manual refresh bypasses TTL", "A user-triggered refresh fetches live data even when the cached snapshot is still inside its TTL.")}
+            />
+            <FormControlLabel
+              control={<Switch checked={dp.snapshots.invalidateAfterKnownMutations} onChange={(e) => setDataplaneSnapshots({ invalidateAfterKnownMutations: e.target.checked })} />}
+              label={labelWithHint("Invalidate after known mutations", "Drops affected cached snapshots after kview performs a known mutating action.")}
+            />
+          </Box>
+          {numField(
+            "Max persisted age (hours)",
+            dp.persistence.maxAgeHours,
+            (value) => setDataplanePersistence({ maxAgeHours: value }),
+            "Older snapshots are ignored and pruned from the persisted cache.",
+            "Snapshots older than this age are not hydrated on restart and are removed from the bbolt cache during persistence cleanup.",
+          )}
         </Paper>
+        ) : null}
 
+        {dataplaneTab === "metrics" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Metrics (metrics.k8s.io)</Typography>
-          <Alert severity="info" sx={{ py: 0 }}>
-            Real-time pod and node usage from metrics-server. Disabled automatically when the API is missing or RBAC denies it; this toggle adds a soft gate on top of capability detection.
-          </Alert>
+          {sectionTitle(
+            "Metrics (metrics.k8s.io)",
+            "Real-time pod and node usage from metrics-server. Disabled automatically when the API is missing or RBAC denies it; this toggle adds a soft gate on top of capability detection.",
+          )}
           <FormControlLabel
             control={<Switch checked={dp.metrics.enabled} onChange={(e) => setDataplaneMetrics({ enabled: e.target.checked })} />}
-            label="Enable metrics integration"
+            label={labelWithHint("Enable metrics integration", "Allows dataplane to request metrics.k8s.io snapshots when the cluster and RBAC permit it.")}
           />
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             {numField(
@@ -1181,31 +1324,40 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
               dp.metrics.podMetricsTtlSec,
               (value) => setDataplaneMetrics({ podMetricsTtlSec: value }),
               "How often pod usage is sampled per cluster.",
+              "Minimum age before pod metrics snapshots are refreshed.",
             )}
             {numField(
               "Node metrics TTL (sec)",
               dp.metrics.nodeMetricsTtlSec,
               (value) => setDataplaneMetrics({ nodeMetricsTtlSec: value }),
               "How often node usage is sampled per cluster.",
+              "Minimum age before node metrics snapshots are refreshed.",
             )}
             {numField(
               "Container near-limit (%)",
               dp.metrics.containerNearLimitPct,
               (value) => setDataplaneMetrics({ containerNearLimitPct: value }),
               "Threshold above which containers raise a usage signal.",
+              "Percent of configured CPU or memory limit that triggers a near-limit container signal.",
             )}
             {numField(
               "Node pressure (%)",
               dp.metrics.nodePressurePct,
               (value) => setDataplaneMetrics({ nodePressurePct: value }),
               "Threshold above which nodes raise a resource-pressure signal.",
+              "Percent of node allocatable CPU or memory that triggers a node pressure signal.",
             )}
           </Box>
         </Paper>
+        ) : null}
 
+        {dataplaneTab === "signals" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-            <Typography variant="subtitle2">Signals Thresholds</Typography>
+            {sectionTitle(
+              "Signal Thresholds",
+              "These values control when dataplane signals trigger. Defaults are applied automatically on first startup; use reset to return to system defaults.",
+            )}
             <Button
               size="small"
               onClick={() => {
@@ -1215,63 +1367,73 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
               Reset signal thresholds
             </Button>
           </Box>
-          <Alert severity="info" sx={{ py: 0 }}>
-            These values control when dataplane signals trigger. Defaults are applied automatically on first startup; use reset to return to system defaults.
-          </Alert>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
             {numField(
               "Long-running job (sec)",
               dp.signals.longRunningJobSec,
               (value) => setDataplaneSignals({ longRunningJobSec: value }),
               `Default: ${signalDefaults.longRunningJobSec}`,
+              "Job runtime in seconds before a long-running job signal can fire.",
             )}
             {numField(
               "CronJob no recent success (sec)",
               dp.signals.cronJobNoRecentSuccessSec,
               (value) => setDataplaneSignals({ cronJobNoRecentSuccessSec: value }),
               `Default: ${signalDefaults.cronJobNoRecentSuccessSec}`,
+              "Seconds without a recorded successful CronJob run before a signal can fire.",
             )}
             {numField(
               "Stale Helm release (sec)",
               dp.signals.staleHelmReleaseSec,
               (value) => setDataplaneSignals({ staleHelmReleaseSec: value }),
               `Default: ${signalDefaults.staleHelmReleaseSec}`,
+              "Seconds a Helm release can remain transitional before it is treated as stale.",
             )}
             {numField(
               "Unused resource age (sec)",
               dp.signals.unusedResourceAgeSec,
               (value) => setDataplaneSignals({ unusedResourceAgeSec: value }),
               `Default: ${signalDefaults.unusedResourceAgeSec}`,
+              "Minimum resource age before potentially-unused signals are considered.",
             )}
             {numField(
               "Young pod restart window (sec)",
               dp.signals.podYoungRestartWindowSec,
               (value) => setDataplaneSignals({ podYoungRestartWindowSec: value }),
               `Default: ${signalDefaults.podYoungRestartWindowSec}`,
+              "Pod age window used to identify young pods with frequent restarts.",
             )}
             {numField(
               "Deployment unavailable (sec)",
               dp.signals.deploymentUnavailableSec,
               (value) => setDataplaneSignals({ deploymentUnavailableSec: value }),
               `Default: ${signalDefaults.deploymentUnavailableSec}`,
+              "Seconds a Deployment can stay unavailable before an unavailable deployment signal can fire.",
             )}
             {numField(
               "Quota warn (%)",
               dp.signals.quotaWarnPercent,
               (value) => setDataplaneSignals({ quotaWarnPercent: value }),
               `Default: ${signalDefaults.quotaWarnPercent}`,
+              "Quota usage percent that marks quota pressure as warning.",
             )}
             {numField(
               "Quota critical (%)",
               dp.signals.quotaCriticalPercent,
               (value) => setDataplaneSignals({ quotaCriticalPercent: value }),
               `Default: ${signalDefaults.quotaCriticalPercent}`,
+              "Quota usage percent that marks quota pressure as critical. Must be greater than warn.",
             )}
           </Box>
         </Paper>
+        ) : null}
 
+        {dataplaneTab === "cache" ? (
         <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
-          <Typography variant="subtitle2">Snapshot TTLs</Typography>
+          {sectionTitle(
+            "Snapshot TTLs",
+            "TTL values control how long cached list snapshots are treated as fresh before dataplane schedules a live refresh. They do not override manual refresh when bypass is enabled.",
+          )}
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             {dataplaneTTLResourceKeys.map((key) => (
               <TextField
@@ -1293,6 +1455,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
             ))}
           </Box>
         </Paper>
+        ) : null}
       </Box>
     );
   };
@@ -1369,7 +1532,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
   );
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden", backgroundColor: "var(--bg-primary)" }}>
+    <Box sx={settingsShellSx}>
       <Paper
         variant="outlined"
         sx={{
@@ -1393,7 +1556,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
           ))}
         </List>
       </Paper>
-      <Box sx={{ flex: 1, minWidth: 0, overflow: "auto", p: 1.25 }}>
+      <Box sx={settingsMainSurfaceSx}>
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.25, mb: 1.25 }}>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="body2" color="text.secondary">
@@ -1410,7 +1573,7 @@ export default function SettingsView({ contexts, namespaces, activeContext, acti
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "commands" ? renderCustomCommands() : null}
         {section === "actions" ? renderCustomActions() : null}
-        {section === "nsEnrichment" ? renderNsEnrichment() : null}
+        {section === "dataplane" ? renderDataplane() : null}
         {section === "importExport" ? renderImportExport() : null}
       </Box>
     </Box>
