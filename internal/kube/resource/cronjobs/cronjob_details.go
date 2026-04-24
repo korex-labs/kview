@@ -2,7 +2,6 @@ package cronjobs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -12,9 +11,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	jobs "github.com/korex-labs/kview/internal/kube/resource/jobs"
@@ -29,11 +28,7 @@ func GetCronJobDetails(ctx context.Context, c *cluster.Clients, namespace, name 
 
 	cronCopy := cronJob.DeepCopy()
 	cronCopy.ManagedFields = nil
-	b, err := json.Marshal(cronCopy)
-	if err != nil {
-		return nil, err
-	}
-	y, err := yaml.JSONToYAML(b)
+	y, err := kube.MarshalObjectYAML(cronCopy, "batch/v1", "CronJob")
 	if err != nil {
 		return nil, err
 	}

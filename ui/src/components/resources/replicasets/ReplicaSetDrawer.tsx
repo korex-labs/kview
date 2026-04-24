@@ -30,7 +30,7 @@ import MetadataSection from "../../shared/MetadataSection";
 import AttentionSummary from "../../shared/AttentionSummary";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
@@ -424,7 +424,18 @@ export default function ReplicaSetDrawer(props: {
 
               {/* YAML */}
               {tab === 5 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "ReplicaSet",
+                    group: "apps",
+                    resource: "replicasets",
+                    apiVersion: "apps/v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
             <PodDrawer

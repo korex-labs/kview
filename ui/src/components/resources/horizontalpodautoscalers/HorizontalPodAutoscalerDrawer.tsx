@@ -26,7 +26,7 @@ import ErrorState from "../../shared/ErrorState";
 import AccessDeniedState from "../../shared/AccessDeniedState";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
@@ -334,7 +334,18 @@ export default function HorizontalPodAutoscalerDrawer(props: {
 
               {tab === yamlTabIndex && (
                 <Box sx={drawerTabContentCompactSx}>
-                  <CodeBlock code={details.yaml || ""} language="yaml" />
+                  <ResourceYamlPanel
+                    code={details.yaml || ""}
+                    token={props.token}
+                    target={{
+                      kind: "HorizontalPodAutoscaler",
+                      group: "autoscaling",
+                      resource: "horizontalpodautoscalers",
+                      apiVersion: "autoscaling/v2",
+                      namespace: ns,
+                      name: name || "",
+                    }}
+                  />
                 </Box>
               )}
             </Box>

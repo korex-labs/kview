@@ -2,12 +2,10 @@ package clusterrolebindings
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
 	kube "github.com/korex-labs/kview/internal/kube"
@@ -68,9 +66,5 @@ func GetClusterRoleBindingYAML(ctx context.Context, c *cluster.Clients, name str
 func clusterRoleBindingYAML(rb *rbacv1.ClusterRoleBinding) ([]byte, error) {
 	rbCopy := rb.DeepCopy()
 	rbCopy.ManagedFields = nil
-	b, err := json.Marshal(rbCopy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(rbCopy, "rbac.authorization.k8s.io/v1", "ClusterRoleBinding")
 }

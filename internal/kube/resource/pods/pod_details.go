@@ -2,7 +2,6 @@ package pods
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
@@ -27,11 +26,7 @@ func GetPodDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 	// YAML
 	podCopy := pod.DeepCopy()
 	podCopy.ManagedFields = nil
-	b, err := json.Marshal(podCopy)
-	if err != nil {
-		return nil, err
-	}
-	y, err := yaml.JSONToYAML(b)
+	y, err := kube.MarshalObjectYAML(podCopy, "v1", "Pod")
 	if err != nil {
 		return nil, err
 	}

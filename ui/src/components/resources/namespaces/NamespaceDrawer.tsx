@@ -654,7 +654,17 @@ export default function NamespaceDrawer(props: {
                 ) : detailsErr ? (
                   <ErrorState message={detailsErr} />
                 ) : (
-                  <CodeBlock code={details?.yaml || ""} language="yaml" />
+                  <ResourceYamlPanel
+                    code={details?.yaml || ""}
+                    token={props.token}
+                    target={{
+                      kind: "Namespace",
+                      group: "",
+                      resource: "namespaces",
+                      apiVersion: "v1",
+                      name: name || "",
+                    }}
+                  />
                 )
               )}
             </Box>

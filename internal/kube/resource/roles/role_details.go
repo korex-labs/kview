@@ -2,15 +2,13 @@ package roles
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
-	kube "github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/cluster"
+	kube "github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
@@ -63,9 +61,5 @@ func GetRoleYAML(ctx context.Context, c *cluster.Clients, namespace, name string
 func roleYAML(role *rbacv1.Role) ([]byte, error) {
 	roleCopy := role.DeepCopy()
 	roleCopy.ManagedFields = nil
-	b, err := json.Marshal(roleCopy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(roleCopy, "rbac.authorization.k8s.io/v1", "Role")
 }

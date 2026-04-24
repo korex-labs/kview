@@ -23,7 +23,7 @@ import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import ConditionsTable from "../../shared/ConditionsTable";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import CRDActions from "./CRDActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -299,7 +299,17 @@ export default function CustomResourceDefinitionDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "CustomResourceDefinition",
+                    group: "apiextensions.k8s.io",
+                    resource: "customresourcedefinitions",
+                    apiVersion: "apiextensions.k8s.io/v1",
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
           </>

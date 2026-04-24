@@ -18,7 +18,7 @@ import { useConnectionState } from "../../../connectionState";
 import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import PodDrawer from "../pods/PodDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { nodeStatusChipColor, phaseChipColor } from "../../../utils/k8sUi";
@@ -449,7 +449,17 @@ export default function NodeDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "Node",
+                    group: "",
+                    resource: "nodes",
+                    apiVersion: "v1",
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
             <PodDrawer

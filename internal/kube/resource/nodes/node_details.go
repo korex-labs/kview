@@ -2,15 +2,14 @@ package nodes
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 )
@@ -24,11 +23,7 @@ func GetNodeDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.
 	// YAML
 	nodeCopy := node.DeepCopy()
 	nodeCopy.ManagedFields = nil
-	b, err := json.Marshal(nodeCopy)
-	if err != nil {
-		return nil, err
-	}
-	y, err := yaml.JSONToYAML(b)
+	y, err := kube.MarshalObjectYAML(nodeCopy, "v1", "Node")
 	if err != nil {
 		return nil, err
 	}

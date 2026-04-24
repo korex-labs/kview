@@ -2,15 +2,14 @@ package serviceaccounts
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
@@ -122,9 +121,5 @@ func roleBindingHasServiceAccountSubject(subjects []rbacv1.Subject, namespace, n
 func serviceAccountYAML(sa *corev1.ServiceAccount) ([]byte, error) {
 	saCopy := sa.DeepCopy()
 	saCopy.ManagedFields = nil
-	b, err := json.Marshal(saCopy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(saCopy, "v1", "ServiceAccount")
 }

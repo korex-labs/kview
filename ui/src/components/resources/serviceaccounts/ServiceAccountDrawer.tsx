@@ -17,7 +17,7 @@ import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import KeyValueTable from "../../shared/KeyValueTable";
 import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
@@ -316,7 +316,18 @@ export default function ServiceAccountDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "ServiceAccount",
+                    group: "",
+                    resource: "serviceaccounts",
+                    apiVersion: "v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
           </>

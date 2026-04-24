@@ -2,14 +2,13 @@ package namespaces
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
@@ -21,11 +20,7 @@ func GetNamespaceDetails(ctx context.Context, c *cluster.Clients, name string) (
 
 	nsCopy := ns.DeepCopy()
 	nsCopy.ManagedFields = nil
-	b, err := json.Marshal(nsCopy)
-	if err != nil {
-		return nil, err
-	}
-	y, err := yaml.JSONToYAML(b)
+	y, err := kube.MarshalObjectYAML(nsCopy, "v1", "Namespace")
 	if err != nil {
 		return nil, err
 	}

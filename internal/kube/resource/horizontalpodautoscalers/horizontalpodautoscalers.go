@@ -2,7 +2,6 @@ package horizontalpodautoscalers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -11,9 +10,9 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 )
 
@@ -432,9 +431,5 @@ func unixMetaTime(t metav1.Time) int64 {
 func hpaYAML(hpa *autoscalingv2.HorizontalPodAutoscaler) ([]byte, error) {
 	copy := hpa.DeepCopy()
 	copy.ManagedFields = nil
-	b, err := json.Marshal(copy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(copy, "autoscaling/v2", "HorizontalPodAutoscaler")
 }

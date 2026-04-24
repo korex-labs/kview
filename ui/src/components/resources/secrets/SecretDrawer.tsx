@@ -28,11 +28,10 @@ import SecretActions from "./SecretActions";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import YamlEditDialog from "../../shared/YamlEditDialog";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
-import { canPatchOrUpdate, RBAC_DISABLED_REASON, useResourceCapabilities } from "../../mutations/useResourceCapabilities";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -108,18 +107,9 @@ export default function SecretDrawer(props: {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
-  const [yamlEditorOpen, setYamlEditorOpen] = useState(false);
 
   const ns = props.namespace;
   const name = props.secretName;
-  const editCaps = useResourceCapabilities({
-    token: props.token,
-    group: "",
-    resource: "secrets",
-    namespace: ns,
-    name: name || "",
-  });
-  const canEditYaml = canPatchOrUpdate(editCaps);
 
   useEffect(() => {
     if (!props.open || !name) return;
@@ -130,7 +120,6 @@ export default function SecretDrawer(props: {
     setEvents([]);
     setExpandedKeys({});
     setDrawerNamespace(null);
-    setYamlEditorOpen(false);
     setLoading(true);
 
     (async () => {
@@ -301,39 +290,21 @@ export default function SecretDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%" }}>
-                  <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={!canEditYaml}
-                      title={!canEditYaml && editCaps ? RBAC_DISABLED_REASON : "Edit live YAML"}
-                      onClick={() => setYamlEditorOpen(true)}
-                    >
-                      Edit
-                    </Button>
-                  </Box>
-                  <Box sx={{ minHeight: 0, flex: 1 }}>
-                    <CodeBlock code={details?.yaml || ""} language="yaml" />
-                  </Box>
-                </Box>
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "Secret",
+                    group: "",
+                    resource: "secrets",
+                    apiVersion: "v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                  onApplied={() => setRefreshNonce((v) => v + 1)}
+                />
               )}
             </Box>
-            <YamlEditDialog
-              open={yamlEditorOpen}
-              onClose={() => setYamlEditorOpen(false)}
-              token={props.token}
-              target={{
-                kind: "Secret",
-                group: "",
-                resource: "secrets",
-                apiVersion: "v1",
-                namespace: ns,
-                name: name || "",
-              }}
-              initialYaml={details?.yaml || ""}
-              onApplied={() => setRefreshNonce((v) => v + 1)}
-            />
           </>
         )}
       </ResourceDrawerShell>

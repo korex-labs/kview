@@ -2,12 +2,10 @@ package clusterroles
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
 	kube "github.com/korex-labs/kview/internal/kube"
@@ -62,9 +60,5 @@ func GetClusterRoleYAML(ctx context.Context, c *cluster.Clients, name string) (s
 func clusterRoleYAML(role *rbacv1.ClusterRole) ([]byte, error) {
 	roleCopy := role.DeepCopy()
 	roleCopy.ManagedFields = nil
-	b, err := json.Marshal(roleCopy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(roleCopy, "rbac.authorization.k8s.io/v1", "ClusterRole")
 }

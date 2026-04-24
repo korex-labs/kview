@@ -21,7 +21,7 @@ import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import ConditionsTable from "../../shared/ConditionsTable";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import PersistentVolumeDrawer from "../persistentvolumes/PersistentVolumeDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import PVCActions from "./PVCActions";
@@ -394,7 +394,18 @@ export default function PersistentVolumeClaimDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "PersistentVolumeClaim",
+                    group: "",
+                    resource: "persistentvolumeclaims",
+                    apiVersion: "v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
           </>

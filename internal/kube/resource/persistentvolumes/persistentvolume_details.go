@@ -2,16 +2,15 @@ package persistentvolumes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
 )
@@ -91,11 +90,7 @@ func GetPersistentVolumeYAML(ctx context.Context, c *cluster.Clients, name strin
 func persistentVolumeYAML(pv *corev1.PersistentVolume) ([]byte, error) {
 	pvCopy := pv.DeepCopy()
 	pvCopy.ManagedFields = nil
-	b, err := json.Marshal(pvCopy)
-	if err != nil {
-		return nil, err
-	}
-	return yaml.JSONToYAML(b)
+	return kube.MarshalObjectYAML(pvCopy, "v1", "PersistentVolume")
 }
 
 func mapPVClaimRef(ref *corev1.ObjectReference) *dto.PersistentVolumeClaimRefDTO {

@@ -20,7 +20,7 @@ import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import AttentionSummary from "../../shared/AttentionSummary";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import Section from "../../shared/Section";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import RoleActions from "./RoleActions";
@@ -258,7 +258,18 @@ export default function RoleDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "Role",
+                    group: "rbac.authorization.k8s.io",
+                    resource: "roles",
+                    apiVersion: "rbac.authorization.k8s.io/v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
           </>

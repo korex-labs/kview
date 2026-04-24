@@ -20,7 +20,7 @@ import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
 import ConditionsTable from "../../shared/ConditionsTable";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import PersistentVolumeClaimDrawer from "../persistentvolumeclaims/PersistentVolumeClaimDrawer";
 import PVActions from "./PVActions";
 import RightDrawer from "../../layout/RightDrawer";
@@ -350,7 +350,17 @@ export default function PersistentVolumeDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "PersistentVolume",
+                    group: "",
+                    resource: "persistentvolumes",
+                    apiVersion: "v1",
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
           </>

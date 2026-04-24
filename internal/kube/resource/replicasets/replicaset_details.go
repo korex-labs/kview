@@ -2,16 +2,15 @@ package replicasets
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/dto"
 	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
@@ -26,11 +25,7 @@ func GetReplicaSetDetails(ctx context.Context, c *cluster.Clients, namespace, na
 
 	rsCopy := rs.DeepCopy()
 	rsCopy.ManagedFields = nil
-	b, err := json.Marshal(rsCopy)
-	if err != nil {
-		return nil, err
-	}
-	y, err := yaml.JSONToYAML(b)
+	y, err := kube.MarshalObjectYAML(rsCopy, "apps/v1", "ReplicaSet")
 	if err != nil {
 		return nil, err
 	}

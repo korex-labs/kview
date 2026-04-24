@@ -2337,7 +2337,18 @@ export default function PodDrawer(props: {
 
               {/* YAML */}
               {tab === 7 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "Pod",
+                    group: "",
+                    resource: "pods",
+                    apiVersion: "v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
       </Box>
       <PortForwardDialog

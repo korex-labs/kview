@@ -40,10 +40,9 @@ import ServiceActions from "./ServiceActions";
 import { createPortForwardSession } from "../../../sessionsApi";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
-import YamlEditDialog from "../../shared/YamlEditDialog";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
-import { canPatchOrUpdate, RBAC_DISABLED_REASON, useResourceCapabilities } from "../../mutations/useResourceCapabilities";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -202,18 +201,9 @@ export default function ServiceDrawer(props: {
   const [portForwardError, setPortForwardError] = useState<string>("");
   const [portForwardCreatedMsg, setPortForwardCreatedMsg] = useState("");
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [yamlEditorOpen, setYamlEditorOpen] = useState(false);
 
   const ns = props.namespace;
   const name = props.serviceName;
-  const editCaps = useResourceCapabilities({
-    token: props.token,
-    group: "",
-    resource: "services",
-    namespace: ns,
-    name: name || "",
-  });
-  const canEditYaml = canPatchOrUpdate(editCaps);
 
   useEffect(() => {
     if (!props.open || !name || offline) return;
@@ -230,7 +220,6 @@ export default function ServiceDrawer(props: {
     setIngressesErr(null);
     setDrawerIngress(null);
     setDrawerNamespace(null);
-    setYamlEditorOpen(false);
     setLoading(true);
 
     (async () => {
@@ -643,39 +632,21 @@ export default function ServiceDrawer(props: {
 
               {/* YAML */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%" }}>
-                  <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={!canEditYaml}
-                      title={!canEditYaml && editCaps ? RBAC_DISABLED_REASON : "Edit live YAML"}
-                      onClick={() => setYamlEditorOpen(true)}
-                    >
-                      Edit
-                    </Button>
-                  </Box>
-                  <Box sx={{ minHeight: 0, flex: 1 }}>
-                    <CodeBlock code={details?.yaml || ""} language="yaml" />
-                  </Box>
-                </Box>
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "Service",
+                    group: "",
+                    resource: "services",
+                    apiVersion: "v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                  onApplied={() => setRefreshNonce((v) => v + 1)}
+                />
               )}
             </Box>
-            <YamlEditDialog
-              open={yamlEditorOpen}
-              onClose={() => setYamlEditorOpen(false)}
-              token={props.token}
-              target={{
-                kind: "Service",
-                group: "",
-                resource: "services",
-                apiVersion: "v1",
-                namespace: ns,
-                name: name || "",
-              }}
-              initialYaml={details?.yaml || ""}
-              onApplied={() => setRefreshNonce((v) => v + 1)}
-            />
             <PodDrawer
               open={!!drawerPod}
               onClose={() => setDrawerPod(null)}

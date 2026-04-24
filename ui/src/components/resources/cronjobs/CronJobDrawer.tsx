@@ -30,7 +30,7 @@ import MetadataSection from "../../shared/MetadataSection";
 import AttentionSummary, {
 } from "../../shared/AttentionSummary";
 import EventsList from "../../shared/EventsList";
-import CodeBlock from "../../shared/CodeBlock";
+import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import StatusChip from "../../shared/StatusChip";
 import RightDrawer from "../../layout/RightDrawer";
@@ -431,7 +431,18 @@ export default function CronJobDrawer(props: {
 
               {/* YAML */}
               {tab === 5 && (
-                <CodeBlock code={details?.yaml || ""} language="yaml" />
+                <ResourceYamlPanel
+                  code={details?.yaml || ""}
+                  token={props.token}
+                  target={{
+                    kind: "CronJob",
+                    group: "batch",
+                    resource: "cronjobs",
+                    apiVersion: "batch/v1",
+                    namespace: ns,
+                    name: name || "",
+                  }}
+                />
               )}
             </Box>
             <JobDrawer
