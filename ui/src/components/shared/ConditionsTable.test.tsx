@@ -2,7 +2,7 @@
 
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import ConditionsTable, { type Condition } from "./ConditionsTable";
 
 function row(name: string, status: "True" | "False" | "Unknown"): Condition {
@@ -18,10 +18,10 @@ describe("ConditionsTable unhealthyFirst ordering", () => {
       row("Progressing", "True"),
     ];
 
-    render(<ConditionsTable conditions={conditions} variant="section" />);
+    const { container } = render(<ConditionsTable conditions={conditions} variant="section" />);
 
-    const rows = screen.getAllByRole("row").slice(1);
-    const typeCells = rows.map((r) => r.querySelector("td")?.textContent || "");
+    const rows = within(container).getByRole("table").querySelectorAll("tbody tr");
+    const typeCells = Array.from(rows).map((r) => r.querySelector("td")?.textContent || "");
     expect(typeCells[0]).toBe("Available");
     expect(typeCells.slice(1)).toEqual(["Ready", "DiskPressure", "Progressing"]);
   });
@@ -33,9 +33,9 @@ describe("ConditionsTable unhealthyFirst ordering", () => {
       row("Progressing", "True"),
     ];
 
-    render(<ConditionsTable conditions={conditions} variant="section" unhealthyFirst={false} />);
-    const rows = screen.getAllByRole("row").slice(1);
-    const typeCells = rows.map((r) => r.querySelector("td")?.textContent || "");
+    const { container } = render(<ConditionsTable conditions={conditions} variant="section" unhealthyFirst={false} />);
+    const rows = within(container).getByRole("table").querySelectorAll("tbody tr");
+    const typeCells = Array.from(rows).map((r) => r.querySelector("td")?.textContent || "");
     expect(typeCells).toEqual(["Ready", "Available", "Progressing"]);
   });
 
@@ -48,7 +48,7 @@ describe("ConditionsTable unhealthyFirst ordering", () => {
     const isHealthy = (c: Condition) =>
       c.type === "ReplicaFailure" ? c.status !== "True" : c.status === "True";
 
-    render(
+    const { container } = render(
       <ConditionsTable
         conditions={conditions}
         variant="section"
@@ -56,8 +56,8 @@ describe("ConditionsTable unhealthyFirst ordering", () => {
       />,
     );
 
-    const rows = screen.getAllByRole("row").slice(1);
-    const typeCells = rows.map((r) => r.querySelector("td")?.textContent || "");
+    const rows = within(container).getByRole("table").querySelectorAll("tbody tr");
+    const typeCells = Array.from(rows).map((r) => r.querySelector("td")?.textContent || "");
     expect(typeCells[0]).toBe("ReplicaFailure");
   });
 

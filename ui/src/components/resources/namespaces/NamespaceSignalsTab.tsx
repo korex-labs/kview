@@ -17,6 +17,7 @@ import type {
   DashboardSignalItem,
   NamespacePodHealth,
   NamespaceProblematicResource,
+  NamespaceSummaryMeta,
   NamespaceWorkloadHealthRollup,
   WorkloadKindHealthRollup,
 } from "../../../types/api";

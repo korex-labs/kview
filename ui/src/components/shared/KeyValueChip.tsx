@@ -1,5 +1,6 @@
 import React from "react";
 import { Tooltip } from "@mui/material";
+import type { ChipColor } from "../../utils/k8sUi";
 import ResourceLinkChip from "./ResourceLinkChip";
 import ScopedCountChip from "./ScopedCountChip";
 
@@ -7,7 +8,7 @@ type Props = {
   chipKey: string;
   value: string;
   onClick?: () => void;
-  color?: "default" | "primary" | "secondary" | "success" | "warning" | "error" | "info";
+  color?: ChipColor | "primary";
   variant?: "filled" | "outlined";
   maxKeyLen?: number;
   maxValueLen?: number;

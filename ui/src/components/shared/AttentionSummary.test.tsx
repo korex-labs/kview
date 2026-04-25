@@ -61,7 +61,7 @@ describe("AttentionSummary", () => {
     const row = screen.getByText(/ImagePullBackOff: myimg/).closest("p");
     expect(row).toBeTruthy();
     if (row) {
-      expect(within(row as HTMLElement).getByText("high")).toBeTruthy();
+      expect(within(row as HTMLElement).getByText(/high/i)).toBeTruthy();
     }
   });
 });

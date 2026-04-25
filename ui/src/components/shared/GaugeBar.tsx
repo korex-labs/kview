@@ -1,11 +1,12 @@
 import React from "react";
 import { Box, LinearProgress, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import type { Theme } from "@mui/material/styles";
 import { GAUGE_BORDER_RADIUS, GAUGE_HEIGHT, GAUGE_TRACK_BG } from "../../theme/sxTokens";
 
 export type GaugeTone = "success" | "warning" | "error" | "info" | "primary" | "default";
 
-function gaugeColor(theme: ReturnType<typeof useTheme>, tone: GaugeTone): string {
+function gaugeColor(theme: Theme, tone: GaugeTone): string {
   switch (tone) {
     case "success":
       return theme.palette.success.main;

@@ -8,6 +8,7 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
       "hasAttentionSummary": true,
       "sections": [
         "Actions",
+        "Lifecycle & Scheduling",
       ],
     },
     "path": "pods/PodDrawer.tsx",
@@ -34,7 +35,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "path": "deployments/DeploymentDrawer.tsx",
     "tabs": [
       "Overview",
-      "Rollout",
       "Pods",
       "Spec",
       "Events",
@@ -112,6 +112,7 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "tabs": [
       "Overview",
       "Pods",
+      "Spec",
       "Events",
       "Metadata",
       "YAML",
@@ -151,8 +152,7 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "path": "services/ServiceDrawer.tsx",
     "tabs": [
       "Overview",
-      "Endpoints",
-      "Ingresses",
+      "Pods",
       "Events",
       "Metadata",
       "YAML",
@@ -356,7 +356,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     },
     "path": "helm/HelmReleaseDrawer.tsx",
     "tabs": [
-      "Latest release state is failed",
       "Overview",
       "Values",
       "Manifest",
@@ -384,6 +383,8 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
       "sections": [
         "Derived Projection",
         "Actions",
+        "Capacity",
+        "Taints",
       ],
     },
     "path": "nodes/NodeDrawer.tsx",

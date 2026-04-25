@@ -5,6 +5,7 @@ import type { SxProps, Theme } from "@mui/material/styles";
 type AccessDeniedStateProps = {
   status?: number;
   resourceLabel?: string;
+  message?: string;
   sx?: SxProps<Theme>;
 };
 
@@ -19,10 +20,10 @@ function buildMessage(status?: number, resourceLabel?: string) {
   return `Access denied: unable to list ${subject}.`;
 }
 
-export default function AccessDeniedState({ status, resourceLabel, sx }: AccessDeniedStateProps) {
+export default function AccessDeniedState({ status, resourceLabel, message, sx }: AccessDeniedStateProps) {
   return (
     <Box sx={sx}>
-      <Typography variant="body2">{buildMessage(status, resourceLabel)}</Typography>
+      <Typography variant="body2">{message || buildMessage(status, resourceLabel)}</Typography>
       <Typography variant="caption" color="text.secondary">
         Ask your cluster admin for get/list permissions.
       </Typography>
