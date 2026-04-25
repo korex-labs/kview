@@ -37,15 +37,15 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 	for _, doc := range docs {
 		trimmed := strings.TrimSpace(string(doc))
 		if trimmed == "" {
-		    skipped++
-		    continue
+			skipped++
+			continue
 		}
 
 		// Remove leading comment lines (Helm adds "# Source: ...")
 		trimmed = stripLeadingYAMLComments(trimmed)
 		if strings.TrimSpace(trimmed) == "" {
-		    skipped++
-		    continue
+			skipped++
+			continue
 		}
 
 		obj := &unstructured.Unstructured{}
@@ -89,8 +89,8 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 
 		force := true
 		_, applyErr := ri.Patch(ctx, obj.GetName(), types.ApplyPatchType, jsonBytes, metav1.PatchOptions{
-			FieldManager: "kview",
-			Force:        &force,
+			FieldManager:    "kview",
+			Force:           &force,
 			FieldValidation: "Ignore",
 		})
 		if applyErr != nil {
@@ -106,20 +106,19 @@ func ApplyManifest(ctx context.Context, c *cluster.Clients, defaultNamespace str
 }
 
 func stripLeadingYAMLComments(s string) string {
-    lines := strings.Split(s, "\n")
-    i := 0
-    for i < len(lines) {
-        l := strings.TrimSpace(lines[i])
-        if l == "" {
-            i++
-            continue
-        }
-        if strings.HasPrefix(l, "#") {
-            i++
-            continue
-        }
-        break
-    }
-    return strings.Join(lines[i:], "\n")
+	lines := strings.Split(s, "\n")
+	i := 0
+	for i < len(lines) {
+		l := strings.TrimSpace(lines[i])
+		if l == "" {
+			i++
+			continue
+		}
+		if strings.HasPrefix(l, "#") {
+			i++
+			continue
+		}
+		break
+	}
+	return strings.Join(lines[i:], "\n")
 }
-

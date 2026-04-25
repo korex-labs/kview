@@ -11,7 +11,6 @@ import (
 	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -158,7 +157,7 @@ func listStatefulSetPods(ctx context.Context, c *cluster.Clients, set *appsv1.St
 	now := time.Now()
 	out := make([]dto.StatefulSetPodDTO, 0, len(pods))
 	for _, p := range pods {
-		if !isPodOwnedByStatefulSetRef(&p, set) {
+		if !kubepods.IsPodOwnedBy(&p, "StatefulSet", set.UID, set.Name) {
 			continue
 		}
 
@@ -189,18 +188,6 @@ func listStatefulSetPods(ctx context.Context, c *cluster.Clients, set *appsv1.St
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
-}
-
-func isPodOwnedByStatefulSetRef(pod *corev1.Pod, set *appsv1.StatefulSet) bool {
-	for _, ref := range pod.OwnerReferences {
-		if ref.Kind != "StatefulSet" {
-			continue
-		}
-		if ref.UID == set.UID || ref.Name == set.Name {
-			return true
-		}
-	}
-	return false
 }
 
 func statefulSetYAML(set *appsv1.StatefulSet) ([]byte, error) {

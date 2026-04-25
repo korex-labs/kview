@@ -93,4 +93,3 @@ func (r *CapabilityRegistry) Get(key CapabilityKey) (CapabilityRecord, bool) {
 	rec, ok := r.store[key]
 	return rec, ok
 }
-

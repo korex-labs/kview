@@ -91,9 +91,9 @@ const (
 type NamespaceSensitivity string
 
 const (
-	NamespaceSensitivityUnknown  NamespaceSensitivity = "unknown"
-	NamespaceSensitivityScoped   NamespaceSensitivity = "scoped"
-	NamespaceSensitivityCrossNS  NamespaceSensitivity = "cross_namespace"
+	NamespaceSensitivityUnknown NamespaceSensitivity = "unknown"
+	NamespaceSensitivityScoped  NamespaceSensitivity = "scoped"
+	NamespaceSensitivityCrossNS NamespaceSensitivity = "cross_namespace"
 )
 
 // CapabilityProvenance describes where a capability record was derived from.
@@ -159,10 +159,10 @@ const (
 type ErrorConsequenceHint string
 
 const (
-	ErrorConsequenceHintRetryable    ErrorConsequenceHint = "retryable"
-	ErrorConsequenceHintUserAction   ErrorConsequenceHint = "user_action"
-	ErrorConsequenceHintPermissions  ErrorConsequenceHint = "permissions"
-	ErrorConsequenceHintEnvironment  ErrorConsequenceHint = "environment"
+	ErrorConsequenceHintRetryable   ErrorConsequenceHint = "retryable"
+	ErrorConsequenceHintUserAction  ErrorConsequenceHint = "user_action"
+	ErrorConsequenceHintPermissions ErrorConsequenceHint = "permissions"
+	ErrorConsequenceHintEnvironment ErrorConsequenceHint = "environment"
 )
 
 // NormalizedError wraps an upstream error with normalized classification.
@@ -181,37 +181,37 @@ type NormalizedError struct {
 type FreshnessClass string
 
 const (
-	FreshnessClassUnknown  FreshnessClass = "unknown"
-	FreshnessClassHot      FreshnessClass = "hot"
-	FreshnessClassWarm     FreshnessClass = "warm"
-	FreshnessClassCold     FreshnessClass = "cold"
-	FreshnessClassStale    FreshnessClass = "stale"
+	FreshnessClassUnknown FreshnessClass = "unknown"
+	FreshnessClassHot     FreshnessClass = "hot"
+	FreshnessClassWarm    FreshnessClass = "warm"
+	FreshnessClassCold    FreshnessClass = "cold"
+	FreshnessClassStale   FreshnessClass = "stale"
 )
 
 // CoverageClass represents how complete a snapshot or projection is expected to be.
 type CoverageClass string
 
 const (
-	CoverageClassUnknown   CoverageClass = "unknown"
-	CoverageClassFull      CoverageClass = "full"
-	CoverageClassPartial   CoverageClass = "partial"
-	CoverageClassSparse    CoverageClass = "sparse"
+	CoverageClassUnknown CoverageClass = "unknown"
+	CoverageClassFull    CoverageClass = "full"
+	CoverageClassPartial CoverageClass = "partial"
+	CoverageClassSparse  CoverageClass = "sparse"
 )
 
 // DegradationClass represents any detected degradation in underlying observation.
 type DegradationClass string
 
 const (
-	DegradationClassNone       DegradationClass = "none"
-	DegradationClassMinor      DegradationClass = "minor"
-	DegradationClassSevere     DegradationClass = "severe"
+	DegradationClassNone   DegradationClass = "none"
+	DegradationClassMinor  DegradationClass = "minor"
+	DegradationClassSevere DegradationClass = "severe"
 )
 
 // CompletenessClass represents whether a projection is logically complete for its contract.
 type CompletenessClass string
 
 const (
-	CompletenessClassUnknown CompletenessClass = "unknown"
+	CompletenessClassUnknown  CompletenessClass = "unknown"
 	CompletenessClassComplete CompletenessClass = "complete"
 	CompletenessClassInexact  CompletenessClass = "inexact"
 )
@@ -268,4 +268,3 @@ const (
 	ObserverStateWaitingForScope ObserverState = "waiting_for_scope"
 	ObserverStateUncertain       ObserverState = "uncertain"
 )
-

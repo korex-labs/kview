@@ -44,4 +44,3 @@ func Launch(mode Mode, url string) error {
 		return launchBrowser(url)
 	}
 }
-

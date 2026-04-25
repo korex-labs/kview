@@ -398,7 +398,7 @@ export default function ServiceDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab label="Overview" />
-              <Tab label="Inventory" />
+              <Tab label="Pods" />
               <Tab label="Events" />
               <Tab label="Metadata" />
               <Tab label="YAML" />

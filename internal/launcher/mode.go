@@ -36,4 +36,3 @@ func ResolveMode(rawMode string, open bool, fallback Mode) (Mode, error) {
 
 	return fallback, nil
 }
-

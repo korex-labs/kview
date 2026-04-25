@@ -11,7 +11,6 @@ import (
 	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -146,7 +145,7 @@ func listDaemonSetPods(ctx context.Context, c *cluster.Clients, set *appsv1.Daem
 	now := time.Now()
 	out := make([]dto.DaemonSetPodDTO, 0, len(pods))
 	for _, p := range pods {
-		if !isPodOwnedByDaemonSetRef(&p, set) {
+		if !kubepods.IsPodOwnedBy(&p, "DaemonSet", set.UID, set.Name) {
 			continue
 		}
 
@@ -177,18 +176,6 @@ func listDaemonSetPods(ctx context.Context, c *cluster.Clients, set *appsv1.Daem
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
-}
-
-func isPodOwnedByDaemonSetRef(pod *corev1.Pod, set *appsv1.DaemonSet) bool {
-	for _, ref := range pod.OwnerReferences {
-		if ref.Kind != "DaemonSet" {
-			continue
-		}
-		if ref.UID == set.UID || ref.Name == set.Name {
-			return true
-		}
-	}
-	return false
 }
 
 func daemonSetYAML(set *appsv1.DaemonSet) ([]byte, error) {

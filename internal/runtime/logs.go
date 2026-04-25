@@ -30,10 +30,10 @@ type LogReader interface {
 
 // LogBuffer is a bounded in-memory ring buffer of log entries.
 type LogBuffer struct {
-	mu        sync.RWMutex
-	entries   []LogEntry
-	nextID    int64
-	capacity  int
+	mu       sync.RWMutex
+	entries  []LogEntry
+	nextID   int64
+	capacity int
 }
 
 func NewLogBuffer(capacity int) *LogBuffer {
@@ -96,4 +96,3 @@ func itoa(n int64) string {
 	}
 	return string(buf[i:])
 }
-

@@ -33,4 +33,3 @@ func TestNormalizeError_TimeoutAndCanceled(t *testing.T) {
 		t.Fatalf("expected Canceled, got %q", n.Class)
 	}
 }
-

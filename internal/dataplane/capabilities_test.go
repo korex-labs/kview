@@ -50,5 +50,3 @@ func forbiddenErrorForTest() error {
 		errors.New("forbidden"),
 	)
 }
-
-

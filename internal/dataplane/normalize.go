@@ -153,4 +153,3 @@ func looksLikeProxyError(err error) bool {
 		strings.Contains(msg, "connectex") ||
 		strings.Contains(msg, "connection refused")
 }
-

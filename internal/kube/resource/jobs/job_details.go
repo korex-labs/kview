@@ -12,7 +12,6 @@ import (
 	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
 	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -146,7 +145,7 @@ func listJobPods(ctx context.Context, c *cluster.Clients, job *batchv1.Job, sele
 	out := make([]dto.JobPodDTO, 0, len(pods.Items))
 	var readyPods int32
 	for _, p := range pods.Items {
-		if !isPodOwnedByJobRef(&p, job) {
+		if !kubepods.IsPodOwnedBy(&p, "Job", job.UID, job.Name) {
 			continue
 		}
 
@@ -182,18 +181,6 @@ func listJobPods(ctx context.Context, c *cluster.Clients, job *batchv1.Job, sele
 		return out[i].Name < out[j].Name
 	})
 	return out, readyPods, nil
-}
-
-func isPodOwnedByJobRef(pod *corev1.Pod, job *batchv1.Job) bool {
-	for _, ref := range pod.OwnerReferences {
-		if ref.Kind != "Job" {
-			continue
-		}
-		if ref.UID == job.UID || ref.Name == job.Name {
-			return true
-		}
-	}
-	return false
 }
 
 func mapJobOwner(refs []metav1.OwnerReference) *dto.OwnerReferenceDTO {

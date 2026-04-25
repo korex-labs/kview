@@ -337,7 +337,7 @@ export default function DeploymentDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab label="Overview" />
-              <Tab label="Inventory" />
+              <Tab label="Pods" />
               <Tab label="Spec" />
               <Tab label="Events" />
               <Tab label="Metadata" />

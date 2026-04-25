@@ -64,4 +64,3 @@ func (r *InMemoryActivityRegistry) Remove(_ context.Context, id string) error {
 	delete(r.items, id)
 	return nil
 }
-

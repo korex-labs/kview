@@ -97,4 +97,3 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-

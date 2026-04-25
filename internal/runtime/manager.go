@@ -75,4 +75,3 @@ func (m *Manager) Logs() LogReader {
 func (m *Manager) Log(level LogLevel, source, msg string) {
 	m.logs.Append(level, source, msg)
 }
-

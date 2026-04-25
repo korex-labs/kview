@@ -4,8 +4,8 @@ import "testing"
 
 func TestObserverStateForError_Classifications(t *testing.T) {
 	cases := []struct {
-		class     NormalizedErrorClass
-		expected  ObserverState
+		class    NormalizedErrorClass
+		expected ObserverState
 	}{
 		{NormalizedErrorClassAccessDenied, ObserverStateBlockedByAccess},
 		{NormalizedErrorClassUnauthorized, ObserverStateBlockedByAccess},
@@ -24,4 +24,3 @@ func TestObserverStateForError_Classifications(t *testing.T) {
 		}
 	}
 }
-

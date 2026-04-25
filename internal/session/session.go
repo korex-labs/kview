@@ -31,17 +31,16 @@ const (
 )
 
 type Session struct {
-	ID              string           `json:"id"`
-	Type            Type             `json:"type"`
-	Title           string           `json:"title"`
-	Status          Status           `json:"status"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	UpdatedAt       time.Time        `json:"updatedAt"`
-	TargetCluster   string           `json:"targetCluster,omitempty"`
-	TargetNamespace string           `json:"targetNamespace,omitempty"`
-	TargetResource  string           `json:"targetResource,omitempty"`
-	TargetContainer string           `json:"targetContainer,omitempty"`
-	ConnectionState ConnectionState  `json:"connectionState,omitempty"`
+	ID              string            `json:"id"`
+	Type            Type              `json:"type"`
+	Title           string            `json:"title"`
+	Status          Status            `json:"status"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
+	TargetCluster   string            `json:"targetCluster,omitempty"`
+	TargetNamespace string            `json:"targetNamespace,omitempty"`
+	TargetResource  string            `json:"targetResource,omitempty"`
+	TargetContainer string            `json:"targetContainer,omitempty"`
+	ConnectionState ConnectionState   `json:"connectionState,omitempty"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
 }
-

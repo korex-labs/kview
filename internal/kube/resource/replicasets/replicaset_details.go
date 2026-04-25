@@ -6,7 +6,6 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/internal/cluster"
@@ -125,7 +124,7 @@ func listReplicaSetPods(ctx context.Context, c *cluster.Clients, rs *appsv1.Repl
 	out := make([]dto.ReplicaSetPodDTO, 0, len(pods.Items))
 	var readyPods int32
 	for _, p := range pods.Items {
-		if !isPodOwnedByReplicaSetRef(&p, rs) {
+		if !kubepods.IsPodOwnedBy(&p, "ReplicaSet", rs.UID, rs.Name) {
 			continue
 		}
 
@@ -161,14 +160,3 @@ func listReplicaSetPods(ctx context.Context, c *cluster.Clients, rs *appsv1.Repl
 	return out, readyPods, nil
 }
 
-func isPodOwnedByReplicaSetRef(pod *corev1.Pod, rs *appsv1.ReplicaSet) bool {
-	for _, ref := range pod.OwnerReferences {
-		if ref.Kind != "ReplicaSet" {
-			continue
-		}
-		if ref.UID == rs.UID || ref.Name == rs.Name {
-			return true
-		}
-	}
-	return false
-}

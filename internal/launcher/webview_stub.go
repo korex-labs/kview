@@ -9,4 +9,3 @@ import "fmt"
 func launchWebview(url string) error {
 	return fmt.Errorf("webview mode is not available in this build (missing 'webview' build tag)")
 }
-

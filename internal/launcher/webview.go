@@ -23,5 +23,3 @@ func launchWebview(url string) error {
 	os.Exit(0)
 	return nil
 }
-
-

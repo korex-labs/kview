@@ -234,4 +234,3 @@ func percentOfBytes(usageBytes, specBytes int64) float64 {
 	}
 	return 100.0 * float64(usageBytes) / float64(specBytes)
 }
-
