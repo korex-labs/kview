@@ -2,11 +2,12 @@ import React from "react";
 import { Box, Chip, Tooltip } from "@mui/material";
 import type { ChipProps } from "@mui/material/Chip";
 import type { SxProps, Theme } from "@mui/material/styles";
+import { CHIP_BORDER_RADIUS } from "../../theme/sxTokens";
 
 type ScopedCountChipColor = "default" | "primary" | "secondary" | "success" | "warning" | "error" | "info";
 
 type ScopedCountChipSize = NonNullable<ChipProps["size"]>;
-type ScopedCountChipDensity = "default" | "compact";
+type ScopedCountChipDensity = "default" | "compact" | "toolbar";
 
 export type ScopedCountChipProps = {
   label: string;
@@ -17,6 +18,7 @@ export type ScopedCountChipProps = {
   variant?: ChipProps["variant"];
   onClick?: ChipProps["onClick"];
   clickable?: boolean;
+  disabled?: ChipProps["disabled"];
   sx?: SxProps<Theme>;
   title?: string;
 };
@@ -42,19 +44,22 @@ export function ScopedCountContent({
   density?: ScopedCountChipDensity;
 }) {
   const compact = density === "compact";
+  const toolbar = density === "toolbar";
   return (
-    <Box component="span" sx={{ display: "inline-flex", alignItems: "stretch", minWidth: 0 }}>
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "stretch", minWidth: 0, height: "100%" }}>
       <Box
         component="span"
         sx={{
           backgroundColor: "var(--scoped-chip-bg)",
           color: "var(--scoped-chip-fg)",
-          px: compact ? 0.5 : size === "small" ? 0.875 : 1,
-          py: compact ? 0.125 : 0.25,
+          px: compact ? 0.5 : toolbar ? 1.125 : size === "small" ? 0.875 : 1,
+          py: compact ? 0.125 : 0,
           fontWeight: 600,
           fontSize: compact ? "0.75rem" : undefined,
           lineHeight: compact ? 1.2 : undefined,
           whiteSpace: "nowrap",
+          display: "inline-flex",
+          alignItems: "center",
         }}
       >
         {label}
@@ -65,13 +70,15 @@ export function ScopedCountContent({
           backgroundColor: "var(--chip-scoped-count-bg)",
           color: "var(--chip-scoped-count-fg)",
           borderLeft: "1px solid var(--chip-scoped-count-border)",
-          px: compact ? 0.375 : size === "small" ? 0.625 : 0.75,
-          py: compact ? 0.125 : 0.25,
+          px: compact ? 0.375 : toolbar ? 0.875 : size === "small" ? 0.625 : 0.75,
+          py: compact ? 0.125 : 0,
           fontWeight: 700,
           fontSize: compact ? "0.75rem" : undefined,
           lineHeight: compact ? 1.2 : undefined,
           fontVariantNumeric: "tabular-nums",
           whiteSpace: "nowrap",
+          display: "inline-flex",
+          alignItems: "center",
         }}
       >
         {count}
@@ -80,26 +87,36 @@ export function ScopedCountContent({
   );
 }
 
+function sizeHeight(size: ChipProps["size"]): number {
+  return size === "medium" ? 32 : 24;
+}
+
 export function scopedCountChipSx(
   color: ScopedCountChipColor,
   variant: NonNullable<ChipProps["variant"]>,
   density: ScopedCountChipDensity,
   sx?: SxProps<Theme>,
+  size: ChipProps["size"] = "small",
 ): SxProps<Theme> {
   const compact = density === "compact";
+  const toolbar = density === "toolbar";
   return {
     ...scopedCountToneVars(color),
-    borderRadius: 999,
+    borderRadius: CHIP_BORDER_RADIUS,
     overflow: "hidden",
     border: "1px solid var(--scoped-chip-border)",
     backgroundColor: variant === "outlined" ? "transparent" : "var(--scoped-chip-bg)",
     color: "var(--scoped-chip-fg)",
-    height: compact ? 22 : "auto",
+    height: compact ? 22 : toolbar ? 32 : sizeHeight(size),
     padding: 0,
     "& .MuiChip-label": {
       display: "flex",
       padding: 0,
       overflow: "hidden",
+      height: "100%",
+    },
+    "&:hover": {
+      backgroundColor: variant === "outlined" ? "var(--scoped-chip-bg)" : undefined,
     },
     ...sx,
   };
@@ -114,6 +131,7 @@ export default function ScopedCountChip({
   variant = "filled",
   onClick,
   clickable,
+  disabled,
   sx,
   title,
 }: ScopedCountChipProps) {
@@ -126,7 +144,8 @@ export default function ScopedCountChip({
       )}
       onClick={onClick}
       clickable={clickable ?? !!onClick}
-      sx={scopedCountChipSx(color, variant, density, sx)}
+      disabled={disabled}
+      sx={scopedCountChipSx(color, variant, density, sx, size)}
     />
   );
 

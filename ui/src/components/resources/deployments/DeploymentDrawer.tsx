@@ -402,7 +402,7 @@ export default function DeploymentDrawer(props: {
                                 ? "-"
                                 : rollout.progressDeadlineExceeded
                                 ? "Exceeded"
-                                : "OK",
+                                : "Ok",
                           },
                           { label: "Last Rollout Start", value: rollout?.lastRolloutStart ? fmtTimeAgo(rollout.lastRolloutStart) : "-" },
                           {

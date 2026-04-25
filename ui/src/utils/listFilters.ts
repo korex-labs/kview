@@ -1,7 +1,7 @@
 import type { SmartFilterMatchContext, SmartFilterRule } from "../settings";
 import { labelForSmartFilterRules, refreshIntervalOptions } from "../settings";
 
-export type QuickFilter = { id: string; label: string; value: string };
+export type QuickFilter = { id: string; label: string; value: string; count: number };
 
 export function buildQuickFilters<T>(
   rows: T[],
@@ -23,7 +23,7 @@ export function buildQuickFilters<T>(
   return Array.from(counts.entries())
     .filter(([, c]) => c >= minCount)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, c]) => ({ id: k, label: `${k} (${c})`, value: k }));
+    .map(([k, c]) => ({ id: k, label: k, value: k, count: c }));
 }
 
 export const refreshOptions = refreshIntervalOptions;

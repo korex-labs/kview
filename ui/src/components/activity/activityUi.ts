@@ -30,8 +30,8 @@ export const compactCellSx: SxProps<Theme> = {
 };
 
 export const badgeChipSx: SxProps<Theme> = {
-  height: 16,
-  fontSize: "0.55rem",
+  height: 24,
+  fontSize: "0.75rem",
   textTransform: "uppercase",
   borderWidth: 1,
   borderStyle: "solid",

@@ -4,7 +4,7 @@ export function formatChipLabel(value?: string | number | null): string {
   if (value === undefined || value === null || value === "") return "-";
   const raw = String(value).trim();
   if (!raw) return "-";
-  if (raw === "OK") return raw;
+  if (raw.toLowerCase() === "ok") return "Ok";
   if (/[=/:]/.test(raw)) return raw;
   if (raw.length <= 4 && raw === raw.toUpperCase()) return raw;
   const normalized = raw
@@ -235,7 +235,7 @@ export function listSignalSeverityColor(severity?: string | null): ChipColor {
 
 export function listSignalLabel(severity?: string | null, count?: number | null): string {
   const normalized = (severity || "").toLowerCase();
-  if (!normalized || normalized === "ok") return "OK";
+  if (!normalized || normalized === "ok") return "Ok";
   const title = normalized[0].toUpperCase() + normalized.slice(1);
   const signalCount = Number(count || 0);
   return signalCount > 0 ? `${title} (${signalCount})` : title;

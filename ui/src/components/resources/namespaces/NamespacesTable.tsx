@@ -151,7 +151,7 @@ const columns: GridColDef<Row>[] = [
           <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
             {row.podsWithRestarts ?? 0}
           </Typography>
-          {row.restartSignal && <StatusChip size="small" label="Delta" color="warning" sx={{ height: 18, "& .MuiChip-label": { px: 0.75, fontSize: "0.68rem" } }} />}
+          {row.restartSignal && <StatusChip size="small" label="Delta" color="warning" />}
         </Box>
       );
     },

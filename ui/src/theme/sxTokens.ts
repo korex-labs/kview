@@ -68,6 +68,8 @@ export const monospaceSx: SxProps<Theme> = {
 export const GAUGE_HEIGHT = 20;
 /** Border-radius for gauge and bar components (slightly rounded, squared look). */
 export const GAUGE_BORDER_RADIUS = "4px";
+/** Border-radius for compact telemetry chips; aligned with gauges. */
+export const CHIP_BORDER_RADIUS = GAUGE_BORDER_RADIUS;
 /** Background color for empty gauge track. */
 export const GAUGE_TRACK_BG = "var(--gauge-track-bg)";
 /** Min-width for MetricCard components in a flex row. */

@@ -15,6 +15,7 @@ import { GridToolbarContainer } from "@mui/x-data-grid";
 import type { QuickFilter } from "../../utils/listFilters";
 import { refreshOptions } from "../../utils/listFilters";
 import { actionRowSx } from "../../theme/sxTokens";
+import ScopedCountChip from "./ScopedCountChip";
 
 export type ResourceTableToolbarProps = {
   filterLabel: string;
@@ -90,17 +91,23 @@ export default function ResourceTableToolbar({
       </Box>
       {quickFilters.length > 0 && (
         <Box sx={actionRowSx}>
-          {quickFilters.map((q) => (
-            <Button
-              key={q.value}
-              size="small"
-              variant={selectedQuickFilter === q.value ? "contained" : "outlined"}
-              onClick={() => onQuickFilterToggle(q.value)}
-              disabled={disabled}
-            >
-              {q.label}
-            </Button>
-          ))}
+          {quickFilters.map((q) => {
+            const selected = selectedQuickFilter === q.value;
+            return (
+              <ScopedCountChip
+                key={q.value}
+                size="small"
+                density="toolbar"
+                color={selected ? "primary" : "default"}
+                variant={selected ? "filled" : "outlined"}
+                label={q.label}
+                count={q.count}
+                onClick={() => onQuickFilterToggle(q.value)}
+                clickable
+                disabled={disabled}
+              />
+            );
+          })}
         </Box>
       )}
     </GridToolbarContainer>

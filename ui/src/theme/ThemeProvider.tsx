@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { ThemeProvider as MuiThemeProvider, createTheme } from "@mui/material/styles";
+import { CHIP_BORDER_RADIUS } from "./sxTokens";
 
 type ThemeMode = "light" | "dark" | "system";
 type ChipTone = "default" | "success" | "warning" | "error" | "info" | "primary" | "secondary";
@@ -126,7 +127,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           MuiChip: {
             styleOverrides: {
               root: {
-                borderRadius: 999,
+                borderRadius: CHIP_BORDER_RADIUS,
                 borderWidth: 1,
                 borderStyle: "solid",
                 fontWeight: 600,
