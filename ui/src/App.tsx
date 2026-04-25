@@ -30,6 +30,8 @@ import PersistentVolumeClaimsTable from "./components/resources/persistentvolume
 import HelmReleasesTable from "./components/resources/helm/HelmReleasesTable";
 import HelmChartsTable from "./components/resources/helm/HelmChartsTable";
 import CustomResourceDefinitionsTable from "./components/resources/customresourcedefinitions/CustomResourceDefinitionsTable";
+import CustomResourcesTable from "./components/resources/customresources/CustomResourcesTable";
+import ClusterCustomResourcesTable from "./components/resources/customresources/ClusterCustomResourcesTable";
 import { apiGet, apiGetWithContext, apiPost, toApiError } from "./api";
 import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api";
 import {
@@ -578,6 +580,12 @@ function AppInner() {
               ) : null}
               {!settingsOpen && section === "customresourcedefinitions" ? (
                 <CustomResourceDefinitionsTable token={token} />
+              ) : null}
+              {!settingsOpen && section === "customresources" && namespace ? (
+                <CustomResourcesTable token={token} namespace={namespace} />
+              ) : null}
+              {!settingsOpen && section === "clusterresources" ? (
+                <ClusterCustomResourcesTable token={token} />
               ) : null}
               {!settingsOpen && section === "helm" && namespace ? (
                 <HelmReleasesTable token={token} namespace={namespace} />

@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/korex-labs/kview/internal/buildinfo"
 	"github.com/korex-labs/kview/internal/cluster"
@@ -30,6 +31,7 @@ import (
 	configmaps "github.com/korex-labs/kview/internal/kube/resource/configmaps"
 	cronjobs "github.com/korex-labs/kview/internal/kube/resource/cronjobs"
 	crds "github.com/korex-labs/kview/internal/kube/resource/customresourcedefinitions"
+	crs "github.com/korex-labs/kview/internal/kube/resource/customresources"
 	daemonsets "github.com/korex-labs/kview/internal/kube/resource/daemonsets"
 	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
 	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
@@ -1569,6 +1571,148 @@ func (s *Server) Router() http.Handler {
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
+		})
+
+		// Resolve group+kind → plural resource name and storage version from the CRD snapshot.
+		// Used by the frontend when constructing a CRRef from a Helm manifest resource that only
+		// carries apiVersion+kind (no plural). Cheap cache read, no live kube call.
+		api.Get("/customresources/resolve", func(w http.ResponseWriter, r *http.Request) {
+			group := strings.TrimSpace(r.URL.Query().Get("group"))
+			kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+			if group == "" || kind == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "group and kind are required"})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
+			defer cancel()
+
+			active := s.readContextName(r)
+			snap, err := s.dp.CRDsSnapshot(ctx, active)
+			if err != nil && len(snap.Items) == 0 {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "CRD snapshot unavailable", "active": active})
+				return
+			}
+
+			for _, crd := range snap.Items {
+				if crd.Group == group && crd.Kind == kind && crd.Plural != "" && crd.StorageVersion != "" {
+					writeJSON(w, http.StatusOK, map[string]any{
+						"active":         active,
+						"resource":       crd.Plural,
+						"storageVersion": crd.StorageVersion,
+						"scope":          crd.Scope,
+					})
+					return
+				}
+			}
+
+			writeJSON(w, http.StatusNotFound, map[string]any{"error": "no CRD found for group/kind", "active": active})
+		})
+
+		// Aggregated custom resource instances — fans out over the CRD dataplane snapshot, no
+		// individual CRD detail access required. Uses concurrent dynamic-client list calls bounded
+		// by a semaphore; RBAC-denied kinds are silently skipped and reported in meta.
+		api.Get("/namespaces/{ns}/customresources", func(w http.ResponseWriter, r *http.Request) {
+			ns := chi.URLParam(r, "ns")
+			if ns == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing namespace"})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+			defer cancel()
+
+			active := s.readContextName(r)
+			crdSnap, err := s.dp.CRDsSnapshot(ctx, active)
+			if err != nil && len(crdSnap.Items) == 0 {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "CRD snapshot unavailable: " + err.Error(), "active": active})
+				return
+			}
+
+			clients, active, err := s.mgr.GetClients(ctx)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			dynClient, err := dynamic.NewForConfig(clients.RestConfig)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			items, meta, _ := crs.ListAllNamespacedCRs(ctx, dynClient, crdSnap.Items, ns)
+			if items == nil {
+				items = []dto.CustomResourceInstanceDTO{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items, "meta": meta})
+		})
+
+		api.Get("/customresources/instances", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+			defer cancel()
+
+			active := s.readContextName(r)
+			crdSnap, err := s.dp.CRDsSnapshot(ctx, active)
+			if err != nil && len(crdSnap.Items) == 0 {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "CRD snapshot unavailable: " + err.Error(), "active": active})
+				return
+			}
+
+			clients, active, err := s.mgr.GetClients(ctx)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			dynClient, err := dynamic.NewForConfig(clients.RestConfig)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			items, meta, _ := crs.ListAllClusterCRs(ctx, dynClient, crdSnap.Items)
+			if items == nil {
+				items = []dto.CustomResourceInstanceDTO{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items, "meta": meta})
+		})
+
+		// Single CR instance detail — group/version/resource from the aggregated list row;
+		// namespace query param for namespaced kinds, omit for cluster-scoped.
+		api.Get("/customresources/{group}/{version}/{resource}/{name}", func(w http.ResponseWriter, r *http.Request) {
+			group := chi.URLParam(r, "group")
+			version := chi.URLParam(r, "version")
+			resource := chi.URLParam(r, "resource")
+			name := chi.URLParam(r, "name")
+			namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
+
+			ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+			defer cancel()
+
+			clients, active, err := s.mgr.GetClients(ctx)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			dynClient, err := dynamic.NewForConfig(clients.RestConfig)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			det, err := crs.GetCustomResourceDetails(ctx, dynClient, group, version, resource, namespace, name)
+			if err != nil {
+				status := http.StatusInternalServerError
+				if apierrors.IsForbidden(err) {
+					status = http.StatusForbidden
+				}
+				writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
 		})
 
 		api.Get("/persistentvolumes", dataplaneClusterListHandler(s, s.dp.PersistentVolumesSnapshot, func(items []dto.PersistentVolumeDTO) any {

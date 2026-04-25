@@ -131,14 +131,44 @@ const kindToNavKey: Record<string, string> = {
 };
 
 /**
- * Check if a manifest resource kind can be navigated to in the UI.
+ * Check if a manifest resource kind can be navigated to in the UI via a built-in drawer.
  */
 export function canNavigateToKind(kind: string): boolean {
   return kind in kindToNavKey;
 }
 
 /**
+ * Returns true when a manifest resource is a custom resource that can be opened
+ * with CustomResourceDrawer. Detects non-built-in API groups by checking that:
+ * - the apiVersion contains a slash (has a group prefix, not core/v1)
+ * - the group has at least one dot (domain-style, e.g. cert-manager.io)
+ * - the group does NOT end with .k8s.io (built-in extended groups)
+ * - the kind is not already handled by a built-in drawer
+ */
+export function isCRManifestResource(r: ManifestResource): boolean {
+  if (canNavigateToKind(r.kind)) return false;
+  if (!r.apiVersion) return false;
+  const slashIdx = r.apiVersion.indexOf("/");
+  if (slashIdx < 0) return false; // core group (e.g. "v1") — no group prefix
+  const group = r.apiVersion.slice(0, slashIdx);
+  if (!group.includes(".")) return false; // plain groups like "apps", "batch"
+  if (group.endsWith(".k8s.io")) return false; // built-in extended groups
+  return true;
+}
+
+/**
+ * Parse group and version from an apiVersion string (e.g. "cert-manager.io/v1").
+ * Returns null if the apiVersion has no group (core group).
+ */
+export function parseApiVersion(apiVersion: string): { group: string; version: string } | null {
+  const slashIdx = apiVersion.indexOf("/");
+  if (slashIdx < 0) return null;
+  return { group: apiVersion.slice(0, slashIdx), version: apiVersion.slice(slashIdx + 1) };
+}
+
+/**
  * Group manifest resources by kind for display.
+ * Navigable kinds (built-in drawers or custom resources) are sorted first.
  */
 export function groupResourcesByKind(
   resources: ManifestResource[],
@@ -149,11 +179,10 @@ export function groupResourcesByKind(
     list.push(r);
     map.set(r.kind, list);
   }
-  // Sort groups: navigable kinds first, then alphabetically
   return Array.from(map.entries())
-    .sort(([a], [b]) => {
-      const aNav = canNavigateToKind(a);
-      const bNav = canNavigateToKind(b);
+    .sort(([a, aItems], [b, bItems]) => {
+      const aNav = canNavigateToKind(a) || aItems.some(isCRManifestResource);
+      const bNav = canNavigateToKind(b) || bItems.some(isCRManifestResource);
       if (aNav !== bNav) return aNav ? -1 : 1;
       return a.localeCompare(b);
     })

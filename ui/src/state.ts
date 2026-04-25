@@ -22,6 +22,8 @@ export type Section =
   | "persistentvolumes"
   | "persistentvolumeclaims"
   | "customresourcedefinitions"
+  | "customresources"
+  | "clusterresources"
   | "helm"
   | "helmcharts";
 

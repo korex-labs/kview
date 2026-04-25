@@ -16,7 +16,7 @@ import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtTs, valueOrDash } from "../../../utils/format";
 import { helmStatusChipColor } from "../../../utils/k8sUi";
-import { parseManifestResources, groupResourcesByKind, canNavigateToKind } from "../../../utils/helmManifest";
+import { parseManifestResources, groupResourcesByKind, canNavigateToKind, isCRManifestResource, parseApiVersion } from "../../../utils/helmManifest";
 import type { ManifestResource } from "../../../utils/helmManifest";
 import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -47,6 +47,7 @@ import RoleBindingDrawer from "../rolebindings/RoleBindingDrawer";
 import ClusterRoleDrawer from "../clusterroles/ClusterRoleDrawer";
 import ClusterRoleBindingDrawer from "../clusterrolebindings/ClusterRoleBindingDrawer";
 import CustomResourceDefinitionDrawer from "../customresourcedefinitions/CustomResourceDefinitionDrawer";
+import CustomResourceDrawer, { type CRRef } from "../customresources/CustomResourceDrawer";
 import PodDrawer from "../pods/PodDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -124,6 +125,7 @@ export default function HelmReleaseDrawer(props: {
 
   // Sub-drawer state for cross-links
   const [linkedResource, setLinkedResource] = useState<ManifestResource | null>(null);
+  const [linkedCR, setLinkedCR] = useState<CRRef | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
 
   const ns = props.namespace;
@@ -137,6 +139,7 @@ export default function HelmReleaseDrawer(props: {
     setDetails(null);
     setLoading(true);
     setLinkedResource(null);
+    setLinkedCR(null);
     setDrawerNamespace(null);
 
     (async () => {
@@ -232,6 +235,18 @@ export default function HelmReleaseDrawer(props: {
     }
     if (canNavigateToKind(r.kind)) {
       setLinkedResource(r);
+      return;
+    }
+    if (isCRManifestResource(r)) {
+      const parsed = r.apiVersion ? parseApiVersion(r.apiVersion) : null;
+      setLinkedCR({
+        group: parsed?.group ?? "",
+        version: parsed?.version ?? "",
+        // resource (plural) is absent here — CustomResourceDrawer resolves it lazily
+        kind: r.kind,
+        namespace: r.namespace ?? ns,
+        name: r.name,
+      });
     }
   }
 
@@ -323,7 +338,7 @@ export default function HelmReleaseDrawer(props: {
                                   key={`${r.kind}/${r.namespace || ""}/${r.name}`}
                                   label={r.name}
                                   onClick={
-                                    canNavigateToKind(r.kind)
+                                    canNavigateToKind(r.kind) || isCRManifestResource(r)
                                       ? () => openManifestResource(r)
                                       : undefined
                                   }
@@ -639,6 +654,12 @@ export default function HelmReleaseDrawer(props: {
               onClose={() => setDrawerNamespace(null)}
               token={props.token}
               namespaceName={drawerNamespace}
+            />
+            <CustomResourceDrawer
+              open={!!linkedCR}
+              onClose={() => setLinkedCR(null)}
+              token={props.token}
+              crRef={linkedCR}
             />
           </>
         )}

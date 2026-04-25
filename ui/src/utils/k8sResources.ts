@@ -29,6 +29,8 @@ export type ListResourceKey =
   | "nodes"
   | "namespaces"
   | "customresourcedefinitions"
+  | "customresources"
+  | "clusterresources"
   | "helm"
   | "helmcharts"
   | "resourcequotas"
@@ -69,6 +71,8 @@ export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
   nodes: { label: "Nodes", clusterScoped: true },
   namespaces: { label: "Namespaces", clusterScoped: true },
   customresourcedefinitions: { label: "Custom Resource Definitions", clusterScoped: true },
+  customresources: { label: "Custom Namespace Resources", clusterScoped: false },
+  clusterresources: { label: "Custom Cluster Resources", clusterScoped: true },
   helm: { label: "Helm Releases", clusterScoped: false },
   helmcharts: { label: "Helm Charts", clusterScoped: true },
   resourcequotas: { label: "Resource Quotas", clusterScoped: false },
@@ -107,9 +111,14 @@ export const sidebarGroups: SidebarGroup[] = [
     items: ["helm", "helmcharts"],
   },
   {
+    id: "extensions",
+    label: "Extensions",
+    items: ["customresources", "clusterresources", "customresourcedefinitions"],
+  },
+  {
     id: "cluster",
     label: "Cluster",
-    items: ["dashboard", "nodes", "namespaces", "customresourcedefinitions"],
+    items: ["dashboard", "nodes", "namespaces"],
   },
 ];
 
@@ -152,6 +161,8 @@ export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> =
   nodes: { group: "", resource: "nodes" },
   namespaces: { group: "", resource: "namespaces" },
   customresourcedefinitions: { group: "apiextensions.k8s.io", resource: "customresourcedefinitions" },
+  customresources: { group: "apiextensions.k8s.io", resource: "customresourcedefinitions" },
+  clusterresources: { group: "apiextensions.k8s.io", resource: "customresourcedefinitions" },
   helm: { group: "", resource: "secrets" },
   helmcharts: { group: "", resource: "secrets" },
   resourcequotas: { group: "", resource: "resourcequotas" },

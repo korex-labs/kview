@@ -46,17 +46,21 @@ func ListCustomResourceDefinitions(ctx context.Context, c *cluster.Clients) ([]d
 		group, _, _ := unstructured.NestedString(item.Object, "spec", "group")
 		scope, _, _ := unstructured.NestedString(item.Object, "spec", "scope")
 		kind, _, _ := unstructured.NestedString(item.Object, "spec", "names", "kind")
+		plural, _, _ := unstructured.NestedString(item.Object, "spec", "names", "plural")
 		versions := crdVersionsCompact(item.Object)
+		storageVersion := crdStorageVersion(item.Object)
 		established := crdIsEstablished(item.Object)
 
 		out = append(out, dto.CRDListItemDTO{
-			Name:        name,
-			Group:       group,
-			Scope:       scope,
-			Kind:        kind,
-			Versions:    versions,
-			Established: established,
-			AgeSec:      age,
+			Name:           name,
+			Group:          group,
+			Scope:          scope,
+			Kind:           kind,
+			Plural:         plural,
+			Versions:       versions,
+			StorageVersion: storageVersion,
+			Established:    established,
+			AgeSec:         age,
 		})
 	}
 
@@ -103,6 +107,39 @@ func crdVersionsCompact(obj map[string]interface{}) string {
 		return "-"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// crdStorageVersion returns the storage version name, falling back to the first served version.
+func crdStorageVersion(obj map[string]interface{}) string {
+	versions, found, err := unstructured.NestedSlice(obj, "spec", "versions")
+	if err != nil || !found || len(versions) == 0 {
+		return ""
+	}
+	// Prefer the storage version.
+	for _, v := range versions {
+		vm, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		storage, _, _ := unstructured.NestedBool(vm, "storage")
+		if storage {
+			name, _, _ := unstructured.NestedString(vm, "name")
+			return name
+		}
+	}
+	// Fall back to first served version.
+	for _, v := range versions {
+		vm, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		served, _, _ := unstructured.NestedBool(vm, "served")
+		if served {
+			name, _, _ := unstructured.NestedString(vm, "name")
+			return name
+		}
+	}
+	return ""
 }
 
 // crdIsEstablished checks status.conditions for Established=True.
