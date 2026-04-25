@@ -21,7 +21,10 @@ import (
 	kubeactions "github.com/korex-labs/kview/internal/kube/actions"
 )
 
-const sessionTTL = 30 * time.Minute
+const (
+	sessionTTL          = 30 * time.Minute
+	finalLogSweepWindow = 5 * time.Second
+)
 
 type SourceKind string
 
@@ -82,6 +85,7 @@ type Session struct {
 	records []Record
 	closed  bool
 	jobName string
+	logged  map[string]bool
 }
 
 func (m *Manager) Start(ctx context.Context, clients *cluster.Clients, req StartRequest) (*StartResponse, error) {
@@ -102,6 +106,7 @@ func (m *Manager) Start(ctx context.Context, clients *cluster.Clients, req Start
 		sourceName: req.Name,
 		clients:    clients,
 		cancel:     cancel,
+		logged:     map[string]bool{},
 	}
 
 	m.mu.Lock()
@@ -261,36 +266,66 @@ func (s *Session) watchJob(ctx context.Context) {
 
 func (s *Session) watchPods(ctx context.Context) {
 	seenLogs := map[string]bool{}
+	seenPrevious := map[string]int32{}
 	for {
 		select {
 		case <-ctx.Done():
+			s.captureFinalPodLogs(seenPrevious)
 			return
 		case <-time.After(750 * time.Millisecond):
 		}
-		pods, err := s.clients.Clientset.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: "kview.korex-labs.io/run-id=" + s.id,
-		})
-		if err != nil {
+		s.capturePodLogs(ctx, seenLogs, seenPrevious, true)
+	}
+}
+
+func (s *Session) captureFinalPodLogs(seenPrevious map[string]int32) {
+	ctx, cancel := context.WithTimeout(context.Background(), finalLogSweepWindow)
+	defer cancel()
+
+	s.append(Record{Type: "status", Phase: "capturing", Message: "Capturing final container logs"})
+	s.capturePodLogs(ctx, map[string]bool{}, seenPrevious, false)
+}
+
+func (s *Session) capturePodLogs(ctx context.Context, seenLogs map[string]bool, seenPrevious map[string]int32, follow bool) {
+	pods, err := s.clients.Clientset.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "kview.korex-labs.io/run-id=" + s.id,
+	})
+	if err != nil {
+		if ctx.Err() == nil {
 			s.append(Record{Type: "status", Level: "warning", Phase: "waiting", Message: "pod watch: " + err.Error()})
-			continue
 		}
-		for i := range pods.Items {
-			pod := pods.Items[i]
-			s.append(Record{Type: "pod", Pod: pod.Name, Phase: string(pod.Status.Phase), Message: pod.Status.Message, Reason: pod.Status.Reason})
-			for _, c := range pod.Spec.InitContainers {
-				key := pod.Name + "/" + c.Name
-				if !seenLogs[key] {
-					seenLogs[key] = true
-					go s.streamContainerLogs(ctx, pod.Name, c.Name)
-				}
-			}
-			for _, c := range pod.Spec.Containers {
-				key := pod.Name + "/" + c.Name
-				if !seenLogs[key] {
-					seenLogs[key] = true
-					go s.streamContainerLogs(ctx, pod.Name, c.Name)
-				}
-			}
+		return
+	}
+	for i := range pods.Items {
+		pod := pods.Items[i]
+		s.append(Record{Type: "pod", Pod: pod.Name, Phase: string(pod.Status.Phase), Message: pod.Status.Message, Reason: pod.Status.Reason})
+		initStatuses := mapContainerStatuses(pod.Status.InitContainerStatuses)
+		containerStatuses := mapContainerStatuses(pod.Status.ContainerStatuses)
+		for _, c := range pod.Spec.InitContainers {
+			s.captureContainerLogs(ctx, pod.Name, c.Name, initStatuses[c.Name], seenLogs, seenPrevious, follow)
+		}
+		for _, c := range pod.Spec.Containers {
+			s.captureContainerLogs(ctx, pod.Name, c.Name, containerStatuses[c.Name], seenLogs, seenPrevious, follow)
+		}
+	}
+}
+
+func (s *Session) captureContainerLogs(ctx context.Context, pod, container string, status corev1.ContainerStatus, seenLogs map[string]bool, seenPrevious map[string]int32, follow bool) {
+	key := pod + "/" + container
+	if !seenLogs[key] {
+		seenLogs[key] = true
+		if follow {
+			go s.streamContainerLogs(ctx, pod, container, false, true)
+		} else if !s.hasLoggedContainer(pod, container, false) {
+			s.streamContainerLogs(ctx, pod, container, false, false)
+		}
+	}
+	if shouldCapturePreviousLogs(status, seenPrevious[key]) {
+		seenPrevious[key] = status.RestartCount
+		if follow {
+			go s.streamContainerLogs(ctx, pod, container, true, false)
+		} else {
+			s.streamContainerLogs(ctx, pod, container, true, false)
 		}
 	}
 }
@@ -337,12 +372,14 @@ func (s *Session) watchEvents(ctx context.Context) {
 	}
 }
 
-func (s *Session) streamContainerLogs(ctx context.Context, pod, container string) {
-	tail := int64(0)
-	opts := &corev1.PodLogOptions{Container: container, Follow: true, TailLines: &tail}
+func (s *Session) streamContainerLogs(ctx context.Context, pod, container string, previous, follow bool) {
+	opts := &corev1.PodLogOptions{Container: container, Follow: follow, Previous: previous}
 	req := s.clients.Clientset.CoreV1().Pods(s.namespace).GetLogs(pod, opts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
+		if previous && (apierrors.IsBadRequest(err) || apierrors.IsNotFound(err)) {
+			return
+		}
 		s.append(Record{Type: "status", Level: "warning", Phase: "running", Pod: pod, Container: container, Message: "logs: " + err.Error()})
 		return
 	}
@@ -352,7 +389,12 @@ func (s *Session) streamContainerLogs(ctx context.Context, pod, container string
 	for {
 		line, err := reader.ReadString('\n')
 		if strings.TrimRight(line, "\r\n") != "" {
-			s.append(Record{Type: "log", Pod: pod, Container: container, Line: strings.TrimRight(line, "\r\n")})
+			line = strings.TrimRight(line, "\r\n")
+			if previous {
+				line = "[previous] " + line
+			}
+			s.markLoggedContainer(pod, container, previous)
+			s.append(Record{Type: "log", Pod: pod, Container: container, Line: line})
 		}
 		if err != nil {
 			if err != io.EOF {
@@ -361,6 +403,43 @@ func (s *Session) streamContainerLogs(ctx context.Context, pod, container string
 			return
 		}
 	}
+}
+
+func mapContainerStatuses(items []corev1.ContainerStatus) map[string]corev1.ContainerStatus {
+	out := make(map[string]corev1.ContainerStatus, len(items))
+	for _, item := range items {
+		out[item.Name] = item
+	}
+	return out
+}
+
+func shouldCapturePreviousLogs(status corev1.ContainerStatus, capturedRestartCount int32) bool {
+	if status.RestartCount <= 0 || status.RestartCount <= capturedRestartCount {
+		return false
+	}
+	return status.LastTerminationState.Terminated != nil
+}
+
+func (s *Session) markLoggedContainer(pod, container string, previous bool) {
+	s.mu.Lock()
+	if s.logged == nil {
+		s.logged = map[string]bool{}
+	}
+	s.logged[containerLogKey(pod, container, previous)] = true
+	s.mu.Unlock()
+}
+
+func (s *Session) hasLoggedContainer(pod, container string, previous bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.logged[containerLogKey(pod, container, previous)]
+}
+
+func containerLogKey(pod, container string, previous bool) string {
+	if previous {
+		return pod + "/" + container + "/previous"
+	}
+	return pod + "/" + container + "/current"
 }
 
 func (s *Session) append(rec Record) {
