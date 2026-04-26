@@ -131,9 +131,7 @@ export default function NodeDrawer(props: {
       const item: NodeDetails | null = det?.item ?? null;
       setDetails(item);
     })()
-      .catch((e) => {
-        if (!details) setErr(String(e));
-      })
+      .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, props.token, activeContext, retryNonce, offline]);
 

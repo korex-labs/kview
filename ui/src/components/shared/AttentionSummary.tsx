@@ -94,18 +94,20 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
         {signals.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
             {signals.slice(0, 3).map((signal, idx) => (
-              <Typography
+              <Box
                 key={`${signal.signalType || signal.kind}-${signal.name || idx}`}
-                variant="body2"
-                sx={{ color: "text.primary" }}
+                data-signal-row
+                sx={{ color: "text.primary", display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}
               >
-                <StatusChip size="small" color={severityColor(signal.severity)} label={signal.severity || "info"} sx={{ mr: 0.75 }} />
-                {signalText(signal)}
+                <StatusChip size="small" color={severityColor(signal.severity)} label={signal.severity || "info"} />
+                <Typography component="span" variant="body2">
+                  {signalText(signal)}
+                </Typography>
                 <SignalHintIcons
                   likelyCause={signal.likelyCause}
                   suggestedAction={signal.suggestedAction}
                 />
-              </Typography>
+              </Box>
             ))}
             {signals.length > 3 ? (
               <Typography variant="caption" color="text.secondary">

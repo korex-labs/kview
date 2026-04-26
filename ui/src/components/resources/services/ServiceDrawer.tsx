@@ -236,9 +236,7 @@ export default function ServiceDrawer(props: {
       );
       setEvents(ev?.items || []);
     })()
-      .catch((e) => {
-        if (!details) setErr(String(e));
-      })
+      .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce, offline, refreshNonce]);
 

@@ -58,7 +58,7 @@ describe("AttentionSummary", () => {
         ]}
       />,
     );
-    const row = screen.getByText(/ImagePullBackOff: myimg/).closest("p");
+    const row = screen.getByText(/ImagePullBackOff: myimg/).closest("[data-signal-row]");
     expect(row).toBeTruthy();
     if (row) {
       expect(within(row as HTMLElement).getByText(/high/i)).toBeTruthy();

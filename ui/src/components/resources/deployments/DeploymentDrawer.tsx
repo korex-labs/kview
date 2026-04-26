@@ -232,9 +232,7 @@ export default function DeploymentDrawer(props: {
       );
       setEvents(ev?.items || []);
     })()
-      .catch((e) => {
-        if (!details) setErr(String(e));
-      })
+      .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce, refreshNonce, offline]);
 
