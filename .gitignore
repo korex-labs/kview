@@ -34,6 +34,9 @@ ui/pnpm-debug.log*
 internal/server/ui_dist/*
 !internal/server/ui_dist/.keep
 
+# --- Build/CI artifacts ---
+.artifacts/
+
 # --- Local env / secrets ---
 .env
 .env.*
