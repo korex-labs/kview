@@ -202,6 +202,26 @@ const sectionSx = {
   backgroundColor: "transparent",
 };
 
+const signalTableSx = {
+  tableLayout: "fixed",
+  "& .MuiTableCell-root": {
+    py: 0.65,
+    verticalAlign: "top",
+  },
+  "& .MuiTableHead-root .MuiTableCell-root": {
+    color: "text.secondary",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+};
+
+const statusCellSx = { pl: 0, width: 104 };
+const kindCellSx = { width: 132 };
+const resourceCellSx = { width: "24%" };
+const detailCellSx = { width: "auto" };
+const seenCellSx = { width: 116, whiteSpace: "nowrap" };
+const lastSeenCellSx = { pr: 0, width: 116, whiteSpace: "nowrap" };
+
 function derivedMatchesQuery(row: DerivedSignalRow, query: string): boolean {
   if (!query) return true;
   return (
@@ -454,22 +474,31 @@ export default function DashboardSignalsPanel({
               No derived rows match this filter.
             </Typography>
           ) : (
-            <Table size="small">
+            <Table size="small" sx={signalTableSx}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ pl: 0 }}>Kind</TableCell>
-                  <TableCell>Resource</TableCell>
-                  <TableCell>Signal</TableCell>
-                  <TableCell sx={{ pr: 0 }}>Derived basis</TableCell>
+                  <TableCell sx={statusCellSx}>Status</TableCell>
+                  <TableCell sx={kindCellSx}>Kind</TableCell>
+                  <TableCell sx={resourceCellSx}>Resource</TableCell>
+                  <TableCell sx={detailCellSx}>Details</TableCell>
+                  <TableCell sx={seenCellSx}>First seen</TableCell>
+                  <TableCell sx={lastSeenCellSx}>Last verified</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {pagedDerivedRows.map((row) => (
                   <TableRow key={row.key} hover onClick={() => onInspect(row.target)} sx={{ cursor: "pointer" }}>
-                    <TableCell sx={{ py: 0.6, pl: 0, width: 132, verticalAlign: "top" }}>
+                    <TableCell sx={statusCellSx}>
+                      <StatusChip
+                        size="small"
+                        color={row.signals > 0 ? severityColor(row.severity) : "default"}
+                        label={row.signals > 0 ? row.severity : "ok"}
+                      />
+                    </TableCell>
+                    <TableCell sx={kindCellSx}>
                       <Chip size="small" variant="outlined" label={row.kindLabel} />
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
+                    <TableCell sx={resourceCellSx}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {row.primary}
                       </Typography>
@@ -477,22 +506,38 @@ export default function DashboardSignalsPanel({
                         {row.secondary}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, verticalAlign: "top", width: 140 }}>
+                    <TableCell sx={detailCellSx}>
                       {row.signals > 0 ? (
-                        <ScopedCountChip
-                          size="small"
-                          color={severityColor(row.severity)}
-                          label="Signals"
-                          count={row.signals}
-                        />
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                          <ScopedCountChip
+                            size="small"
+                            color={severityColor(row.severity)}
+                            label="Signals"
+                            count={row.signals}
+                          />
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {row.metric}
+                          </Typography>
+                        </Box>
                       ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          No signals
                         </Typography>
                       )}
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {row.signals > 0 ? "" : `${row.metric} · `}
+                        Derived from cached {row.type === "nodes" ? "node and pod" : "Helm release"} data
+                      </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, pr: 0, verticalAlign: "top" }}>
-                      {row.metric}
+                    <TableCell sx={seenCellSx}>
+                      <Typography variant="caption" color="text.secondary">
+                        -
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={lastSeenCellSx}>
+                      <Typography variant="caption" color="text.secondary">
+                        -
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -504,14 +549,14 @@ export default function DashboardSignalsPanel({
             No cached-scope signals for this filter.
           </Typography>
         ) : (
-            <Table size="small">
+            <Table size="small" sx={signalTableSx}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ pl: 0 }}>Severity</TableCell>
-                  <TableCell>Kind</TableCell>
-                  <TableCell>Resource</TableCell>
-                  <TableCell>Signal</TableCell>
-                  <TableCell sortDirection={signalSortDirection(signalsSort, "discovered_desc", "discovered_asc")}>
+                  <TableCell sx={statusCellSx}>Status</TableCell>
+                  <TableCell sx={kindCellSx}>Kind</TableCell>
+                  <TableCell sx={resourceCellSx}>Resource</TableCell>
+                  <TableCell sx={detailCellSx}>Details</TableCell>
+                  <TableCell sx={seenCellSx} sortDirection={signalSortDirection(signalsSort, "discovered_desc", "discovered_asc")}>
                     <TableSortLabel
                       active={signalsSort === "discovered_desc" || signalsSort === "discovered_asc"}
                       direction={signalSortDirection(signalsSort, "discovered_desc", "discovered_asc") || "desc"}
@@ -524,7 +569,7 @@ export default function DashboardSignalsPanel({
                     </TableSortLabel>
                   </TableCell>
                   <TableCell
-                    sx={{ pr: 0 }}
+                    sx={lastSeenCellSx}
                     sortDirection={signalSortDirection(signalsSort, "last_seen_desc", "last_seen_asc")}
                   >
                     <TableSortLabel
@@ -552,13 +597,13 @@ export default function DashboardSignalsPanel({
                     }}
                     sx={target ? { cursor: "pointer" } : undefined}
                   >
-                    <TableCell sx={{ py: 0.6, pl: 0, width: 104, verticalAlign: "top" }}>
+                    <TableCell sx={statusCellSx}>
                       <StatusChip size="small" color={severityColor(f.severity)} label={f.severity} />
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, width: 132, verticalAlign: "top" }}>
+                    <TableCell sx={kindCellSx}>
                       <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} />
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
+                    <TableCell sx={resourceCellSx}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {signalResourceName(f)}
                       </Typography>
@@ -566,7 +611,7 @@ export default function DashboardSignalsPanel({
                         {signalLocation(f)}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, verticalAlign: "top" }}>
+                    <TableCell sx={detailCellSx}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {signalCalculatedText(f)}
                         <SignalHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
@@ -575,12 +620,12 @@ export default function DashboardSignalsPanel({
                         {signalActualText(f)}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, verticalAlign: "top", whiteSpace: "nowrap" }}>
+                    <TableCell sx={seenCellSx}>
                       <Typography variant="caption" color="text.secondary">
                         {f.firstSeenAt ? fmtTimeAgo(f.firstSeenAt) : "-"}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 0.6, pr: 0, verticalAlign: "top", whiteSpace: "nowrap" }}>
+                    <TableCell sx={lastSeenCellSx}>
                       <Typography variant="caption" color="text.secondary">
                         {f.lastSeenAt ? fmtTimeAgo(f.lastSeenAt) : "-"}
                       </Typography>
