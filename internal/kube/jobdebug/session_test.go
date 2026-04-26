@@ -24,9 +24,9 @@ func TestManager_StartNilClients(t *testing.T) {
 func TestManager_StartMissingFields(t *testing.T) {
 	m := NewManager()
 	cases := []StartRequest{
-		{Namespace: "ns", Name: "n"},           // missing Context
-		{Context: "ctx", Name: "n"},             // missing Namespace
-		{Context: "ctx", Namespace: "ns"},       // missing Name
+		{Namespace: "ns", Name: "n"},      // missing Context
+		{Context: "ctx", Name: "n"},       // missing Namespace
+		{Context: "ctx", Namespace: "ns"}, // missing Name
 	}
 	for _, req := range cases {
 		_, err := m.Start(context.Background(), nil, req)

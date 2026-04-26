@@ -37,13 +37,6 @@ func (s *snapshotStore[T]) getFresh(ttl time.Duration) (T, bool) {
 	return s.snap, true
 }
 
-func (s *snapshotStore[T]) set(snap T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.snap = snap
-	s.telemetry.recordCacheWrite("", snap)
-}
-
 // setClusterSnapshot stores a cluster-wide snapshot and bumps the monotonic revision for that list.
 func setClusterSnapshot[I any](s *snapshotStore[Snapshot[I]], snap Snapshot[I]) {
 	s.mu.Lock()
@@ -110,16 +103,6 @@ func (s *namespacedSnapshotStore[T]) getCached(namespace string) (T, bool) {
 		return zero, false
 	}
 	return snap, true
-}
-
-func (s *namespacedSnapshotStore[T]) set(namespace string, snap T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.snaps == nil {
-		s.snaps = make(map[string]T)
-	}
-	s.snaps[namespace] = snap
-	s.telemetry.recordCacheWrite(namespace, snap)
 }
 
 // setNamespacedSnapshot stores a per-namespace snapshot and bumps revision for that namespace key.

@@ -32,7 +32,7 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check ui build build-webview build-release docker-image clean prepare-cache local-check local-ui local-build local-build-webview local-build-release
+.PHONY: all check lint-go ui build build-webview build-release docker-image clean prepare-cache local-check local-lint-go local-ui local-build local-build-webview local-build-release
 
 all: check build
 
@@ -41,6 +41,9 @@ prepare-cache:
 
 check: docker-image prepare-cache
 	$(DOCKER_RUN) make local-check
+
+lint-go: docker-image prepare-cache
+	$(DOCKER_RUN) make local-lint-go
 
 ui: docker-image prepare-cache
 	$(DOCKER_RUN) make local-ui
@@ -60,6 +63,9 @@ local-check:
 	GO_PACKAGES=$$(go list ./... | grep -v '/$(UI_DIR)/node_modules/'); \
 		go vet $$GO_PACKAGES; \
 		go test $$GO_PACKAGES
+
+local-lint-go:
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run
 
 local-ui:
 	cd $(UI_DIR) && npm ci && npm run build

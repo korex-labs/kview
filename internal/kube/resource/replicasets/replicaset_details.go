@@ -159,4 +159,3 @@ func listReplicaSetPods(ctx context.Context, c *cluster.Clients, rs *appsv1.Repl
 	})
 	return out, readyPods, nil
 }
-

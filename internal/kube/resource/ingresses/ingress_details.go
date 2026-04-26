@@ -77,8 +77,8 @@ func mapIngressRules(rules []networkingv1.IngressRule) []dto.IngressRuleDTO {
 	out := make([]dto.IngressRuleDTO, 0, len(rules))
 	for _, r := range rules {
 		paths := make([]dto.IngressPathDTO, 0)
-		if r.IngressRuleValue.HTTP != nil {
-			for _, p := range r.IngressRuleValue.HTTP.Paths {
+		if r.HTTP != nil {
+			for _, p := range r.HTTP.Paths {
 				pathType := ""
 				if p.PathType != nil {
 					pathType = string(*p.PathType)
@@ -196,8 +196,10 @@ func buildIngressWarnings(ctx context.Context, c *cluster.Clients, namespace str
 		serviceMap[s.Name] = struct{}{}
 	}
 
+	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 	endpointsByName := map[string]*corev1.Endpoints{}
 	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
 		for i := range endpoints.Items {
 			ep := endpoints.Items[i]

@@ -87,7 +87,7 @@ func GetHelmReleaseDetails(_ context.Context, c *cluster.Clients, namespace, rel
 
 	// Values: marshal user-supplied config as YAML.
 	values := ""
-	if latest.Config != nil && len(latest.Config) > 0 {
+	if len(latest.Config) > 0 {
 		valBytes, err := syaml.Marshal(latest.Config)
 		if err == nil {
 			values = string(valBytes)

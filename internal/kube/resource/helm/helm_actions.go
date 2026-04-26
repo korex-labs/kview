@@ -160,7 +160,7 @@ func HelmUpgrade(_ context.Context, c *cluster.Clients, req HelmUpgradeRequest) 
 		return nil, fmt.Errorf("invalid valuesYaml: %w", err)
 	}
 
-	chartPath, err := upgrade.ChartPathOptions.LocateChart(req.Chart, cli.New())
+	chartPath, err := upgrade.LocateChart(req.Chart, cli.New())
 	if err != nil {
 		return nil, fmt.Errorf("locate chart: %w", err)
 	}
@@ -217,7 +217,7 @@ func HelmInstall(_ context.Context, c *cluster.Clients, req HelmInstallRequest) 
 		return nil, fmt.Errorf("invalid valuesYaml: %w", err)
 	}
 
-	chartPath, err := install.ChartPathOptions.LocateChart(req.Chart, cli.New())
+	chartPath, err := install.LocateChart(req.Chart, cli.New())
 	if err != nil {
 		return nil, fmt.Errorf("locate chart: %w", err)
 	}

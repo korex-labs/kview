@@ -20,8 +20,10 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		return nil, err
 	}
 
+	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 	endpointsByName := map[string]*corev1.Endpoints{}
 	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
 		for i := range endpoints.Items {
 			ep := endpoints.Items[i]
@@ -78,6 +80,7 @@ func FormatServicePortsSummary(ports []corev1.ServicePort) string {
 	return strings.Join(parts, ", ")
 }
 
+//nolint:staticcheck // Deferred migration to EndpointSlice; callers still pass Endpoints.
 func EndpointsCounts(ep *corev1.Endpoints) (int, int) {
 	if ep == nil {
 		return 0, 0

@@ -27,8 +27,10 @@ func ListServicesSelectingPod(ctx context.Context, c *cluster.Clients, namespace
 		return nil, err
 	}
 
+	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 	endpointsByName := map[string]*corev1.Endpoints{}
 	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
 		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
 		for i := range endpoints.Items {
 			ep := endpoints.Items[i]

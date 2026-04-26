@@ -1490,13 +1490,7 @@ func (m *manager) SearchCachedResources(_ context.Context, clusterName string, q
 	}
 	items := make([]CachedResourceSearchItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CachedResourceSearchItem{
-			Cluster:    row.Cluster,
-			Kind:       row.Kind,
-			Namespace:  row.Namespace,
-			Name:       row.Name,
-			ObservedAt: row.ObservedAt,
-		})
+		items = append(items, CachedResourceSearchItem(row))
 	}
 	return CachedResourceSearch{Active: clusterName, Query: q, Limit: limit, Offset: offset, HasMore: hasMore, Items: items}, nil
 }

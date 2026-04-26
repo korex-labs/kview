@@ -41,7 +41,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -66,7 +66,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+err.Error()))
 		return
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	// keepalive ping
 	go func() {

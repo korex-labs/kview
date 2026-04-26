@@ -34,9 +34,7 @@ func (r *InMemoryActivityRegistry) Register(_ context.Context, activity Activity
 func (r *InMemoryActivityRegistry) Update(_ context.Context, activity Activity) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[activity.ID]; !ok {
-		// For Phase 1 keep behavior simple: upsert.
-	}
+	// For Phase 1 keep behavior simple: upsert.
 	r.items[activity.ID] = activity
 	return nil
 }

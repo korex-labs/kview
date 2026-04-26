@@ -106,7 +106,7 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	sess, ok, err := t.Sessions.Get(ctx, id)
 	if err != nil {
@@ -190,7 +190,7 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer sizeQueue.Close()
 
 	go func() {
-		defer stdinWriter.Close()
+		defer func() { _ = stdinWriter.Close() }()
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
@@ -223,7 +223,7 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sess.UpdatedAt = time.Now().UTC()
 	_ = t.Sessions.Update(ctx, sess)
 
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:             stdinReader,
 		Stdout:            stdoutWriter,
 		Stderr:            stdoutWriter,

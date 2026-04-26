@@ -26,3 +26,6 @@ jobs:
 
       - name: Run checks in Docker
         run: make check
+
+      - name: Run Go lint in Docker
+        run: make lint-go

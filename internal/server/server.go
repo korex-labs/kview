@@ -2021,7 +2021,7 @@ func (s *Server) Router() http.Handler {
 			if err != nil {
 				return
 			}
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			session.Stream(r.Context(), conn)
 		})
 		api.Post("/job-runs/{id}/stop", func(w http.ResponseWriter, r *http.Request) {

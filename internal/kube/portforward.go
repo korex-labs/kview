@@ -65,7 +65,7 @@ func startPortForward(
 	if remotePort <= 0 {
 		return 0, nil, fmt.Errorf("remote port must be > 0")
 	}
-	if localHost == "" {
+	if strings.TrimSpace(localHost) == "" {
 		localHost = "127.0.0.1"
 	}
 
@@ -96,7 +96,7 @@ func startPortForward(
 		portSpec = fmt.Sprintf("0:%d", remotePort)
 	}
 
-	pf, err := portforward.New(dialer, []string{portSpec}, stopChan, readyChan, outBuf, errBuf)
+	pf, err := portforward.NewOnAddresses(dialer, []string{localHost}, []string{portSpec}, stopChan, readyChan, outBuf, errBuf)
 	if err != nil {
 		return 0, nil, fmt.Errorf("create portforward: %w", err)
 	}

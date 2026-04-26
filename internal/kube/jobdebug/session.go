@@ -350,7 +350,7 @@ func (s *Session) watchEvents(ctx context.Context) {
 			if kind == "" || name == "" {
 				continue
 			}
-			if !(kind == "Job" && name == jobName) && !(kind == "Pod" && strings.Contains(name, jobName)) {
+			if (kind != "Job" || name != jobName) && (kind != "Pod" || !strings.Contains(name, jobName)) {
 				continue
 			}
 			key := string(e.UID) + "/" + e.ResourceVersion + "/" + fmt.Sprint(e.Count)
@@ -383,7 +383,7 @@ func (s *Session) streamContainerLogs(ctx context.Context, pod, container string
 		s.append(Record{Type: "status", Level: "warning", Phase: "running", Pod: pod, Container: container, Message: "logs: " + err.Error()})
 		return
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	reader := bufio.NewReader(stream)
 	for {

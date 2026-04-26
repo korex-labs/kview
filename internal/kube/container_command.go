@@ -52,7 +52,7 @@ func (c ContainerCommandClient) Run(ctx context.Context, req ContainerCommandReq
 		return ContainerCommandResult{}, fmt.Errorf("namespace, pod, container, and command are required")
 	}
 	if c.Clientset == nil || c.RestConfig == nil {
-		return ContainerCommandResult{}, fmt.Errorf("Kubernetes client is not configured")
+		return ContainerCommandResult{}, fmt.Errorf("kubernetes client is not configured")
 	}
 
 	execCommand := buildContainerShellCommand(command, req.Workdir)

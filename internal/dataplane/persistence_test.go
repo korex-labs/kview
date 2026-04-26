@@ -21,7 +21,7 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	observed := time.Now().UTC().Add(-time.Minute)
 	snap := PodsSnapshot{
@@ -73,7 +73,7 @@ func TestBoltSnapshotPersistenceSearchPrioritizesKindsAndOffsets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	meta := SnapshotMetadata{ObservedAt: time.Now().UTC()}
 	mustSave := func(kind ResourceKind, snap any) {
@@ -108,7 +108,7 @@ func TestBoltSnapshotPersistencePrunesOlderSnapshotsAndSearchIndex(t *testing.T)
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	oldMeta := SnapshotMetadata{ObservedAt: time.Now().UTC().Add(-48 * time.Hour)}
 	freshMeta := SnapshotMetadata{ObservedAt: time.Now().UTC().Add(-time.Hour)}
@@ -160,7 +160,7 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	now := time.Now().UTC().Unix()
 	if err := store.UpsertSignalHistory("ctx", map[string]signalHistoryRecord{
@@ -209,7 +209,7 @@ func TestExecuteNamespacedSnapshotUsesPersistedFallbackOnLiveFailure(t *testing.
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	observed := time.Now().UTC().Add(-time.Hour)
 	persisted := PodsSnapshot{

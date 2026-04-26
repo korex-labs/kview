@@ -106,6 +106,16 @@ make build-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64
 
 The `local-*` Makefile targets are implementation details for the Docker container or explicit maintainer debugging. AI coding agents must not call host `go`, `npm`, `node`, or `local-*` targets unless the project owner explicitly asks for a host-toolchain exception.
 
+### Go linting
+
+Run Go lint checks through the pinned Docker toolchain:
+
+```bash
+make lint-go
+```
+
+This runs `golangci-lint` with a practical baseline (`govet`, `staticcheck`, `errcheck`, `unused`, `ineffassign`, and `gofmt` checks).
+
 ---
 
 ## Features

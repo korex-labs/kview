@@ -8,7 +8,7 @@ type CRDListItemDTO struct {
 	Kind               string `json:"kind"`
 	Versions           string `json:"versions"`
 	StorageVersion     string `json:"storageVersion,omitempty"` // preferred version for dynamic client queries
-	Plural             string `json:"plural,omitempty"`          // resource name (plural), e.g. "certificates"
+	Plural             string `json:"plural,omitempty"`         // resource name (plural), e.g. "certificates"
 	Established        bool   `json:"established"`
 	AgeSec             int64  `json:"ageSec"`
 	HealthBucket       string `json:"healthBucket,omitempty"`

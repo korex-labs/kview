@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxConcurrentListCalls = 5             // keep API-server request rate low
+	maxConcurrentListCalls = 5 // keep API-server request rate low
 	perKindListTimeout     = 5 * time.Second
 )
 
