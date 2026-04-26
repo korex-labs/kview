@@ -6,6 +6,7 @@ DIST_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
 DOCKER_IMAGE=kview-build:go1.25.0-node22.20.0
+COVERAGE_DIR=.artifacts/coverage
 VERSION?=$(shell sh -c 'tag=""; \
 	if [ "$$GITHUB_REF_TYPE" = "tag" ] && [ -n "$$GITHUB_REF_NAME" ]; then \
 		tag="$$GITHUB_REF_NAME"; \
@@ -32,7 +33,7 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check lint-go ui build build-webview build-release docker-image clean prepare-cache local-check local-lint-go local-ui local-build local-build-webview local-build-release
+.PHONY: all check lint-go coverage ui build build-webview build-release docker-image clean prepare-cache local-check local-lint-go local-coverage local-ui local-build local-build-webview local-build-release
 
 all: check build
 
@@ -44,6 +45,9 @@ check: docker-image prepare-cache
 
 lint-go: docker-image prepare-cache
 	$(DOCKER_RUN) make local-lint-go
+
+coverage: docker-image prepare-cache
+	$(DOCKER_RUN) make local-coverage COVERAGE_DIR=$(COVERAGE_DIR)
 
 ui: docker-image prepare-cache
 	$(DOCKER_RUN) make local-ui
@@ -66,6 +70,13 @@ local-check:
 
 local-lint-go:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run
+
+local-coverage:
+	mkdir -p $(COVERAGE_DIR)
+	GO_PACKAGES=$$(go list ./... | grep -v '/$(UI_DIR)/node_modules/'); \
+		go test -covermode=atomic -coverprofile=$(COVERAGE_DIR)/go-coverage.out $$GO_PACKAGES
+	go tool cover -func=$(COVERAGE_DIR)/go-coverage.out | tee $(COVERAGE_DIR)/go-coverage-summary.txt
+	printf "%s\n" "Frontend coverage not generated: no dedicated Vitest coverage config/script is currently defined." > $(COVERAGE_DIR)/frontend-coverage-skipped.txt
 
 local-ui:
 	cd $(UI_DIR) && npm ci && npm run build

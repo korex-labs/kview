@@ -29,3 +29,23 @@ jobs:
 
       - name: Run Go lint in Docker
         run: make lint-go
+
+      - name: Generate coverage in Docker
+        run: make coverage
+
+      - name: Add coverage summary to job summary
+        run: |
+          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          cat .artifacts/coverage/go-coverage-summary.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend coverage: skipped (no dedicated Vitest coverage config/script yet)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: .artifacts/coverage
+          if-no-files-found: error
