@@ -69,7 +69,7 @@ local-check:
 		go test $$GO_PACKAGES
 
 local-lint-go:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run
 
 local-coverage:
 	mkdir -p $(COVERAGE_DIR)

@@ -149,14 +149,16 @@ func newStubDataplane() *stubDataplane {
 	return &stubDataplane{policy: dataplane.DefaultDataplanePolicy()}
 }
 
-func (s *stubDataplane) NoteUserActivity()                                    {}
-func (s *stubDataplane) EnsureObservers(_ context.Context, _ string)         {}
-func (s *stubDataplane) Policy() dataplane.DataplanePolicy                   { return s.policy }
+func (s *stubDataplane) NoteUserActivity()                           {}
+func (s *stubDataplane) EnsureObservers(_ context.Context, _ string) {}
+func (s *stubDataplane) Policy() dataplane.DataplanePolicy           { return s.policy }
 func (s *stubDataplane) SetPolicy(p dataplane.DataplanePolicy) dataplane.DataplanePolicy {
 	s.policy = p
 	return p
 }
-func (s *stubDataplane) SchedulerLiveWork() dataplane.SchedulerLiveWork { return dataplane.SchedulerLiveWork{} }
+func (s *stubDataplane) SchedulerLiveWork() dataplane.SchedulerLiveWork {
+	return dataplane.SchedulerLiveWork{}
+}
 func (s *stubDataplane) SchedulerRunStats() dataplane.SchedulerRunStatsSnapshot {
 	return dataplane.SchedulerRunStatsSnapshot{}
 }
@@ -282,15 +284,25 @@ func (s *stubDataplane) PodMetricsSnapshot(_ context.Context, _, _ string) (data
 	panic("stubDataplane: PodMetricsSnapshot")
 }
 
-func (s *stubDataplane) InvalidateHelmReleasesSnapshot(_ context.Context, _, _ string) error  { return nil }
-func (s *stubDataplane) InvalidateDeploymentsSnapshot(_ context.Context, _, _ string) error   { return nil }
-func (s *stubDataplane) InvalidateConfigMapsSnapshot(_ context.Context, _, _ string) error    { return nil }
-func (s *stubDataplane) InvalidateServicesSnapshot(_ context.Context, _, _ string) error      { return nil }
-func (s *stubDataplane) InvalidateSecretsSnapshot(_ context.Context, _, _ string) error       { return nil }
-func (s *stubDataplane) InvalidateIngressesSnapshot(_ context.Context, _, _ string) error     { return nil }
-func (s *stubDataplane) InvalidateStatefulSetsSnapshot(_ context.Context, _, _ string) error  { return nil }
-func (s *stubDataplane) InvalidateDaemonSetsSnapshot(_ context.Context, _, _ string) error    { return nil }
-func (s *stubDataplane) InvalidateJobsSnapshot(_ context.Context, _, _ string) error          { return nil }
+func (s *stubDataplane) InvalidateHelmReleasesSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *stubDataplane) InvalidateDeploymentsSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *stubDataplane) InvalidateConfigMapsSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *stubDataplane) InvalidateServicesSnapshot(_ context.Context, _, _ string) error  { return nil }
+func (s *stubDataplane) InvalidateSecretsSnapshot(_ context.Context, _, _ string) error   { return nil }
+func (s *stubDataplane) InvalidateIngressesSnapshot(_ context.Context, _, _ string) error { return nil }
+func (s *stubDataplane) InvalidateStatefulSetsSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *stubDataplane) InvalidateDaemonSetsSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *stubDataplane) InvalidateJobsSnapshot(_ context.Context, _, _ string) error { return nil }
 
 func (s *stubDataplane) DashboardSummary(_ context.Context, _ string, _ dataplane.ClusterDashboardListOptions) dataplane.ClusterDashboardSummary {
 	panic("stubDataplane: DashboardSummary")

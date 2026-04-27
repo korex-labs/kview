@@ -390,4 +390,3 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, map[string]any{"allowed": res.Allowed, "reason": res.Reason})
 	})
 }
-

@@ -115,21 +115,21 @@ func TestEndpointsCounts(t *testing.T) {
 	addr := func(ip string) corev1.EndpointAddress { return corev1.EndpointAddress{IP: ip} }
 
 	cases := []struct {
-		name        string
-		ep          *corev1.Endpoints
-		wantReady   int
+		name         string
+		ep           *corev1.Endpoints
+		wantReady    int
 		wantNotReady int
 	}{
 		{
-			name:        "nil endpoint",
-			ep:          nil,
-			wantReady:   0,
+			name:         "nil endpoint",
+			ep:           nil,
+			wantReady:    0,
 			wantNotReady: 0,
 		},
 		{
-			name:        "empty subsets",
-			ep:          &corev1.Endpoints{},
-			wantReady:   0,
+			name:         "empty subsets",
+			ep:           &corev1.Endpoints{},
+			wantReady:    0,
 			wantNotReady: 0,
 		},
 		{
@@ -139,7 +139,7 @@ func TestEndpointsCounts(t *testing.T) {
 					{Addresses: []corev1.EndpointAddress{addr("10.0.0.1"), addr("10.0.0.2")}},
 				},
 			},
-			wantReady:   2,
+			wantReady:    2,
 			wantNotReady: 0,
 		},
 		{
@@ -149,7 +149,7 @@ func TestEndpointsCounts(t *testing.T) {
 					{NotReadyAddresses: []corev1.EndpointAddress{addr("10.0.0.3")}},
 				},
 			},
-			wantReady:   0,
+			wantReady:    0,
 			wantNotReady: 1,
 		},
 		{
@@ -162,7 +162,7 @@ func TestEndpointsCounts(t *testing.T) {
 					},
 				},
 			},
-			wantReady:   1,
+			wantReady:    1,
 			wantNotReady: 2,
 		},
 		{
@@ -176,7 +176,7 @@ func TestEndpointsCounts(t *testing.T) {
 					},
 				},
 			},
-			wantReady:   2,
+			wantReady:    2,
 			wantNotReady: 1,
 		},
 	}

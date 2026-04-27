@@ -15,10 +15,10 @@ import (
 	"github.com/korex-labs/kview/internal/cluster"
 	"github.com/korex-labs/kview/internal/kube"
 	"github.com/korex-labs/kview/internal/kube/jobdebug"
+	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
 	"github.com/korex-labs/kview/internal/runtime"
 	"github.com/korex-labs/kview/internal/session"
 	"github.com/korex-labs/kview/internal/stream"
-	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
 )
 
 func (s *Server) registerSessionRoutes(api chi.Router) {

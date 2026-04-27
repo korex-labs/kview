@@ -121,7 +121,7 @@ func TestInMemoryManager_List(t *testing.T) {
 	}
 
 	for range 3 {
-		m.Create(ctx, Session{Type: TypeTerminal})
+		_, _ = m.Create(ctx, Session{Type: TypeTerminal})
 	}
 	list, err = m.List(ctx)
 	if err != nil {
@@ -180,7 +180,7 @@ func TestInMemoryManager_StopUpdatesActivityToStopped(t *testing.T) {
 	m, reg := newTestManager()
 	ctx := context.Background()
 	s, _ := m.Create(ctx, Session{Type: TypeTerminal})
-	m.Stop(ctx, s.ID)
+	_ = m.Stop(ctx, s.ID)
 
 	// Give scheduleActivityCleanup goroutine time to be scheduled but NOT execute
 	// (stoppedActivityTTL is 3 minutes so the activity persists).
@@ -199,7 +199,7 @@ func TestInMemoryManager_StopPreservesFailedStatus(t *testing.T) {
 	// Create with explicit Failed status so Stop preserves it.
 	s, _ := m.Create(ctx, Session{Type: TypeTerminal, Status: StatusFailed})
 
-	m.Stop(ctx, s.ID)
+	_ = m.Stop(ctx, s.ID)
 
 	act, found, _ := reg.Get(ctx, s.ID)
 	if !found {

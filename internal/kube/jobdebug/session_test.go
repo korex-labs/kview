@@ -303,7 +303,7 @@ func wsTestServer(t *testing.T, fn func(conn *websocket.Conn)) (*httptest.Server
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		fn(conn)
 	}))
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
@@ -316,7 +316,7 @@ func wsCollect(t *testing.T, url string) []Record {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	var out []Record
 	for {
 		var rec Record
