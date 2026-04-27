@@ -83,9 +83,8 @@ export type ApiNamespacesEnrichmentPoll = {
     summaryState?: string;
     podCount?: number;
     deploymentCount?: number;
-    problematicCount?: number;
-    podsWithRestarts?: number;
-    restartSignal?: boolean;
+    listSignalSeverity?: string;
+    listSignalCount?: number;
     resourceQuotaCount?: number;
     limitRangeCount?: number;
     quotaWarning?: boolean;
@@ -155,9 +154,8 @@ export type ApiNamespacesListResponse = {
     summaryState?: string;
     podCount?: number;
     deploymentCount?: number;
-    problematicCount?: number;
-    podsWithRestarts?: number;
-    restartSignal?: boolean;
+    listSignalSeverity?: string;
+    listSignalCount?: number;
     resourceQuotaCount?: number;
     limitRangeCount?: number;
     quotaWarning?: boolean;

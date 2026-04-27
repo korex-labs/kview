@@ -11,9 +11,8 @@ type NamespaceListItemDTO struct {
 	SummaryState       string  `json:"summaryState,omitempty"` // ok | empty | denied | partial_proxy | degraded (dataplane coarse family)
 	PodCount           int     `json:"podCount,omitempty"`
 	DeploymentCount    int     `json:"deploymentCount,omitempty"`
-	ProblematicCount   int     `json:"problematicCount,omitempty"`
-	PodsWithRestarts   int     `json:"podsWithRestarts,omitempty"`
-	RestartSignal      bool    `json:"restartSignal,omitempty"` // any pod at medium+ restart bucket (>=5), same as list severity
+	ListSignalSeverity string  `json:"listSignalSeverity,omitempty"`
+	ListSignalCount    int     `json:"listSignalCount,omitempty"`
 	ResourceQuotaCount int     `json:"resourceQuotaCount,omitempty"`
 	LimitRangeCount    int     `json:"limitRangeCount,omitempty"`
 	QuotaWarning       bool    `json:"quotaWarning,omitempty"`

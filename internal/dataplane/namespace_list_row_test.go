@@ -29,15 +29,12 @@ func TestBuildNamespaceListRowProjection_OKWithCounts(t *testing.T) {
 	if got.PodCount != 2 || got.DeploymentCount != 1 {
 		t.Fatalf("counts %d %d", got.PodCount, got.DeploymentCount)
 	}
-	if got.PodsWithRestarts != 1 || !got.RestartSignal {
-		t.Fatalf("restarts %d restart signal %v", got.PodsWithRestarts, got.RestartSignal)
-	}
-	if got.ProblematicCount != 0 {
-		t.Fatalf("problematic %d", got.ProblematicCount)
+	if got.ListSignalSeverity != "medium" || got.ListSignalCount != 1 {
+		t.Fatalf("signals %q/%d", got.ListSignalSeverity, got.ListSignalCount)
 	}
 }
 
-func TestBuildNamespaceListRowProjection_ProblematicPodAndDeploy(t *testing.T) {
+func TestBuildNamespaceListRowProjection_PodAndDeploySignals(t *testing.T) {
 	pods := PodsSnapshot{
 		Items: []dto.PodListItemDTO{
 			{Name: "bad", Phase: "Failed", Ready: "0/1", Restarts: 0},
@@ -49,8 +46,8 @@ func TestBuildNamespaceListRowProjection_ProblematicPodAndDeploy(t *testing.T) {
 		},
 	}
 	got := buildNamespaceListRowProjection(pods, deps)
-	if got.ProblematicCount != 2 {
-		t.Fatalf("expected 2 unique problematic, got %d", got.ProblematicCount)
+	if got.ListSignalSeverity != "high" || got.ListSignalCount != 2 {
+		t.Fatalf("expected 2 high signals, got %+v", got)
 	}
 }
 
@@ -77,29 +74,20 @@ func TestBuildNamespaceListRowProjection_Empty(t *testing.T) {
 	}
 }
 
-func TestCountUniqueProblematic_DedupesKindName(t *testing.T) {
-	a := []dto.ProblematicResource{{Kind: "Pod", Name: "x"}}
-	b := []dto.ProblematicResource{{Kind: "Pod", Name: "x"}}
-	if n := countUniqueProblematic(a, b); n != 1 {
-		t.Fatalf("got %d", n)
-	}
-}
-
 func TestMergeNamespaceRowIntoIgnoresListOnlyPatch(t *testing.T) {
 	dst := dto.NamespaceListItemDTO{
-		Name:             "app",
-		RowEnriched:      true,
-		SummaryState:     "warning",
-		PodCount:         3,
-		DeploymentCount:  2,
-		ProblematicCount: 1,
-		PodsWithRestarts: 1,
-		RestartSignal:    true,
+		Name:               "app",
+		RowEnriched:        true,
+		SummaryState:       "warning",
+		PodCount:           3,
+		DeploymentCount:    2,
+		ListSignalSeverity: "medium",
+		ListSignalCount:    1,
 	}
 
 	mergeNamespaceRowInto(&dst, dto.NamespaceListItemDTO{Name: "app"})
 
-	if !dst.RowEnriched || dst.PodCount != 3 || dst.DeploymentCount != 2 || dst.SummaryState != "warning" || !dst.RestartSignal {
+	if !dst.RowEnriched || dst.PodCount != 3 || dst.DeploymentCount != 2 || dst.SummaryState != "warning" || dst.ListSignalSeverity != "medium" || dst.ListSignalCount != 1 {
 		t.Fatalf("list-only patch should not reset enriched fields: %+v", dst)
 	}
 }
@@ -126,6 +114,9 @@ func TestBuildCachedNamespaceListRowProjection_QuotaAndLimits(t *testing.T) {
 	}
 	if got.ResourceQuotaCount != 1 || got.LimitRangeCount != 1 || !got.QuotaCritical || !got.QuotaWarning {
 		t.Fatalf("quota/limit fields: %+v", got)
+	}
+	if got.ListSignalSeverity != "high" || got.ListSignalCount != 1 {
+		t.Fatalf("quota signal fields: %+v", got)
 	}
 }
 

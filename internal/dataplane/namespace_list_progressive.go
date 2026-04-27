@@ -605,10 +605,13 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 			if policy.EnrichDeployments {
 				depsSnap, _ = plane.DeploymentsSnapshot(workCtx, m.scheduler, m.clients, name, WorkPriorityLow)
 			}
-			metrics := buildNamespaceListRowProjection(podsSnap, depsSnap)
 			m.warmNamespaceEnrichmentResourceKinds(workCtx, plane, name, policy.WarmResourceKinds)
 			if sess.shouldWarmFavouriteInsights(name) {
 				m.warmNamespaceInsightsResourceKinds(workCtx, plane, name)
+			}
+			metrics, ok := buildCachedNamespaceListRowProjection(plane, name)
+			if !ok {
+				metrics = buildNamespaceListRowProjection(podsSnap, depsSnap)
 			}
 
 			sess.mu.Lock()

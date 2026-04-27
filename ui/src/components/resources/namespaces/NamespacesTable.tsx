@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Chip, Typography } from "@mui/material";
+import { Box, Tooltip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGet, apiGetWithContext } from "../../../api";
 import {
@@ -17,6 +17,8 @@ import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import { useUserSettings } from "../../../settingsContext";
 import StatusChip from "../../shared/StatusChip";
+import ListSignalChip from "../../shared/ListSignalChip";
+import ScopedCountChip from "../../shared/ScopedCountChip";
 
 type Namespace = NonNullable<ApiNamespacesListResponse["items"]>[number];
 type NamespaceProjectionUpdate = ApiNamespacesEnrichmentPoll["updates"][number];
@@ -25,20 +27,51 @@ type Row = Namespace & { id: string };
 
 const resourceLabel = getResourceLabel("namespaces");
 
-function dashNum(row: Row, key: "podCount" | "deploymentCount" | "problematicCount" | "podsWithRestarts"): string {
+function titleCase(value: string): string {
+  if (!value) return "";
+  return value[0].toUpperCase() + value.slice(1);
+}
+
+function workloadLabel(row: Row): string {
   if (!row.rowEnriched) return "—";
-  const v = row[key];
-  if (v === undefined || v === null) return "—";
-  return String(v);
+  const pods = row.podCount ?? 0;
+  const deployments = row.deploymentCount ?? 0;
+  if ((row.summaryState || "").toLowerCase() === "empty" || (pods === 0 && deployments === 0)) return "Empty";
+  return titleCase(row.summaryState || "ok");
+}
+
+function workloadCount(row: Row): string {
+  return `${row.podCount ?? 0} / ${row.deploymentCount ?? 0}`;
+}
+
+function workloadTooltip(row: Row): string {
+  if (!row.rowEnriched) return "Workload counts are still loading for this namespace.";
+  return `Workload state from cached pod and deployment lists. Counts are pods / deployments: ${row.podCount ?? 0} / ${row.deploymentCount ?? 0}.`;
 }
 
 function quotaLabel(row: Row): string {
   if (!row.rowEnriched) return "—";
-  const count = row.resourceQuotaCount ?? 0;
-  if (!count) return "none";
+  const quotas = row.resourceQuotaCount ?? 0;
+  const limits = row.limitRangeCount ?? 0;
+  if (!quotas && !limits) return "None";
+  return row.quotaCritical ? "Critical" : row.quotaWarning ? "Warn" : "Ok";
+}
+
+function quotaCount(row: Row): string {
+  const counts = `${row.resourceQuotaCount ?? 0} / ${row.limitRangeCount ?? 0}`;
   const ratio = row.quotaMaxRatio;
-  if (ratio == null || ratio <= 0) return "configured";
-  return `${Math.round(ratio * 100)}%`;
+  if (ratio == null || ratio <= 0) return counts;
+  return `${Math.round(ratio * 100)}% · ${counts}`;
+}
+
+function quotaTooltip(row: Row): string {
+  if (!row.rowEnriched) return "Quota and limit counts are still loading for this namespace.";
+  const quotas = row.resourceQuotaCount ?? 0;
+  const limits = row.limitRangeCount ?? 0;
+  const ratio = row.quotaMaxRatio != null && row.quotaMaxRatio > 0
+    ? ` Highest quota usage is ${Math.round(row.quotaMaxRatio * 100)}% of hard limit.`
+    : "";
+  return `ResourceQuota / LimitRange objects: ${quotas} / ${limits}.${ratio}`;
 }
 
 function mergeNamespaceProjection<T extends NamespaceProjectionUpdate>(base: T | undefined, patch: T): T {
@@ -67,75 +100,9 @@ const columns: GridColDef<Row>[] = [
     },
   },
   {
-    field: "summaryState",
-    headerName: "Workload",
-    width: 130,
-    sortable: false,
-    renderCell: (p) => {
-      const row = p.row;
-      if (!row.rowEnriched || !row.summaryState) {
-        return (
-          <Typography variant="body2" color="text.secondary">
-            —
-          </Typography>
-        );
-      }
-      return (
-        <StatusChip size="small" label={row.summaryState} color={dataplaneCoarseStateChipColor(row.summaryState)} variant="outlined" />
-      );
-    },
-  },
-  {
-    field: "podCount",
-    headerName: "Pods",
-    width: 72,
-    align: "right",
-    headerAlign: "right",
-    sortable: false,
-    renderCell: (p) => (
-      <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
-        {dashNum(p.row, "podCount")}
-      </Typography>
-    ),
-  },
-  {
-    field: "deploymentCount",
-    headerName: "Deploy",
-    width: 72,
-    align: "right",
-    headerAlign: "right",
-    sortable: false,
-    renderCell: (p) => (
-      <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
-        {dashNum(p.row, "deploymentCount")}
-      </Typography>
-    ),
-  },
-  {
-    field: "problematicCount",
-    headerName: "Problems",
-    width: 88,
-    align: "right",
-    headerAlign: "right",
-    sortable: false,
-    renderCell: (p) => {
-      const row = p.row;
-      const s = dashNum(row, "problematicCount");
-      const n = row.problematicCount ?? 0;
-      return (
-        <Typography
-          variant="body2"
-          sx={{ fontVariantNumeric: "tabular-nums", color: row.rowEnriched && n > 0 ? "error.main" : "text.primary" }}
-        >
-          {s}
-        </Typography>
-      );
-    },
-  },
-  {
-    field: "podsWithRestarts",
-    headerName: "Restarts",
-    width: 110,
+    field: "listSignalSeverity",
+    headerName: "Signals",
+    width: 120,
     sortable: false,
     renderCell: (p) => {
       const row = p.row;
@@ -146,53 +113,77 @@ const columns: GridColDef<Row>[] = [
           </Typography>
         );
       }
-      return (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minHeight: "100%" }}>
-          <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {row.podsWithRestarts ?? 0}
+      return <ListSignalChip severity={row.listSignalSeverity} count={row.listSignalCount} />;
+    },
+  },
+  {
+    field: "summaryState",
+    headerName: "Workload",
+    width: 156,
+    sortable: false,
+    renderCell: (p) => {
+      const row = p.row;
+      if (!row.rowEnriched) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            —
           </Typography>
-          {row.restartSignal && <StatusChip size="small" label="Delta" color="warning" />}
-        </Box>
+        );
+      }
+      const label = workloadLabel(row);
+      if (label === "Empty") {
+        return (
+          <Tooltip title={workloadTooltip(row)}>
+            <Box component="span">
+              <StatusChip
+                size="small"
+                label={label}
+                color={dataplaneCoarseStateChipColor(row.summaryState || "empty")}
+              />
+            </Box>
+          </Tooltip>
+        );
+      }
+      return (
+        <ScopedCountChip
+          size="small"
+          label={label}
+          count={workloadCount(row)}
+          color={dataplaneCoarseStateChipColor(row.summaryState || "ok")}
+          title={workloadTooltip(row)}
+        />
       );
     },
   },
   {
     field: "resourceQuotaCount",
     headerName: "Quota",
-    width: 112,
+    width: 156,
     sortable: false,
     renderCell: (p) => {
       const row = p.row;
-      return (
-        <StatusChip
-          size="small"
-          label={quotaLabel(row)}
-          color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
-          variant={row.rowEnriched && (row.resourceQuotaCount ?? 0) > 0 ? "outlined" : "filled"}
-        />
-      );
-    },
-  },
-  {
-    field: "limitRangeCount",
-    headerName: "Limits",
-    width: 88,
-    align: "right",
-    headerAlign: "right",
-    sortable: false,
-    renderCell: (p) => {
-      const row = p.row;
-      if (!row.rowEnriched) {
+      const label = quotaLabel(row);
+      if (!row.rowEnriched || label === "None") {
         return (
-          <Typography variant="body2" color="text.secondary">
-            —
-          </Typography>
+          <Tooltip title={quotaTooltip(row)}>
+            <Box component="span">
+              <StatusChip
+                size="small"
+                label={label}
+                color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
+              />
+            </Box>
+          </Tooltip>
         );
       }
       return (
-        <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
-          {row.limitRangeCount ?? 0}
-        </Typography>
+        <ScopedCountChip
+          size="small"
+          label={label}
+          count={quotaCount(row)}
+          color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
+          title={quotaTooltip(row)}
+        />
       );
     },
   },
@@ -320,9 +311,11 @@ export default function NamespacesTable({
       row.name.toLowerCase().includes(lc) ||
       (row.phase || "").toLowerCase().includes(lc) ||
       (row.summaryState || "").toLowerCase().includes(lc) ||
+      (row.listSignalSeverity || "").toLowerCase().includes(lc) ||
       (enriched && String(row.podCount ?? "").includes(lc)) ||
       (enriched && String(row.deploymentCount ?? "").includes(lc)) ||
-      (enriched && String(row.problematicCount ?? "").includes(lc))
+      (enriched && String(row.resourceQuotaCount ?? "").includes(lc)) ||
+      (enriched && String(row.limitRangeCount ?? "").includes(lc))
     );
   }, []);
 
@@ -381,7 +374,7 @@ export default function NamespacesTable({
       }}
       dataplaneRefreshSec={0}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name, status, workload state, counts)"
+      filterLabel="Filter (name, status, signals, workload, quota)"
       resourceLabel={resourceLabel}
       resourceKey="namespaces"
       accessResource={listResourceAccess.namespaces}

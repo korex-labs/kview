@@ -94,13 +94,13 @@ func TestNamespaceEnrichSessionUpdateBaseRowsKeepsEnrichedFields(t *testing.T) {
 		order: []string{"default"},
 		merged: map[string]dto.NamespaceListItemDTO{
 			"default": {
-				Name:             "default",
-				Phase:            "Active",
-				RowEnriched:      true,
-				SummaryState:     "ok",
-				PodCount:         3,
-				DeploymentCount:  1,
-				ProblematicCount: 0,
+				Name:               "default",
+				Phase:              "Active",
+				RowEnriched:        true,
+				SummaryState:       "ok",
+				PodCount:           3,
+				DeploymentCount:    1,
+				ListSignalSeverity: "ok",
 			},
 		},
 	}
@@ -123,13 +123,14 @@ func TestNamespaceEnrichSessionMergeExistingRowsIntoKeepsEnrichedFieldsAcrossRev
 		order: []string{"default"},
 		merged: map[string]dto.NamespaceListItemDTO{
 			"default": {
-				Name:             "default",
-				Phase:            "Active",
-				RowEnriched:      true,
-				SummaryState:     "warning",
-				PodCount:         7,
-				DeploymentCount:  2,
-				ProblematicCount: 1,
+				Name:               "default",
+				Phase:              "Active",
+				RowEnriched:        true,
+				SummaryState:       "warning",
+				PodCount:           7,
+				DeploymentCount:    2,
+				ListSignalSeverity: "medium",
+				ListSignalCount:    1,
 			},
 		},
 	}
@@ -142,7 +143,7 @@ func TestNamespaceEnrichSessionMergeExistingRowsIntoKeepsEnrichedFieldsAcrossRev
 	if got.Phase != "Terminating" {
 		t.Fatalf("expected base row fields to refresh, got phase %q", got.Phase)
 	}
-	if !got.RowEnriched || got.PodCount != 7 || got.DeploymentCount != 2 || got.SummaryState != "warning" || got.ProblematicCount != 1 {
+	if !got.RowEnriched || got.PodCount != 7 || got.DeploymentCount != 2 || got.SummaryState != "warning" || got.ListSignalSeverity != "medium" || got.ListSignalCount != 1 {
 		t.Fatalf("expected enriched fields to be preserved, got %+v", got)
 	}
 }
