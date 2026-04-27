@@ -5,7 +5,7 @@ OUTPUT=$(BINARY_NAME)
 DIST_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
-DOCKER_IMAGE=kview-build:go1.25.0-node22.20.0
+DOCKER_IMAGE=kview-build:go1.26.2-node22.20.0
 COVERAGE_DIR=.artifacts/coverage
 VERSION?=$(shell sh -c 'tag=""; \
 	if [ "$$GITHUB_REF_TYPE" = "tag" ] && [ -n "$$GITHUB_REF_NAME" ]; then \
