@@ -184,6 +184,104 @@ Actions must:
 
 ---
 
+# Settings Form Patterns
+
+All settings UI is built from the primitives in
+`ui/src/components/settings/shared/`. Do not duplicate these patterns inline.
+
+## Primitives
+
+| Component | Purpose |
+|---|---|
+| `SettingField` | Universal field wrapper for text, number, and custom controls |
+| `SettingRow` | Single-line toggle (Switch) row |
+| `SettingSection` | Named section container with max-width cap |
+| `SettingGrid` | Responsive two / three / auto-fit column grid |
+| `FieldGroup` | Indented visual group for conditional sub-fields |
+| `ScopeTag` | Inline chip showing global / context override state |
+
+## Label contract
+
+- Text inputs, number inputs, selects: **label always above the control**,
+  rendered by `SettingField` as a `<label>` element with `htmlFor`.
+- Toggles: **label always beside the switch**, via `SettingRow`.
+- Never place a label inside the input as placeholder-only.
+- Never use the HTML `title` attribute as the hint mechanism.
+
+## Hint contract
+
+- Complex or non-obvious fields: pass a `hint` string to `SettingField` or
+  `SettingRow`. It renders as an `InfoHint` (ⓘ icon with Tooltip) inline with
+  the label.
+- Do not put the hint text in `helperText`; reserve `helperText` for
+  constraints, defaults, and validation errors.
+
+## helperText contract
+
+Only one piece of information lives in `helperText` at a time, in this priority:
+
+1. `error` string (shown in red, replaces all other helper text)
+2. `"Global: X"` — auto-injected by `SettingField` when `overrideState="inherited"`
+   and `globalValue` is provided
+3. Constraint or default: e.g. `"Default: 3600"`, `"Range: 1–50"`
+
+## Units contract
+
+Pass `unit` to `SettingField` for any field whose value has a physical unit.
+The unit renders as an end-adornment inside the input; never in the label or
+`helperText`.
+
+Canonical abbreviations — use these exactly, never freeform strings:
+
+| Unit | Abbreviation |
+|---|---|
+| Seconds | `s` |
+| Milliseconds | `ms` |
+| Minutes | `min` |
+| Hours | `h` |
+| Percent | `%` |
+
+## Required fields
+
+Pass `required` to `SettingField`. A red `*` appears in the label. Do not
+indicate required status only via placeholder or helperText.
+
+## Validation / error contract
+
+Pass `error?: string` to `SettingField`. When set, `helperText` turns red and
+shows the error. Clear it to `undefined` when the value is valid.
+
+## Scope / inheritance contract
+
+Only render scope UI when the parent is actively in context-editing mode.
+When in context-editing mode, pass `overrideState` to every `SettingField` and
+`SettingRow`:
+
+- `"inherited"` — field is using the global value; a muted `global` chip
+  appears on the right. Optionally pass `globalValue` to show the inherited
+  value in `helperText`.
+- `"overridden"` — field has a context-specific value; an info-colored
+  `context` chip with a reset button (RestartAltIcon) appears on the right.
+
+Section-level reset (clear all field overrides in a section at once) belongs
+in the `SettingSection` `actions` slot.
+
+Do not render scope chips in global-editing mode.
+
+## Layout rules
+
+- All settings content is wrapped in `SettingSection` with the default
+  `maxWidth={900}`. This cap prevents inputs from stretching across very wide
+  viewports.
+- Spacing inside a section: `gap: 1` between fields, `gap: 2` between sections.
+- Multi-column layouts use `SettingGrid variant="two"` or `"three"` for stable
+  column counts. Use `"auto"` only when the field count is genuinely variable
+  and a fixed column count would create ugly gaps.
+- Conditional sub-fields (fields that appear only when another field has a
+  specific value) are wrapped in `FieldGroup` to give them visual identity.
+
+---
+
 # User Settings
 
 kview exposes a full-page Settings view from the header, next to the theme selector.
