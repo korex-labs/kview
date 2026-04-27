@@ -361,6 +361,10 @@ func (m *manager) SetPolicy(policy DataplanePolicy) DataplanePolicy {
 	m.policy = next
 	m.policyMu.Unlock()
 	if m.scheduler != nil {
+		// Scheduler lane limits/retry policy are process-global by design:
+		// slots are shared across all clusters in one manager instance, so
+		// per-context background budget overrides cannot safely mutate
+		// scheduler-wide settings without cross-cluster contention effects.
 		m.scheduler.setMaxPerCluster(next.BackgroundBudget.MaxConcurrentPerCluster)
 		m.scheduler.configureRetries(next.BackgroundBudget.TransientRetries, 100*time.Millisecond, 1500*time.Millisecond)
 		m.scheduler.configureLongRun(time.Duration(next.BackgroundBudget.LongRunNoticeSec)*time.Second, newDataplaneLongRunRecorder(m.activityReg()))

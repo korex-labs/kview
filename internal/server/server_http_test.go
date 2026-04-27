@@ -142,17 +142,23 @@ func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 // others panic so any accidental call fails the test loudly.
 
 type stubDataplane struct {
-	policy dataplane.DataplanePolicy
+	policy    dataplane.DataplanePolicy
+	effective map[string]dataplane.DataplanePolicy
 }
 
 func newStubDataplane() *stubDataplane {
-	return &stubDataplane{policy: dataplane.DefaultDataplanePolicy()}
+	return &stubDataplane{policy: dataplane.DefaultDataplanePolicy(), effective: map[string]dataplane.DataplanePolicy{}}
 }
 
 func (s *stubDataplane) NoteUserActivity()                           {}
 func (s *stubDataplane) EnsureObservers(_ context.Context, _ string) {}
 func (s *stubDataplane) Policy() dataplane.DataplanePolicy           { return s.policy }
-func (s *stubDataplane) EffectivePolicy(_ string) dataplane.DataplanePolicy {
+func (s *stubDataplane) EffectivePolicy(contextName string) dataplane.DataplanePolicy {
+	if s.effective != nil {
+		if p, ok := s.effective[contextName]; ok {
+			return p
+		}
+	}
 	return s.policy
 }
 func (s *stubDataplane) SetPolicy(p dataplane.DataplanePolicy) dataplane.DataplanePolicy {
@@ -818,7 +824,10 @@ func TestPostDataplaneConfig(t *testing.T) {
 // ── GET /api/dataplane/metrics/status ────────────────────────────────────────
 
 func TestGetDataplaneMetricsStatus(t *testing.T) {
-	_, h := newTestServer(t)
+	s, h := newTestServer(t)
+	metricsOff := dataplane.DefaultDataplanePolicy()
+	metricsOff.Metrics.Enabled = false
+	s.dp.(*stubDataplane).effective["test-context"] = metricsOff
 	rec := doReq(t, h, http.MethodGet, "/api/dataplane/metrics/status", testToken, nil)
 	// This endpoint always returns 200 by design (see comment in handler).
 	if rec.Code != http.StatusOK {
@@ -829,6 +838,60 @@ func TestGetDataplaneMetricsStatus(t *testing.T) {
 		if _, ok := body[key]; !ok {
 			t.Errorf("missing key %q: %v", key, body)
 		}
+	}
+	if enabled, _ := body["enabled"].(bool); enabled {
+		t.Fatalf("expected metrics disabled for resolved test-context policy")
+	}
+}
+
+func TestDataplaneConfigAndMetricsStatusResolvePerContextPolicy(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	manual := dataplane.DefaultDataplanePolicy()
+	manual.Profile = dataplane.DataplaneProfileManual
+	manual.Metrics.Enabled = false
+	wide := dataplane.DefaultDataplanePolicy()
+	wide.Profile = dataplane.DataplaneProfileWide
+	wide.Metrics.Enabled = true
+	dp.effective["ctx-a"] = manual
+	dp.effective["ctx-b"] = wide
+
+	recA := doReqWithHeader(t, h, http.MethodGet, "/api/dataplane/config", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "ctx-a",
+	}, nil)
+	if recA.Code != http.StatusOK {
+		t.Fatalf("ctx-a dataplane/config status: got %d", recA.Code)
+	}
+	bodyA := mustDecodeJSON(t, recA.Body.Bytes())
+	itemA, ok := bodyA["item"].(map[string]any)
+	if !ok {
+		t.Fatalf("ctx-a missing item payload: %v", bodyA)
+	}
+	if profile, _ := itemA["profile"].(string); profile != string(dataplane.DataplaneProfileManual) {
+		t.Fatalf("ctx-a profile: got %q want %q", profile, dataplane.DataplaneProfileManual)
+	}
+	metricsA, ok := itemA["metrics"].(map[string]any)
+	if !ok {
+		t.Fatalf("ctx-a missing metrics payload: %v", itemA)
+	}
+	if enabled, _ := metricsA["enabled"].(bool); enabled {
+		t.Fatalf("ctx-a expected metrics disabled")
+	}
+
+	recB := doReqWithHeader(t, h, http.MethodGet, "/api/dataplane/metrics/status", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "ctx-b",
+	}, nil)
+	if recB.Code != http.StatusOK {
+		t.Fatalf("ctx-b dataplane/metrics/status status: got %d", recB.Code)
+	}
+	bodyB := mustDecodeJSON(t, recB.Body.Bytes())
+	if active, _ := bodyB["active"].(string); active != "ctx-b" {
+		t.Fatalf("ctx-b active context: got %q", active)
+	}
+	if enabled, _ := bodyB["enabled"].(bool); !enabled {
+		t.Fatalf("ctx-b expected metrics enabled")
 	}
 }
 

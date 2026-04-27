@@ -74,12 +74,16 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, res)
 	})
 
-	api.Get("/dataplane/config", func(w http.ResponseWriter, _ *http.Request) {
+	api.Get("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"item": s.dp.Policy()})
+		active := s.readContextName(r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   s.dp.EffectivePolicy(active),
+		})
 	})
 
 	api.Get("/dataplane/signals/catalog", func(w http.ResponseWriter, r *http.Request) {
