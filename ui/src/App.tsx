@@ -95,7 +95,7 @@ function startupSteps(phase: BootstrapPhase, detail: Partial<Record<BootstrapPha
   const order: Array<{ id: BootstrapPhase; label: string }> = [
     { id: "contexts", label: "Reading kube contexts" },
     { id: "context", label: "Selecting active context" },
-    { id: "migration", label: "Migrating local data" },
+    { id: "migration", label: "Checking local cache" },
     { id: "namespaces", label: "Loading namespaces and dataplane cache" },
   ];
   const phaseIndex = order.findIndex((step) => step.id === phase);
@@ -249,7 +249,7 @@ function AppInner() {
       const migrationPhase = ctxRes.cacheMigration?.phase || "idle";
       const migrationDetail =
         migrationPhase === "running"
-          ? "Migrating local data"
+          ? "Checking local cache state"
           : migrationPhase === "failed"
             ? "Local cache migration failed, cache persistence disabled"
             : ctxRes.cacheMigration?.applied
@@ -367,7 +367,7 @@ function AppInner() {
       const migrationPhase = refreshedContexts.cacheMigration?.phase || "idle";
       const migrationDetail =
         migrationPhase === "running"
-          ? "Migrating local data"
+          ? "Checking local cache state"
           : migrationPhase === "failed"
             ? "Local cache migration failed, cache persistence disabled"
             : refreshedContexts.cacheMigration?.applied
