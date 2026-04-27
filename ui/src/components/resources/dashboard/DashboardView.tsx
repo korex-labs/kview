@@ -231,7 +231,7 @@ export default function DashboardView(props: Props) {
   const { settings } = useUserSettings();
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
-  const dashboardRefreshSec = settings.dataplane.dashboard.refreshSec;
+  const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
 
@@ -369,7 +369,7 @@ export default function DashboardView(props: Props) {
                     label="Pod restart signals"
                     value={signalPanel?.podRestartSignals ?? 0}
                     color={(signalPanel?.podRestartSignals || 0) > 0 ? "warning" : "success"}
-                    hint={`Pods above ${settings.dataplane.dashboard.restartElevatedThreshold} restarts in cached scope.`}
+                    hint={`Pods above ${settings.dataplane.global.signals.detectors.pod_restarts.restartCount} restarts in cached scope.`}
                   />
                   <MetricCard
                     label="Quota pressure"

@@ -52,6 +52,26 @@ export type KviewUserSettingsV1 = {
   dataplane: DataplaneSettings;
 };
 
+export type DataplaneContextOverrideSettings = {
+  signals: {
+    overrides: Record<string, SignalOverride>;
+  };
+};
+
+export type DataplaneSettingsV2 = {
+  global: DataplaneSettings;
+  contextOverrides: Record<string, DataplaneContextOverrideSettings>;
+};
+
+export type KviewUserSettingsV2 = {
+  v: 2;
+  appearance: KviewUserSettingsV1["appearance"];
+  smartFilters: KviewUserSettingsV1["smartFilters"];
+  customCommands: KviewUserSettingsV1["customCommands"];
+  customActions: KviewUserSettingsV1["customActions"];
+  dataplane: DataplaneSettingsV2;
+};
+
 export type DataplaneSettings = {
   profile: DataplaneProfile;
   snapshots: {
@@ -240,7 +260,7 @@ export const dataplaneNamespaceWarmResourceKeys = dataplaneTTLResourceKeys.filte
   (key) => key !== "namespaces" && key !== "nodes",
 );
 
-export function defaultUserSettings(): KviewUserSettingsV1 {
+function defaultUserSettingsV1(): KviewUserSettingsV1 {
   return {
     v: 1,
     appearance: {
@@ -333,6 +353,40 @@ export function defaultUserSettings(): KviewUserSettingsV1 {
     },
     dataplane: defaultDataplaneSettings(),
   };
+}
+
+function dataplaneContextOverridesFromLegacy(
+  input: Record<string, Record<string, SignalOverride>> | undefined,
+): Record<string, DataplaneContextOverrideSettings> {
+  const out: Record<string, DataplaneContextOverrideSettings> = {};
+  if (!input || typeof input !== "object") return out;
+  for (const [ctx, overrides] of Object.entries(input)) {
+    const key = ctx.trim();
+    if (!key) continue;
+    const normalized = normalizeSignalOverrides(overrides);
+    if (Object.keys(normalized).length === 0) continue;
+    out[key] = { signals: { overrides: normalized } };
+  }
+  return out;
+}
+
+function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
+  const global = { ...v1.dataplane, signals: { ...v1.dataplane.signals, contextOverrides: {} } };
+  return {
+    v: 2,
+    appearance: v1.appearance,
+    smartFilters: v1.smartFilters,
+    customCommands: v1.customCommands,
+    customActions: v1.customActions,
+    dataplane: {
+      global,
+      contextOverrides: dataplaneContextOverridesFromLegacy(v1.dataplane.signals.contextOverrides),
+    },
+  };
+}
+
+export function defaultUserSettings(): KviewUserSettingsV2 {
+  return toV2Settings(defaultUserSettingsV1());
 }
 
 export function defaultDataplaneSettings(): DataplaneSettings {
@@ -1046,12 +1100,12 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
   return normalized;
 }
 
-export function validateUserSettings(input: unknown): KviewUserSettingsV1 | null {
+function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Partial<KviewUserSettingsV1>;
   if (raw.v !== 1) return null;
 
-  const defaults = defaultUserSettings();
+  const defaults = defaultUserSettingsV1();
   const rawAppearance = (raw.appearance ?? {}) as Partial<KviewUserSettingsV1["appearance"]>;
   const rawSmartFilters = (raw.smartFilters ?? {}) as Partial<KviewUserSettingsV1["smartFilters"]>;
   const rawCustomCommands = (raw.customCommands ?? {}) as Partial<KviewUserSettingsV1["customCommands"]>;
@@ -1119,7 +1173,57 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV1 | null
   };
 }
 
-export function loadUserSettings(): KviewUserSettingsV1 {
+function normalizeDataplaneContextOverrides(input: unknown): Record<string, DataplaneContextOverrideSettings> {
+  if (!input || typeof input !== "object") return {};
+  const out: Record<string, DataplaneContextOverrideSettings> = {};
+  for (const [rawContext, rawOverride] of Object.entries(input as Record<string, unknown>)) {
+    const ctx = rawContext.trim();
+    if (!ctx) continue;
+    const rawSignals = (rawOverride && typeof rawOverride === "object" ? (rawOverride as { signals?: unknown }).signals : undefined) as
+      | { overrides?: unknown }
+      | undefined;
+    const overrides = normalizeSignalOverrides(rawSignals?.overrides);
+    if (Object.keys(overrides).length === 0) continue;
+    out[ctx] = { signals: { overrides } };
+  }
+  return out;
+}
+
+export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as { v?: number; dataplane?: unknown };
+  if (raw.v === 1) {
+    const v1 = validateUserSettingsV1(input);
+    return v1 ? toV2Settings(v1) : null;
+  }
+  if (raw.v !== 2) return null;
+  const defaults = defaultUserSettings();
+  const root = input as Partial<KviewUserSettingsV2>;
+  const fallbackAsV1 = validateUserSettingsV1({
+    v: 1,
+    appearance: root.appearance,
+    smartFilters: root.smartFilters,
+    customCommands: root.customCommands,
+    customActions: root.customActions,
+    dataplane: (root.dataplane as { global?: unknown } | undefined)?.global,
+  });
+  if (!fallbackAsV1) return null;
+  const global = fallbackAsV1.dataplane;
+  const rawV2Dataplane = (root.dataplane ?? {}) as Partial<DataplaneSettingsV2>;
+  return {
+    v: 2,
+    appearance: fallbackAsV1.appearance,
+    smartFilters: fallbackAsV1.smartFilters,
+    customCommands: fallbackAsV1.customCommands,
+    customActions: fallbackAsV1.customActions,
+    dataplane: {
+      global,
+      contextOverrides: normalizeDataplaneContextOverrides(rawV2Dataplane.contextOverrides) || defaults.dataplane.contextOverrides,
+    },
+  };
+}
+
+export function loadUserSettings(): KviewUserSettingsV2 {
   try {
     const raw = window.localStorage.getItem(USER_SETTINGS_KEY);
     if (!raw) return defaultUserSettings();
@@ -1130,11 +1234,11 @@ export function loadUserSettings(): KviewUserSettingsV1 {
   }
 }
 
-export function saveUserSettings(settings: KviewUserSettingsV1) {
-  window.localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings));
+export function saveUserSettings(settings: KviewUserSettingsV2) {
+  window.localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(serializeUserSettingsV2(settings)));
 }
 
-export function parseUserSettingsJSON(text: string): KviewUserSettingsV1 {
+export function parseUserSettingsJSON(text: string): KviewUserSettingsV2 {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -1143,13 +1247,22 @@ export function parseUserSettingsJSON(text: string): KviewUserSettingsV1 {
   }
   const settings = validateUserSettings(parsed);
   if (!settings) {
-    throw new Error("Settings JSON must be a valid kview user settings v1 profile.");
+    throw new Error("Settings JSON must be a valid kview user settings v1/v2 profile.");
   }
   return settings;
 }
 
-export function exportUserSettingsJSON(settings: KviewUserSettingsV1): string {
-  return `${JSON.stringify(settings, null, 2)}\n`;
+export function exportUserSettingsJSON(settings: KviewUserSettingsV2): string {
+  return `${JSON.stringify(serializeUserSettingsV2(settings), null, 2)}\n`;
+}
+
+function serializeUserSettingsV2(settings: KviewUserSettingsV2): KviewUserSettingsV2 {
+  const next = JSON.parse(JSON.stringify(settings)) as KviewUserSettingsV2;
+  // Persist detector thresholds as the v2 source of truth.
+  delete (next.dataplane.global.dashboard as unknown as { restartElevatedThreshold?: number }).restartElevatedThreshold;
+  delete (next.dataplane.global.metrics as unknown as { containerNearLimitPct?: number }).containerNearLimitPct;
+  delete (next.dataplane.global.metrics as unknown as { nodePressurePct?: number }).nodePressurePct;
+  return next;
 }
 
 function ruleMatchesContext(rule: SmartFilterRule, ctx: SmartFilterMatchContext): boolean {

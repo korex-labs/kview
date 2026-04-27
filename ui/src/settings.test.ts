@@ -37,14 +37,14 @@ describe("user settings", () => {
   });
 
   it("enables dataplane persistence by default", () => {
-    expect(defaultUserSettings().dataplane.persistence.enabled).toBe(true);
-    expect(validateUserSettings({ v: 1 })?.dataplane.persistence.enabled).toBe(true);
+    expect(defaultUserSettings().dataplane.global.persistence.enabled).toBe(true);
+    expect(validateUserSettings({ v: 1 })?.dataplane.global.persistence.enabled).toBe(true);
   });
 
   it("applies dataplane signal defaults on first startup", () => {
     const defaults = defaultDataplaneSettings().signals;
-    expect(defaultUserSettings().dataplane.signals).toEqual(defaults);
-    expect(validateUserSettings({ v: 1 })?.dataplane.signals).toEqual(defaults);
+    expect(defaultUserSettings().dataplane.global.signals).toEqual(defaults);
+    expect(validateUserSettings({ v: 1 })?.dataplane.global.signals).toEqual(defaults);
   });
 
   it("falls back to defaults for unsupported versions", () => {
@@ -98,7 +98,7 @@ describe("user settings", () => {
 
   it("rejects invalid imported JSON", () => {
     expect(() => parseUserSettingsJSON("{")).toThrow("not valid");
-    expect(() => parseUserSettingsJSON(JSON.stringify({ v: 2 }))).toThrow("v1");
+    expect(() => parseUserSettingsJSON(JSON.stringify({ v: 9 }))).toThrow("v1/v2");
     expect(() =>
       parseUserSettingsJSON(
         JSON.stringify({
@@ -116,24 +116,77 @@ describe("user settings", () => {
     expect(parseUserSettingsJSON(exported)).toEqual(settings);
   });
 
+  it("exports v2 detector-based thresholds without legacy metric/dashboard mirrors", () => {
+    const exported = JSON.parse(exportUserSettingsJSON(defaultUserSettings()));
+    expect(exported.v).toBe(2);
+    expect(exported.dataplane.global.signals.detectors.pod_restarts.restartCount).toBeGreaterThan(0);
+    expect(exported.dataplane.global.dashboard.restartElevatedThreshold).toBeUndefined();
+    expect(exported.dataplane.global.metrics.containerNearLimitPct).toBeUndefined();
+    expect(exported.dataplane.global.metrics.nodePressurePct).toBeUndefined();
+  });
+
+  it("migrates v1 context overrides to v2 dataplane context overrides", () => {
+    const migrated = validateUserSettings({
+      v: 1,
+      dataplane: {
+        ...defaultDataplaneSettings(),
+        signals: {
+          ...defaultDataplaneSettings().signals,
+          contextOverrides: {
+            "prod-eu": {
+              pod_restarts: { enabled: false, severity: "high" },
+            },
+          },
+        },
+      },
+    });
+    expect(migrated?.v).toBe(2);
+    expect(migrated?.dataplane.contextOverrides["prod-eu"]?.signals.overrides.pod_restarts).toEqual({
+      enabled: false,
+      severity: "high",
+    });
+  });
+
+  it("keeps sparse context overrides in v2 imports", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      dataplane: {
+        ...defaultUserSettings().dataplane,
+        contextOverrides: {
+          "stage-us": {
+            signals: {
+              overrides: {
+                pod_restarts: { priority: 7 },
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(parsed?.dataplane.contextOverrides["stage-us"]?.signals.overrides.pod_restarts?.priority).toBe(7);
+  });
+
   it("preserves explicit dataplane persistence when normalizing settings", () => {
     const parsed = validateUserSettings({
       ...defaultUserSettings(),
       dataplane: {
         ...defaultUserSettings().dataplane,
-        persistence: {
-          ...defaultUserSettings().dataplane.persistence,
-          enabled: false,
+        global: {
+          ...defaultUserSettings().dataplane.global,
+          persistence: {
+            ...defaultUserSettings().dataplane.global.persistence,
+            enabled: false,
+          },
         },
       },
     });
 
-    expect(parsed?.dataplane.persistence.enabled).toBe(false);
+    expect(parsed?.dataplane.global.persistence.enabled).toBe(false);
   });
 
   it("keeps dataplane persistence unchanged when applying a profile", () => {
     const current = {
-      ...defaultUserSettings().dataplane,
+      ...defaultUserSettings().dataplane.global,
       persistence: {
         enabled: false,
         maxAgeHours: 12,
@@ -149,9 +202,9 @@ describe("user settings", () => {
 
   it("keeps dataplane signal thresholds unchanged when applying a profile", () => {
     const current = {
-      ...defaultUserSettings().dataplane,
+      ...defaultUserSettings().dataplane.global,
       signals: {
-        ...defaultUserSettings().dataplane.signals,
+        ...defaultUserSettings().dataplane.global.signals,
         longRunningJobSec: 7200,
         quotaWarnPercent: 70,
         quotaCriticalPercent: 85,

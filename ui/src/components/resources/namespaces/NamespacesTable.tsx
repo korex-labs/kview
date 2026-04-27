@@ -215,7 +215,7 @@ export default function NamespacesTable({
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const { settings } = useUserSettings();
-  const namespaceRowDetailsPollMs = settings.dataplane.namespaceEnrichment.pollMs;
+  const namespaceRowDetailsPollMs = settings.dataplane.global.namespaceEnrichment.pollMs;
 
   useEffect(() => {
     setEnrichRows(null);

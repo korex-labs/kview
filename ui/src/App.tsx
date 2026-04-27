@@ -140,15 +140,15 @@ function AppInner() {
         appState,
         activeContext,
         namespace,
-        settings.dataplane.namespaceEnrichment.recentLimit,
-        settings.dataplane.namespaceEnrichment.favouriteLimit,
+        settings.dataplane.global.namespaceEnrichment.recentLimit,
+        settings.dataplane.global.namespaceEnrichment.favouriteLimit,
       ),
     [
       appState,
       activeContext,
       namespace,
-      settings.dataplane.namespaceEnrichment.recentLimit,
-      settings.dataplane.namespaceEnrichment.favouriteLimit,
+      settings.dataplane.global.namespaceEnrichment.recentLimit,
+      settings.dataplane.global.namespaceEnrichment.favouriteLimit,
     ],
   );
 
@@ -628,24 +628,24 @@ function DataplaneSettingsSync({ token }: { token: string }) {
     const timer = window.setTimeout(() => {
       if (cancelled) return;
       const dataplanePolicy = {
-        ...settings.dataplane,
+        ...settings.dataplane.global,
         dashboard: {
-          ...settings.dataplane.dashboard,
+          ...settings.dataplane.global.dashboard,
           refreshSec: settings.appearance.dashboardRefreshSec,
         },
       };
       apiPost("/api/dataplane/config", token, dataplanePolicy)
         .then(() => {
-          const sweep = settings.dataplane.namespaceEnrichment.sweep;
-          const warmKey = settings.dataplane.namespaceEnrichment.enabled && sweep.enabled
+          const sweep = settings.dataplane.global.namespaceEnrichment.sweep;
+          const warmKey = settings.dataplane.global.namespaceEnrichment.enabled && sweep.enabled
             ? [
                 activeContext,
-                settings.dataplane.profile,
+                settings.dataplane.global.profile,
                 sweep.maxNamespacesPerCycle,
                 sweep.maxNamespacesPerHour,
                 sweep.minReenrichIntervalMinutes,
                 sweep.includeSystemNamespaces,
-                settings.dataplane.namespaceEnrichment.warmResourceKinds.join(","),
+                settings.dataplane.global.namespaceEnrichment.warmResourceKinds.join(","),
               ].join(":")
             : "";
           if (!activeContext || !warmKey || warmKey === lastSweepWarmKeyRef.current || cancelled) {

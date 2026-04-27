@@ -51,7 +51,7 @@ import {
   type CustomCommandSafety,
   type DataplaneProfile,
   type DataplaneSettings,
-  type KviewUserSettingsV1,
+  type KviewUserSettingsV2,
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
@@ -190,9 +190,9 @@ function ReorderButtons({
 }
 
 function updateAppearance(
-  settings: KviewUserSettingsV1,
-  patch: Partial<KviewUserSettingsV1["appearance"]>,
-): KviewUserSettingsV1 {
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["appearance"]>,
+): KviewUserSettingsV2 {
   return {
     ...settings,
     appearance: { ...settings.appearance, ...patch },
@@ -200,9 +200,9 @@ function updateAppearance(
 }
 
 function updateSmartFilters(
-  settings: KviewUserSettingsV1,
-  patch: Partial<KviewUserSettingsV1["smartFilters"]>,
-): KviewUserSettingsV1 {
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["smartFilters"]>,
+): KviewUserSettingsV2 {
   return {
     ...settings,
     smartFilters: { ...settings.smartFilters, ...patch },
@@ -210,9 +210,9 @@ function updateSmartFilters(
 }
 
 function updateCustomCommands(
-  settings: KviewUserSettingsV1,
-  patch: Partial<KviewUserSettingsV1["customCommands"]>,
-): KviewUserSettingsV1 {
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["customCommands"]>,
+): KviewUserSettingsV2 {
   return {
     ...settings,
     customCommands: { ...settings.customCommands, ...patch },
@@ -220,19 +220,19 @@ function updateCustomCommands(
 }
 
 function updateCustomActions(
-  settings: KviewUserSettingsV1,
-  patch: Partial<KviewUserSettingsV1["customActions"]>,
-): KviewUserSettingsV1 {
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["customActions"]>,
+): KviewUserSettingsV2 {
   return {
     ...settings,
     customActions: { ...settings.customActions, ...patch },
   };
 }
 
-function updateDataplane(settings: KviewUserSettingsV1, patch: Partial<DataplaneSettings>): KviewUserSettingsV1 {
+function updateDataplane(settings: KviewUserSettingsV2, patch: Partial<DataplaneSettings>): KviewUserSettingsV2 {
   return {
     ...settings,
-    dataplane: { ...settings.dataplane, ...patch },
+    dataplane: { ...settings.dataplane, global: { ...settings.dataplane.global, ...patch } },
   };
 }
 
@@ -335,7 +335,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     return () => {
       cancelled = true;
     };
-  }, [activeContext, dataplaneTab, section, settings.dataplane.signals.overrides, settings.dataplane.signals.contextOverrides, token]);
+  }, [activeContext, dataplaneTab, section, settings.dataplane.global.signals.overrides, settings.dataplane.contextOverrides, token]);
 
   const setRule = (index: number, patch: Partial<SmartFilterRule>) => {
     setSettings((prev) => {
@@ -364,57 +364,57 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
 
   const setNamespaceEnrichment = (patch: Partial<DataplaneSettings["namespaceEnrichment"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      namespaceEnrichment: { ...prev.dataplane.namespaceEnrichment, ...patch },
+      namespaceEnrichment: { ...prev.dataplane.global.namespaceEnrichment, ...patch },
     }));
   };
 
   const setNamespaceSweep = (patch: Partial<DataplaneSettings["namespaceEnrichment"]["sweep"]>) => {
     setSettings((prev) => updateDataplane(prev, {
       namespaceEnrichment: {
-        ...prev.dataplane.namespaceEnrichment,
-        sweep: { ...prev.dataplane.namespaceEnrichment.sweep, ...patch },
+        ...prev.dataplane.global.namespaceEnrichment,
+        sweep: { ...prev.dataplane.global.namespaceEnrichment.sweep, ...patch },
       },
     }));
   };
 
   const setDataplaneSnapshots = (patch: Partial<DataplaneSettings["snapshots"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      snapshots: { ...prev.dataplane.snapshots, ...patch },
+      snapshots: { ...prev.dataplane.global.snapshots, ...patch },
     }));
   };
 
   const setDataplanePersistence = (patch: Partial<DataplaneSettings["persistence"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      persistence: { ...prev.dataplane.persistence, ...patch },
+      persistence: { ...prev.dataplane.global.persistence, ...patch },
     }));
   };
 
   const setDataplaneObservers = (patch: Partial<DataplaneSettings["observers"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      observers: { ...prev.dataplane.observers, ...patch },
+      observers: { ...prev.dataplane.global.observers, ...patch },
     }));
   };
 
   const setDataplaneBudget = (patch: Partial<DataplaneSettings["backgroundBudget"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      backgroundBudget: { ...prev.dataplane.backgroundBudget, ...patch },
+      backgroundBudget: { ...prev.dataplane.global.backgroundBudget, ...patch },
     }));
   };
 
   const setDataplaneDashboard = (patch: Partial<DataplaneSettings["dashboard"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      dashboard: { ...prev.dataplane.dashboard, ...patch },
+      dashboard: { ...prev.dataplane.global.dashboard, ...patch },
     }));
   };
   const setDataplaneMetrics = (patch: Partial<DataplaneSettings["metrics"]>) => {
     setSettings((prev) => updateDataplane(prev, {
-      metrics: { ...prev.dataplane.metrics, ...patch },
+      metrics: { ...prev.dataplane.global.metrics, ...patch },
     }));
   };
   const setDataplaneSignals = (patch: Partial<DataplaneSettings["signals"]>) => {
     setSettings((prev) => updateDataplane(prev, {
       signals: (() => {
-        const next = { ...prev.dataplane.signals, ...patch };
+        const next = { ...prev.dataplane.global.signals, ...patch };
         if (next.quotaCriticalPercent <= next.quotaWarnPercent) {
           const defaults = defaultDataplaneSettings().signals;
           next.quotaWarnPercent = defaults.quotaWarnPercent;
@@ -428,7 +428,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const setSignalOverride = (signalType: string, scope: "global" | "context", patch: Partial<SignalOverride>) => {
     if (!signalType) return;
     setSettings((prev) => {
-      const signals = prev.dataplane.signals;
+      const signals = prev.dataplane.global.signals;
       const cleanOverride = (override: SignalOverride): SignalOverride | null => {
         const next: SignalOverride = { ...override, ...patch };
         if (next.enabled === undefined) delete next.enabled;
@@ -445,20 +445,20 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       }
       const contextName = activeContext.trim();
       if (!contextName) return prev;
-      const contextOverrides = { ...signals.contextOverrides };
-      const current = { ...(contextOverrides[contextName] || {}) };
+      const contextOverrides = { ...prev.dataplane.contextOverrides };
+      const current = { ...(contextOverrides[contextName]?.signals.overrides || {}) };
       const next = cleanOverride(current[signalType] || {});
       if (next) current[signalType] = next;
       else delete current[signalType];
-      if (Object.keys(current).length > 0) contextOverrides[contextName] = current;
+      if (Object.keys(current).length > 0) contextOverrides[contextName] = { signals: { overrides: current } };
       else delete contextOverrides[contextName];
-      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+      return { ...updateDataplane(prev, { signals }), dataplane: { ...prev.dataplane, contextOverrides } };
     });
   };
 
   const resetSignalOverride = (signalType: string, scope: "global" | "context") => {
     setSettings((prev) => {
-      const signals = prev.dataplane.signals;
+      const signals = prev.dataplane.global.signals;
       if (scope === "global") {
         const overrides = { ...signals.overrides };
         delete overrides[signalType];
@@ -466,26 +466,26 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       }
       const contextName = activeContext.trim();
       if (!contextName) return prev;
-      const contextOverrides = { ...signals.contextOverrides };
-      const current = { ...(contextOverrides[contextName] || {}) };
+      const contextOverrides = { ...prev.dataplane.contextOverrides };
+      const current = { ...(contextOverrides[contextName]?.signals.overrides || {}) };
       delete current[signalType];
-      if (Object.keys(current).length > 0) contextOverrides[contextName] = current;
+      if (Object.keys(current).length > 0) contextOverrides[contextName] = { signals: { overrides: current } };
       else delete contextOverrides[contextName];
-      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+      return { ...updateDataplane(prev, { signals }), dataplane: { ...prev.dataplane, contextOverrides } };
     });
   };
 
   const resetSignalOverrides = (scope: "global" | "context") => {
     setSettings((prev) => {
-      const signals = prev.dataplane.signals;
+      const signals = prev.dataplane.global.signals;
       if (scope === "global") {
         return updateDataplane(prev, { signals: { ...signals, overrides: {} } });
       }
       const contextName = activeContext.trim();
       if (!contextName) return prev;
-      const contextOverrides = { ...signals.contextOverrides };
+      const contextOverrides = { ...prev.dataplane.contextOverrides };
       delete contextOverrides[contextName];
-      return updateDataplane(prev, { signals: { ...signals, contextOverrides } });
+      return { ...updateDataplane(prev, { signals }), dataplane: { ...prev.dataplane, contextOverrides } };
     });
   };
 
@@ -1127,7 +1127,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   );
 
   const renderDataplane = () => {
-    const dp = settings.dataplane;
+    const dp = settings.dataplane.global;
     const ne = dp.namespaceEnrichment;
     const sweep = ne.sweep;
     const signalDefaults = defaultDataplaneSettings().signals;
@@ -1136,7 +1136,9 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     const estimatedSweepHours = sweep.maxNamespacesPerHour > 0 && namespaces.length > 0
       ? Math.ceil(namespaces.length / sweep.maxNamespacesPerHour)
       : 0;
-    const activeContextSignalOverrides = activeContext ? (dp.signals.contextOverrides[activeContext] || {}) : {};
+    const activeContextSignalOverrides = activeContext
+      ? (settings.dataplane.contextOverrides[activeContext]?.signals.overrides || {})
+      : {};
     const filteredSignalCatalog = signalCatalog.filter((item) => {
       const q = signalCatalogQuery.trim().toLowerCase();
       if (!q) return true;
@@ -1202,7 +1204,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               value={dp.profile}
               onChange={(e) =>
                 setSettings((prev) =>
-                  updateDataplane(prev, applyDataplaneProfile(prev.dataplane, e.target.value as DataplaneProfile)),
+                  updateDataplane(prev, applyDataplaneProfile(prev.dataplane.global, e.target.value as DataplaneProfile)),
                 )
               }
               helperText="Manual keeps dataplane snapshots but disables background enhancement."
@@ -1384,7 +1386,16 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             {numField("Node observer (sec)", dp.observers.nodesIntervalSec, (value) => setDataplaneObservers({ nodesIntervalSec: value }), undefined, "Seconds between passive node list refreshes.")}
             {numField("Node backoff max (sec)", dp.observers.nodesBackoffMaxSec, (value) => setDataplaneObservers({ nodesBackoffMaxSec: value }), undefined, "Maximum node observer backoff after access or connectivity failures.")}
             {numField("Dashboard refresh (sec)", dp.dashboard.refreshSec, (value) => setDataplaneDashboard({ refreshSec: value }), undefined, "Dataplane dashboard refresh interval in seconds.")}
-            {numField("Restart threshold", dp.dashboard.restartElevatedThreshold, (value) => setDataplaneDashboard({ restartElevatedThreshold: value }), undefined, "Pod restart count above which dashboard restart signals become elevated.")}
+            {numField(
+              "Restart threshold",
+              dp.signals.detectors.pod_restarts.restartCount,
+              (value) =>
+                setDataplaneSignals({
+                  detectors: { ...dp.signals.detectors, pod_restarts: { restartCount: value } },
+                }),
+              undefined,
+              "Pod restart count above which dashboard restart signals become elevated.",
+            )}
             {numField("Signal limit", dp.dashboard.signalLimit, (value) => setDataplaneDashboard({ signalLimit: value }), undefined, "Maximum number of top dashboard signals shown by default.")}
           </Box>
         </Paper>
@@ -1447,15 +1458,21 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             )}
             {numField(
               "Container near-limit (%)",
-              dp.metrics.containerNearLimitPct,
-              (value) => setDataplaneMetrics({ containerNearLimitPct: value }),
+              dp.signals.detectors.container_near_limit.percent,
+              (value) =>
+                setDataplaneSignals({
+                  detectors: { ...dp.signals.detectors, container_near_limit: { percent: value } },
+                }),
               "Threshold above which containers raise a usage signal.",
               "Percent of configured CPU or memory limit that triggers a near-limit container signal.",
             )}
             {numField(
               "Node pressure (%)",
-              dp.metrics.nodePressurePct,
-              (value) => setDataplaneMetrics({ nodePressurePct: value }),
+              dp.signals.detectors.node_resource_pressure.percent,
+              (value) =>
+                setDataplaneSignals({
+                  detectors: { ...dp.signals.detectors, node_resource_pressure: { percent: value } },
+                }),
               "Threshold above which nodes raise a resource-pressure signal.",
               "Percent of node allocatable CPU or memory that triggers a node pressure signal.",
             )}
