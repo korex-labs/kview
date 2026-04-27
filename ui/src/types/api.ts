@@ -98,6 +98,13 @@ export type ApiNamespacesEnrichmentPoll = {
 export type ApiContextsResponse = {
   active?: string;
   contexts?: Array<{ name: string; cluster?: string; authInfo?: string; namespace?: string }>;
+  cacheMigration?: {
+    phase?: "idle" | "running" | "done" | "failed";
+    fromVersion?: number;
+    toVersion?: number;
+    applied?: boolean;
+    error?: string;
+  };
   kubeconfig?: {
     files?: string[];
     explicitlySet?: boolean;

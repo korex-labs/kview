@@ -199,9 +199,10 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 
 	api.Get("/contexts", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"active":     s.mgr.ActiveContext(),
-			"contexts":   s.mgr.ListContexts(),
-			"kubeconfig": s.mgr.KubeconfigInfo(),
+			"active":         s.mgr.ActiveContext(),
+			"contexts":       s.mgr.ListContexts(),
+			"kubeconfig":     s.mgr.KubeconfigInfo(),
+			"cacheMigration": s.dp.PersistenceMigrationStatus(),
 		})
 	})
 

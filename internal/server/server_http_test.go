@@ -183,6 +183,9 @@ func (s *stubDataplane) PodMetricsCachedSnapshot(_, _ string) (dataplane.PodMetr
 func (s *stubDataplane) SearchCachedResources(_ context.Context, _ string, _ string, _, _ int) (dataplane.CachedResourceSearch, error) {
 	return dataplane.CachedResourceSearch{}, nil
 }
+func (s *stubDataplane) PersistenceMigrationStatus() dataplane.PersistenceMigrationStatus {
+	return dataplane.PersistenceMigrationStatus{Phase: dataplane.PersistenceMigrationPhaseDone}
+}
 func (s *stubDataplane) NamespaceListEnrichmentPoll(_ string, _ uint64) dataplane.NamespaceListEnrichmentPoll {
 	return dataplane.NamespaceListEnrichmentPoll{}
 }
@@ -411,7 +414,7 @@ func TestContexts(t *testing.T) {
 		t.Fatalf("status: got %d, want 200", rec.Code)
 	}
 	body := mustDecodeJSON(t, rec.Body.Bytes())
-	for _, key := range []string{"active", "contexts", "kubeconfig"} {
+	for _, key := range []string{"active", "contexts", "kubeconfig", "cacheMigration"} {
 		if _, ok := body[key]; !ok {
 			t.Errorf("missing key %q in response: %v", key, body)
 		}

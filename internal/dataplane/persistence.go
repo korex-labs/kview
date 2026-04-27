@@ -23,9 +23,23 @@ var (
 	dataplaneSearchBucket    = []byte("search_name_v1")
 	dataplaneCellIndexBucket = []byte("search_cell_v1")
 	dataplaneSignalBucket    = []byte("signals_v1")
+	dataplaneMetaBucket      = []byte("meta")
+	dataplaneSchemaKey       = []byte("schemaVersion")
 )
 
+const (
+	dataplaneSchemaVersionV1      = 1
+	dataplaneSchemaVersionCurrent = 2
+)
+
+type persistenceMigrationStatus struct {
+	FromVersion int
+	ToVersion   int
+	Applied     bool
+}
+
 type snapshotPersistence interface {
+	MigrationStatus() persistenceMigrationStatus
 	Load(cluster string, kind ResourceKind, namespace string, into any) (bool, error)
 	Save(cluster string, kind ResourceKind, namespace string, snap any) error
 	Delete(cluster string, kind ResourceKind, namespace string) error
@@ -39,7 +53,8 @@ type snapshotPersistence interface {
 }
 
 type boltSnapshotPersistence struct {
-	db *bolt.DB
+	db              *bolt.DB
+	migrationStatus persistenceMigrationStatus
 }
 
 func defaultDataplanePersistencePath() string {
@@ -61,18 +76,131 @@ func openBoltSnapshotPersistence(path string) (*boltSnapshotPersistence, error) 
 	if err != nil {
 		return nil, err
 	}
+	migrationStatus, err := migrateBoltPersistenceIfNeeded(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := db.Update(func(tx *bolt.Tx) error {
-		for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket} {
-			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
-				return err
-			}
-		}
-		return nil
+		return ensureDataplaneBuckets(tx)
 	}); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	return &boltSnapshotPersistence{db: db}, nil
+	return &boltSnapshotPersistence{db: db, migrationStatus: migrationStatus}, nil
+}
+
+func (p *boltSnapshotPersistence) MigrationStatus() persistenceMigrationStatus {
+	if p == nil {
+		return persistenceMigrationStatus{}
+	}
+	return p.migrationStatus
+}
+
+func migrateBoltPersistenceIfNeeded(db *bolt.DB) (persistenceMigrationStatus, error) {
+	status := persistenceMigrationStatus{}
+	err := db.Update(func(tx *bolt.Tx) error {
+		current, err := readDataplaneSchemaVersion(tx)
+		if err != nil {
+			return err
+		}
+		status.FromVersion = current
+		if current >= dataplaneSchemaVersionCurrent {
+			status.ToVersion = current
+			return ensureDataplaneBuckets(tx)
+		}
+		if current <= 0 {
+			current = dataplaneSchemaVersionV1
+		}
+		for current < dataplaneSchemaVersionCurrent {
+			next := current + 1
+			if err := runDataplaneMigrationStep(tx, current, next); err != nil {
+				return err
+			}
+			current = next
+		}
+		status.ToVersion = current
+		status.Applied = status.ToVersion != status.FromVersion
+		return nil
+	})
+	if err != nil {
+		return persistenceMigrationStatus{}, err
+	}
+	return status, nil
+}
+
+func readDataplaneSchemaVersion(tx *bolt.Tx) (int, error) {
+	mb := tx.Bucket(dataplaneMetaBucket)
+	if mb != nil {
+		raw := mb.Get(dataplaneSchemaKey)
+		if len(raw) > 0 {
+			var version int
+			if err := json.Unmarshal(raw, &version); err != nil {
+				return 0, fmt.Errorf("decode dataplane schema version: %w", err)
+			}
+			return version, nil
+		}
+	}
+	if hasAnyDataplaneV1Bucket(tx) {
+		return dataplaneSchemaVersionV1, nil
+	}
+	return 0, nil
+}
+
+func hasAnyDataplaneV1Bucket(tx *bolt.Tx) bool {
+	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket} {
+		if tx.Bucket(bucket) != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func runDataplaneMigrationStep(tx *bolt.Tx, fromVersion int, toVersion int) error {
+	switch {
+	case fromVersion == dataplaneSchemaVersionV1 && toVersion == dataplaneSchemaVersionCurrent:
+		if err := ensureDataplaneBuckets(tx); err != nil {
+			return err
+		}
+		return writeDataplaneSchemaVersion(tx, toVersion)
+	case fromVersion == 0 && toVersion == dataplaneSchemaVersionV1:
+		if err := ensureDataplaneBuckets(tx); err != nil {
+			return err
+		}
+		return writeDataplaneSchemaVersion(tx, toVersion)
+	default:
+		return fmt.Errorf("unsupported dataplane cache migration: %d -> %d", fromVersion, toVersion)
+	}
+}
+
+func writeDataplaneSchemaVersion(tx *bolt.Tx, version int) error {
+	mb, err := tx.CreateBucketIfNotExists(dataplaneMetaBucket)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(version)
+	if err != nil {
+		return err
+	}
+	return mb.Put(dataplaneSchemaKey, payload)
+}
+
+func ensureDataplaneBuckets(tx *bolt.Tx) error {
+	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket} {
+		if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
+			return err
+		}
+	}
+	mb, err := tx.CreateBucketIfNotExists(dataplaneMetaBucket)
+	if err != nil {
+		return err
+	}
+	if mb.Get(dataplaneSchemaKey) == nil {
+		if err := writeDataplaneSchemaVersion(tx, dataplaneSchemaVersionCurrent); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *boltSnapshotPersistence) Close() error {

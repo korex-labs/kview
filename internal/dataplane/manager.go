@@ -225,6 +225,25 @@ type DataPlaneManager interface {
 
 	// SearchCachedResources returns persisted dataplane name-index matches without live Kubernetes reads.
 	SearchCachedResources(ctx context.Context, clusterName string, query string, limit int, offset int) (CachedResourceSearch, error)
+	// PersistenceMigrationStatus reports latest local cache migration lifecycle details.
+	PersistenceMigrationStatus() PersistenceMigrationStatus
+}
+
+type PersistenceMigrationPhase string
+
+const (
+	PersistenceMigrationPhaseIdle    PersistenceMigrationPhase = "idle"
+	PersistenceMigrationPhaseRunning PersistenceMigrationPhase = "running"
+	PersistenceMigrationPhaseDone    PersistenceMigrationPhase = "done"
+	PersistenceMigrationPhaseFailed  PersistenceMigrationPhase = "failed"
+)
+
+type PersistenceMigrationStatus struct {
+	Phase       PersistenceMigrationPhase `json:"phase"`
+	FromVersion int                       `json:"fromVersion,omitempty"`
+	ToVersion   int                       `json:"toVersion,omitempty"`
+	Applied     bool                      `json:"applied"`
+	Error       string                    `json:"error,omitempty"`
 }
 
 // ManagerConfig describes construction-time parameters for the data plane manager.
@@ -276,6 +295,7 @@ type manager struct {
 
 	persistenceMu sync.RWMutex
 	persistence   snapshotPersistence
+	migration     PersistenceMigrationStatus
 
 	signalHistoryMu sync.RWMutex
 	signalHistory   map[string]map[string]signalHistoryRecord
@@ -333,9 +353,11 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		nsSweepLast:          map[string]map[string]time.Time{},
 		nsSweepHourStart:     map[string]time.Time{},
 		nsSweepHourCount:     map[string]int{},
+		migration:            PersistenceMigrationStatus{Phase: PersistenceMigrationPhaseIdle},
 	}
 	if err := m.configurePersistence(policy); err != nil {
 		m.policy.Persistence.Enabled = false
+		m.bundle.Global.Persistence.Enabled = false
 	}
 	return m
 }
@@ -372,6 +394,7 @@ func (m *manager) SetPolicy(policy DataplanePolicy) DataplanePolicy {
 	if err := m.configurePersistence(next); err != nil {
 		next.Persistence.Enabled = false
 		m.policyMu.Lock()
+		m.bundle.Global = next
 		m.policy = next
 		m.policyMu.Unlock()
 	}
@@ -385,18 +408,34 @@ func (m *manager) configurePersistence(policy DataplanePolicy) error {
 			_ = m.persistence.Close()
 			m.persistence = nil
 		}
+		m.migration = PersistenceMigrationStatus{Phase: PersistenceMigrationPhaseIdle}
 		m.persistenceMu.Unlock()
 		return nil
 	}
 	if m.persistence != nil {
+		if m.migration.Phase == "" {
+			m.migration = PersistenceMigrationStatus{Phase: PersistenceMigrationPhaseDone}
+		}
 		m.persistenceMu.Unlock()
 		m.hydratePersistedPlanes(policy)
 		return nil
 	}
+	m.migration = PersistenceMigrationStatus{Phase: PersistenceMigrationPhaseRunning}
 	p, err := openBoltSnapshotPersistence("")
 	if err != nil {
+		m.migration = PersistenceMigrationStatus{
+			Phase: PersistenceMigrationPhaseFailed,
+			Error: err.Error(),
+		}
 		m.persistenceMu.Unlock()
 		return persistenceOpenError(err)
+	}
+	ms := p.MigrationStatus()
+	m.migration = PersistenceMigrationStatus{
+		Phase:       PersistenceMigrationPhaseDone,
+		FromVersion: ms.FromVersion,
+		ToVersion:   ms.ToVersion,
+		Applied:     ms.Applied,
 	}
 	m.persistence = p
 	m.persistenceMu.Unlock()
@@ -408,6 +447,12 @@ func (m *manager) currentPersistence() snapshotPersistence {
 	m.persistenceMu.RLock()
 	defer m.persistenceMu.RUnlock()
 	return m.persistence
+}
+
+func (m *manager) PersistenceMigrationStatus() PersistenceMigrationStatus {
+	m.persistenceMu.RLock()
+	defer m.persistenceMu.RUnlock()
+	return m.migration
 }
 
 func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {

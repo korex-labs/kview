@@ -3,11 +3,14 @@ package dataplane
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/korex-labs/kview/internal/cluster"
 	"github.com/korex-labs/kview/internal/kube/dto"
+	bolt "go.etcd.io/bbolt"
 )
 
 type persistenceFailingClientsProvider struct{}
@@ -65,6 +68,78 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 	}
 	if len(containsRows) != 1 || containsRows[0].Name != "api-7f" {
 		t.Fatalf("contains rows = %+v", containsRows)
+	}
+}
+
+func TestBoltSnapshotPersistenceMigrationFreshDB(t *testing.T) {
+	path := t.TempDir() + "/cache.bbolt"
+	store, err := openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	ms := store.MigrationStatus()
+	if ms.ToVersion != dataplaneSchemaVersionCurrent {
+		t.Fatalf("fresh DB schema version = %d, want %d", ms.ToVersion, dataplaneSchemaVersionCurrent)
+	}
+	if !ms.Applied {
+		t.Fatalf("fresh DB should apply initial schema migration: %+v", ms)
+	}
+}
+
+func TestBoltSnapshotPersistenceMigrationFromV1(t *testing.T) {
+	path := t.TempDir() + "/cache.bbolt"
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("seed v1 open: %v", err)
+	}
+	if err := db.Update(func(tx *bolt.Tx) error {
+		for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket} {
+			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed v1 buckets: %v", err)
+	}
+	_ = db.Close()
+
+	store, err := openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("open migrated persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	ms := store.MigrationStatus()
+	if ms.FromVersion != dataplaneSchemaVersionV1 || ms.ToVersion != dataplaneSchemaVersionCurrent {
+		t.Fatalf("v1 migration versions = %+v", ms)
+	}
+	if !ms.Applied {
+		t.Fatalf("v1 DB should be migrated: %+v", ms)
+	}
+}
+
+func TestBoltSnapshotPersistenceMigrationFailsForCorruptMeta(t *testing.T) {
+	path := t.TempDir() + "/cache.bbolt"
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("open corrupt seed db: %v", err)
+	}
+	if err := db.Update(func(tx *bolt.Tx) error {
+		mb, err := tx.CreateBucketIfNotExists(dataplaneMetaBucket)
+		if err != nil {
+			return err
+		}
+		return mb.Put(dataplaneSchemaKey, []byte("{invalid-json"))
+	}); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed corrupt meta: %v", err)
+	}
+	_ = db.Close()
+
+	if _, err := openBoltSnapshotPersistence(path); err == nil {
+		t.Fatalf("expected open failure for corrupt migration metadata")
 	}
 }
 
@@ -338,6 +413,40 @@ func TestManagerPersistenceEnabledByDefaultOpensCache(t *testing.T) {
 	}
 	if got.HasMore || len(got.Items) != 0 {
 		t.Fatalf("empty default cache search = %+v", got)
+	}
+}
+
+func TestManagerDisablesPersistenceWhenMigrationFails(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cachePath := defaultDataplanePersistencePath()
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0o700); err != nil {
+		t.Fatalf("mkdir cache dir: %v", err)
+	}
+	db, err := bolt.Open(cachePath, 0o600, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("open corrupt db: %v", err)
+	}
+	if err := db.Update(func(tx *bolt.Tx) error {
+		mb, err := tx.CreateBucketIfNotExists(dataplaneMetaBucket)
+		if err != nil {
+			return err
+		}
+		return mb.Put(dataplaneSchemaKey, []byte("{broken"))
+	}); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed corrupt schema: %v", err)
+	}
+	_ = db.Close()
+
+	m := NewManager(ManagerConfig{}).(*manager)
+	if sp := m.currentPersistence(); sp != nil {
+		t.Fatalf("persistence should be disabled on migration failure")
+	}
+	if m.Policy().Persistence.Enabled {
+		t.Fatalf("policy should disable persistence after migration failure")
+	}
+	if _, err := m.PlaneForCluster(context.Background(), "ctx"); err != nil {
+		t.Fatalf("plane creation should still work without persistence: %v", err)
 	}
 }
 

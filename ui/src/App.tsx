@@ -69,7 +69,7 @@ const INITIAL_NAMESPACE_RETRY_ATTEMPTS = 5;
 const INITIAL_NAMESPACE_RETRY_DELAY_MS = 400;
 
 type ContextOption = NonNullable<ApiContextsResponse["contexts"]>[number];
-type BootstrapPhase = "contexts" | "context" | "namespaces" | "ready" | "no-context" | "error";
+type BootstrapPhase = "contexts" | "context" | "migration" | "namespaces" | "ready" | "no-context" | "error";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -93,6 +93,7 @@ function startupSteps(phase: BootstrapPhase, detail: Partial<Record<BootstrapPha
   const order: Array<{ id: BootstrapPhase; label: string }> = [
     { id: "contexts", label: "Reading kube contexts" },
     { id: "context", label: "Selecting active context" },
+    { id: "migration", label: "Migrating local data" },
     { id: "namespaces", label: "Loading namespaces and dataplane cache" },
   ];
   const phaseIndex = order.findIndex((step) => step.id === phase);
@@ -241,7 +242,20 @@ function AppInner() {
       }
       setSection(appState.activeSection || "pods");
 
-      // 2) namespaces
+      // 2) local cache migration status
+      setBootstrapPhase("migration");
+      const migrationPhase = ctxRes.cacheMigration?.phase || "idle";
+      const migrationDetail =
+        migrationPhase === "running"
+          ? "Migrating local data"
+          : migrationPhase === "failed"
+            ? "Local cache migration failed, cache persistence disabled"
+            : ctxRes.cacheMigration?.applied
+              ? `Upgraded local cache schema to v${ctxRes.cacheMigration?.toVersion || "?"}`
+              : "Local cache schema is up to date";
+      setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
+
+      // 3) namespaces
       setBootstrapPhase("namespaces");
       setBootstrapDetail((d) => ({
         ...d,
@@ -253,7 +267,7 @@ function AppInner() {
       setNsLimited(limited);
       setNamespaces(nsItems);
 
-      // 3) pick namespace
+      // 4) pick namespace
       const chosenNs = pickNamespace({
         limited,
         items: nsItems,
@@ -261,10 +275,10 @@ function AppInner() {
       });
       setNamespace(chosenNs);
 
-      // 4) section
+      // 5) section
       setSection(appState.activeSection || "pods");
 
-      // 5) favourites for this ctx
+      // 6) favourites for this ctx
       const fav = (appState.favouriteNamespacesByContext[chosenCtx] || []).slice();
       setFavourites(fav);
 
@@ -338,12 +352,26 @@ function AppInner() {
     setBootstrapError("");
     setBootstrapDetail({
       context: `Selecting ${name}`,
+      migration: "Checking local cache schema",
       namespaces: "Waiting for namespace snapshot",
     });
     try {
       await apiPost("/api/context/select", token, { name });
       setActiveContext(name);
       if (optimisticNamespace) setNamespace(optimisticNamespace);
+
+      setBootstrapPhase("migration");
+      const refreshedContexts = await apiGet<ApiContextsResponse>("/api/contexts", token);
+      const migrationPhase = refreshedContexts.cacheMigration?.phase || "idle";
+      const migrationDetail =
+        migrationPhase === "running"
+          ? "Migrating local data"
+          : migrationPhase === "failed"
+            ? "Local cache migration failed, cache persistence disabled"
+            : refreshedContexts.cacheMigration?.applied
+              ? `Upgraded local cache schema to v${refreshedContexts.cacheMigration?.toVersion || "?"}`
+              : "Local cache schema is up to date";
+      setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
 
       setBootstrapPhase("namespaces");
       const nsPath = namespacesListApiPath(appState, name, appState.activeNamespace || "");
