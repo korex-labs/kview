@@ -34,6 +34,7 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 			Name:               cj.Name,
 			Namespace:          cj.Namespace,
 			Schedule:           cj.Spec.Schedule,
+			ScheduleHint:       cronScheduleHint(cj.Spec.Schedule),
 			Suspend:            suspend,
 			Active:             int32(len(cj.Status.Active)),
 			LastScheduleTime:   jobs.TimeFrom(cj.Status.LastScheduleTime),

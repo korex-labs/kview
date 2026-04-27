@@ -36,7 +36,7 @@ import {
   GAUGE_COLOR_UNKNOWN,
 } from "../../../theme/sxTokens";
 import NamespaceActions from "./NamespaceActions";
-import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
+import { dataplaneCoarseStateChipColor, formatChipLabel } from "../../../utils/k8sUi";
 import { fmtTimeAgo } from "../../../utils/format";
 
 function signalSeverityColor(severity?: string): "error" | "warning" | "info" | "default" {
@@ -434,11 +434,11 @@ export default function NamespaceSignalsTab({
       {summaryMeta && (
         <Section title="Dataplane status">
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-            <ScopedCountChip size="small" label="State" count={summaryMeta.state || "unknown"} color={dataplaneCoarseStateChipColor(summaryMeta.state)} />
-            <ScopedCountChip size="small" variant="outlined" label="Freshness" count={summaryMeta.freshness || "?"} />
-            <ScopedCountChip size="small" variant="outlined" label="Coverage" count={summaryMeta.coverage || "?"} />
-            <ScopedCountChip size="small" variant="outlined" label="Degradation" count={summaryMeta.degradation || "?"} />
-            <ScopedCountChip size="small" variant="outlined" label="Completeness" count={summaryMeta.completeness || "?"} />
+            <ScopedCountChip size="small" label="State" count={formatChipLabel(summaryMeta.state || "unknown")} color={dataplaneCoarseStateChipColor(summaryMeta.state)} />
+            <ScopedCountChip size="small" variant="outlined" label="Freshness" count={formatChipLabel(summaryMeta.freshness || "?")} />
+            <ScopedCountChip size="small" variant="outlined" label="Coverage" count={formatChipLabel(summaryMeta.coverage || "?")} />
+            <ScopedCountChip size="small" variant="outlined" label="Degradation" count={formatChipLabel(summaryMeta.degradation || "?")} />
+            <ScopedCountChip size="small" variant="outlined" label="Completeness" count={formatChipLabel(summaryMeta.completeness || "?")} />
           </Box>
         </Section>
       )}

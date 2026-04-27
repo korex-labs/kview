@@ -83,23 +83,6 @@ function mergeNamespaceProjection<T extends NamespaceProjectionUpdate>(base: T |
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
   {
-    field: "phase",
-    headerName: "Status",
-    width: 170,
-    renderCell: (p) => {
-      const phase = String(p.value || "");
-      const row = p.row;
-      return (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", minHeight: "100%" }}>
-          <StatusChip size="small" label={phase || "-"} color={namespacePhaseChipColor(phase)} />
-          {row.hasUnhealthyConditions && (
-            <StatusChip size="small" color="error" label="Unhealthy" />
-          )}
-        </Box>
-      );
-    },
-  },
-  {
     field: "listSignalSeverity",
     headerName: "Signals",
     width: 120,
@@ -114,6 +97,23 @@ const columns: GridColDef<Row>[] = [
         );
       }
       return <ListSignalChip severity={row.listSignalSeverity} count={row.listSignalCount} />;
+    },
+  },
+  {
+    field: "phase",
+    headerName: "Status",
+    width: 170,
+    renderCell: (p) => {
+      const phase = String(p.value || "");
+      const row = p.row;
+      return (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", minHeight: "100%" }}>
+          <StatusChip size="small" label={phase || "-"} color={namespacePhaseChipColor(phase)} />
+          {row.hasUnhealthyConditions && (
+            <StatusChip size="small" color="error" label="Unhealthy" />
+          )}
+        </Box>
+      );
     },
   },
   {
@@ -170,7 +170,7 @@ const columns: GridColDef<Row>[] = [
               <StatusChip
                 size="small"
                 label={label}
-                color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
+                color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "success"}
               />
             </Box>
           </Tooltip>
@@ -181,7 +181,7 @@ const columns: GridColDef<Row>[] = [
           size="small"
           label={label}
           count={quotaCount(row)}
-          color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "default"}
+          color={row.quotaCritical ? "error" : row.quotaWarning ? "warning" : "success"}
           title={quotaTooltip(row)}
         />
       );

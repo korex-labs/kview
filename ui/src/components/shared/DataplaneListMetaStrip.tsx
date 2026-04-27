@@ -38,10 +38,10 @@ export default function DataplaneListMetaStrip({ meta, prefix }: Props) {
         {meta.state && (
           <ScopedCountChip size="small" label="Sync" count={formatChipLabel(meta.state)} color={dataplaneCoarseStateChipColor(meta.state)} />
         )}
-        <ScopedCountChip size="small" variant="outlined" label="Updated" count={meta.freshness ?? "—"} />
-        <ScopedCountChip size="small" variant="outlined" label="Scope" count={meta.coverage ?? "—"} />
-        <ScopedCountChip size="small" variant="outlined" label="Issues" count={meta.degradation ?? "—"} />
-        <ScopedCountChip size="small" variant="outlined" label="Detail" count={meta.completeness ?? "—"} />
+        <ScopedCountChip size="small" variant="outlined" label="Updated" count={formatChipLabel(meta.freshness ?? "—")} />
+        <ScopedCountChip size="small" variant="outlined" label="Scope" count={formatChipLabel(meta.coverage ?? "—")} />
+        <ScopedCountChip size="small" variant="outlined" label="Issues" count={formatChipLabel(meta.degradation ?? "—")} />
+        <ScopedCountChip size="small" variant="outlined" label="Detail" count={formatChipLabel(meta.completeness ?? "—")} />
         {checkedValue ? <ScopedCountChip size="small" variant="outlined" label="Checked" count={checkedValue} /> : null}
       </Box>
     </Box>

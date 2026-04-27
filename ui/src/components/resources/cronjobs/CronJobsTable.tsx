@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Chip } from "@mui/material";
+import { Chip, Tooltip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
@@ -16,6 +16,7 @@ type CronJob = {
   name: string;
   namespace: string;
   schedule: string;
+  scheduleHint?: string;
   suspend: boolean;
   active: number;
   lastScheduleTime?: number;
@@ -33,15 +34,6 @@ const resourceLabel = getResourceLabel("cronjobs");
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
   {
-    field: "listStatus",
-    headerName: "Status",
-    width: 140,
-    renderCell: (p) => {
-      const status = String(p.row.listStatus || "");
-      return <StatusChip label={status || "-"} color={statusChipColor(status)} />;
-    },
-  },
-  {
     field: "listSignalSeverity",
     headerName: "Signal",
     width: 130,
@@ -51,7 +43,31 @@ const columns: GridColDef<Row>[] = [
     },
     sortable: false,
   },
-  { field: "schedule", headerName: "Schedule", flex: 1, minWidth: 200 },
+  {
+    field: "listStatus",
+    headerName: "Status",
+    width: 140,
+    renderCell: (p) => {
+      const status = String(p.row.listStatus || "");
+      return <StatusChip label={status || "-"} color={statusChipColor(status)} />;
+    },
+  },
+  {
+    field: "scheduleHint",
+    headerName: "Schedule",
+    flex: 1,
+    minWidth: 220,
+    renderCell: (p) => {
+      const schedule = String(p.row.schedule || "");
+      const hint = String(p.row.scheduleHint || "");
+      if (!hint && !schedule) return "-";
+      return (
+        <Tooltip title={schedule || "-"}>
+          <span>{hint || schedule}</span>
+        </Tooltip>
+      );
+    },
+  },
   {
     field: "suspend",
     headerName: "Suspend",
@@ -115,7 +131,9 @@ export default function CronJobsTable({
 
   const filterPredicate = useCallback(
     (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) || (row.schedule || "").toLowerCase().includes(q),
+      row.name.toLowerCase().includes(q) ||
+      (row.schedule || "").toLowerCase().includes(q) ||
+      (row.scheduleHint || "").toLowerCase().includes(q),
     [],
   );
 

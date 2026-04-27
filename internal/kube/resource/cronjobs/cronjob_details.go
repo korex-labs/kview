@@ -219,10 +219,20 @@ func cronScheduleHint(schedule string) string {
 		return "Hourly"
 	}
 
+	// Hourly at fixed minute: M * * * *
+	if hour == "*" && dom == "*" && month == "*" && dow == "*" {
+		if m, err := strconv.Atoi(minute); err == nil && m >= 0 && m <= 59 {
+			return fmt.Sprintf("Hourly at :%s", zeroPad(minute))
+		}
+	}
+
 	// Every N hours: 0 */N * * *
 	if minute == "0" && strings.HasPrefix(hour, "*/") && dom == "*" && month == "*" && dow == "*" {
 		n := strings.TrimPrefix(hour, "*/")
-		if _, err := strconv.Atoi(n); err == nil {
+		if parsed, err := strconv.Atoi(n); err == nil {
+			if parsed == 1 {
+				return "Hourly"
+			}
 			return "Every " + n + " hours"
 		}
 	}

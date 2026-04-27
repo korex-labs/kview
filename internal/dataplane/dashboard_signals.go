@@ -471,7 +471,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		Type:            "empty_namespace",
 		Label:           "Empty namespaces",
 		SummaryCounter:  "empty_namespaces",
-		ActualData:      "0 workload, network, storage, config, and Helm resources in cached snapshots",
+		ActualData:      "0 workload, network, storage, and Helm resources in cached snapshots",
 		CalculatedData:  "empty namespace candidate in cached scope",
 		LikelyCause:     "The workload may have been removed earlier, or the namespace was created temporarily and never cleaned up.",
 		SuggestedAction: "Check recent ownership and deploy history. If it is no longer needed, remove the namespace after confirming no retained data or policies still depend on it.",

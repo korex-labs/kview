@@ -41,7 +41,7 @@ func detectEmptyNamespaceSignals(_ time.Time, ns string, s dashboardSnapshotSet)
 		return nil
 	}
 	return []ClusterDashboardSignal{
-		dashboardSignalItem("empty_namespace", "Namespace", ns, "", "medium", 70, "No workload, network, storage, config, or Helm resources in cached snapshots.", "medium", "namespaces"),
+		dashboardSignalItem("empty_namespace", "Namespace", ns, "", "medium", 70, "No workload, network, storage, or Helm resources in cached snapshots.", "medium", "namespaces"),
 	}
 }
 

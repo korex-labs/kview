@@ -231,7 +231,7 @@ export default function DashboardView(props: Props) {
   const { settings } = useUserSettings();
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
-  const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
+  const dashboardRefreshSec = settings.dataplane.dashboard.refreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
 
@@ -425,9 +425,9 @@ export default function DashboardView(props: Props) {
                     hint="Resource counts are not inferred cluster totals; they are summed from cached namespace list snapshots."
                   />
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
-                    {resources.aggregateFreshness ? <Chip size="small" variant="outlined" label={`Freshness ${resources.aggregateFreshness}`} /> : null}
+                    {resources.aggregateFreshness ? <ScopedCountChip size="small" variant="outlined" label="Freshness" count={resources.aggregateFreshness} /> : null}
                     {resources.aggregateDegradation && resources.aggregateDegradation !== "none" ? (
-                      <Chip size="small" color="warning" variant="outlined" label={`Degradation ${resources.aggregateDegradation}`} />
+                      <ScopedCountChip size="small" color="warning" label="Degradation" count={resources.aggregateDegradation} />
                     ) : null}
                   </Box>
                   <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>
@@ -533,7 +533,7 @@ export default function DashboardView(props: Props) {
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
                       <ScopedCountChip size="small" variant="outlined" label="Known lists" count={knownScope} />
                       <ScopedCountChip size="small" variant="outlined" label="Row projections" count={cov.rowProjectionCachedNamespaces} />
-                      {cov.hasActiveEnrichmentSession ? <Chip size="small" variant="outlined" label="Enrichment active" /> : null}
+                      {cov.hasActiveEnrichmentSession ? <ScopedCountChip size="small" color="info" label="Enrichment" count="Active" /> : null}
                     </Box>
                     <Table size="small">
                       <TableBody>

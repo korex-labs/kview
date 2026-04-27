@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Box,
-  Button,
   FormControl,
   IconButton,
   InputAdornment,
@@ -23,8 +22,6 @@ export type ResourceTableToolbarProps = {
   onFilterChange: (value: string) => void;
   selectedQuickFilter: string | null;
   onQuickFilterToggle: (value: string) => void;
-  onOpenSelected: () => void;
-  hasSelection: boolean;
   refreshSec: number;
   onRefreshChange: (value: number) => void;
   quickFilters: QuickFilter[];
@@ -38,8 +35,6 @@ export default function ResourceTableToolbar({
   onFilterChange,
   selectedQuickFilter,
   onQuickFilterToggle,
-  onOpenSelected,
-  hasSelection,
   refreshSec,
   onRefreshChange,
   quickFilters,
@@ -85,9 +80,6 @@ export default function ResourceTableToolbar({
           </FormControl>
         ) : null}
         <Box sx={{ flexGrow: 1 }} />
-        <Button variant="contained" onClick={onOpenSelected} disabled={disabled || !hasSelection}>
-          Open
-        </Button>
       </Box>
       {quickFilters.length > 0 && (
         <Box sx={actionRowSx}>

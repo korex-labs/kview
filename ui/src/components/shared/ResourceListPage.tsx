@@ -97,6 +97,25 @@ export default function ResourceListPage<TRow extends { id: string }>({
   dataplaneRevisionPoll,
   dataplaneRefreshSec,
 }: ResourceListPageProps<TRow>) {
+  const orderedColumns = useMemo(() => {
+    if (!columns.some((col) => col.field === "listSignalSeverity")) return columns;
+    const fieldPriority = (field: string): number => {
+      const f = field.toLowerCase();
+      if (f === "name") return 0;
+      if (f === "listsignalseverity") return 1;
+      if (f === "liststatus" || f === "status" || f === "phase" || f === "health") return 2;
+      if (f.includes("age")) return 6;
+      if (f.includes("time") || f.includes("last") || f.includes("seen") || f.includes("updated")) return 5;
+      return 3;
+    };
+    return [...columns].sort((a, b) => {
+      const pa = fieldPriority(String(a.field));
+      const pb = fieldPriority(String(b.field));
+      if (pa !== pb) return pa - pb;
+      return 0;
+    });
+  }, [columns]);
+
   const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([]);
   const selectedId = useMemo<string | null>(() => {
     if (!selectionModel.length) return null;
@@ -162,12 +181,6 @@ export default function ResourceListPage<TRow extends { id: string }>({
       smartFilterContext,
     });
 
-  const openSelected = useCallback(() => {
-    if (!selectedId) return;
-    setDrawerSelectedId(selectedId);
-    setDrawerOpen(true);
-  }, [selectedId]);
-
   const handleRowDoubleClick = useCallback((row: TRow) => {
     setSelectionModel([row.id]);
     setDrawerSelectedId(row.id);
@@ -208,7 +221,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
       >
         <DataGrid<TRow>
           rows={filteredRows}
-          columns={columns}
+          columns={orderedColumns}
           density="compact"
           loading={loading}
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
@@ -233,8 +246,6 @@ export default function ResourceListPage<TRow extends { id: string }>({
               onFilterChange: setFilter,
               selectedQuickFilter,
               onQuickFilterToggle: toggleQuickFilter,
-              onOpenSelected: openSelected,
-              hasSelection: !!selectedId,
               refreshSec,
               onRefreshChange: setRefreshSec,
               quickFilters,
@@ -257,9 +268,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
       <Box sx={{ mt: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, flexShrink: 0 }}>
         {renderFooterExtra?.(refetch)}
         <Box sx={{ flexGrow: renderFooterExtra ? 1 : 0 }} />
-        <Typography variant="caption" color="text.secondary">
-          Last refresh: {lastRefresh ? lastRefresh.toLocaleString() : "-"}
-        </Typography>
+        {!dataplaneRevisionPoll ? (
+          <Typography variant="caption" color="text.secondary">
+            Last refresh: {lastRefresh ? lastRefresh.toLocaleString() : "-"}
+          </Typography>
+        ) : null}
       </Box>
 
       {renderDrawer({

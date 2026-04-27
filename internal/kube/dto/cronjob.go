@@ -4,6 +4,7 @@ type CronJobDTO struct {
 	Name               string `json:"name"`
 	Namespace          string `json:"namespace"`
 	Schedule           string `json:"schedule"`
+	ScheduleHint       string `json:"scheduleHint,omitempty"`
 	Suspend            bool   `json:"suspend"`
 	Active             int32  `json:"active"`
 	LastScheduleTime   int64  `json:"lastScheduleTime,omitempty"`

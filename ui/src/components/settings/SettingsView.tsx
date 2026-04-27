@@ -40,7 +40,6 @@ import {
   newCustomCommandDefinition,
   newSmartFilterRule,
   parseUserSettingsJSON,
-  refreshIntervalOptions,
   sanitizeRegexFlags,
   smartFilterResourceKeysForScope,
   type CustomActionDefinition,
@@ -60,8 +59,10 @@ import {
 } from "../../settings";
 import { useUserSettings } from "../../settingsContext";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
+import { formatChipLabel } from "../../utils/k8sUi";
 import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
+import ScopedCountChip from "../shared/ScopedCountChip";
 import { apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 
@@ -514,25 +515,6 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
       <Typography variant="h6">Appearance</Typography>
       <Paper variant="outlined" sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 1.25 }}>
-        <TextField
-          select
-          size="small"
-          label="Dashboard refresh"
-          value={settings.appearance.dashboardRefreshSec}
-          onChange={(e) =>
-            setSettings((prev) =>
-              updateAppearance(prev, { dashboardRefreshSec: Number(e.target.value) }),
-            )
-          }
-          helperText="Off loads the dashboard once and disables periodic dashboard polling."
-          sx={{ maxWidth: 320 }}
-        >
-          {refreshIntervalOptions.map((opt) => (
-            <MenuItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </MenuItem>
-          ))}
-        </TextField>
         <FormControlLabel
           control={
             <Switch
@@ -1628,8 +1610,18 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                           ) : null}
                         </Box>
                         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
-                          <Chip size="small" color={severityColor(item.defaultSeverity)} label={`Default ${item.defaultSeverity || "dynamic"}`} />
-                          <Chip size="small" color={severityColor(effectiveSeverity)} label={`Effective ${effectiveSeverity || "dynamic"}`} />
+                          <ScopedCountChip
+                            size="small"
+                            color={severityColor(item.defaultSeverity)}
+                            label="Default"
+                            count={formatChipLabel(item.defaultSeverity || "dynamic")}
+                          />
+                          <ScopedCountChip
+                            size="small"
+                            color={severityColor(effectiveSeverity)}
+                            label="Effective"
+                            count={formatChipLabel(effectiveSeverity || "dynamic")}
+                          />
                         </Box>
                       </Box>
                       <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>

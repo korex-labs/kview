@@ -142,8 +142,14 @@ function formatSuspend(suspend?: boolean) {
 
 function formatSchedule(schedule?: string, hint?: string) {
   if (!schedule) return "-";
-  if (hint) return `${schedule} (${hint})`;
-  return schedule;
+  if (hint) {
+    return (
+      <span title={schedule}>
+        {hint}
+      </span>
+    );
+  }
+  return <span title={schedule}>{schedule}</span>;
 }
 
 function formatDuration(seconds?: number) {
@@ -231,11 +237,6 @@ export default function CronJobDrawer(props: {
     [events],
   );
 
-  const hasPolicy =
-    policy?.startingDeadlineSeconds != null ||
-    policy?.successfulJobsHistoryLimit != null ||
-    policy?.failedJobsHistoryLimit != null;
-
   const summaryItems = useMemo(
     () => [
       { label: "Name", value: valueOrDash(summary?.name) },
@@ -313,7 +314,7 @@ export default function CronJobDrawer(props: {
                     <Section
                       title="Key policy state"
                       dividerPlacement="content"
-                      actions={hasPolicy ? <StatusChip size="small" color="info" label="Configured" /> : null}
+                      actions={null}
                     >
                       <KeyValueTable
                         columns={2}
