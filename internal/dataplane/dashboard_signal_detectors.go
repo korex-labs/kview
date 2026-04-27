@@ -394,7 +394,7 @@ func humanizeSignalDuration(d time.Duration) string {
 // their aggregated CPU or memory limit. Uses pod-level CPU/MemoryLimit totals
 // populated by the pod list resource layer; pods with no limits set or no
 // matching metrics sample are skipped. The threshold comes from
-// policy.Metrics.ContainerNearLimitPct (default 90%), stored on the set.
+// policy.Signals.Detectors.ContainerNearLimit.Percent (default 90%), stored on the set.
 func detectContainerNearLimitSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
 	if !s.podsOK || !s.podMetricsOK {
 		return nil

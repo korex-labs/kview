@@ -104,8 +104,8 @@ func TestEnrichPodListItemsWithMetrics(t *testing.T) {
 
 func TestEnrichPodListItemsWithSignalSummary_UsesBackendSignals(t *testing.T) {
 	policy := DefaultDataplanePolicy()
-	policy.Dashboard.RestartElevatedThreshold = 3
-	policy.Metrics.ContainerNearLimitPct = 90
+	policy.Signals.Detectors.PodRestarts.RestartCount = 3
+	policy.Signals.Detectors.ContainerNearLimit.Percent = 90
 	now := time.Unix(1_700_000_000, 0)
 	items := []dto.PodListItemDTO{
 		{
@@ -145,7 +145,7 @@ func TestEnrichPodListItemsWithSignalSummary_UsesBackendSignals(t *testing.T) {
 
 func TestEnrichPodListItemsWithSignalSummary_RespectsConfiguredThreshold(t *testing.T) {
 	policy := DefaultDataplanePolicy()
-	policy.Metrics.ContainerNearLimitPct = 95
+	policy.Signals.Detectors.ContainerNearLimit.Percent = 95
 	now := time.Unix(1_700_000_000, 0)
 	items := []dto.PodListItemDTO{
 		{
@@ -169,6 +169,36 @@ func TestEnrichPodListItemsWithSignalSummary_RespectsConfiguredThreshold(t *test
 	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, now)
 	if out[0].ListSignalSeverity != listSignalOK || out[0].ListSignalCount != 0 {
 		t.Fatalf("92%% of limit should not trigger signal when threshold is 95%%: %+v", out[0])
+	}
+}
+
+func TestEnrichPodListItemsWithSignalSummary_IgnoresLegacyMetricsThresholdsWhenDetectorConfigured(t *testing.T) {
+	policy := DefaultDataplanePolicy()
+	policy.Signals.Detectors.ContainerNearLimit.Percent = 95
+	policy.Metrics.ContainerNearLimitPct = 70 // legacy field should not control emission anymore
+	now := time.Unix(1_700_000_000, 0)
+	items := []dto.PodListItemDTO{
+		{
+			Name:          "api",
+			Namespace:     "team-a",
+			Phase:         "Running",
+			Ready:         "1/1",
+			CPULimitMilli: 100,
+		},
+	}
+	podMetrics := []dto.PodMetricsDTO{
+		{
+			Namespace: "team-a",
+			Name:      "api",
+			Containers: []dto.ContainerMetricsDTO{
+				{Name: "c", CPUMilli: 92},
+			},
+		},
+	}
+	enriched := EnrichPodListItemsWithMetrics(items, BuildPodMetricsIndex(podMetrics))
+	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, now)
+	if out[0].ListSignalSeverity != listSignalOK || out[0].ListSignalCount != 0 {
+		t.Fatalf("92%% of limit should not trigger signal with detector threshold 95%%: %+v", out[0])
 	}
 }
 

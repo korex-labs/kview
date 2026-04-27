@@ -134,6 +134,21 @@ export type DataplaneSettings = {
     deploymentUnavailableSec: number;
     quotaWarnPercent: number;
     quotaCriticalPercent: number;
+    detectors: {
+      pod_restarts: {
+        restartCount: number;
+      };
+      container_near_limit: {
+        percent: number;
+      };
+      node_resource_pressure: {
+        percent: number;
+      };
+      resource_quota_pressure: {
+        warnPercent: number;
+        criticalPercent: number;
+      };
+    };
     overrides: Record<string, SignalOverride>;
     contextOverrides: Record<string, Record<string, SignalOverride>>;
   };
@@ -418,6 +433,21 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       deploymentUnavailableSec: 10 * 60,
       quotaWarnPercent: 80,
       quotaCriticalPercent: 90,
+      detectors: {
+        pod_restarts: {
+          restartCount: 3,
+        },
+        container_near_limit: {
+          percent: 90,
+        },
+        node_resource_pressure: {
+          percent: 85,
+        },
+        resource_quota_pressure: {
+          warnPercent: 80,
+          criticalPercent: 90,
+        },
+      },
       overrides: {},
       contextOverrides: {},
     },
@@ -762,6 +792,9 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
   const rawDashboard = (raw.dashboard ?? {}) as Partial<DataplaneSettings["dashboard"]>;
   const rawMetrics = (raw.metrics ?? {}) as Partial<DataplaneSettings["metrics"]>;
   const rawSignals = (raw.signals ?? {}) as Partial<DataplaneSettings["signals"]>;
+  const rawSignalDetectors = ((rawSignals as DataplaneSettings["signals"]).detectors ?? {}) as Partial<
+    DataplaneSettings["signals"]["detectors"]
+  >;
   const rawTtls = (rawSnapshots.ttlSec ?? {}) as Record<string, unknown>;
   const profile = allowedDataplaneProfiles.has(raw.profile as DataplaneProfile)
     ? (raw.profile as DataplaneProfile)
@@ -939,10 +972,65 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
       deploymentUnavailableSec: validNumber(rawSignals.deploymentUnavailableSec, 60, 86400, defaults.signals.deploymentUnavailableSec),
       quotaWarnPercent: validNumber(rawSignals.quotaWarnPercent, 1, 99, defaults.signals.quotaWarnPercent),
       quotaCriticalPercent: validNumber(rawSignals.quotaCriticalPercent, 1, 100, defaults.signals.quotaCriticalPercent),
+      detectors: {
+        pod_restarts: {
+          restartCount: validNumber(
+            rawSignalDetectors.pod_restarts?.restartCount,
+            1,
+            1000,
+            validNumber(rawDashboard.restartElevatedThreshold, 1, 1000, defaults.signals.detectors.pod_restarts.restartCount),
+          ),
+        },
+        container_near_limit: {
+          percent: validNumber(
+            rawSignalDetectors.container_near_limit?.percent,
+            50,
+            100,
+            validNumber(rawMetrics.containerNearLimitPct, 50, 100, defaults.signals.detectors.container_near_limit.percent),
+          ),
+        },
+        node_resource_pressure: {
+          percent: validNumber(
+            rawSignalDetectors.node_resource_pressure?.percent,
+            50,
+            100,
+            validNumber(rawMetrics.nodePressurePct, 50, 100, defaults.signals.detectors.node_resource_pressure.percent),
+          ),
+        },
+        resource_quota_pressure: {
+          warnPercent: validNumber(
+            rawSignalDetectors.resource_quota_pressure?.warnPercent,
+            1,
+            99,
+            defaults.signals.detectors.resource_quota_pressure.warnPercent,
+          ),
+          criticalPercent: validNumber(
+            rawSignalDetectors.resource_quota_pressure?.criticalPercent,
+            1,
+            100,
+            defaults.signals.detectors.resource_quota_pressure.criticalPercent,
+          ),
+        },
+      },
       overrides: normalizeSignalOverrides(rawSignals.overrides),
       contextOverrides: normalizeContextSignalOverrides(rawSignals.contextOverrides),
     },
   };
+
+  if (
+    normalized.signals.detectors.resource_quota_pressure.criticalPercent <=
+    normalized.signals.detectors.resource_quota_pressure.warnPercent
+  ) {
+    normalized.signals.detectors.resource_quota_pressure.warnPercent = defaults.signals.detectors.resource_quota_pressure.warnPercent;
+    normalized.signals.detectors.resource_quota_pressure.criticalPercent = defaults.signals.detectors.resource_quota_pressure.criticalPercent;
+  }
+
+  // Backward-compatible mirrors for legacy consumers.
+  normalized.dashboard.restartElevatedThreshold = normalized.signals.detectors.pod_restarts.restartCount;
+  normalized.metrics.containerNearLimitPct = normalized.signals.detectors.container_near_limit.percent;
+  normalized.metrics.nodePressurePct = normalized.signals.detectors.node_resource_pressure.percent;
+  normalized.signals.quotaWarnPercent = normalized.signals.detectors.resource_quota_pressure.warnPercent;
+  normalized.signals.quotaCriticalPercent = normalized.signals.detectors.resource_quota_pressure.criticalPercent;
 
   if (normalized.signals.quotaCriticalPercent <= normalized.signals.quotaWarnPercent) {
     normalized.signals.quotaWarnPercent = defaults.signals.quotaWarnPercent;

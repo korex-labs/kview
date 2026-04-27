@@ -9,7 +9,7 @@ import "time"
 const (
 	// signalRestartMinThreshold is the default minimum restart count for raising
 	// a pod restart signal. The runtime value is overridden by
-	// policy.Dashboard.RestartElevatedThreshold where available.
+	// policy.Signals.Detectors.PodRestarts.RestartCount where available.
 	signalRestartMinThreshold int32 = 5
 
 	// signalRestartMedThreshold is the restart count at which severity escalates
@@ -49,6 +49,9 @@ const (
 )
 
 type resolvedSignalThresholds struct {
+	PodRestartCount          int32
+	ContainerNearLimitPct    int
+	NodeResourcePressurePct  int
 	LongRunningJobDuration   time.Duration
 	CronJobNoSuccessDuration time.Duration
 	StaleHelmReleaseDuration time.Duration
@@ -61,14 +64,17 @@ type resolvedSignalThresholds struct {
 
 func signalThresholdsFromPolicy(policy DataplanePolicy) resolvedSignalThresholds {
 	return resolvedSignalThresholds{
+		PodRestartCount:          int32(policy.Signals.Detectors.PodRestarts.RestartCount),
+		ContainerNearLimitPct:    policy.Signals.Detectors.ContainerNearLimit.Percent,
+		NodeResourcePressurePct:  policy.Signals.Detectors.NodeResourcePressure.Percent,
 		LongRunningJobDuration:   time.Duration(policy.Signals.LongRunningJobSec) * time.Second,
 		CronJobNoSuccessDuration: time.Duration(policy.Signals.CronJobNoRecentSuccessSec) * time.Second,
 		StaleHelmReleaseDuration: time.Duration(policy.Signals.StaleHelmReleaseSec) * time.Second,
 		UnusedResourceAge:        time.Duration(policy.Signals.UnusedResourceAgeSec) * time.Second,
 		PodYoungRestartDuration:  time.Duration(policy.Signals.PodYoungRestartWindowSec) * time.Second,
 		DeploymentUnavailableAge: time.Duration(policy.Signals.DeploymentUnavailableSec) * time.Second,
-		QuotaWarnRatio:           float64(policy.Signals.QuotaWarnPercent) / 100,
-		QuotaCritRatio:           float64(policy.Signals.QuotaCriticalPercent) / 100,
+		QuotaWarnRatio:           float64(policy.Signals.Detectors.ResourceQuotaPressure.WarnPercent) / 100,
+		QuotaCritRatio:           float64(policy.Signals.Detectors.ResourceQuotaPressure.CriticalPercent) / 100,
 	}
 }
 

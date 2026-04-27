@@ -83,7 +83,7 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	signals := newDashboardSignalStore()
 	now := time.Now()
 	signals.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectDashboardSignals(now, namespace, dashboardSnapshotSet{
-		restartThreshold:       int32(policy.Dashboard.RestartElevatedThreshold),
+		restartThreshold:       thresholds.PodRestartCount,
 		pods:                   podsSnap,
 		podsOK:                 podsErr == nil,
 		deps:                   depsSnap,
@@ -122,6 +122,7 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 		quotasOK:               rqErr == nil,
 		limitRanges:            lrSnap,
 		limitRangesOK:          lrErr == nil,
+		containerNearLimitPct:  thresholds.ContainerNearLimitPct,
 		longRunningJobDuration: thresholds.LongRunningJobDuration,
 		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
 		staleHelmReleaseAge:    thresholds.StaleHelmReleaseDuration,

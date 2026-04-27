@@ -110,7 +110,10 @@ func detectPodYoungFrequentRestartsSignal(namespace string, details dto.PodDetai
 	if youngWindow <= 0 {
 		youngWindow = signalPodYoungRestartDuration
 	}
-	restartThreshold := signalRestartMinThreshold
+	restartThreshold := thresholds.PodRestartCount
+	if restartThreshold <= 0 {
+		restartThreshold = signalRestartMinThreshold
+	}
 
 	ageSec := summary.AgeSec
 	if ageSec < 0 {

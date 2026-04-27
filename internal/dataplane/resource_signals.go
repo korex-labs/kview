@@ -118,17 +118,12 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 
 	switch scope {
 	case ResourceSignalsScopeNamespace:
-		s := buildSnapshotSetForNamespace(
-			plane, namespace,
-			int32(policy.Dashboard.RestartElevatedThreshold),
-			policy.Metrics.ContainerNearLimitPct,
-			thresholds,
-		)
+		s := buildSnapshotSetForNamespace(plane, namespace, thresholds)
 		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectDashboardSignals(now, namespace, s), policy, clusterName)...)...)
 		meta = mergeSnapshotMetaForResourceSignals(s)
 	case ResourceSignalsScopeCluster:
 		nodesSnap, _ := peekClusterSnapshot(&plane.nodesStore)
-		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, policy.Metrics.NodePressurePct), policy, clusterName)...)...)
+		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), policy, clusterName)...)...)
 		meta = nodesSnap.Meta
 	}
 
@@ -139,7 +134,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	items := store.SignalsForResource(kind, name, scope, scopeLocation)
 	out := namespaceInsightSignalsFromDashboard(items)
 	if len(out) == 0 {
-		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, int32(policy.Dashboard.RestartElevatedThreshold)), policy, clusterName)...)
+		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, thresholds.PodRestartCount), policy, clusterName)...)
 	}
 	out = dedupeNamespaceSignals(out)
 	if out == nil {

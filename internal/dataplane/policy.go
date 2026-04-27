@@ -103,21 +103,46 @@ type MetricsPolicyOverride struct {
 	Enabled               *bool `json:"enabled,omitempty"`
 	PodMetricsTTLSeconds  *int  `json:"podMetricsTtlSec,omitempty"`
 	NodeMetricsTTLSeconds *int  `json:"nodeMetricsTtlSec,omitempty"`
-	ContainerNearLimitPct *int  `json:"containerNearLimitPct,omitempty"`
-	NodePressurePct       *int  `json:"nodePressurePct,omitempty"`
+	// Deprecated: use signals.detectors.container_near_limit.percent.
+	ContainerNearLimitPct *int `json:"containerNearLimitPct,omitempty"`
+	// Deprecated: use signals.detectors.node_resource_pressure.percent.
+	NodePressurePct *int `json:"nodePressurePct,omitempty"`
+}
+
+type SignalDetectorsPolicyOverride struct {
+	PodRestarts           *SignalPodRestartDetectorPolicyOverride    `json:"pod_restarts,omitempty"`
+	ContainerNearLimit    *SignalPercentDetectorPolicyOverride       `json:"container_near_limit,omitempty"`
+	NodeResourcePressure  *SignalPercentDetectorPolicyOverride       `json:"node_resource_pressure,omitempty"`
+	ResourceQuotaPressure *SignalResourceQuotaDetectorPolicyOverride `json:"resource_quota_pressure,omitempty"`
+}
+
+type SignalPodRestartDetectorPolicyOverride struct {
+	RestartCount *int `json:"restartCount,omitempty"`
+}
+
+type SignalPercentDetectorPolicyOverride struct {
+	Percent *int `json:"percent,omitempty"`
+}
+
+type SignalResourceQuotaDetectorPolicyOverride struct {
+	WarnPercent     *int `json:"warnPercent,omitempty"`
+	CriticalPercent *int `json:"criticalPercent,omitempty"`
 }
 
 type SignalsPolicyOverride struct {
-	LongRunningJobSec         *int                                 `json:"longRunningJobSec,omitempty"`
-	CronJobNoRecentSuccessSec *int                                 `json:"cronJobNoRecentSuccessSec,omitempty"`
-	StaleHelmReleaseSec       *int                                 `json:"staleHelmReleaseSec,omitempty"`
-	UnusedResourceAgeSec      *int                                 `json:"unusedResourceAgeSec,omitempty"`
-	PodYoungRestartWindowSec  *int                                 `json:"podYoungRestartWindowSec,omitempty"`
-	DeploymentUnavailableSec  *int                                 `json:"deploymentUnavailableSec,omitempty"`
-	QuotaWarnPercent          *int                                 `json:"quotaWarnPercent,omitempty"`
-	QuotaCriticalPercent      *int                                 `json:"quotaCriticalPercent,omitempty"`
-	Overrides                 map[string]SignalOverride            `json:"overrides,omitempty"`
-	ContextOverrides          map[string]map[string]SignalOverride `json:"contextOverrides,omitempty"`
+	LongRunningJobSec         *int `json:"longRunningJobSec,omitempty"`
+	CronJobNoRecentSuccessSec *int `json:"cronJobNoRecentSuccessSec,omitempty"`
+	StaleHelmReleaseSec       *int `json:"staleHelmReleaseSec,omitempty"`
+	UnusedResourceAgeSec      *int `json:"unusedResourceAgeSec,omitempty"`
+	PodYoungRestartWindowSec  *int `json:"podYoungRestartWindowSec,omitempty"`
+	DeploymentUnavailableSec  *int `json:"deploymentUnavailableSec,omitempty"`
+	// Deprecated: use signals.detectors.resource_quota_pressure.warnPercent.
+	QuotaWarnPercent *int `json:"quotaWarnPercent,omitempty"`
+	// Deprecated: use signals.detectors.resource_quota_pressure.criticalPercent.
+	QuotaCriticalPercent *int                                 `json:"quotaCriticalPercent,omitempty"`
+	Detectors            *SignalDetectorsPolicyOverride       `json:"detectors,omitempty"`
+	Overrides            map[string]SignalOverride            `json:"overrides,omitempty"`
+	ContextOverrides     map[string]map[string]SignalOverride `json:"contextOverrides,omitempty"`
 }
 
 type PersistencePolicyOverride struct {
@@ -134,8 +159,10 @@ type MetricsPolicy struct {
 	Enabled               bool `json:"enabled"`
 	PodMetricsTTLSeconds  int  `json:"podMetricsTtlSec"`
 	NodeMetricsTTLSeconds int  `json:"nodeMetricsTtlSec"`
-	ContainerNearLimitPct int  `json:"containerNearLimitPct"`
-	NodePressurePct       int  `json:"nodePressurePct"`
+	// Deprecated: use signals.detectors.container_near_limit.percent.
+	ContainerNearLimitPct int `json:"containerNearLimitPct"`
+	// Deprecated: use signals.detectors.node_resource_pressure.percent.
+	NodePressurePct int `json:"nodePressurePct"`
 }
 
 // SignalsPolicy governs detector thresholds used by dashboard, namespace insights,
@@ -148,11 +175,34 @@ type SignalsPolicy struct {
 	UnusedResourceAgeSec      int `json:"unusedResourceAgeSec"`
 	PodYoungRestartWindowSec  int `json:"podYoungRestartWindowSec"`
 	DeploymentUnavailableSec  int `json:"deploymentUnavailableSec"`
-	QuotaWarnPercent          int `json:"quotaWarnPercent"`
-	QuotaCriticalPercent      int `json:"quotaCriticalPercent"`
+	// Deprecated: use signals.detectors.resource_quota_pressure.warnPercent.
+	QuotaWarnPercent int `json:"quotaWarnPercent"`
+	// Deprecated: use signals.detectors.resource_quota_pressure.criticalPercent.
+	QuotaCriticalPercent int                   `json:"quotaCriticalPercent"`
+	Detectors            SignalDetectorsPolicy `json:"detectors"`
 
 	Overrides        map[string]SignalOverride            `json:"overrides,omitempty"`
 	ContextOverrides map[string]map[string]SignalOverride `json:"contextOverrides,omitempty"`
+}
+
+type SignalDetectorsPolicy struct {
+	PodRestarts           SignalPodRestartDetectorPolicy    `json:"pod_restarts"`
+	ContainerNearLimit    SignalPercentDetectorPolicy       `json:"container_near_limit"`
+	NodeResourcePressure  SignalPercentDetectorPolicy       `json:"node_resource_pressure"`
+	ResourceQuotaPressure SignalResourceQuotaDetectorPolicy `json:"resource_quota_pressure"`
+}
+
+type SignalPodRestartDetectorPolicy struct {
+	RestartCount int `json:"restartCount"`
+}
+
+type SignalPercentDetectorPolicy struct {
+	Percent int `json:"percent"`
+}
+
+type SignalResourceQuotaDetectorPolicy struct {
+	WarnPercent     int `json:"warnPercent"`
+	CriticalPercent int `json:"criticalPercent"`
 }
 
 // SignalOverride customizes a signal type. Nil fields inherit from the next
@@ -333,6 +383,21 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			DeploymentUnavailableSec:  int(signalDeploymentUnavailableDuration.Seconds()),
 			QuotaWarnPercent:          int(quotaWarnRatio * 100),
 			QuotaCriticalPercent:      int(quotaCritRatio * 100),
+			Detectors: SignalDetectorsPolicy{
+				PodRestarts: SignalPodRestartDetectorPolicy{
+					RestartCount: 3,
+				},
+				ContainerNearLimit: SignalPercentDetectorPolicy{
+					Percent: 90,
+				},
+				NodeResourcePressure: SignalPercentDetectorPolicy{
+					Percent: 85,
+				},
+				ResourceQuotaPressure: SignalResourceQuotaDetectorPolicy{
+					WarnPercent:     int(quotaWarnRatio * 100),
+					CriticalPercent: int(quotaCritRatio * 100),
+				},
+			},
 		},
 	}
 }
@@ -396,6 +461,42 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 15, 300, def.Metrics.NodeMetricsTTLSeconds)
 	out.Metrics.ContainerNearLimitPct = clampInt(out.Metrics.ContainerNearLimitPct, 50, 100, def.Metrics.ContainerNearLimitPct)
 	out.Metrics.NodePressurePct = clampInt(out.Metrics.NodePressurePct, 50, 100, def.Metrics.NodePressurePct)
+
+	// Backward compatibility: allow legacy dashboard/metrics/signal fields and
+	// migrate them into detector-specific signal config if detector values are missing.
+	if out.Signals.Detectors.PodRestarts.RestartCount <= 0 {
+		out.Signals.Detectors.PodRestarts.RestartCount = out.Dashboard.RestartElevatedThreshold
+	}
+	if out.Signals.Detectors.ContainerNearLimit.Percent <= 0 {
+		out.Signals.Detectors.ContainerNearLimit.Percent = out.Metrics.ContainerNearLimitPct
+	}
+	if out.Signals.Detectors.NodeResourcePressure.Percent <= 0 {
+		out.Signals.Detectors.NodeResourcePressure.Percent = out.Metrics.NodePressurePct
+	}
+	if out.Signals.Detectors.ResourceQuotaPressure.WarnPercent <= 0 {
+		out.Signals.Detectors.ResourceQuotaPressure.WarnPercent = out.Signals.QuotaWarnPercent
+	}
+	if out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent <= 0 {
+		out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent = out.Signals.QuotaCriticalPercent
+	}
+
+	out.Signals.Detectors.PodRestarts.RestartCount = clampInt(out.Signals.Detectors.PodRestarts.RestartCount, 1, 1000, def.Signals.Detectors.PodRestarts.RestartCount)
+	out.Signals.Detectors.ContainerNearLimit.Percent = clampInt(out.Signals.Detectors.ContainerNearLimit.Percent, 50, 100, def.Signals.Detectors.ContainerNearLimit.Percent)
+	out.Signals.Detectors.NodeResourcePressure.Percent = clampInt(out.Signals.Detectors.NodeResourcePressure.Percent, 50, 100, def.Signals.Detectors.NodeResourcePressure.Percent)
+	out.Signals.Detectors.ResourceQuotaPressure.WarnPercent = clampInt(out.Signals.Detectors.ResourceQuotaPressure.WarnPercent, 1, 99, def.Signals.Detectors.ResourceQuotaPressure.WarnPercent)
+	out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent = clampInt(out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent, 1, 100, def.Signals.Detectors.ResourceQuotaPressure.CriticalPercent)
+	if out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent <= out.Signals.Detectors.ResourceQuotaPressure.WarnPercent {
+		out.Signals.Detectors.ResourceQuotaPressure.WarnPercent = def.Signals.Detectors.ResourceQuotaPressure.WarnPercent
+		out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent = def.Signals.Detectors.ResourceQuotaPressure.CriticalPercent
+	}
+
+	// Keep deprecated fields mirrored for compatibility with older clients.
+	out.Dashboard.RestartElevatedThreshold = out.Signals.Detectors.PodRestarts.RestartCount
+	out.Metrics.ContainerNearLimitPct = out.Signals.Detectors.ContainerNearLimit.Percent
+	out.Metrics.NodePressurePct = out.Signals.Detectors.NodeResourcePressure.Percent
+	out.Signals.QuotaWarnPercent = out.Signals.Detectors.ResourceQuotaPressure.WarnPercent
+	out.Signals.QuotaCriticalPercent = out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent
+
 	out.Signals.LongRunningJobSec = clampInt(out.Signals.LongRunningJobSec, 60, 604800, def.Signals.LongRunningJobSec)
 	out.Signals.CronJobNoRecentSuccessSec = clampInt(out.Signals.CronJobNoRecentSuccessSec, 300, 2592000, def.Signals.CronJobNoRecentSuccessSec)
 	out.Signals.StaleHelmReleaseSec = clampInt(out.Signals.StaleHelmReleaseSec, 60, 86400, def.Signals.StaleHelmReleaseSec)
@@ -668,6 +769,25 @@ func applyDataplanePolicyOverride(global DataplanePolicy, override DataplanePoli
 		}
 		if ov.QuotaCriticalPercent != nil {
 			out.Signals.QuotaCriticalPercent = *ov.QuotaCriticalPercent
+		}
+		if ov.Detectors != nil {
+			if ov.Detectors.PodRestarts != nil && ov.Detectors.PodRestarts.RestartCount != nil {
+				out.Signals.Detectors.PodRestarts.RestartCount = *ov.Detectors.PodRestarts.RestartCount
+			}
+			if ov.Detectors.ContainerNearLimit != nil && ov.Detectors.ContainerNearLimit.Percent != nil {
+				out.Signals.Detectors.ContainerNearLimit.Percent = *ov.Detectors.ContainerNearLimit.Percent
+			}
+			if ov.Detectors.NodeResourcePressure != nil && ov.Detectors.NodeResourcePressure.Percent != nil {
+				out.Signals.Detectors.NodeResourcePressure.Percent = *ov.Detectors.NodeResourcePressure.Percent
+			}
+			if ov.Detectors.ResourceQuotaPressure != nil {
+				if ov.Detectors.ResourceQuotaPressure.WarnPercent != nil {
+					out.Signals.Detectors.ResourceQuotaPressure.WarnPercent = *ov.Detectors.ResourceQuotaPressure.WarnPercent
+				}
+				if ov.Detectors.ResourceQuotaPressure.CriticalPercent != nil {
+					out.Signals.Detectors.ResourceQuotaPressure.CriticalPercent = *ov.Detectors.ResourceQuotaPressure.CriticalPercent
+				}
+			}
 		}
 		if ov.Overrides != nil {
 			out.Signals.Overrides = cloneSignalOverrideMap(ov.Overrides)

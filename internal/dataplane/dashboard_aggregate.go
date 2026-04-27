@@ -45,7 +45,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	knownNS := visibleNamespacesWithCachedDataplaneLists(plane, nsNamesSorted)
 	cov.NamespacesInResourceTotals = len(knownNS)
 	cov.ResourceTotalsCompleteness = resourceTotalsCompletenessLabel(nsTotal, len(knownNS))
-	derived := buildDerivedDashboardProjections(plane, knownNS, int32(policy.RestartElevatedThreshold), nodesSnap, nodeState)
+	derived := buildDerivedDashboardProjections(plane, knownNS, thresholds.PodRestartCount, nodesSnap, nodeState)
 
 	res := ClusterDashboardResourcesPanel{
 		TotalNamespaces: nsTotal,
@@ -78,7 +78,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	now := time.Now()
 
 	for _, ns := range knownNS {
-		s := buildSnapshotSetForNamespace(plane, ns, int32(policy.RestartElevatedThreshold), p.Metrics.ContainerNearLimitPct, thresholds)
+		s := buildSnapshotSetForNamespace(plane, ns, thresholds)
 		if s.podsOK {
 			res.Pods += len(s.pods.Items)
 			aggregateMetas = append(aggregateMetas, s.pods.Meta)
@@ -156,7 +156,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		}
 		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(detectDashboardSignals(now, ns, s), p, plane.name)...)...)
 	}
-	signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, p.Metrics.NodePressurePct), p, plane.name)...)...)
+	signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), p, plane.name)...)...)
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
@@ -179,7 +179,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 // a single namespace and returns a fully populated dashboardSnapshotSet ready
 // for signal detection and resource counting. Adding a new resource kind only
 // requires touching this function and the struct definition below.
-func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThreshold int32, containerNearLimitPct int, thresholds resolvedSignalThresholds) dashboardSnapshotSet {
+func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, thresholds resolvedSignalThresholds) dashboardSnapshotSet {
 	podsSnap, podsOK := plane.podsStore.getCached(ns)
 	depsSnap, depsOK := plane.depsStore.getCached(ns)
 	dsSnap, dsOK := plane.dsStore.getCached(ns)
@@ -201,7 +201,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 	lrSnap, lrOK := plane.lrStore.getCached(ns)
 	podMetricsSnap, podMetricsOK := plane.podMetricsStore.getCached(ns)
 	return dashboardSnapshotSet{
-		restartThreshold:       restartThreshold,
+		restartThreshold:       thresholds.PodRestartCount,
 		pods:                   podsSnap,
 		podsOK:                 podsOK && podsSnap.Err == nil,
 		deps:                   depsSnap,
@@ -242,7 +242,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 		limitRangesOK:          lrOK && lrSnap.Err == nil,
 		podMetrics:             podMetricsSnap,
 		podMetricsOK:           podMetricsOK && podMetricsSnap.Err == nil,
-		containerNearLimitPct:  containerNearLimitPct,
+		containerNearLimitPct:  thresholds.ContainerNearLimitPct,
 		longRunningJobDuration: thresholds.LongRunningJobDuration,
 		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
 		staleHelmReleaseAge:    thresholds.StaleHelmReleaseDuration,
@@ -254,7 +254,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, restartThresho
 
 type dashboardSnapshotSet struct {
 	// restartThreshold is the minimum restart count to raise a pod restart signal.
-	// Set from policy.Dashboard.RestartElevatedThreshold; falls back to signalRestartMinThreshold.
+	// Set from policy.Signals.Detectors.PodRestarts.RestartCount.
 	restartThreshold int32
 
 	pods           PodsSnapshot
@@ -298,7 +298,7 @@ type dashboardSnapshotSet struct {
 	podMetrics     PodMetricsSnapshot
 	podMetricsOK   bool
 	// containerNearLimitPct is the minimum percent-of-limit required to raise
-	// a container_near_limit signal. Set from policy.Metrics.ContainerNearLimitPct.
+	// a container_near_limit signal. Set from policy.Signals.Detectors.ContainerNearLimit.Percent.
 	containerNearLimitPct  int
 	longRunningJobDuration time.Duration
 	cronJobNoSuccessAge    time.Duration

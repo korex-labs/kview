@@ -72,7 +72,9 @@ func TestDetectPodDetailSignals_YoungFrequentRestarts(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectPodDetailSignals(now, "team-a", tt.details, nil, signalThresholdsFromPolicy(DefaultDataplanePolicy()))
+			policy := DefaultDataplanePolicy()
+			policy.Signals.Detectors.PodRestarts.RestartCount = 5
+			got := DetectPodDetailSignals(now, "team-a", tt.details, nil, signalThresholdsFromPolicy(policy))
 			var got1 *ClusterDashboardSignal
 			for i := range got {
 				if got[i].SignalType == "pod_young_frequent_restarts" {

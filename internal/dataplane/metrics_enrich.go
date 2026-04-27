@@ -104,8 +104,8 @@ func EnrichPodListItemsWithSignalSummary(items []dto.PodListItemDTO, namespace s
 	set := dashboardSnapshotSet{
 		podsOK:                true,
 		pods:                  PodsSnapshot{Items: items},
-		restartThreshold:      int32(policy.Dashboard.RestartElevatedThreshold),
-		containerNearLimitPct: policy.Metrics.ContainerNearLimitPct,
+		restartThreshold:      int32(policy.Signals.Detectors.PodRestarts.RestartCount),
+		containerNearLimitPct: policy.Signals.Detectors.ContainerNearLimit.Percent,
 	}
 	if len(podMetricsItems) > 0 {
 		set.podMetricsOK = true

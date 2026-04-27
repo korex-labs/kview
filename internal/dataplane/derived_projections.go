@@ -323,7 +323,7 @@ func (m *manager) DerivedNodesSnapshot(ctx context.Context, clusterName string) 
 	}
 	plane := planeAny.(*clusterPlane)
 	knownNS := cachedPodNamespaces(plane)
-	proj := buildDerivedNodesProjection(plane, knownNS, int32(m.EffectivePolicy(clusterName).Dashboard.RestartElevatedThreshold), NodesSnapshot{}, "derived")
+	proj := buildDerivedNodesProjection(plane, knownNS, int32(m.EffectivePolicy(clusterName).Signals.Detectors.PodRestarts.RestartCount), NodesSnapshot{}, "derived")
 	items := make([]dto.NodeListItemDTO, 0, len(proj.Nodes))
 	for _, n := range proj.Nodes {
 		items = append(items, dto.NodeListItemDTO{
@@ -355,7 +355,7 @@ func (m *manager) DerivedNodeDetails(ctx context.Context, clusterName, nodeName 
 		return dto.NodeDetailsDTO{}, false, nil
 	}
 	knownNS := cachedPodNamespaces(plane)
-	proj := buildDerivedNodesProjection(plane, knownNS, int32(m.EffectivePolicy(clusterName).Dashboard.RestartElevatedThreshold), NodesSnapshot{}, "derived")
+	proj := buildDerivedNodesProjection(plane, knownNS, int32(m.EffectivePolicy(clusterName).Signals.Detectors.PodRestarts.RestartCount), NodesSnapshot{}, "derived")
 	var found *ClusterDashboardDerivedNode
 	for i := range proj.Nodes {
 		if proj.Nodes[i].Name == nodeName {

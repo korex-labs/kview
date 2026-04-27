@@ -157,3 +157,64 @@ func TestPolicyBundleManualProfileDisablesObserversAndEnrichment(t *testing.T) {
 		t.Fatalf("expected namespace sweep disabled for manual profile")
 	}
 }
+
+func TestValidateDataplanePolicy_MigratesLegacyThresholdsToSignalDetectors(t *testing.T) {
+	in := DefaultDataplanePolicy()
+	in.Dashboard.RestartElevatedThreshold = 7
+	in.Metrics.ContainerNearLimitPct = 91
+	in.Metrics.NodePressurePct = 89
+	in.Signals.QuotaWarnPercent = 77
+	in.Signals.QuotaCriticalPercent = 93
+	in.Signals.Detectors = SignalDetectorsPolicy{}
+
+	got := ValidateDataplanePolicy(in)
+	if got.Signals.Detectors.PodRestarts.RestartCount != 7 {
+		t.Fatalf("expected restart detector threshold 7, got %d", got.Signals.Detectors.PodRestarts.RestartCount)
+	}
+	if got.Signals.Detectors.ContainerNearLimit.Percent != 91 {
+		t.Fatalf("expected container_near_limit threshold 91, got %d", got.Signals.Detectors.ContainerNearLimit.Percent)
+	}
+	if got.Signals.Detectors.NodeResourcePressure.Percent != 89 {
+		t.Fatalf("expected node_resource_pressure threshold 89, got %d", got.Signals.Detectors.NodeResourcePressure.Percent)
+	}
+	if got.Signals.Detectors.ResourceQuotaPressure.WarnPercent != 77 || got.Signals.Detectors.ResourceQuotaPressure.CriticalPercent != 93 {
+		t.Fatalf("expected quota detector thresholds 77/93, got %+v", got.Signals.Detectors.ResourceQuotaPressure)
+	}
+}
+
+func TestValidateDataplanePolicy_PrefersDetectorThresholdsOverLegacyFields(t *testing.T) {
+	in := DefaultDataplanePolicy()
+	in.Dashboard.RestartElevatedThreshold = 4
+	in.Metrics.ContainerNearLimitPct = 80
+	in.Metrics.NodePressurePct = 80
+	in.Signals.QuotaWarnPercent = 60
+	in.Signals.QuotaCriticalPercent = 70
+	in.Signals.Detectors.PodRestarts.RestartCount = 9
+	in.Signals.Detectors.ContainerNearLimit.Percent = 96
+	in.Signals.Detectors.NodeResourcePressure.Percent = 94
+	in.Signals.Detectors.ResourceQuotaPressure.WarnPercent = 88
+	in.Signals.Detectors.ResourceQuotaPressure.CriticalPercent = 97
+
+	got := ValidateDataplanePolicy(in)
+	if got.Signals.Detectors.PodRestarts.RestartCount != 9 ||
+		got.Signals.Detectors.ContainerNearLimit.Percent != 96 ||
+		got.Signals.Detectors.NodeResourcePressure.Percent != 94 ||
+		got.Signals.Detectors.ResourceQuotaPressure.WarnPercent != 88 ||
+		got.Signals.Detectors.ResourceQuotaPressure.CriticalPercent != 97 {
+		t.Fatalf("expected detector thresholds to win, got %+v", got.Signals.Detectors)
+	}
+	// Legacy fields are mirrored from detector config for compatibility.
+	if got.Dashboard.RestartElevatedThreshold != 9 ||
+		got.Metrics.ContainerNearLimitPct != 96 ||
+		got.Metrics.NodePressurePct != 94 ||
+		got.Signals.QuotaWarnPercent != 88 ||
+		got.Signals.QuotaCriticalPercent != 97 {
+		t.Fatalf("expected legacy mirrors to match detector config, got dashboard=%d metrics=%d/%d quota=%d/%d",
+			got.Dashboard.RestartElevatedThreshold,
+			got.Metrics.ContainerNearLimitPct,
+			got.Metrics.NodePressurePct,
+			got.Signals.QuotaWarnPercent,
+			got.Signals.QuotaCriticalPercent,
+		)
+	}
+}
