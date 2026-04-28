@@ -50,6 +50,7 @@ import JobDrawer from "../jobs/JobDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
 import PodActions from "./PodActions";
+import EnvValueDisplay from "./EnvValueDisplay";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
@@ -78,6 +79,7 @@ import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import ContainerImageLabel from "../../shared/ContainerImageLabel";
 import AttentionSummary from "../../shared/AttentionSummary";
 import MetadataSection from "../../shared/MetadataSection";
+import InfoHint from "../../shared/InfoHint";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import StatusChip from "../../shared/StatusChip";
@@ -510,7 +512,8 @@ export default function PodDrawer(props: {
   const [err, setErr] = useState("");
   const [expandedContainers, setExpandedContainers] = useState<Record<string, boolean>>({});
   const [envQueryByContainer, setEnvQueryByContainer] = useState<Record<string, string>>({});
-  const [envShowRawByContainer, setEnvShowRawByContainer] = useState<Record<string, boolean>>({});
+  const [envShowRefsByContainer, setEnvShowRefsByContainer] = useState<Record<string, boolean>>({});
+  const [envPrettyByContainer, setEnvPrettyByContainer] = useState<Record<string, boolean>>({});
   const [networkingServices, setNetworkingServices] = useState<PodNetworkingService[]>([]);
   const [networkingServicesLoading, setNetworkingServicesLoading] = useState(false);
   const [networkingServicesLoaded, setNetworkingServicesLoaded] = useState(false);
@@ -815,7 +818,8 @@ export default function PodDrawer(props: {
     setWrapLines(false);
     setExpandedContainers({});
     setEnvQueryByContainer({});
-    setEnvShowRawByContainer({});
+    setEnvShowRefsByContainer({});
+    setEnvPrettyByContainer({});
     setNetworkingServices([]);
     setNetworkingServicesLoading(false);
     setNetworkingServicesLoaded(false);
@@ -869,7 +873,8 @@ export default function PodDrawer(props: {
         return next;
       });
       setEnvQueryByContainer({});
-      setEnvShowRawByContainer({});
+      setEnvShowRefsByContainer({});
+      setEnvPrettyByContainer({});
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
@@ -1480,7 +1485,8 @@ export default function PodDrawer(props: {
                       const unhealthy = !isContainerHealthy(ctn);
                       const containerKey = ctn.name ?? String(idx);
                       const envQuery = envQueryByContainer[containerKey] || "";
-                      const showRaw = envShowRawByContainer[containerKey] || false;
+                      const showRefs = envShowRefsByContainer[containerKey] || false;
+                      const prettyEnv = envPrettyByContainer[containerKey] || false;
                       const envFiltered = (ctn.env || []).filter((e) =>
                         String(e.name ?? "").toLowerCase().includes(envQuery.toLowerCase())
                       );
@@ -1661,16 +1667,42 @@ export default function PodDrawer(props: {
                                   <FormControlLabel
                                     control={
                                       <Switch
-                                        checked={showRaw}
+                                        checked={showRefs}
+                                        inputProps={{ "aria-label": "Show environment source references" }}
                                         onChange={(e) =>
-                                          setEnvShowRawByContainer((prev) => ({
+                                          setEnvShowRefsByContainer((prev) => ({
                                             ...prev,
                                             [containerKey]: e.target.checked,
                                           }))
                                         }
                                       />
                                     }
-                                    label="Raw values"
+                                    label={
+                                      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                                        <span>Show references</span>
+                                        <InfoHint title="Shows the exact env source reference, such as config-map:key, secret:key, metadata.name, or a resource field. This does not resolve ConfigMap or Secret contents; literal values are always shown." />
+                                      </Box>
+                                    }
+                                  />
+                                  <FormControlLabel
+                                    control={
+                                      <Switch
+                                        checked={prettyEnv}
+                                        inputProps={{ "aria-label": "Pretty environment values" }}
+                                        onChange={(e) =>
+                                          setEnvPrettyByContainer((prev) => ({
+                                            ...prev,
+                                            [containerKey]: e.target.checked,
+                                          }))
+                                        }
+                                      />
+                                    }
+                                    label={
+                                      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                                        <span>Pretty</span>
+                                        <InfoHint title="Decorates exact boolean-like values, debug and log-level strings with themed chips, and turns http:// or https:// values into clickable links. Plain mode preserves text-only rendering." />
+                                      </Box>
+                                    }
                                   />
                                 </Box>
                                 {(ctn.env || []).length === 0 ? (
@@ -1682,7 +1714,7 @@ export default function PodDrawer(props: {
                                     <TableHead>
                                       <TableRow>
                                         <TableCell>Name</TableCell>
-                                        <TableCell>Value</TableCell>
+                                        <TableCell>{showRefs ? "Value / Reference" : "Value"}</TableCell>
                                         <TableCell>Source</TableCell>
                                       </TableRow>
                                     </TableHead>
@@ -1691,11 +1723,10 @@ export default function PodDrawer(props: {
                                         <TableRow key={`${containerKey}-env-${e.name ?? envIdx}`}>
                                           <TableCell>{valueOrDash(e.name)}</TableCell>
                                           <TableCell>
-                                            {e.source === "Value"
-                                              ? valueOrDash(e.value)
-                                              : showRaw
-                                              ? valueOrDash(e.sourceRef)
-                                              : valueOrDash(e.source)}
+                                            <EnvValueDisplay
+                                              value={e.source === "Value" ? e.value : showRefs ? e.sourceRef : undefined}
+                                              pretty={prettyEnv}
+                                            />
                                           </TableCell>
                                           <TableCell>
                                             {e.source === "Value" ? "Literal" : valueOrDash(e.source)}
