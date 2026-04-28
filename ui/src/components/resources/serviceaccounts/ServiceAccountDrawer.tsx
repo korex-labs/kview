@@ -15,6 +15,7 @@ import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import MetadataSection from "../../shared/MetadataSection";
 import EventsList from "../../shared/EventsList";
 import EventsPanel from "../../shared/EventsPanel";
@@ -235,14 +236,14 @@ export default function ServiceAccountDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <ServiceAccountActions
                         token={props.token}
                         namespace={ns}
                         serviceAccountName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

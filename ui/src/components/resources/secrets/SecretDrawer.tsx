@@ -17,6 +17,7 @@ import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { detectLanguageFromKey } from "../../../utils/syntaxDetect";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
@@ -210,14 +211,14 @@ export default function SecretDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <SecretActions
                         token={props.token}
                         namespace={ns}
                         secretName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

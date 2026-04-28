@@ -171,6 +171,32 @@ function getSmartDefaultCollapsed(lines: string[], blockRanges: Map<number, numb
   return collapsed;
 }
 
+function blockKeyStart(line: string) {
+  return line.match(/^(\s*)/)?.[1].length ?? 0;
+}
+
+function guideLevelForIndent(indent: number) {
+  return Math.max(0, Math.floor(indent / 2));
+}
+
+function BlockSeparator({ indent }: { indent: number }) {
+  return (
+    <Box
+      component="span"
+      aria-hidden="true"
+      sx={{
+        display: "block",
+        height: 0,
+        mt: 0.15,
+        ml: `${indent}ch`,
+        borderBottom: "1px solid",
+        borderColor: "var(--code-line-number)",
+        opacity: 0.32,
+      }}
+    />
+  );
+}
+
 function PlainCodeContent({
   code,
   showLineNumbers = false,
@@ -210,6 +236,31 @@ function PlainCodeContent({
     return hidden;
   }, [collapsed, blockRanges]);
 
+  const expandedBlockEnds = useMemo(() => {
+    const ends = new Map<number, number[]>();
+    for (const [start, end] of blockRanges) {
+      if (collapsed.has(start)) continue;
+      const starts = ends.get(end) || [];
+      starts.push(start);
+      ends.set(end, starts);
+    }
+    return ends;
+  }, [blockRanges, collapsed]);
+
+  const guideLevelsByLine = useMemo(() => {
+    const guides = new Map<number, number[]>();
+    for (const [start, end] of blockRanges) {
+      if (collapsed.has(start)) continue;
+      const level = guideLevelForIndent(getLineIndent(lines[start]) ?? 0);
+      for (let i = start; i <= end; i++) {
+        const levels = guides.get(i) || [];
+        levels.push(level);
+        guides.set(i, levels);
+      }
+    }
+    return guides;
+  }, [blockRanges, collapsed, lines]);
+
   const toggleCollapse = useCallback((lineIndex: number) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -219,8 +270,24 @@ function PlainCodeContent({
     });
   }, []);
 
+  const expandBlock = useCallback((lineIndex: number) => {
+    setCollapsed((prev) => {
+      if (!prev.has(lineIndex)) return prev;
+      const next = new Set(prev);
+      next.delete(lineIndex);
+      return next;
+    });
+  }, []);
+
   if (showLineNumbers) {
     const width = String(Math.max(lines.length, 1)).length;
+    const maxGuideLevel = Math.max(
+      0,
+      ...Array.from(blockRanges.keys()).map((lineIndex) =>
+        guideLevelForIndent(getLineIndent(lines[lineIndex]) ?? 0),
+      ),
+    );
+    const guideGutterWidth = Math.max(1.4, (maxGuideLevel + 1) * 0.75);
     return (
       <Box
         component="pre"
@@ -241,88 +308,159 @@ function PlainCodeContent({
           const isBlockHeader = blockEnd !== undefined;
           const isCollapsed = isBlockHeader && collapsed.has(idx);
           const childCount = isBlockHeader ? blockEnd - idx : 0;
+          const endingBlocks = expandedBlockEnds.get(idx) || [];
+          const guideLevels = guideLevelsByLine.get(idx) || [];
+          const keyIndent = blockKeyStart(line);
 
           return (
-            <Box key={idx} component="span" sx={{ display: "flex", minWidth: "max-content" }}>
-              {/* Fold indicator column — only visible for block headers */}
+            <React.Fragment key={idx}>
               <Box
                 component="span"
-                onClick={isBlockHeader ? () => toggleCollapse(idx) : undefined}
-                title={isBlockHeader ? (isCollapsed ? "Expand" : "Collapse") : undefined}
-                sx={{
-                  flex: "0 0 auto",
-                  width: "1.4ch",
-                  textAlign: "center",
-                  cursor: isBlockHeader ? "pointer" : "default",
-                  color: isCollapsed ? "var(--chip-info-fg)" : "var(--code-line-number)",
-                  userSelect: "none",
-                  visibility: isBlockHeader ? "visible" : "hidden",
-                  opacity: 0.7,
-                  "&:hover": isBlockHeader ? { opacity: 1 } : {},
-                  fontSize: "0.7em",
-                  lineHeight: "inherit",
-                }}
+                onDoubleClick={isCollapsed ? () => expandBlock(idx) : undefined}
+                sx={{ display: "flex", minWidth: "max-content", cursor: isCollapsed ? "default" : undefined }}
               >
-                {isCollapsed ? "▸" : "▾"}
-              </Box>
+                {/* Fold indicator column — only visible for block headers */}
+                <Box
+                  component="span"
+                  onClick={isBlockHeader ? () => toggleCollapse(idx) : undefined}
+                  title={isBlockHeader ? (isCollapsed ? "Expand" : "Collapse") : undefined}
+                  sx={{
+                    flex: "0 0 auto",
+                    width: "2.4ch",
+                    minHeight: "1.6em",
+                    textAlign: "center",
+                    cursor: isBlockHeader ? "pointer" : "default",
+                    color: isCollapsed ? "var(--chip-info-fg)" : "var(--code-text)",
+                    userSelect: "none",
+                    visibility: isBlockHeader ? "visible" : "hidden",
+                    opacity: isBlockHeader ? 0.95 : 0,
+                    "&:hover": isBlockHeader
+                      ? {
+                          backgroundColor: "action.hover",
+                          color: "var(--chip-info-fg)",
+                          opacity: 1,
+                        }
+                      : {},
+                    borderRadius: 0.5,
+                    fontSize: "1rem",
+                    fontWeight: 800,
+                    lineHeight: "inherit",
+                  }}
+                >
+                  {isCollapsed ? "▸" : "▾"}
+                </Box>
 
-              {/* Line number */}
-              <Box
-                component="span"
-                sx={{
-                  flex: "0 0 auto",
-                  width: `${width + 1}ch`,
-                  pr: 1,
-                  color: "var(--code-line-number)",
-                  opacity: 0.9,
-                  textAlign: "right",
-                  userSelect: "none",
-                }}
-              >
-                {idx + 1}
-              </Box>
+                <Box
+                  component="span"
+                  aria-hidden="true"
+                  sx={{
+                    flex: "0 0 auto",
+                    width: `${guideGutterWidth}ch`,
+                    position: "relative",
+                    minHeight: "1.5em",
+                    userSelect: "none",
+                  }}
+                >
+                  {guideLevels.map((level, guideIdx) => (
+                    <Box
+                      key={`${level}-${guideIdx}`}
+                      component="span"
+                      sx={{
+                        position: "absolute",
+                        left: `${level * 0.75 + 0.35}ch`,
+                        top: 0,
+                        bottom: 0,
+                        borderLeft: "1px solid",
+                        borderColor: "var(--code-line-number)",
+                        opacity: 0.22,
+                      }}
+                    />
+                  ))}
+                </Box>
 
-              {/* Code content */}
-              <Box
-                component="code"
-                sx={{ whiteSpace: "pre-wrap", wordBreak: "normal", overflowWrap: "anywhere" }}
-              >
-                {line
-                  ? yamlLineParts(line).map((part, partIdx) => (
-                      <Box
-                        key={partIdx}
-                        component="span"
-                        sx={{
-                          color:
-                            part.kind === "key"
-                              ? "var(--chip-info-fg)"
-                              : part.kind === "comment"
-                                ? "var(--code-line-number)"
-                                : part.kind === "punctuation"
+                {/* Line number */}
+                <Box
+                  component="span"
+                  sx={{
+                    flex: "0 0 auto",
+                    width: `${width + 1}ch`,
+                    pr: 1,
+                    color: "var(--code-line-number)",
+                    opacity: 0.9,
+                    textAlign: "right",
+                    userSelect: "none",
+                  }}
+                >
+                  {idx + 1}
+                </Box>
+
+                {/* Code content */}
+                <Box
+                  component="code"
+                  sx={{
+                    flex: "1 0 auto",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "normal",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {line
+                    ? yamlLineParts(line).map((part, partIdx) => (
+                        <Box
+                          key={partIdx}
+                          component="span"
+                          sx={{
+                            color:
+                              part.kind === "key"
+                                ? "var(--chip-info-fg)"
+                                : part.kind === "comment"
                                   ? "var(--code-line-number)"
-                                  : "var(--code-text)",
-                        }}
-                      >
-                        {part.text}
-                      </Box>
-                    ))
-                  : " "}
-                {isCollapsed && (
+                                  : part.kind === "punctuation"
+                                    ? "var(--code-line-number)"
+                                    : "var(--code-text)",
+                          }}
+                        >
+                          {part.text}
+                        </Box>
+                      ))
+                    : " "}
+                  {isCollapsed && (
+                    <Box
+                      component="span"
+                      onDoubleClick={() => expandBlock(idx)}
+                      sx={{
+                        color: "var(--code-line-number)",
+                        opacity: 0.65,
+                        ml: 1,
+                        fontSize: "0.85em",
+                        fontStyle: "italic",
+                        cursor: "default",
+                        userSelect: "none",
+                      }}
+                    >
+                      ⋯ {childCount} lines
+                    </Box>
+                  )}
+                  {isCollapsed && <BlockSeparator indent={keyIndent} />}
+                </Box>
+              </Box>
+
+              {endingBlocks.map((startLine) => (
+                <Box key={`end-${startLine}`} component="span" sx={{ display: "flex", minWidth: "max-content" }}>
                   <Box
                     component="span"
                     sx={{
-                      color: "var(--code-line-number)",
-                      opacity: 0.55,
-                      ml: 1,
-                      fontSize: "0.85em",
-                      fontStyle: "italic",
+                      flex: "0 0 auto",
+                      width: `calc(2.4ch + ${guideGutterWidth}ch + ${width + 1}ch)`,
+                      pr: 1,
                     }}
-                  >
-                    ⋯ {childCount} lines
+                  />
+                  <Box component="code" sx={{ flex: "1 0 auto", whiteSpace: "pre-wrap" }}>
+                    <BlockSeparator indent={blockKeyStart(lines[startLine] || "")} />
                   </Box>
-                )}
-              </Box>
-            </Box>
+                </Box>
+              ))}
+            </React.Fragment>
           );
         })}
       </Box>

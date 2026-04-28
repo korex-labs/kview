@@ -12,6 +12,7 @@ import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { pvcPhaseChipColor } from "../../../utils/k8sUi";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
@@ -284,14 +285,14 @@ export default function PersistentVolumeClaimDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <PVCActions
                         token={props.token}
                         namespace={ns}
                         pvcName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

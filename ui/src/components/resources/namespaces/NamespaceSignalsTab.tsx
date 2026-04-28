@@ -24,6 +24,7 @@ import type {
 import AttentionSummary from "../../shared/AttentionSummary";
 import EmptyState from "../../shared/EmptyState";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
@@ -207,9 +208,9 @@ export default function NamespaceSignalsTab({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-      <Section title="Actions" divider={false}>
+      <DrawerActionStrip>
         <NamespaceActions token={token} namespaceName={namespaceName} onDeleted={onClose} />
-      </Section>
+      </DrawerActionStrip>
 
       <AttentionSummary
         signals={signals}

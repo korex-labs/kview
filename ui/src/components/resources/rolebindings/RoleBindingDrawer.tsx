@@ -24,6 +24,7 @@ import EventsList from "../../shared/EventsList";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import RoleDrawer from "../roles/RoleDrawer";
 import ClusterRoleDrawer from "../clusterroles/ClusterRoleDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -202,14 +203,14 @@ export default function RoleBindingDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <RoleBindingActions
                         token={props.token}
                         namespace={ns}
                         roleBindingName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

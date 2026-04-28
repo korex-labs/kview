@@ -26,6 +26,7 @@ import PodDrawer from "../pods/PodDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
 import KeyValueChip from "../../shared/KeyValueChip";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
@@ -408,7 +409,7 @@ export default function ServiceDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         <ServiceActions
                           token={props.token}
@@ -430,7 +431,7 @@ export default function ServiceDrawer(props: {
                           Port forward
                         </Button>
                       </Box>
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

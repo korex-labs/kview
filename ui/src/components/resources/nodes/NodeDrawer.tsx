@@ -26,6 +26,7 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import { formatCPUMilli, formatMemoryBytes, formatPct, severityForPct } from "../../metrics/format";
@@ -218,13 +219,13 @@ export default function NodeDrawer(props: {
                   ) : null}
 
                   {name && !derived && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <NodeActions
                         token={props.token}
                         nodeName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

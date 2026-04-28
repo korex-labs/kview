@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Box, Button, Stack } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
 import CodeBlock from "./CodeBlock";
+import DrawerActionStrip from "./DrawerActionStrip";
 import YamlEditDialog from "./YamlEditDialog";
 import { canPatchOrUpdate, RBAC_DISABLED_REASON, useResourceCapabilities } from "../mutations/useResourceCapabilities";
 import { useUserSettings } from "../../settingsContext";
@@ -44,7 +45,7 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%" }}>
-      <Stack direction="row" spacing={1} justifyContent="flex-end" useFlexGap flexWrap="wrap">
+      <DrawerActionStrip>
         <Button size="small" variant="outlined" startIcon={<ContentCopyIcon />} onClick={handleCopy}>
           {copied ? "Copied" : "Copy"}
         </Button>
@@ -60,7 +61,7 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
             Edit
           </Button>
         )}
-      </Stack>
+      </DrawerActionStrip>
       <Box sx={{ minHeight: 0, flex: 1 }}>
         <CodeBlock code={code} language="yaml" showCopy={false} smartCollapse={settings.appearance.yamlSmartCollapse} />
       </Box>

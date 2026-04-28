@@ -24,6 +24,7 @@ import EventsList from "../../shared/EventsList";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ClusterRoleActions from "./ClusterRoleActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -164,13 +165,13 @@ export default function ClusterRoleDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <ClusterRoleActions
                         token={props.token}
                         clusterRoleName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

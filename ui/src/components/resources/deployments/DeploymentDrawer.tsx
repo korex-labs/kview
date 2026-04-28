@@ -17,6 +17,7 @@ import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import DeploymentActions from "./DeploymentActions";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import PodDrawer from "../pods/PodDrawer";
 import ReplicaSetDrawer from "../replicasets/ReplicaSetDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
@@ -348,7 +349,7 @@ export default function DeploymentDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <DeploymentActions
                         token={props.token}
                         namespace={ns}
@@ -357,7 +358,7 @@ export default function DeploymentDrawer(props: {
                         onRefresh={() => setRefreshNonce((n) => n + 1)}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

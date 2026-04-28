@@ -174,7 +174,7 @@ export function DeleteOnlyActions({
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Delete"
         color="error"
@@ -268,7 +268,7 @@ export function WorkloadScaleRestartDeleteActions({
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Scale"
         descriptor={buildScaleDescriptor({
@@ -392,7 +392,7 @@ export function WorkloadRestartDeleteActions({
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Restart"
         descriptor={buildRestartDescriptor({
@@ -500,7 +500,7 @@ export function WorkloadScaleDeleteActions({
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Scale"
         descriptor={buildScaleDescriptor({

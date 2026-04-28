@@ -7,7 +7,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Lifecycle & Scheduling",
       ],
     },
@@ -28,7 +27,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -47,7 +45,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -66,7 +63,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -85,7 +81,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -104,7 +99,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -123,7 +117,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -142,7 +135,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Ports",
         "Traffic Notes",
         "External URLs",
@@ -163,7 +155,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "URLs",
         "Default Backend",
         "Recent Warning events",
@@ -184,7 +175,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -202,7 +192,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -220,7 +209,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Size",
         "Recent Warning events",
       ],
@@ -239,7 +227,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -257,7 +244,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -275,7 +261,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -293,7 +278,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -312,7 +296,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -330,7 +313,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },
@@ -349,7 +331,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Description",
         "Managed Resources",
       ],
@@ -382,7 +363,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
       "hasAttentionSummary": true,
       "sections": [
         "Derived Projection",
-        "Actions",
         "Capacity",
         "Taints",
       ],
@@ -401,7 +381,6 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "overview": {
       "hasAttentionSummary": true,
       "sections": [
-        "Actions",
         "Recent Warning events",
       ],
     },

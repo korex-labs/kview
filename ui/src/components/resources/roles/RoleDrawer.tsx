@@ -23,6 +23,7 @@ import EventsList from "../../shared/EventsList";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import RoleActions from "./RoleActions";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -186,14 +187,14 @@ export default function RoleDrawer(props: {
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <RoleActions
                         token={props.token}
                         namespace={ns}
                         roleName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

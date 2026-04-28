@@ -24,6 +24,7 @@ import EventsList from "../../shared/EventsList";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ClusterRoleDrawer from "../clusterroles/ClusterRoleDrawer";
 import ClusterRoleBindingActions from "./ClusterRoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
@@ -171,13 +172,13 @@ export default function ClusterRoleBindingDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <ClusterRoleBindingActions
                         token={props.token}
                         clusterRoleBindingName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

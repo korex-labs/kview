@@ -70,6 +70,7 @@ import {
 import ServiceAccountDrawer from "../serviceaccounts/ServiceAccountDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
 import AccessDeniedState from "../../shared/AccessDeniedState";
 import EmptyState from "../../shared/EmptyState";
@@ -318,6 +319,10 @@ function isContainerHealthy(ctn: PodContainer) {
   if (!ctn.ready) return false;
   if (!ctn.state) return false;
   return ctn.state === "Running";
+}
+
+function isContainerActionAvailable(ctn: PodContainer | undefined) {
+  return ctn?.state === "Running";
 }
 
 function containerStateColor(state?: string): "success" | "warning" | "error" | "default" {
@@ -573,12 +578,16 @@ export default function PodDrawer(props: {
     if (!name) return "";
     return `/api/namespaces/${encodeURIComponent(ns)}/pods/${encodeURIComponent(name)}/logs/ws`;
   }, [name, ns]);
+  const actionableContainers = useMemo(
+    () => (details?.containers || []).filter(isContainerActionAvailable),
+    [details],
+  );
   const commandContainers = useMemo(
     () =>
-      (details?.containers || [])
+      actionableContainers
         .map((c) => c.name)
         .filter((containerName): containerName is string => Boolean(containerName)),
-    [details],
+    [actionableContainers],
   );
   const matchingCommandsByContainer = useMemo(() => {
     const out: Record<string, CustomCommandDefinition[]> = {};
@@ -659,7 +668,8 @@ export default function PodDrawer(props: {
   }, [props.open, name]);
 
   const openTerminalForContainer = async (containerName: string) => {
-    if (!name || !containerName || offline) return;
+    const target = (details?.containers || []).find((ctn) => ctn.name === containerName);
+    if (!name || !containerName || offline || !isContainerActionAvailable(target)) return;
     try {
       setCreatingTerminal(true);
       const sessionId = await createTerminalSession(
@@ -684,7 +694,8 @@ export default function PodDrawer(props: {
   };
 
   const runConfiguredCommand = async (containerName: string, command: CustomCommandDefinition) => {
-    if (!name || !containerName || offline || runningCommand) return;
+    const target = (details?.containers || []).find((ctn) => ctn.name === containerName);
+    if (!name || !containerName || offline || runningCommand || !isContainerActionAvailable(target)) return;
     const label = command.name || command.command;
     openMutationDialog({
       token: props.token,
@@ -754,7 +765,7 @@ export default function PodDrawer(props: {
   };
 
   const handleOpenPortForwardDialog = () => {
-    if (offline) return;
+    if (offline || actionableContainers.length === 0) return;
     setPortForwardError("");
     if (knownPodPortOptions.length > 0) {
       setPortForwardRemotePort(knownPodPortOptions[0].value);
@@ -766,7 +777,7 @@ export default function PodDrawer(props: {
   };
 
   const handleCreatePortForward = async () => {
-    if (!name || offline) return;
+    if (!name || offline || actionableContainers.length === 0) return;
     const remote = Number(portForwardRemotePort);
     if (!Number.isFinite(remote) || remote <= 0) {
       setPortForwardError("Remote port must be a positive number.");
@@ -855,8 +866,12 @@ export default function PodDrawer(props: {
       // default container
       const containers = item?.containers || [];
       const containerNames = containers.map((c) => c.name).filter((n): n is string => !!n);
+      const actionableContainerNames = containers
+        .filter(isContainerActionAvailable)
+        .map((c) => c.name)
+        .filter((n): n is string => !!n);
       setContainer(containerNames[0] || "");
-      setTerminalContainer(containerNames[0] || "");
+      setTerminalContainer(actionableContainerNames[0] || "");
       setExpandedContainers(() => {
         const next: Record<string, boolean> = {};
         const unhealthy = containers
@@ -1026,7 +1041,7 @@ export default function PodDrawer(props: {
   const knownPodPortOptions = useMemo<PortForwardOption[]>(() => {
     const opts: PortForwardOption[] = [];
     const seen = new Set<string>();
-    (details?.containers || []).forEach((ctn) => {
+    actionableContainers.forEach((ctn) => {
       (ctn.ports || []).forEach((p) => {
         const port = Number(p.containerPort || 0);
         if (!Number.isFinite(port) || port <= 0) return;
@@ -1042,7 +1057,7 @@ export default function PodDrawer(props: {
       });
     });
     return opts.sort((a, b) => Number(a.value) - Number(b.value));
-  }, [details]);
+  }, [actionableContainers]);
   const eventContainers = (details?.containers || []).map((c) => c.name).filter((n): n is string => !!n);
   const openContainerFromEvent = (containerName: string) => {
     if (!eventContainers.includes(containerName)) return;
@@ -1168,10 +1183,12 @@ export default function PodDrawer(props: {
   const ingressesAccessDenied =
     networkingIngressesErr?.status === 401 || networkingIngressesErr?.status === 403;
   const commandMenuItems = commandMenuContainer
-    ? (matchingCommandsByContainer[commandMenuContainer] || []).map((command) => ({
-        containerName: commandMenuContainer,
-        command,
-      }))
+    ? commandContainers.includes(commandMenuContainer)
+      ? (matchingCommandsByContainer[commandMenuContainer] || []).map((command) => ({
+          containerName: commandMenuContainer,
+          command,
+        }))
+      : []
     : overviewCommandItems;
   const selectedCommand = commandResult?.command;
   const selectedResult = commandResult?.result;
@@ -1343,42 +1360,43 @@ export default function PodDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <PodActions
-                          token={props.token}
-                          namespace={ns}
-                          podName={name}
-                          onDeleted={props.onClose}
-                        />
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={offline || creatingTerminal || !details || (details.containers || []).length === 0}
-                          onClick={(e) => {
-                            if (!details) return;
-                            setTerminalMenuAnchor(e.currentTarget);
-                          }}
-                        >
-                          Terminal
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={offline || creatingPortForward || !details}
-                          onClick={handleOpenPortForwardDialog}
-                        >
-                          Port forward
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={offline || runningCommand || overviewCommandItems.length === 0}
-                          onClick={(e) => setCommandMenuAnchor(e.currentTarget)}
-                        >
-                          Commands
-                        </Button>
-                      </Box>
+                    <DrawerActionStrip>
+                      <PodActions
+                        token={props.token}
+                        namespace={ns}
+                        podName={name}
+                        onDeleted={props.onClose}
+                      />
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={offline || creatingTerminal || actionableContainers.length === 0}
+                        onClick={(e) => {
+                          if (!details) return;
+                          setTerminalMenuAnchor(e.currentTarget);
+                        }}
+                      >
+                        Terminal
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={offline || creatingPortForward || actionableContainers.length === 0}
+                        onClick={handleOpenPortForwardDialog}
+                      >
+                        Port forward
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={offline || runningCommand || overviewCommandItems.length === 0}
+                        onClick={(e) => {
+                          setCommandMenuContainer("");
+                          setCommandMenuAnchor(e.currentTarget);
+                        }}
+                      >
+                        Commands
+                      </Button>
                       <Menu
                         anchorEl={terminalMenuAnchor}
                         open={!!terminalMenuAnchor}
@@ -1386,7 +1404,7 @@ export default function PodDrawer(props: {
                         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
                         transformOrigin={{ vertical: "top", horizontal: "left" }}
                       >
-                        {(details?.containers || [])
+                        {actionableContainers
                           .map((c) => c.name)
                           .filter((n): n is string => !!n)
                           .map((containerName) => (
@@ -1402,7 +1420,7 @@ export default function PodDrawer(props: {
                             </MenuItem>
                           ))}
                       </Menu>
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary
@@ -1503,44 +1521,49 @@ export default function PodDrawer(props: {
                           }}
                         >
                           <Box sx={{ pb: 1 }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flexGrow: 1 }}>
-                              <Typography variant="subtitle2">{valueOrDash(ctn.name)}</Typography>
-                              <Chip size="small" label={ctn.state || "Unknown"} color={containerStateColor(ctn.state)} />
-                              <Chip
-                                size="small"
-                                label={ctn.ready ? "Ready" : "Not Ready"}
-                                color={ctn.ready ? "success" : "warning"}
-                              />
-                              <Chip size="small" label={`Restarts: ${ctn.restartCount ?? 0}`} />
-                              {unhealthy && <Chip size="small" color="error" label="Attention" />}
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                disabled={offline || creatingTerminal || !ctn.name}
-                                onClick={(e) => {
-                                  if (!ctn.name) return;
-                                  void openTerminalForContainer(ctn.name);
-                                }}
-                              >
-                                Terminal
-                              </Button>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                disabled={
-                                  offline ||
-                                  runningCommand ||
-                                  !ctn.name ||
-                                  (matchingCommandsByContainer[ctn.name] || []).length === 0
-                                }
-                                onClick={(e) => {
-                                  if (!ctn.name) return;
-                                  setCommandMenuContainer(ctn.name);
-                                  setCommandMenuAnchor(e.currentTarget);
-                                }}
-                              >
-                                Commands
-                              </Button>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0, flex: "1 1 auto" }}>
+                                <Typography variant="subtitle2">{valueOrDash(ctn.name)}</Typography>
+                                <Chip size="small" label={ctn.state || "Unknown"} color={containerStateColor(ctn.state)} />
+                                <Chip
+                                  size="small"
+                                  label={ctn.ready ? "Ready" : "Not Ready"}
+                                  color={ctn.ready ? "success" : "warning"}
+                                />
+                                <Chip size="small" label={`Restarts: ${ctn.restartCount ?? 0}`} />
+                                {unhealthy && <Chip size="small" color="error" label="Attention" />}
+                              </Box>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", ml: "auto" }}>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  disabled={offline || creatingTerminal || !ctn.name || !isContainerActionAvailable(ctn)}
+                                  onClick={() => {
+                                    if (!ctn.name) return;
+                                    void openTerminalForContainer(ctn.name);
+                                  }}
+                                >
+                                  Terminal
+                                </Button>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  disabled={
+                                    offline ||
+                                    runningCommand ||
+                                    !ctn.name ||
+                                    !isContainerActionAvailable(ctn) ||
+                                    (matchingCommandsByContainer[ctn.name] || []).length === 0
+                                  }
+                                  onClick={(e) => {
+                                    if (!ctn.name) return;
+                                    setCommandMenuContainer(ctn.name);
+                                    setCommandMenuAnchor(e.currentTarget);
+                                  }}
+                                >
+                                  Commands
+                                </Button>
+                              </Box>
                             </Box>
                           </Box>
                             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>

@@ -25,6 +25,7 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import MetadataSection from "../../shared/MetadataSection";
 import AttentionSummary from "../../shared/AttentionSummary";
@@ -277,7 +278,7 @@ export default function DaemonSetDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <DaemonSetActions
                         token={props.token}
                         namespace={ns}
@@ -285,7 +286,7 @@ export default function DaemonSetDrawer(props: {
                         onRefresh={() => setRefreshNonce((n) => n + 1)}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary

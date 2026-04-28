@@ -26,6 +26,7 @@ import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
 import ErrorState from "../../shared/ErrorState";
 import Section from "../../shared/Section";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import AttentionSummary from "../../shared/AttentionSummary";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
@@ -315,14 +316,14 @@ export default function JobDrawer(props: {
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
-                    <Section title="Actions" divider={false}>
+                    <DrawerActionStrip>
                       <JobActions
                         token={props.token}
                         namespace={ns}
                         jobName={name}
                         onDeleted={props.onClose}
                       />
-                    </Section>
+                    </DrawerActionStrip>
                   )}
 
                   <AttentionSummary
