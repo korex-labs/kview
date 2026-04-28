@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import {
   Box,
   Chip,
+  LinearProgress,
   Paper,
   Table,
   TableBody,
@@ -293,6 +294,7 @@ type Props = {
   restartElevatedThreshold?: number;
   onInspect: (target: InspectTarget) => void;
   derived?: DerivedData;
+  loading?: boolean;
 };
 
 export default function DashboardSignalsPanel({
@@ -309,6 +311,7 @@ export default function DashboardSignalsPanel({
   onSignalsRowsPerPageChange,
   onInspect,
   derived,
+  loading = false,
 }: Props) {
   const topSignals = signalPanel?.top || [];
   const visibleSignals = signalPanel?.items || [];
@@ -460,10 +463,12 @@ export default function DashboardSignalsPanel({
             sx={{ minWidth: { xs: "100%", sm: 280 } }}
           />
           <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-            Showing {derivedFilter ? pagedDerivedRows.length : visibleSignals.length} of {visibleSignalsTotal}{" "}
-            {selectedFilterLabel.toLowerCase()} {derivedFilter ? "row" : "signal"}{visibleSignalsTotal === 1 ? "" : "s"}.
+            {loading
+              ? "Loading matching signals..."
+              : `Showing ${derivedFilter ? pagedDerivedRows.length : visibleSignals.length} of ${visibleSignalsTotal} ${selectedFilterLabel.toLowerCase()} ${derivedFilter ? "row" : "signal"}${visibleSignalsTotal === 1 ? "" : "s"}.`}
           </Typography>
         </Box>
+        {loading ? <LinearProgress sx={{ mb: 1 }} /> : null}
 
         {derivedFilter ? (
           pagedDerivedRows.length === 0 ? (

@@ -41,16 +41,22 @@ function setCached(key: string, res: CanIResponse) {
 
 async function fetchCanI(
   token: string,
+  contextName: string,
   verb: string,
   resource: AccessReviewResource,
   namespace: string | null,
 ): Promise<CanIResponse> {
-  return apiPost<CanIResponse>("/api/auth/can-i", token, {
-    verb,
-    resource: resource.resource,
-    group: resource.group,
-    namespace,
-  });
+  return apiPost<CanIResponse>(
+    "/api/auth/can-i",
+    token,
+    {
+      verb,
+      resource: resource.resource,
+      group: resource.group,
+      namespace,
+    },
+    contextName ? { headers: { "X-Kview-Context": contextName } } : undefined,
+  );
 }
 
 export default function useEmptyListAccessCheck({
@@ -60,6 +66,7 @@ export default function useEmptyListAccessCheck({
   loading,
   resource,
   namespace,
+  contextName = "",
   verb = "list",
 }: {
   token: string;
@@ -68,6 +75,7 @@ export default function useEmptyListAccessCheck({
   loading: boolean;
   resource: AccessReviewResource;
   namespace?: string | null;
+  contextName?: string;
   verb?: string;
 }) {
   const [accessDenied, setAccessDenied] = useState(false);
@@ -75,7 +83,10 @@ export default function useEmptyListAccessCheck({
   const nsValue = namespace ?? null;
 
   const shouldCheck = health === "healthy" && !loading && !error && itemsLength === 0;
-  const key = useMemo(() => buildKey(token, verb, resource, nsValue), [token, verb, resource, nsValue]);
+  const key = useMemo(
+    () => [contextName, buildKey(token, verb, resource, nsValue)].join("|"),
+    [contextName, token, verb, resource, nsValue],
+  );
 
   useEffect(() => {
     if (!shouldCheck) {
@@ -94,7 +105,7 @@ export default function useEmptyListAccessCheck({
 
     let promise = inflight.get(key);
     if (!promise) {
-      promise = fetchCanI(token, verb, resource, nsValue);
+      promise = fetchCanI(token, contextName, verb, resource, nsValue);
       inflight.set(key, promise);
     }
 
@@ -122,7 +133,7 @@ export default function useEmptyListAccessCheck({
     return () => {
       cancelled = true;
     };
-  }, [key, shouldCheck, token, verb, resource, nsValue]);
+  }, [contextName, key, shouldCheck, token, verb, resource, nsValue]);
 
   return accessDenied;
 }

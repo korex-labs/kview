@@ -219,6 +219,7 @@ function DashboardInspectDrawers({
 
 export default function DashboardView(props: Props) {
   const [loading, setLoading] = useState(false);
+  const [signalsLoading, setSignalsLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
   const [signalFilter, setSignalFilter] = useState("top");
   const [signalsQuery, setSignalsQuery] = useState("");
@@ -234,6 +235,7 @@ export default function DashboardView(props: Props) {
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
+  const lastSignalsParamsRef = useRef("");
 
   useEffect(() => {
     if (health === "unhealthy") return;
@@ -253,18 +255,29 @@ export default function DashboardView(props: Props) {
           signalsOffset: String(signalsPage * signalsRowsPerPage),
           signalsLimit: String(signalsRowsPerPage),
         });
+        const signalsParamsKey = params.toString();
+        const showSignalsLoading =
+          initial &&
+          !resetView &&
+          lastSignalsParamsRef.current !== "" &&
+          lastSignalsParamsRef.current !== signalsParamsKey;
+        if (showSignalsLoading) setSignalsLoading(true);
         const path = `/api/dashboard/cluster?${params.toString()}`;
         const res = activeContext
           ? await apiGetWithContext<ApiDashboardClusterResponse>(path, props.token, activeContext)
           : await apiGet<ApiDashboardClusterResponse>(path, props.token);
         if (!cancelled) {
           lastLoadScopeRef.current = loadScope;
+          lastSignalsParamsRef.current = signalsParamsKey;
           setData(res);
         }
       } catch {
         // Keep stale dashboard data visible while retries continue.
       } finally {
-        if (!cancelled && resetView) setLoading(false);
+        if (!cancelled) {
+          if (resetView) setLoading(false);
+          setSignalsLoading(false);
+        }
       }
     };
     void load(true);
@@ -291,6 +304,7 @@ export default function DashboardView(props: Props) {
   ]);
 
   const selectSignalFilter = (filter: string) => {
+    if (filter !== signalFilter) setSignalsLoading(true);
     setSignalFilter(filter);
     setSignalsPage(0);
   };
@@ -416,6 +430,7 @@ export default function DashboardView(props: Props) {
                     onSignalsRowsPerPageChange={setSignalsRowsPerPage}
                     onInspect={setInspectTarget}
                     derived={derived}
+                    loading={signalsLoading}
                   />
                 </Box>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiPost, toApiError, type ApiError } from "../api";
+import { useActiveContext } from "../activeContext";
 import type { AccessReviewResource } from "./k8sResources";
 
 type CanIResponse = {
@@ -40,16 +41,22 @@ function setCached(key: string, res: CanIResponse) {
 
 async function fetchCanI(
   token: string,
+  contextName: string,
   verb: string,
   resource: AccessReviewResource,
   namespace: string | null,
 ): Promise<CanIResponse> {
-  return apiPost<CanIResponse>("/api/auth/can-i", token, {
-    verb,
-    resource: resource.resource,
-    group: resource.group,
-    namespace,
-  });
+  return apiPost<CanIResponse>(
+    "/api/auth/can-i",
+    token,
+    {
+      verb,
+      resource: resource.resource,
+      group: resource.group,
+      namespace,
+    },
+    contextName ? { headers: { "X-Kview-Context": contextName } } : undefined,
+  );
 }
 
 export default function useAccessReview({
@@ -69,8 +76,12 @@ export default function useAccessReview({
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const activeContext = useActiveContext();
   const nsValue = namespace ?? null;
-  const key = useMemo(() => buildKey(token, verb, resource, nsValue), [token, verb, resource, nsValue]);
+  const key = useMemo(
+    () => [activeContext, buildKey(token, verb, resource, nsValue)].join("|"),
+    [activeContext, token, verb, resource, nsValue],
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -96,7 +107,7 @@ export default function useAccessReview({
 
     let promise = inflight.get(key);
     if (!promise) {
-      promise = fetchCanI(token, verb, resource, nsValue);
+      promise = fetchCanI(token, activeContext, verb, resource, nsValue);
       inflight.set(key, promise);
     }
 
@@ -125,7 +136,7 @@ export default function useAccessReview({
     return () => {
       cancelled = true;
     };
-  }, [key, enabled, token, verb, resource, nsValue]);
+  }, [activeContext, key, enabled, token, verb, resource, nsValue]);
 
   return { allowed, reason, loading, error };
 }

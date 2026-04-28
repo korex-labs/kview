@@ -141,7 +141,8 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 		defer cancel()
 
-		clients, active, err := s.mgr.GetClients(ctx)
+		active := s.readContextName(r)
+		clients, _, err := s.mgr.GetClientsForContext(ctx, active)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 			return
@@ -366,7 +367,8 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
 		defer cancel()
 
-		clients, active, err := s.mgr.GetClients(ctx)
+		active := s.readContextName(r)
+		clients, _, err := s.mgr.GetClientsForContext(ctx, active)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 			return

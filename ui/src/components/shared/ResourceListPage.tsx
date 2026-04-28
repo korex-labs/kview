@@ -162,6 +162,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     loading: loading || skipEmptyAccessCheck,
     resource: accessResource,
     namespace,
+    contextName: activeContext,
   });
 
   const smartFilterContext = useMemo(
