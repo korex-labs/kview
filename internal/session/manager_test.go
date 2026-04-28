@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/korex-labs/kview/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
 func newTestManager() (*InMemoryManager, runtime.ActivityRegistry) {

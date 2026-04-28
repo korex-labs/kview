@@ -49,7 +49,7 @@ On Windows, running kview from WSL is the simpler path because kubeconfig paths,
 If you have Go installed, you can install kview directly from the module:
 
 ```bash
-go install github.com/korex-labs/kview/cmd/kview@latest
+go install github.com/korex-labs/kview/v5/cmd/kview@latest
 ```
 
 This places the `kview` binary in your Go install bin directory, usually `$(go env GOPATH)/bin` or `$(go env GOBIN)` if set. Make sure that directory is on your `PATH`, then run:
@@ -59,6 +59,22 @@ kview
 ```
 
 The default Go install path builds browser/server modes. Desktop webview mode requires the `webview` build tag; see [Desktop webview mode](#desktop-webview-mode).
+
+The `/v5` path is required by Go's semantic import versioning. Using the unsuffixed module path can make Go ignore current `v5` tags and fall back to an older `v1` tag.
+
+To enable the local release-tag guard, run:
+
+```bash
+make install-git-hooks
+```
+
+To create a guarded release tag, run:
+
+```bash
+make release-tag TAG=v5.4.0
+```
+
+Git does not provide a native pre-tag hook, so the helper validates before creating the tag. The installed pre-push hook also blocks pushing manually created tags such as `v6.0.0` unless `go.mod` declares the matching `/v6` module path and prints the migration steps to fix it.
 
 ### Desktop webview mode
 

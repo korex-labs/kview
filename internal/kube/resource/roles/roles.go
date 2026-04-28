@@ -6,8 +6,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func ListRoles(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.RoleListItemDTO, error) {

@@ -8,8 +8,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func ListIngressesForService(ctx context.Context, c *cluster.Clients, namespace, serviceName string) ([]dto.IngressListItemDTO, error) {

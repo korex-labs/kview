@@ -8,10 +8,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	kubepods "github.com/korex-labs/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	kubepods "github.com/korex-labs/kview/v5/internal/kube/resource/pods"
 )
 
 func GetNodeDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.NodeDetailsDTO, error) {

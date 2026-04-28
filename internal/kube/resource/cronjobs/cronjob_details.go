@@ -12,12 +12,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
-	jobs "github.com/korex-labs/kview/internal/kube/resource/jobs"
-	pods "github.com/korex-labs/kview/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	deployments "github.com/korex-labs/kview/v5/internal/kube/resource/deployments"
+	jobs "github.com/korex-labs/kview/v5/internal/kube/resource/jobs"
+	pods "github.com/korex-labs/kview/v5/internal/kube/resource/pods"
 )
 
 func GetCronJobDetails(ctx context.Context, c *cluster.Clients, namespace, name string) (*dto.CronJobDetailsDTO, error) {

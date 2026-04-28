@@ -12,13 +12,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/jobdebug"
-	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
-	"github.com/korex-labs/kview/internal/runtime"
-	"github.com/korex-labs/kview/internal/session"
-	"github.com/korex-labs/kview/internal/stream"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/jobdebug"
+	svcs "github.com/korex-labs/kview/v5/internal/kube/resource/services"
+	"github.com/korex-labs/kview/v5/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/session"
+	"github.com/korex-labs/kview/v5/internal/stream"
 )
 
 func (s *Server) registerSessionRoutes(api chi.Router) {

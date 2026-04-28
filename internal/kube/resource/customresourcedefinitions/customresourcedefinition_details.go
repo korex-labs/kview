@@ -11,8 +11,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/yaml"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func GetCustomResourceDefinitionDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.CRDDetailsDTO, error) {

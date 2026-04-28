@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+	case "$remote_ref" in
+		refs/tags/v*)
+			if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+				continue
+			fi
+			tag_name="${remote_ref#refs/tags/}"
+			sh scripts/validate-go-module-tag.sh --rev "$local_sha" "$tag_name"
+			;;
+	esac
+done

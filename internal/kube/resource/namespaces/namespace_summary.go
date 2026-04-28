@@ -9,11 +9,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	deployments "github.com/korex-labs/kview/internal/kube/resource/deployments"
-	kubehelm "github.com/korex-labs/kview/internal/kube/resource/helm"
-	kubejobs "github.com/korex-labs/kview/internal/kube/resource/jobs"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	deployments "github.com/korex-labs/kview/v5/internal/kube/resource/deployments"
+	kubehelm "github.com/korex-labs/kview/v5/internal/kube/resource/helm"
+	kubejobs "github.com/korex-labs/kview/v5/internal/kube/resource/jobs"
 )
 
 const maxProblematic = 10

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/resourceedit"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/resourceedit"
 )
 
 func manifestParam(req ActionRequest) (string, *ActionResult) {

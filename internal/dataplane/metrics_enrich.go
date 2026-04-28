@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 // PodMetricsByKey maps "namespace/name" to a compact container usage map for a

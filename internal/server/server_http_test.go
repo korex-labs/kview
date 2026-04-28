@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	"github.com/korex-labs/kview/internal/kube/jobdebug"
-	"github.com/korex-labs/kview/internal/runtime"
-	"github.com/korex-labs/kview/internal/session"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/jobdebug"
+	"github.com/korex-labs/kview/v5/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/session"
 )
 
 // ── test helpers ─────────────────────────────────────────────────────────────

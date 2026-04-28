@@ -7,9 +7,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	svcs "github.com/korex-labs/kview/v5/internal/kube/resource/services"
 )
 
 func ListServicesSelectingPod(ctx context.Context, c *cluster.Clients, namespace, podName string) ([]dto.ServiceLinkDTO, error) {

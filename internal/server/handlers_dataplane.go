@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
 func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {

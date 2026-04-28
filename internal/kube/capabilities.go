@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/cluster"
 )
 
 // CapabilitiesRequest specifies the resource to check capabilities for.

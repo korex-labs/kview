@@ -8,7 +8,7 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/cluster"
 )
 
 // fakeClients returns a *cluster.Clients with a non-nil RestConfig so that

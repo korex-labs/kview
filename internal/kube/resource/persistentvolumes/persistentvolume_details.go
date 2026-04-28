@@ -9,10 +9,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	pvcs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumeclaims"
 )
 
 func GetPersistentVolumeDetails(ctx context.Context, c *cluster.Clients, name string) (*dto.PersistentVolumeDetailsDTO, error) {

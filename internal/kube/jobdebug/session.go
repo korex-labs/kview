@@ -17,8 +17,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	kubeactions "github.com/korex-labs/kview/internal/kube/actions"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	kubeactions "github.com/korex-labs/kview/v5/internal/kube/actions"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	"github.com/korex-labs/kview/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
 func missingTemplateRefsFromDataplane(ctx context.Context, dp dataplane.DataPlaneManager, clusterName, namespace string, template dto.PodTemplateSummaryDTO, volumes []dto.VolumeDTO) []dto.MissingReferenceDTO {

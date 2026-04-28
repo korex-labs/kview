@@ -1,7 +1,7 @@
 package dataplane
 
 import (
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 // WorkloadHealthProjection summarizes coarse health across workload list snapshots for one namespace.

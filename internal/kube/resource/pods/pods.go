@@ -8,9 +8,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 )
 
 func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.PodListItemDTO, error) {

@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	kubehelm "github.com/korex-labs/kview/internal/kube/resource/helm"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	kubehelm "github.com/korex-labs/kview/v5/internal/kube/resource/helm"
 )
 
 func (s *Server) registerHelmRoutes(api chi.Router) {

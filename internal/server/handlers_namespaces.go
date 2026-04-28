@@ -9,11 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
-	namespaces "github.com/korex-labs/kview/internal/kube/resource/namespaces"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
+	namespaces "github.com/korex-labs/kview/v5/internal/kube/resource/namespaces"
 )
 
 func (s *Server) registerNamespaceRoutes(api chi.Router) {

@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/cluster"
 )
 
 var upgrader = websocket.Upgrader{

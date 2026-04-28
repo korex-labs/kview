@@ -3,7 +3,7 @@ package events
 import (
 	"testing"
 
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func TestFilterAndPaginateEvents(t *testing.T) {

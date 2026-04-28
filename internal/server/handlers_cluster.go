@@ -9,15 +9,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	crbindings "github.com/korex-labs/kview/internal/kube/resource/clusterrolebindings"
-	clusterroles "github.com/korex-labs/kview/internal/kube/resource/clusterroles"
-	crds "github.com/korex-labs/kview/internal/kube/resource/customresourcedefinitions"
-	crs "github.com/korex-labs/kview/internal/kube/resource/customresources"
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
-	nodes "github.com/korex-labs/kview/internal/kube/resource/nodes"
-	pvs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumes"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	crbindings "github.com/korex-labs/kview/v5/internal/kube/resource/clusterrolebindings"
+	clusterroles "github.com/korex-labs/kview/v5/internal/kube/resource/clusterroles"
+	crds "github.com/korex-labs/kview/v5/internal/kube/resource/customresourcedefinitions"
+	crs "github.com/korex-labs/kview/v5/internal/kube/resource/customresources"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
+	nodes "github.com/korex-labs/kview/v5/internal/kube/resource/nodes"
+	pvs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumes"
 )
 
 func (s *Server) registerClusterResourceRoutes(api chi.Router) {

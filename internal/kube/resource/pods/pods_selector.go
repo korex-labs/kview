@@ -6,7 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/cluster"
 )
 
 func ListPodsBySelector(ctx context.Context, c *cluster.Clients, namespace, selector string) ([]corev1.Pod, error) {

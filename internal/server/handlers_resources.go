@@ -7,17 +7,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/korex-labs/kview/internal/dataplane"
-	"github.com/korex-labs/kview/internal/kube/dto"
-	configmaps "github.com/korex-labs/kview/internal/kube/resource/configmaps"
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
-	ingresses "github.com/korex-labs/kview/internal/kube/resource/ingresses"
-	pvcs "github.com/korex-labs/kview/internal/kube/resource/persistentvolumeclaims"
-	rolebindings "github.com/korex-labs/kview/internal/kube/resource/rolebindings"
-	roles "github.com/korex-labs/kview/internal/kube/resource/roles"
-	secrets "github.com/korex-labs/kview/internal/kube/resource/secrets"
-	serviceaccounts "github.com/korex-labs/kview/internal/kube/resource/serviceaccounts"
-	svcs "github.com/korex-labs/kview/internal/kube/resource/services"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	configmaps "github.com/korex-labs/kview/v5/internal/kube/resource/configmaps"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
+	ingresses "github.com/korex-labs/kview/v5/internal/kube/resource/ingresses"
+	pvcs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumeclaims"
+	rolebindings "github.com/korex-labs/kview/v5/internal/kube/resource/rolebindings"
+	roles "github.com/korex-labs/kview/v5/internal/kube/resource/roles"
+	secrets "github.com/korex-labs/kview/v5/internal/kube/resource/secrets"
+	serviceaccounts "github.com/korex-labs/kview/v5/internal/kube/resource/serviceaccounts"
+	svcs "github.com/korex-labs/kview/v5/internal/kube/resource/services"
 )
 
 func (s *Server) registerNamespacedResourceRoutes(api chi.Router) {

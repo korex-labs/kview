@@ -12,8 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/session"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/session"
 )
 
 type TerminalWS struct {

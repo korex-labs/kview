@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/korex-labs/kview/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
 )
 
 // writeErrorResponse sends a consistent error envelope for API errors.

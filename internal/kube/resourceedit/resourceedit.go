@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"sigs.k8s.io/yaml"
 
-	"github.com/korex-labs/kview/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/cluster"
 )
 
 const fieldManager = "kview-inline-edit"

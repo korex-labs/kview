@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	kubeevents "github.com/korex-labs/kview/internal/kube/resource/events"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 )
 
 func readEventListOptions(r *http.Request) kubeevents.ListOptions {

@@ -5,7 +5,7 @@ import (
 
 	rbacv1 "k8s.io/api/rbac/v1"
 
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func MapPolicyRules(rules []rbacv1.PolicyRule) []dto.PolicyRuleDTO {

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	kubemetrics "github.com/korex-labs/kview/internal/kube/resource/metrics"
+	kubemetrics "github.com/korex-labs/kview/v5/internal/kube/resource/metrics"
 )
 
 // MetricsCapability describes whether metrics.k8s.io is usable for a cluster.

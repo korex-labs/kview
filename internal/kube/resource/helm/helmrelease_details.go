@@ -9,8 +9,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	syaml "sigs.k8s.io/yaml"
 
-	"github.com/korex-labs/kview/internal/cluster"
-	"github.com/korex-labs/kview/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 func GetHelmReleaseDetails(_ context.Context, c *cluster.Clients, namespace, releaseName string) (*dto.HelmReleaseDetailsDTO, error) {

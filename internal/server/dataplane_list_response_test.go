@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/korex-labs/kview/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/dataplane"
 )
 
 func TestWriteDataplaneListResponse_MetadataShape(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/korex-labs/kview/internal/runtime"
+	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {

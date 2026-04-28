@@ -1,4 +1,4 @@
-module github.com/korex-labs/kview
+module github.com/korex-labs/kview/v5
 
 go 1.26.0
 
