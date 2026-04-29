@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Chip,
@@ -31,6 +31,7 @@ import {
   signalSeverityColor,
 } from "../../shared/signalFormat";
 import type { InspectTarget } from "./dashboardTypes";
+import type { SxProps, Theme } from "@mui/material/styles";
 
 type DerivedData = NonNullable<NonNullable<ApiDashboardClusterResponse["item"]>["derived"]>;
 
@@ -174,6 +175,28 @@ function signalFilterColor(filter: DashboardSignalFilter): "error" | "warning" |
   return "default";
 }
 
+function signalFilterSeverityRow(filter: DashboardSignalFilter): "high" | "medium" | "low" {
+  if (filter.severity === "high") return "high";
+  if (filter.severity === "medium") return "medium";
+  return "low";
+}
+
+function signalFilterRows(filters: DashboardSignalFilter[]): DashboardSignalFilter[][] {
+  const rows: Record<"high" | "medium" | "low", DashboardSignalFilter[]> = {
+    high: [],
+    medium: [],
+    low: [],
+  };
+  for (const filter of filters) {
+    rows[signalFilterSeverityRow(filter)].push(filter);
+  }
+  return [rows.high, rows.medium, rows.low].filter((row) => row.length > 0);
+}
+
+function hideSignalFilterWhenZero(filter: DashboardSignalFilter): boolean {
+  return filter.category === "signal_type" || filter.category === "kind" || filter.category === "namespace";
+}
+
 function fallbackSignalFilters(panel: DashboardSignalsPanelData | undefined, topCount: number): DashboardSignalFilter[] {
   return [
     { id: "top", label: "Top priority", count: topCount, category: "priority" },
@@ -212,6 +235,47 @@ const signalTableSx = {
     fontWeight: 700,
   },
 };
+
+const filterMeasureSx = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: 0,
+  overflow: "hidden",
+  visibility: "hidden",
+  pointerEvents: "none",
+  display: "flex",
+  flexWrap: "nowrap",
+  gap: 0.75,
+};
+
+const filterFlatRowsSx = {
+  display: "flex",
+  flexWrap: "nowrap",
+  gap: 0.75,
+  maxWidth: "100%",
+  overflow: "hidden",
+};
+
+const filterSplitRowsSx = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "stretch",
+  gap: 0.75,
+};
+
+const filterRowSx = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 0.75,
+  maxWidth: "100%",
+};
+
+const filterChipSx = {
+  flexShrink: 0,
+  maxWidth: "none",
+} satisfies SxProps<Theme>;
 
 const statusCellSx = { pl: 0, width: 104 };
 const kindCellSx = { width: 132 };
@@ -264,6 +328,7 @@ function FilterChip({
   onSelect: (filter: string) => void;
 }) {
   if (hideWhenZero && count <= 0 && !selected) return null;
+  const sx = selected ? { ...filterChipSx, ...activeChipSx(color) } : filterChipSx;
   return (
     <ScopedCountChip
       size="small"
@@ -272,8 +337,82 @@ function FilterChip({
       label={label || signalFilterLabel(filter)}
       count={count}
       onClick={() => onSelect(filter)}
-      sx={selected ? activeChipSx(color) : undefined}
+      sx={sx}
     />
+  );
+}
+
+function SignalFilterGroup({
+  category,
+  label,
+  filters,
+  selectedFilter,
+  onSelect,
+}: {
+  category: string;
+  label: string;
+  filters: DashboardSignalFilter[];
+  selectedFilter: string;
+  onSelect: (filter: string) => void;
+}) {
+  const measureRef = useRef<HTMLDivElement | null>(null);
+  const [splitBySeverity, setSplitBySeverity] = useState(false);
+
+  useLayoutEffect(() => {
+    const node = measureRef.current;
+    if (!node) return;
+
+    const updateSplit = () => {
+      setSplitBySeverity(node.scrollWidth > node.clientWidth + 1);
+    };
+
+    updateSplit();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateSplit);
+      return () => window.removeEventListener("resize", updateSplit);
+    }
+
+    const resizeObserver = new ResizeObserver(updateSplit);
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, [filters, selectedFilter]);
+
+  const renderFilter = (filter: DashboardSignalFilter) => (
+    <FilterChip
+      key={filter.id}
+      filter={filter.id}
+      label={filter.label}
+      count={filter.count}
+      color={signalFilterColor(filter)}
+      hideWhenZero={hideSignalFilterWhenZero(filter)}
+      selected={selectedFilter === filter.id}
+      onSelect={onSelect}
+    />
+  );
+
+  return (
+    <Box sx={{ position: "relative" }}>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+        {label}
+      </Typography>
+      <Box ref={measureRef} aria-hidden="true" sx={filterMeasureSx}>
+        {filters.map(renderFilter)}
+      </Box>
+      {splitBySeverity ? (
+        <Box sx={filterSplitRowsSx}>
+          {signalFilterRows(filters).map((row) => (
+            <Box key={`${category}-${signalFilterSeverityRow(row[0])}`} sx={filterRowSx}>
+              {row.map(renderFilter)}
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Box sx={filterFlatRowsSx}>
+          {filters.map(renderFilter)}
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -422,29 +561,14 @@ export default function DashboardSignalsPanel({
         </Typography>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {filterGroups.map((group) => (
-            <Box key={group.category}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                {group.label}
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                {group.filters.map((filter) => (
-                  <FilterChip
-                    key={filter.id}
-                    filter={filter.id}
-                    label={filter.label}
-                    count={filter.count}
-                    color={signalFilterColor(filter)}
-                    hideWhenZero={
-                      filter.category === "signal_type" ||
-                      filter.category === "kind" ||
-                      filter.category === "namespace"
-                    }
-                    selected={signalFilter === filter.id}
-                    onSelect={onSignalFilterChange}
-                  />
-                ))}
-              </Box>
-            </Box>
+            <SignalFilterGroup
+              key={group.category}
+              category={group.category}
+              label={group.label}
+              filters={group.filters}
+              selectedFilter={signalFilter}
+              onSelect={onSignalFilterChange}
+            />
           ))}
         </Box>
       </Box>
