@@ -2,9 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import {
   Autocomplete,
   Box,
+  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
+  Divider,
   List,
   ListItem,
   ListItemText,
@@ -12,9 +14,18 @@ import {
   Typography,
 } from "@mui/material";
 import type { Section } from "../state";
+import { panelBoxSx } from "../theme/sxTokens";
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "./commands";
-import { eventToBinding, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
+import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
 import { formatBinding, shortcutCommands, type ShortcutCommand, type ShortcutCommandId, type ShortcutGroup } from "./shortcuts";
+
+export type ContextualKeyboardAction = {
+  id: string;
+  label: string;
+  binding: string[];
+  run: () => boolean | void;
+  disabled?: boolean;
+};
 
 type TableKeyboardControls = {
   focusFilter: () => boolean;
@@ -26,11 +37,42 @@ type TableKeyboardControls = {
 
 type KeyboardContextValue = {
   registerTableControls: (controls: TableKeyboardControls) => () => void;
+  registerContextActions: (actions: ContextualKeyboardAction[]) => () => void;
 };
 
 const KeyboardContext = createContext<KeyboardContextValue>({
   registerTableControls: () => () => undefined,
+  registerContextActions: () => () => undefined,
 });
+
+function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
+  if (isEditableElement(target)) return true;
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest([
+    ".MuiAutocomplete-popper",
+    ".MuiMenu-root",
+    ".MuiPopover-root",
+    ".MuiDialog-root",
+    ".xterm",
+    "[role='dialog']",
+    "[role='menu']",
+    "[role='listbox']",
+  ].join(","));
+}
+
+function effectiveContextActions(stack: ContextualKeyboardAction[][]): ContextualKeyboardAction[] {
+  const seenBindings = new Set<string>();
+  const actions: ContextualKeyboardAction[] = [];
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    for (const action of stack[i]) {
+      const bindingKey = action.binding.join(" ");
+      if (seenBindings.has(bindingKey)) continue;
+      seenBindings.add(bindingKey);
+      actions.push(action);
+    }
+  }
+  return actions;
+}
 
 export function useKeyboardControls() {
   return useContext(KeyboardContext);
@@ -65,8 +107,14 @@ export default function KeyboardProvider({
   const [helpOpen, setHelpOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandInitialQuery, setCommandInitialQuery] = useState("");
+  const [contextActionStack, setContextActionStack] = useState<ContextualKeyboardAction[][]>([]);
   const sequenceRef = useRef<string[]>([]);
   const sequenceTimerRef = useRef<number | null>(null);
+  const contextActionStackRef = useRef<ContextualKeyboardAction[][]>([]);
+
+  useEffect(() => {
+    contextActionStackRef.current = contextActionStack;
+  }, [contextActionStack]);
 
   const closeCommand = useCallback(() => {
     setCommandOpen(false);
@@ -152,6 +200,27 @@ export default function KeyboardProvider({
         clearSequence();
       }
       if (commandOpen || helpOpen || settingsOpen) return;
+      const contextActions = effectiveContextActions(contextActionStackRef.current);
+      if (contextActions.length && !shouldIgnoreContextShortcut(event.target)) {
+        const key = eventToBinding(event);
+        const action = contextActions.find((item) => !item.disabled && matchKeySequence(item.binding, [key]) === "matched");
+        if (action) {
+          const handled = action.run();
+          if (handled !== false) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          clearSequence();
+          return;
+        }
+        if (key === "?") {
+          event.preventDefault();
+          event.stopPropagation();
+          setHelpOpen(true);
+          clearSequence();
+          return;
+        }
+      }
       if (shouldIgnoreGlobalShortcut(event.target)) return;
 
       const key = eventToBinding(event);
@@ -190,7 +259,18 @@ export default function KeyboardProvider({
     };
   }, []);
 
-  const value = useMemo(() => ({ registerTableControls }), [registerTableControls]);
+  const registerContextActions = useCallback((actions: ContextualKeyboardAction[]) => {
+    setContextActionStack((prev) => [...prev, actions]);
+    return () => {
+      setContextActionStack((prev) => {
+        const index = prev.lastIndexOf(actions);
+        if (index < 0) return prev;
+        return [...prev.slice(0, index), ...prev.slice(index + 1)];
+      });
+    };
+  }, []);
+
+  const value = useMemo(() => ({ registerTableControls, registerContextActions }), [registerContextActions, registerTableControls]);
 
   return (
     <KeyboardContext.Provider value={value}>
@@ -206,7 +286,11 @@ export default function KeyboardProvider({
           closeCommand();
         }}
       />
-      <KeyboardHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <KeyboardHelpDialog
+        open={helpOpen}
+        contextActions={effectiveContextActions(contextActionStack)}
+        onClose={() => setHelpOpen(false)}
+      />
     </KeyboardContext.Provider>
   );
 }
@@ -292,7 +376,15 @@ function KeyboardCommandPalette({
   );
 }
 
-function KeyboardHelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function KeyboardHelpDialog({
+  open,
+  contextActions,
+  onClose,
+}: {
+  open: boolean;
+  contextActions: ContextualKeyboardAction[];
+  onClose: () => void;
+}) {
   const grouped = useMemo(() => {
     const groups: Record<ShortcutGroup, ShortcutCommand[]> = {
       Global: [],
@@ -303,33 +395,75 @@ function KeyboardHelpDialog({ open, onClose }: { open: boolean; onClose: () => v
     for (const command of shortcutCommands) groups[command.group].push(command);
     return groups;
   }, []);
+  const sectionEntries = useMemo(() => {
+    const entries: Array<{ title: string; rows: Array<{ id: string; label: string; bindings: string[][]; disabled?: boolean }> }> =
+      (Object.keys(grouped) as ShortcutGroup[]).map((group) => ({
+        title: group,
+        rows: grouped[group].map((command) => ({
+          id: command.id,
+          label: command.label,
+          bindings: command.bindings,
+        })),
+      }));
+    if (contextActions.length) {
+      entries.push({
+        title: "Current Resource",
+        rows: contextActions.map((action) => ({
+          id: action.id,
+          label: action.label,
+          bindings: [action.binding],
+          disabled: action.disabled,
+        })),
+      });
+    }
+    return entries;
+  }, [contextActions, grouped]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>Keyboard shortcuts</DialogTitle>
-      <DialogContent>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-          {(Object.keys(grouped) as ShortcutGroup[]).map((group) => (
-            <Box key={group}>
-              <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{group}</Typography>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+      <DialogTitle sx={{ pb: 1 }}>Keyboard shortcuts</DialogTitle>
+      <Divider />
+      <DialogContent sx={{ p: 2 }}>
+        <Box sx={{ columnCount: { xs: 1, md: 2, xl: 3 }, columnGap: 2 }}>
+          {sectionEntries.map((section) => (
+            <Box key={section.title} sx={{ ...panelBoxSx, mb: 2, breakInside: "avoid", display: "inline-block", width: "100%" }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {section.title}
+              </Typography>
+              <Divider sx={{ mt: 0.75, mb: 1 }} />
               <List dense disablePadding>
-                {grouped[group].map((command) => (
+                {section.rows.map((row) => (
                   <ListItem
-                    key={command.id}
+                    key={row.id}
                     disableGutters
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "minmax(150px, 0.58fr) minmax(0, 1fr)",
-                      columnGap: 2,
-                      alignItems: "baseline",
+                      gridTemplateColumns: "minmax(180px, 0.72fr) minmax(0, 1fr)",
+                      columnGap: 1.5,
+                      alignItems: "center",
+                      py: 0.45,
+                      opacity: row.disabled ? 0.55 : 1,
                     }}
                   >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography component="kbd" variant="caption" sx={{ fontFamily: "monospace" }}>
-                        {command.bindings.map(formatBinding).join(" / ")}
-                      </Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, minWidth: 0 }}>
+                      {row.bindings.map((binding) => (
+                        <Chip
+                          key={binding.join("+")}
+                          component="kbd"
+                          size="small"
+                          variant="outlined"
+                          label={formatBinding(binding)}
+                          sx={{
+                            height: 22,
+                            borderRadius: 1,
+                            fontFamily: "monospace",
+                            fontSize: "0.72rem",
+                            "& .MuiChip-label": { px: 0.75 },
+                          }}
+                        />
+                      ))}
                     </Box>
-                    <ListItemText primary={command.label} primaryTypographyProps={{ variant: "body2" }} />
+                    <ListItemText primary={row.label} primaryTypographyProps={{ variant: "body2" }} sx={{ my: 0 }} />
                   </ListItem>
                 ))}
               </List>

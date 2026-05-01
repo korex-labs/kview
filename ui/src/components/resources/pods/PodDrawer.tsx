@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -93,6 +93,7 @@ import { createTerminalSession, createPortForwardSession, runContainerCommand, t
 import { emitFocusPortForwardsTab, emitOpenTerminalSession } from "../../../activityEvents";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
+import { useKeyboardControls } from "../../../keyboard/KeyboardProvider";
 import { customCommandsForContainer, type CustomCommandDefinition } from "../../../settings";
 import { useMutationDialog } from "../../mutations/useMutationDialog";
 import type { ExecuteActionResult } from "../../../lib/actions/types";
@@ -505,6 +506,7 @@ export default function PodDrawer(props: {
   const { health, retryNonce } = useConnectionState();
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
+  const { registerContextActions } = useKeyboardControls();
   const { open: openMutationDialog } = useMutationDialog();
   const offline = health === "unhealthy";
   const offlineReason = "Cluster connection is unavailable";
@@ -604,7 +606,7 @@ export default function PodDrawer(props: {
     [commandContainers, matchingCommandsByContainer],
   );
 
-  function stopLogs() {
+  const stopLogs = useCallback(() => {
     setFollowing(false);
     if (wsRef.current) {
       try {
@@ -614,9 +616,9 @@ export default function PodDrawer(props: {
       }
       wsRef.current = null;
     }
-  }
+  }, []);
 
-  function startLogsFollow() {
+  const startLogsFollow = useCallback(() => {
     if (!name) return;
 
     stopLogs();
@@ -656,7 +658,7 @@ export default function PodDrawer(props: {
     ws.onclose = () => {
       setFollowing(false);
     };
-  }
+  }, [container, lineLimit, logWsBase, name, props.token, stopLogs]);
 
   // Cleanup on close / pod switch
   useEffect(() => {
@@ -665,7 +667,7 @@ export default function PodDrawer(props: {
       return;
     }
     return () => stopLogs();
-  }, [props.open, name]);
+  }, [props.open, name, stopLogs]);
 
   const openTerminalForContainer = async (containerName: string) => {
     const target = (details?.containers || []).find((ctn) => ctn.name === containerName);
@@ -762,18 +764,6 @@ export default function PodDrawer(props: {
       },
       closeOnSuccess: true,
     });
-  };
-
-  const handleOpenPortForwardDialog = () => {
-    if (offline || actionableContainers.length === 0) return;
-    setPortForwardError("");
-    if (knownPodPortOptions.length > 0) {
-      setPortForwardRemotePort(knownPodPortOptions[0].value);
-    } else {
-      setPortForwardRemotePort("");
-    }
-    setPortForwardLocalPort("");
-    setPortForwardDialogOpen(true);
   };
 
   const handleCreatePortForward = async () => {
@@ -893,7 +883,7 @@ export default function PodDrawer(props: {
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce, offline]);
+  }, [props.open, name, ns, props.token, retryNonce, offline, stopLogs]);
 
   // Snapshot-level per-resource signals from the dataplane cache
   // (pod_restarts, pod_oomkilled, etc.). Detail-level signals
@@ -1058,6 +1048,62 @@ export default function PodDrawer(props: {
     });
     return opts.sort((a, b) => Number(a.value) - Number(b.value));
   }, [actionableContainers]);
+
+  const handleOpenPortForwardDialog = useCallback(() => {
+    if (offline || actionableContainers.length === 0) return;
+    setPortForwardError("");
+    if (knownPodPortOptions.length > 0) {
+      setPortForwardRemotePort(knownPodPortOptions[0].value);
+    } else {
+      setPortForwardRemotePort("");
+    }
+    setPortForwardLocalPort("");
+    setPortForwardDialogOpen(true);
+  }, [actionableContainers.length, knownPodPortOptions, offline]);
+
+  useEffect(() => registerContextActions([
+    {
+      id: "pod.logs",
+      label: "Open logs and follow",
+      binding: ["l"],
+      disabled: !name,
+      run: () => {
+        if (!name) return false;
+        setTab(5);
+        window.setTimeout(() => startLogsFollow(), 0);
+        return true;
+      },
+    },
+    {
+      id: "pod.portForward",
+      label: "Open port-forward dialog",
+      binding: ["p"],
+      disabled: offline || creatingPortForward || actionableContainers.length === 0,
+      run: () => {
+        handleOpenPortForwardDialog();
+        return true;
+      },
+    },
+    {
+      id: "drawer.close",
+      label: "Close drawer",
+      binding: ["escape"],
+      run: () => {
+        props.onClose();
+        return true;
+      },
+    },
+    {
+      id: "drawer.yaml",
+      label: "Open YAML tab",
+      binding: ["y"],
+      run: () => {
+        setTab(7);
+        return true;
+      },
+    },
+  ]), [actionableContainers.length, creatingPortForward, handleOpenPortForwardDialog, name, offline, props, registerContextActions, startLogsFollow]);
+
   const eventContainers = (details?.containers || []).map((c) => c.name).filter((n): n is string => !!n);
   const openContainerFromEvent = (containerName: string) => {
     if (!eventContainers.includes(containerName)) return;
