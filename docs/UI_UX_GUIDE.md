@@ -304,6 +304,37 @@ Custom workload actions must appear only on matching patch-capable workload reso
 
 NS Enrichment settings must keep focused enrichment as the default: current, recent, and favourite namespaces, idle-gated and capped. Background namespace sweep is opt-in and should use warning copy because large contexts can create many Kubernetes reads over time. Backend dataplane tuning must be documented in DATAPLANE.md when behavior changes.
 
+## Keyboard Navigation
+
+kview uses a hybrid keyboard model:
+
+- browser-safe global shortcuts for common actions
+- GitLab-style `g` sequences for navigation
+- K9s-style `:` command mode for resource, namespace, context, and settings commands
+- native MUI DataGrid focus and arrow-key behavior inside resource tables
+- contextual drawer/resource shortcuts only while the relevant drawer is active
+
+Shortcuts must not run while focus is inside text inputs, selects, editors, terminals, menus, autocomplete poppers, modal dialogs, or drawer surfaces unless the shortcut is explicitly owned by that focused surface.
+
+The runtime shortcut registry is the source of truth for the Help dialog. When a setting disables optional bindings, help content must reflect the active keymap instead of documenting unavailable keys.
+
+Keyboard settings are part of the browser-local settings profile. Current options:
+
+- Vim table navigation (`h/j/k/l`)
+- home-row table navigation (`a/s/d/f`)
+- single-letter global search (`s`)
+
+Command mode, `Ctrl+K`, shortcut help (`?`), table focus/filter/page/open commands, and `g` navigation sequences remain core shortcuts and should stay enabled unless a future configurable profile system replaces the V1 model.
+
+When a resource table filter is focused, typing must stay in the filter. Pressing Enter from the filter moves focus into the table. Closing a drawer should restore focus to the previously opened table row so keyboard table navigation can continue naturally.
+
+Deferred keyboard work:
+
+- user-selectable keymap profiles
+- persisted custom keybinding remaps
+- broader drawer actions beyond stable resource-specific commands
+- React/jsdom interaction tests once the local test environment supports the current jsdom dependency graph
+
 ---
 
 # Cross‑Resource Navigation

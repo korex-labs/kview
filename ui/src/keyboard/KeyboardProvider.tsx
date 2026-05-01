@@ -17,13 +17,13 @@ import type { Section } from "../state";
 import type { KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "./commands";
+import { buildShortcutHelpSections } from "./help";
 import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
 import {
   formatBinding,
   shortcutCommandsForSettings,
   type ShortcutCommand,
   type ShortcutCommandId,
-  type ShortcutGroup,
 } from "./shortcuts";
 
 export type ContextualKeyboardAction = {
@@ -450,39 +450,10 @@ function KeyboardHelpDialog({
   contextActions: ContextualKeyboardAction[];
   onClose: () => void;
 }) {
-  const grouped = useMemo(() => {
-    const groups: Record<ShortcutGroup, ShortcutCommand[]> = {
-      Global: [],
-      Navigation: [],
-      Table: [],
-      "Command Mode": [],
-    };
-    for (const command of commands) groups[command.group].push(command);
-    return groups;
-  }, [commands]);
-  const sectionEntries = useMemo(() => {
-    const entries: Array<{ title: string; rows: Array<{ id: string; label: string; bindings: string[][]; disabled?: boolean }> }> =
-      (Object.keys(grouped) as ShortcutGroup[]).map((group) => ({
-        title: group,
-        rows: grouped[group].map((command) => ({
-          id: command.id,
-          label: command.label,
-          bindings: command.bindings,
-        })),
-      }));
-    if (contextActions.length) {
-      entries.push({
-        title: "Current Resource",
-        rows: contextActions.map((action) => ({
-          id: action.id,
-          label: action.label,
-          bindings: [action.binding],
-          disabled: action.disabled,
-        })),
-      });
-    }
-    return entries;
-  }, [contextActions, grouped]);
+  const sectionEntries = useMemo(
+    () => buildShortcutHelpSections(commands, contextActions),
+    [commands, contextActions],
+  );
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
