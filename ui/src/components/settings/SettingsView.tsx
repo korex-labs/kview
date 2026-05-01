@@ -55,6 +55,7 @@ import {
   type DataplaneProfile,
   type DataplaneContextOverrideSettings,
   type DataplaneSettings,
+  type KeyboardSettings,
   type KviewUserSettingsV2,
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
@@ -71,7 +72,7 @@ import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, Scop
 import { apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 
-type SettingsSection = "appearance" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
+type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 
 type Props = {
@@ -122,6 +123,7 @@ function dataplaneProfileEnrichmentText(profile: DataplaneProfile): string {
 
 const sections: Array<{ id: SettingsSection; label: string }> = [
   { id: "appearance", label: "Appearance" },
+  { id: "keyboard", label: "Keyboard" },
   { id: "smartFilters", label: "Smart Filters" },
   { id: "commands", label: "Custom Commands" },
   { id: "actions", label: "Custom Actions" },
@@ -229,6 +231,16 @@ function updateSmartFilters(
   return {
     ...settings,
     smartFilters: { ...settings.smartFilters, ...patch },
+  };
+}
+
+function updateKeyboard(
+  settings: KviewUserSettingsV2,
+  patch: Partial<KeyboardSettings>,
+): KviewUserSettingsV2 {
+  return {
+    ...settings,
+    keyboard: { ...settings.keyboard, ...patch },
   };
 }
 
@@ -704,6 +716,89 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       </Box>
     </SettingSection>
   );
+
+  const renderKeyboard = () => {
+    const summaryRows = [
+      {
+        label: "Always on",
+        keys: ["?", ":", "Ctrl+K", "/", "t", "Enter", "g sequences", "[", "]"],
+      },
+      {
+        label: "Table movement",
+        keys: [
+          "Arrow keys",
+          ...(settings.keyboard.vimTableNavigation ? ["h/j/k/l"] : []),
+          ...(settings.keyboard.homeRowTableNavigation ? ["a/s/d/f"] : []),
+        ],
+      },
+      {
+        label: "Global search",
+        keys: [
+          "Ctrl+K",
+          ...(settings.keyboard.singleLetterGlobalSearch ? ["s"] : []),
+        ],
+      },
+    ];
+    return (
+      <SettingSection
+        title="Keyboard"
+        hint="Command mode and core browser-safe shortcuts stay enabled; these options tune the extra convenience bindings."
+      >
+        <Box sx={{ ...panelBoxSx, display: "grid", gap: 0.75 }}>
+          {summaryRows.map((row) => (
+            <Box
+              key={row.label}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "150px minmax(0, 1fr)" },
+                gap: 0.75,
+                alignItems: "center",
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {row.label}
+              </Typography>
+              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
+                {row.keys.map((key) => (
+                  <Chip
+                    key={key}
+                    size="small"
+                    variant="outlined"
+                    label={key}
+                    sx={{
+                      height: 22,
+                      borderRadius: 1,
+                      fontFamily: "monospace",
+                      fontSize: "0.72rem",
+                      "& .MuiChip-label": { px: 0.75 },
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+        <SettingRow
+          label="Vim table navigation"
+          hint="Enables h/j/k/l for focused resource tables."
+          checked={settings.keyboard.vimTableNavigation}
+          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { vimTableNavigation: v }))}
+        />
+        <SettingRow
+          label="Home-row table navigation"
+          hint="Enables a/s/d/f for focused resource tables."
+          checked={settings.keyboard.homeRowTableNavigation}
+          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { homeRowTableNavigation: v }))}
+        />
+        <SettingRow
+          label="Single-letter global search"
+          hint="Lets s focus global search when you are not typing. Ctrl+K always remains enabled."
+          checked={settings.keyboard.singleLetterGlobalSearch}
+          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { singleLetterGlobalSearch: v }))}
+        />
+      </SettingSection>
+    );
+  };
 
   const renderRule = (rule: SmartFilterRule, index: number) => {
     const error = rulePatternError(rule);
@@ -2130,6 +2225,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           </Tooltip>
         </Box>
         {section === "appearance" ? renderAppearance() : null}
+        {section === "keyboard" ? renderKeyboard() : null}
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "commands" ? renderCustomCommands() : null}
         {section === "actions" ? renderCustomActions() : null}

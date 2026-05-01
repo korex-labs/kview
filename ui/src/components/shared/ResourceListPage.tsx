@@ -32,6 +32,8 @@ const tableNavigationKeys: Record<string, { rowDelta: number; colDelta: number }
   d: { rowDelta: -1, colDelta: 0 },
   f: { rowDelta: 0, colDelta: 1 },
 };
+const vimTableNavigationKeys = new Set(["h", "j", "k", "l"]);
+const homeRowTableNavigationKeys = new Set(["a", "s", "d", "f"]);
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
@@ -149,7 +151,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec ?? 0);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
-  const { registerTableControls } = useKeyboardControls();
+  const { registerTableControls, keyboardSettings } = useKeyboardControls();
   const offline = health === "unhealthy";
 
   useEffect(() => {
@@ -253,7 +255,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [apiRef, filteredRows, focusGridCell, orderedColumns, selectedId]);
 
   const handleMoveGridFocus = useCallback((key: string, rowId: string, field: string) => {
-    const move = tableNavigationKeys[key.toLowerCase()];
+    const normalizedKey = key.toLowerCase();
+    if (vimTableNavigationKeys.has(normalizedKey) && !keyboardSettings.vimTableNavigation) return false;
+    if (homeRowTableNavigationKeys.has(normalizedKey) && !keyboardSettings.homeRowTableNavigation) return false;
+    const move = tableNavigationKeys[normalizedKey];
     if (!move) return false;
     const rowIds = apiRef.current?.getAllRowIds?.().map(String) || filteredRows.map((row) => row.id);
     const fields = orderedColumns.map((col) => String(col.field));
@@ -263,7 +268,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const nextRowIndex = Math.max(0, Math.min(rowIds.length - 1, rowIndex + move.rowDelta));
     const nextColIndex = Math.max(0, Math.min(fields.length - 1, colIndex + move.colDelta));
     return focusGridCell(rowIds[nextRowIndex], fields[nextColIndex]);
-  }, [apiRef, filteredRows, focusGridCell, orderedColumns]);
+  }, [apiRef, filteredRows, focusGridCell, keyboardSettings.homeRowTableNavigation, keyboardSettings.vimTableNavigation, orderedColumns]);
 
   const handleCloseDrawer = useCallback(() => {
     const returnId = drawerSelectedId;

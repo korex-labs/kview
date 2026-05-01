@@ -16,6 +16,12 @@ export type SignalOverride = {
   priority?: number;
 };
 
+export type KeyboardSettings = {
+  vimTableNavigation: boolean;
+  homeRowTableNavigation: boolean;
+  singleLetterGlobalSearch: boolean;
+};
+
 export type SmartFilterRule = {
   id: string;
   enabled: boolean;
@@ -49,6 +55,7 @@ export type KviewUserSettingsV1 = {
   customActions: {
     actions: CustomActionDefinition[];
   };
+  keyboard: KeyboardSettings;
   dataplane: DataplaneSettings;
 };
 
@@ -86,6 +93,7 @@ export type KviewUserSettingsV2 = {
   smartFilters: KviewUserSettingsV1["smartFilters"];
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
+  keyboard: KviewUserSettingsV1["keyboard"];
   dataplane: DataplaneSettingsV2;
 };
 
@@ -375,7 +383,16 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
         },
       ],
     },
+    keyboard: defaultKeyboardSettings(),
     dataplane: defaultDataplaneSettings(),
+  };
+}
+
+export function defaultKeyboardSettings(): KeyboardSettings {
+  return {
+    vimTableNavigation: true,
+    homeRowTableNavigation: true,
+    singleLetterGlobalSearch: true,
   };
 }
 
@@ -402,6 +419,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     smartFilters: v1.smartFilters,
     customCommands: v1.customCommands,
     customActions: v1.customActions,
+    keyboard: v1.keyboard,
     dataplane: {
       global,
       contextOverrides: dataplaneContextOverridesFromLegacy(v1.dataplane.signals.contextOverrides),
@@ -1165,6 +1183,7 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
   const rawSmartFilters = (raw.smartFilters ?? {}) as Partial<KviewUserSettingsV1["smartFilters"]>;
   const rawCustomCommands = (raw.customCommands ?? {}) as Partial<KviewUserSettingsV1["customCommands"]>;
   const rawCustomActions = (raw.customActions ?? {}) as Partial<KviewUserSettingsV1["customActions"]>;
+  const rawKeyboard = (raw.keyboard ?? {}) as Partial<KeyboardSettings>;
   const rulesProvided = Array.isArray(rawSmartFilters.rules);
   const rawRules: unknown[] = rulesProvided ? (rawSmartFilters.rules as unknown[]) : [];
   const normalizedRules = rawRules
@@ -1223,6 +1242,20 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
     },
     customActions: {
       actions: actionsProvided ? normalizedActions : defaults.customActions.actions,
+    },
+    keyboard: {
+      vimTableNavigation:
+        typeof rawKeyboard.vimTableNavigation === "boolean"
+          ? rawKeyboard.vimTableNavigation
+          : defaults.keyboard.vimTableNavigation,
+      homeRowTableNavigation:
+        typeof rawKeyboard.homeRowTableNavigation === "boolean"
+          ? rawKeyboard.homeRowTableNavigation
+          : defaults.keyboard.homeRowTableNavigation,
+      singleLetterGlobalSearch:
+        typeof rawKeyboard.singleLetterGlobalSearch === "boolean"
+          ? rawKeyboard.singleLetterGlobalSearch
+          : defaults.keyboard.singleLetterGlobalSearch,
     },
     dataplane: normalizeDataplaneSettings(raw.dataplane),
   };
@@ -1391,6 +1424,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     smartFilters: root.smartFilters,
     customCommands: root.customCommands,
     customActions: root.customActions,
+    keyboard: root.keyboard,
     dataplane: (root.dataplane as { global?: unknown } | undefined)?.global,
   });
   if (!fallbackAsV1) return null;
@@ -1402,6 +1436,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     smartFilters: fallbackAsV1.smartFilters,
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
+    keyboard: fallbackAsV1.keyboard,
     dataplane: {
       global,
       contextOverrides: normalizeDataplaneContextOverrides(rawV2Dataplane.contextOverrides) || defaults.dataplane.contextOverrides,

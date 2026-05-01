@@ -457,6 +457,7 @@ function AppInner() {
           namespaces={namespaces}
           contexts={contexts.map((ctx) => ctx.name)}
           settingsOpen={settingsOpen}
+          keyboardSettings={settings.keyboard}
           onFocusGlobalSearch={() => setSearchFocusNonce((nonce) => nonce + 1)}
           onSelectSection={onSelectSection}
           onSelectNamespace={onSelectNamespace}

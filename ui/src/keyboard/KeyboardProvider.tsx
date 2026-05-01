@@ -14,10 +14,17 @@ import {
   Typography,
 } from "@mui/material";
 import type { Section } from "../state";
+import type { KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "./commands";
 import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
-import { formatBinding, shortcutCommands, type ShortcutCommand, type ShortcutCommandId, type ShortcutGroup } from "./shortcuts";
+import {
+  formatBinding,
+  shortcutCommandsForSettings,
+  type ShortcutCommand,
+  type ShortcutCommandId,
+  type ShortcutGroup,
+} from "./shortcuts";
 
 export type ContextualKeyboardAction = {
   id: string;
@@ -38,11 +45,17 @@ type TableKeyboardControls = {
 type KeyboardContextValue = {
   registerTableControls: (controls: TableKeyboardControls) => () => void;
   registerContextActions: (actions: ContextualKeyboardAction[]) => () => void;
+  keyboardSettings: KeyboardSettings;
 };
 
 const KeyboardContext = createContext<KeyboardContextValue>({
   registerTableControls: () => () => undefined,
   registerContextActions: () => () => undefined,
+  keyboardSettings: {
+    vimTableNavigation: true,
+    homeRowTableNavigation: true,
+    singleLetterGlobalSearch: true,
+  },
 });
 
 function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
@@ -88,6 +101,7 @@ type KeyboardProviderProps = {
   onSelectContext: (context: string) => void;
   onOpenSettings: () => void;
   settingsOpen: boolean;
+  keyboardSettings: KeyboardSettings;
 };
 
 const sequenceTimeoutMs = 900;
@@ -102,6 +116,7 @@ export default function KeyboardProvider({
   onSelectContext,
   onOpenSettings,
   settingsOpen,
+  keyboardSettings,
 }: KeyboardProviderProps) {
   const tableControlsRef = useRef<TableKeyboardControls | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -111,6 +126,7 @@ export default function KeyboardProvider({
   const sequenceRef = useRef<string[]>([]);
   const sequenceTimerRef = useRef<number | null>(null);
   const contextActionStackRef = useRef<ContextualKeyboardAction[][]>([]);
+  const activeShortcutCommands = useMemo(() => shortcutCommandsForSettings(keyboardSettings), [keyboardSettings]);
 
   useEffect(() => {
     contextActionStackRef.current = contextActionStack;
@@ -143,7 +159,7 @@ export default function KeyboardProvider({
   }, [onOpenSettings, onSelectContext, onSelectNamespace, onSelectSection]);
 
   const runCommand = useCallback((command: ShortcutCommandId) => {
-    const nav = shortcutCommands.find((item) => item.id === command);
+    const nav = activeShortcutCommands.find((item) => item.id === command);
     if (nav?.section) {
       onSelectSection(nav.section);
       return true;
@@ -177,7 +193,7 @@ export default function KeyboardProvider({
       default:
         return false;
     }
-  }, [onFocusGlobalSearch, onOpenSettings, onSelectSection, openCommand]);
+  }, [activeShortcutCommands, onFocusGlobalSearch, onOpenSettings, onSelectSection, openCommand]);
 
   const clearSequence = useCallback(() => {
     sequenceRef.current = [];
@@ -225,7 +241,7 @@ export default function KeyboardProvider({
 
       const key = eventToBinding(event);
       const pressed = [...sequenceRef.current, key];
-      const exact = shortcutCommands.find((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
+      const exact = activeShortcutCommands.find((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
       if (exact) {
         const handled = runCommand(exact.id);
         if (handled) event.preventDefault();
@@ -233,7 +249,7 @@ export default function KeyboardProvider({
         return;
       }
 
-      const partial = shortcutCommands.some((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "partial"));
+      const partial = activeShortcutCommands.some((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "partial"));
       if (partial) {
         event.preventDefault();
         sequenceRef.current = pressed;
@@ -250,7 +266,7 @@ export default function KeyboardProvider({
       window.removeEventListener("keydown", onKeyDown);
       clearSequence();
     };
-  }, [clearSequence, commandOpen, helpOpen, runCommand, settingsOpen]);
+  }, [activeShortcutCommands, clearSequence, commandOpen, helpOpen, runCommand, settingsOpen]);
 
   const registerTableControls = useCallback((controls: TableKeyboardControls) => {
     tableControlsRef.current = controls;
@@ -270,7 +286,10 @@ export default function KeyboardProvider({
     };
   }, []);
 
-  const value = useMemo(() => ({ registerTableControls, registerContextActions }), [registerContextActions, registerTableControls]);
+  const value = useMemo(
+    () => ({ registerTableControls, registerContextActions, keyboardSettings }),
+    [keyboardSettings, registerContextActions, registerTableControls],
+  );
 
   return (
     <KeyboardContext.Provider value={value}>
@@ -288,6 +307,7 @@ export default function KeyboardProvider({
       />
       <KeyboardHelpDialog
         open={helpOpen}
+        commands={activeShortcutCommands}
         contextActions={effectiveContextActions(contextActionStack)}
         onClose={() => setHelpOpen(false)}
       />
@@ -315,6 +335,18 @@ function KeyboardCommandPalette({
     () => buildCommandSuggestions({ query, namespaces, contexts }),
     [contexts, namespaces, query],
   );
+  const groupedSuggestions = useMemo(() => {
+    const groups: Array<{ category: CommandSuggestion["category"]; options: CommandSuggestion[] }> = [];
+    for (const suggestion of suggestions) {
+      let group = groups.find((item) => item.category === suggestion.category);
+      if (!group) {
+        group = { category: suggestion.category, options: [] };
+        groups.push(group);
+      }
+      group.options.push(suggestion);
+    }
+    return groups;
+  }, [suggestions]);
 
   useEffect(() => {
     if (open) setQuery(initialQuery);
@@ -340,6 +372,7 @@ function KeyboardCommandPalette({
           autoHighlight
           openOnFocus
           options={suggestions}
+          groupBy={(option) => option.category}
           inputValue={query}
           getOptionLabel={(option) => typeof option === "string" ? option : option.value}
           filterOptions={(options) => options}
@@ -364,12 +397,42 @@ function KeyboardCommandPalette({
           )}
           renderOption={(props, option) => (
             <li {...props} key={option.value}>
-              <Box>
-                <Typography variant="body2">{option.value}</Typography>
+              <Box sx={{ minWidth: 0, width: "100%" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontFamily: "monospace", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {option.value}
+                  </Typography>
+                  {option.aliases?.slice(0, 3).map((alias) => (
+                    <Chip
+                      key={alias}
+                      size="small"
+                      variant="outlined"
+                      label={alias}
+                      sx={{
+                        height: 20,
+                        borderRadius: 1,
+                        fontFamily: "monospace",
+                        fontSize: "0.68rem",
+                        "& .MuiChip-label": { px: 0.65 },
+                      }}
+                    />
+                  ))}
+                </Box>
                 <Typography variant="caption" color="text.secondary">{option.description}</Typography>
               </Box>
             </li>
           )}
+          renderGroup={(params) => {
+            const group = groupedSuggestions.find((item) => item.category === params.group);
+            return (
+              <Box component="li" key={params.key}>
+                <Typography variant="overline" color="text.secondary" sx={{ display: "block", px: 2, pt: 1, lineHeight: 1.4 }}>
+                  {params.group}{group ? ` (${group.options.length})` : ""}
+                </Typography>
+                <Box component="ul" sx={{ p: 0 }}>{params.children}</Box>
+              </Box>
+            );
+          }}
         />
       </DialogContent>
     </Dialog>
@@ -378,10 +441,12 @@ function KeyboardCommandPalette({
 
 function KeyboardHelpDialog({
   open,
+  commands,
   contextActions,
   onClose,
 }: {
   open: boolean;
+  commands: ShortcutCommand[];
   contextActions: ContextualKeyboardAction[];
   onClose: () => void;
 }) {
@@ -392,9 +457,9 @@ function KeyboardHelpDialog({
       Table: [],
       "Command Mode": [],
     };
-    for (const command of shortcutCommands) groups[command.group].push(command);
+    for (const command of commands) groups[command.group].push(command);
     return groups;
-  }, []);
+  }, [commands]);
   const sectionEntries = useMemo(() => {
     const entries: Array<{ title: string; rows: Array<{ id: string; label: string; bindings: string[][]; disabled?: boolean }> }> =
       (Object.keys(grouped) as ShortcutGroup[]).map((group) => ({

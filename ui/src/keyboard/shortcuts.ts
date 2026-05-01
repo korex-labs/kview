@@ -1,4 +1,5 @@
 import type { Section } from "../state";
+import type { KeyboardSettings } from "../settings";
 
 export type ShortcutGroup = "Global" | "Navigation" | "Table" | "Command Mode";
 
@@ -54,6 +55,24 @@ export const shortcutCommands: ShortcutCommand[] = [
   { id: "nav.context", label: "Open context command suggestions", group: "Navigation", bindings: [["g", "x"]] },
   { id: "nav.settings", label: "Open settings", group: "Navigation", bindings: [["g", ","]] },
 ];
+
+export function shortcutCommandsForSettings(settings: KeyboardSettings): ShortcutCommand[] {
+  return shortcutCommands.map((command) => {
+    if (command.id === "search.focus" && !settings.singleLetterGlobalSearch) {
+      return {
+        ...command,
+        bindings: command.bindings.filter((binding) => binding.join(" ") !== "s"),
+      };
+    }
+    if (command.id === "table.cell.navigate") {
+      const bindings: string[][] = [["Arrow keys"]];
+      if (settings.vimTableNavigation) bindings.push(["h/j/k/l"]);
+      if (settings.homeRowTableNavigation) bindings.push(["a/s/d/f"]);
+      return { ...command, bindings };
+    }
+    return command;
+  });
+}
 
 export function formatBinding(binding: string[]): string {
   return binding

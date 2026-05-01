@@ -11,6 +11,8 @@ export type CommandSuggestion = {
   value: string;
   label: string;
   description: string;
+  category: "Resource" | "Namespace" | "Context" | "App";
+  aliases?: string[];
   action: KeyboardCommandAction;
 };
 
@@ -53,10 +55,40 @@ function normalizeCommand(value: string): string {
   return value.trim().replace(/^:/, "").trim().toLowerCase();
 }
 
-function commandMatches(value: string, query: string): boolean {
+function compact(value: string): string {
+  return normalizeCommand(value).replace(/[\s:_/-]+/g, "");
+}
+
+function fuzzyIncludes(candidate: string, query: string): boolean {
+  if (!query) return true;
+  let queryIndex = 0;
+  for (const ch of candidate) {
+    if (ch === query[queryIndex]) queryIndex += 1;
+    if (queryIndex >= query.length) return true;
+  }
+  return false;
+}
+
+function suggestionScore(suggestion: CommandSuggestion, query: string): number {
   const q = normalizeCommand(query);
-  if (!q) return true;
-  return normalizeCommand(value).includes(q);
+  if (!q) return 0;
+  const qCompact = compact(q);
+  const values = [
+    suggestion.value,
+    suggestion.label,
+    suggestion.description,
+    ...(suggestion.aliases || []),
+  ].map((v) => normalizeCommand(v));
+  const compactValues = values.map(compact);
+
+  if (values.some((value) => value === q)) return 1;
+  if (compactValues.some((value) => value === qCompact)) return 2;
+  if (values.some((value) => value.startsWith(q))) return 3;
+  if (compactValues.some((value) => value.startsWith(qCompact))) return 4;
+  if (values.some((value) => value.includes(q))) return 5;
+  if (compactValues.some((value) => value.includes(qCompact))) return 6;
+  if (compactValues.some((value) => fuzzyIncludes(value, qCompact))) return 8;
+  return Number.POSITIVE_INFINITY;
 }
 
 export function resourceCommandSuggestions(): CommandSuggestion[] {
@@ -67,6 +99,8 @@ export function resourceCommandSuggestions(): CommandSuggestion[] {
       value: `:${primary}`,
       label,
       description: `Go to ${label}`,
+      category: "Resource",
+      aliases: resourceAliases[section].slice(1),
       action: { type: "section", section },
     };
   });
@@ -86,23 +120,39 @@ export function buildCommandSuggestions({
     value: `:ns ${namespace}`,
     label: `Namespace: ${namespace}`,
     description: "Switch namespace",
+    category: "Namespace" as const,
+    aliases: ["ns", "namespace"],
     action: { type: "namespace", namespace } as KeyboardCommandAction,
   }));
   const contextSuggestions = contexts.map((context) => ({
     value: `:ctx ${context}`,
     label: `Context: ${context}`,
     description: "Switch context",
+    category: "Context" as const,
+    aliases: ["ctx", "context"],
     action: { type: "context", context } as KeyboardCommandAction,
   }));
   const settingsSuggestion: CommandSuggestion = {
     value: ":settings",
     label: "Settings",
     description: "Open settings",
+    category: "App",
+    aliases: ["preferences"],
     action: { type: "settings" },
   };
 
   return [...resourceSuggestions, ...namespaceSuggestions, ...contextSuggestions, settingsSuggestion]
-    .filter((suggestion) => commandMatches(suggestion.value, query) || suggestion.label.toLowerCase().includes(normalizeCommand(query)))
+    .map((suggestion) => ({ suggestion, score: suggestionScore(suggestion, query) }))
+    .filter((item) => Number.isFinite(item.score))
+    .sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      const categoryOrder = ["Resource", "Namespace", "Context", "App"];
+      const ca = categoryOrder.indexOf(a.suggestion.category);
+      const cb = categoryOrder.indexOf(b.suggestion.category);
+      if (ca !== cb) return ca - cb;
+      return a.suggestion.label.localeCompare(b.suggestion.label);
+    })
+    .map((item) => item.suggestion)
     .slice(0, 12);
 }
 

@@ -55,6 +55,15 @@ describe("user settings", () => {
     expect(validateUserSettings({ v: 1 })?.dataplane.global.signals).toEqual(defaults);
   });
 
+  it("enables keyboard convenience bindings by default", () => {
+    expect(defaultUserSettings().keyboard).toEqual({
+      vimTableNavigation: true,
+      homeRowTableNavigation: true,
+      singleLetterGlobalSearch: true,
+    });
+    expect(validateUserSettings({ v: 1 })?.keyboard).toEqual(defaultUserSettings().keyboard);
+  });
+
   it("falls back to defaults for unsupported versions", () => {
     window.localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify({ v: 99 }));
     expect(loadUserSettings()).toEqual(defaultUserSettings());
@@ -101,6 +110,24 @@ describe("user settings", () => {
       id: "default-env",
       command: "/bin/env",
       outputType: "keyValue",
+    });
+    expect(parsed?.keyboard).toEqual(defaultUserSettings().keyboard);
+  });
+
+  it("validates keyboard preferences", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      keyboard: {
+        vimTableNavigation: false,
+        homeRowTableNavigation: "nope",
+        singleLetterGlobalSearch: false,
+      },
+    });
+
+    expect(parsed?.keyboard).toEqual({
+      vimTableNavigation: false,
+      homeRowTableNavigation: true,
+      singleLetterGlobalSearch: false,
     });
   });
 
