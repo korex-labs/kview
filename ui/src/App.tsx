@@ -156,6 +156,7 @@ function AppInner() {
       settings.dataplane.global.namespaceEnrichment.favouriteLimit,
     ],
   );
+  const recentNamespaces = appState.recentNamespacesByContext?.[activeContext] || [];
 
   // persist on change
   useEffect(() => {
@@ -534,6 +535,8 @@ function AppInner() {
               onSelectNamespace={onSelectNamespace}
               nsLimited={nsLimited}
               favourites={favourites}
+              recentNamespaces={recentNamespaces}
+              smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
               onToggleFavourite={onToggleFavourite}
               section={section}
               onSelectSection={onSelectSection}
@@ -586,6 +589,8 @@ function AppInner() {
                   token={token}
                   listApiPath={namespacesListPath}
                   favourites={favourites}
+                  recentNamespaces={recentNamespaces}
+                  smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
                   onToggleFavourite={onToggleFavourite}
                   onNavigate={(sec, ns) => {
                     onSelectNamespace(ns);

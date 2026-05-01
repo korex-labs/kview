@@ -692,6 +692,12 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         checked={settings.appearance.yamlSmartCollapse}
         onChange={(v) => setSettings((prev) => updateAppearance(prev, { yamlSmartCollapse: v }))}
       />
+      <SettingRow
+        label="Smart namespace sorting"
+        hint="Prioritizes recently used favourites, then other favourites, recent namespaces, and the remaining namespaces."
+        checked={settings.appearance.smartNamespaceSorting}
+        onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
+      />
       <Box sx={{ maxWidth: 320 }}>
         <SettingField
           label="Initial activity panel state"

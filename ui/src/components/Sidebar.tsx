@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
-import type { Section } from "../state";
+import { sortNamespaces, type Section } from "../state";
 import { getResourceLabel, isClusterScopedSection, sidebarGroups } from "../utils/k8sResources";
 import {
   getLatestReleaseWithCache,
@@ -39,6 +39,8 @@ type Props = {
   nsLimited: boolean;
 
   favourites: string[];
+  recentNamespaces?: string[];
+  smartNamespaceSorting?: boolean;
   onToggleFavourite: (ns: string) => void;
 
   section: Section;
@@ -58,10 +60,13 @@ export default function Sidebar(props: Props) {
   const favSet = useMemo(() => new Set(props.favourites), [props.favourites]);
 
   const sortedNamespaces = useMemo(() => {
-    const fav = props.namespaces.filter((n) => favSet.has(n)).sort((a, b) => a.localeCompare(b));
-    const rest = props.namespaces.filter((n) => !favSet.has(n)).sort((a, b) => a.localeCompare(b));
-    return [...fav, ...rest];
-  }, [props.namespaces, favSet]);
+    return sortNamespaces(
+      props.namespaces,
+      props.favourites,
+      props.recentNamespaces || [],
+      Boolean(props.smartNamespaceSorting),
+    );
+  }, [props.favourites, props.namespaces, props.recentNamespaces, props.smartNamespaceSorting]);
 
   useEffect(() => {
     if (!props.releaseChecksEnabled) {

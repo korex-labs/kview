@@ -64,6 +64,42 @@ export function saveState(s: AppStateV1) {
 const MAX_RECENT_NAMESPACES = 20;
 const MAX_FAVOURITES_FOR_ENRICH_QUERY = 40;
 
+export function namespaceSmartSortRank(name: string, favourites: Iterable<string>, recent: readonly string[]): number {
+  const favouriteSet = favourites instanceof Set ? favourites : new Set(favourites);
+  const recentIndex = recent.indexOf(name);
+  const isFavourite = favouriteSet.has(name);
+  const isRecent = recentIndex >= 0;
+  const groupRank = isFavourite && isRecent ? 0 : isFavourite ? 1 : isRecent ? 2 : 3;
+  const orderInGroup = isRecent ? recentIndex : 0;
+  return groupRank * 100_000 + orderInGroup;
+}
+
+export function namespaceSmartSortKey(name: string, favourites: Iterable<string>, recent: readonly string[]): string {
+  const rank = namespaceSmartSortRank(name, favourites, recent);
+  return `${String(rank).padStart(6, "0")}:${name}`;
+}
+
+export function sortNamespaces(
+  namespaces: readonly string[],
+  favourites: readonly string[],
+  recent: readonly string[],
+  smartSorting: boolean,
+): string[] {
+  const favouriteSet = new Set(favourites);
+  const sorted = [...namespaces];
+  if (!smartSorting) {
+    const fav = sorted.filter((n) => favouriteSet.has(n)).sort((a, b) => a.localeCompare(b));
+    const rest = sorted.filter((n) => !favouriteSet.has(n)).sort((a, b) => a.localeCompare(b));
+    return [...fav, ...rest];
+  }
+  return sorted.sort((a, b) => {
+    const rankA = namespaceSmartSortRank(a, favouriteSet, recent);
+    const rankB = namespaceSmartSortRank(b, favouriteSet, recent);
+    if (rankA !== rankB) return rankA - rankB;
+    return a.localeCompare(b);
+  });
+}
+
 /** Path for GET /api/namespaces including enrichment hint query (current, recent, favourites). */
 export function namespacesListApiPath(
   state: AppStateV1,

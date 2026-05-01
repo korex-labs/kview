@@ -44,6 +44,7 @@ export type KviewUserSettingsV1 = {
     releaseChecksEnabled: boolean;
     resourceDrawerWidthPx: number;
     yamlSmartCollapse: boolean;
+    smartNamespaceSorting: boolean;
   };
   smartFilters: {
     minCount: number;
@@ -302,6 +303,7 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
       releaseChecksEnabled: false,
       resourceDrawerWidthPx: 820,
       yamlSmartCollapse: true,
+      smartNamespaceSorting: false,
     },
     smartFilters: {
       minCount: 3,
@@ -1232,6 +1234,10 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
         typeof rawAppearance.yamlSmartCollapse === "boolean"
           ? rawAppearance.yamlSmartCollapse
           : defaults.appearance.yamlSmartCollapse,
+      smartNamespaceSorting:
+        typeof rawAppearance.smartNamespaceSorting === "boolean"
+          ? rawAppearance.smartNamespaceSorting
+          : defaults.appearance.smartNamespaceSorting,
     },
     smartFilters: {
       minCount: validMinCount(rawSmartFilters.minCount, defaults.smartFilters.minCount),

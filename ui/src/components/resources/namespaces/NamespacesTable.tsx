@@ -21,11 +21,12 @@ import { useUserSettings } from "../../../settingsContext";
 import StatusChip from "../../shared/StatusChip";
 import ListSignalChip from "../../shared/ListSignalChip";
 import ScopedCountChip from "../../shared/ScopedCountChip";
+import { namespaceSmartSortKey } from "../../../state";
 
 type Namespace = NonNullable<ApiNamespacesListResponse["items"]>[number];
 type NamespaceProjectionUpdate = ApiNamespacesEnrichmentPoll["updates"][number];
 
-type Row = Namespace & { id: string; isFavourite: boolean };
+type Row = Namespace & { id: string; isFavourite: boolean; smartNamespaceSortKey: string };
 
 const resourceLabel = getResourceLabel("namespaces");
 
@@ -202,6 +203,8 @@ export default function NamespacesTable({
   token,
   listApiPath,
   favourites,
+  recentNamespaces,
+  smartNamespaceSorting,
   onToggleFavourite,
   onNavigate,
 }: {
@@ -209,6 +212,8 @@ export default function NamespacesTable({
   /** GET path for the namespaces list (optional query hints for prioritized row details). */
   listApiPath: string;
   favourites: string[];
+  recentNamespaces?: string[];
+  smartNamespaceSorting?: boolean;
   onToggleFavourite: (namespace: string) => void;
   onNavigate?: (section: string, namespace: string) => void;
 }) {
@@ -223,9 +228,21 @@ export default function NamespacesTable({
   const { settings } = useUserSettings();
   const namespaceRowDetailsPollMs = settings.dataplane.global.namespaceEnrichment.pollMs;
   const favouriteSet = useMemo(() => new Set(favourites), [favourites]);
+  const recentNamespaceList = useMemo(() => recentNamespaces || [], [recentNamespaces]);
+  const smartSortingEnabled = Boolean(smartNamespaceSorting);
+  const rowSortKey = useCallback(
+    (name: string) => smartSortingEnabled ? namespaceSmartSortKey(name, favouriteSet, recentNamespaceList) : name,
+    [favouriteSet, recentNamespaceList, smartSortingEnabled],
+  );
 
   const columns = useMemo<GridColDef<Row>[]>(
     () => [
+      {
+        field: "smartNamespaceSortKey",
+        headerName: "Smart sort",
+        sortable: true,
+        valueGetter: (_value, row) => row.smartNamespaceSortKey,
+      },
       {
         field: "isFavourite",
         headerName: "Favourite",
@@ -281,16 +298,25 @@ export default function NamespacesTable({
     setRowProjection(res.rowProjection ?? null);
     const items = res.items || [];
     return {
-      rows: items.map((n) => ({ ...n, id: n.name, isFavourite: favouriteSet.has(n.name) })),
+      rows: items.map((n) => ({
+        ...n,
+        id: n.name,
+        isFavourite: favouriteSet.has(n.name),
+        smartNamespaceSortKey: rowSortKey(n.name),
+      })),
       dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
     };
-  }, [token, listApiPath, favouriteSet]);
+  }, [token, listApiPath, favouriteSet, rowSortKey]);
 
   const mapRows = useCallback(
     (rows: Row[]) => {
       const listRev = rowProjection?.revision ?? 0;
       if (enrichedRowsByName.size === 0 && !enrichRows?.length) {
-        return rows.map((r) => ({ ...r, isFavourite: favouriteSet.has(r.name) }));
+        return rows.map((r) => ({
+          ...r,
+          isFavourite: favouriteSet.has(r.name),
+          smartNamespaceSortKey: rowSortKey(r.name),
+        }));
       }
       const currentRevisionRows =
         listRev && enrichPoll != null && enrichPoll.revision === listRev && enrichRows?.length
@@ -300,10 +326,13 @@ export default function NamespacesTable({
         const current = currentRevisionRows?.get(r.name);
         const ex = current?.rowEnriched ? current : enrichedRowsByName.get(r.name);
         const isFavourite = favouriteSet.has(r.name);
-        return ex ? ({ ...r, ...ex, id: r.name, isFavourite } as Row) : { ...r, isFavourite };
+        const smartNamespaceSortKey = rowSortKey(r.name);
+        return ex
+          ? ({ ...r, ...ex, id: r.name, isFavourite, smartNamespaceSortKey } as Row)
+          : { ...r, isFavourite, smartNamespaceSortKey };
       });
     },
-    [enrichRows, enrichPoll, enrichedRowsByName, favouriteSet, rowProjection?.revision],
+    [enrichRows, enrichPoll, enrichedRowsByName, favouriteSet, rowProjection?.revision, rowSortKey],
   );
 
   const revision = rowProjection?.revision ?? 0;
@@ -416,8 +445,17 @@ export default function NamespacesTable({
       title={title}
       dataplaneMetaPrefix={listStatusPrefix}
       mapRows={mapRows}
-      mapRowsDeps={[enrichRows, enrichPoll, enrichedRowsByName, favouriteSet, rowProjection?.revision]}
+      mapRowsDeps={[
+        enrichRows,
+        enrichPoll,
+        enrichedRowsByName,
+        favouriteSet,
+        rowProjection?.revision,
+        rowSortKey,
+      ]}
       columns={columns}
+      defaultSortField={smartSortingEnabled ? "smartNamespaceSortKey" : "name"}
+      initialColumnVisibilityModel={{ smartNamespaceSortKey: false }}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "namespaces"),

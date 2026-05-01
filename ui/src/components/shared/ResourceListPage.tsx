@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Paper, Typography, Box } from "@mui/material";
-import { DataGrid, GridColDef, GridRowSelectionModel, useGridApiRef } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  GridColDef,
+  GridColumnVisibilityModel,
+  GridRowSelectionModel,
+  useGridApiRef,
+} from "@mui/x-data-grid";
 import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
@@ -63,6 +69,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   accessResource: AccessReviewResource;
   namespace?: string | null;
   defaultSortField?: string;
+  initialColumnVisibilityModel?: GridColumnVisibilityModel;
   /**
    * Initial toolbar refresh interval in seconds. Default 0 (Off): lists rely on dataplane-backed
    * snapshots and one-shot load; periodic polling can hit proxy/API limits. Users can enable
@@ -105,6 +112,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   accessResource,
   namespace = null,
   defaultSortField = "name",
+  initialColumnVisibilityModel,
   initialRefreshSec,
   dataplaneMetaPrefix,
   mapRows,
@@ -325,6 +333,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
     () => [{ field: defaultSortField, sort: "asc" as const }],
     [defaultSortField],
   );
+  const initialColumns = useMemo(
+    () => initialColumnVisibilityModel ? { columnVisibilityModel: initialColumnVisibilityModel } : undefined,
+    [initialColumnVisibilityModel],
+  );
 
   return (
     <Paper sx={{ p: 2 }}>
@@ -369,6 +381,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
           }}
           onRowDoubleClick={(params) => handleRowDoubleClick(params.row)}
           initialState={{
+            columns: initialColumns,
             sorting: { sortModel },
           }}
           {...(getRowHeight ? { getRowHeight } : {})}
