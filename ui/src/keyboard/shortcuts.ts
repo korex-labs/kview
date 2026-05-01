@@ -6,6 +6,10 @@ export type ShortcutCommandId =
   | "help.open"
   | "search.focus"
   | "table.filter.focus"
+  | "table.grid.focus"
+  | "table.cell.navigate"
+  | "table.page.previous"
+  | "table.page.next"
   | "command.open"
   | "table.row.open"
   | "nav.pods"
@@ -32,6 +36,10 @@ export const shortcutCommands: ShortcutCommand[] = [
   { id: "help.open", label: "Show keyboard shortcuts", group: "Global", bindings: [["?"]] },
   { id: "search.focus", label: "Focus global search", group: "Global", bindings: [["ctrl+k"], ["s"]] },
   { id: "table.filter.focus", label: "Focus current table filter", group: "Table", bindings: [["/"]] },
+  { id: "table.grid.focus", label: "Focus resource table", group: "Table", bindings: [["t"]] },
+  { id: "table.cell.navigate", label: "Move around the table", group: "Table", bindings: [["Arrow keys"], ["h/j/k/l"], ["a/s/d/f"]] },
+  { id: "table.page.previous", label: "Previous table page", group: "Table", bindings: [["["]] },
+  { id: "table.page.next", label: "Next table page", group: "Table", bindings: [["]"]] },
   { id: "command.open", label: "Open command mode", group: "Command Mode", bindings: [[":"]] },
   { id: "table.row.open", label: "Open selected row", group: "Table", bindings: [["enter"]] },
   { id: "nav.pods", label: "Go to Pods", group: "Navigation", bindings: [["g", "p"]], section: "pods" },

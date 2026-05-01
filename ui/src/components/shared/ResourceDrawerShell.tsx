@@ -37,6 +37,7 @@ export default function ResourceDrawerShell({
   const dragStartXRef = useRef(0);
   const dragStartWidthRef = useRef(contentWidth);
   const nextWidthRef = useRef(contentWidth);
+  const shellRef = useRef<HTMLDivElement | null>(null);
 
   const maxWidth = useMemo(
     () => Math.max(RESOURCE_DRAWER_MIN_WIDTH, Math.min(RESOURCE_DRAWER_MAX_WIDTH, window.innerWidth - 120)),
@@ -89,9 +90,22 @@ export default function ResourceDrawerShell({
     };
   }, [clampWidth, isResizing, setSettings]);
 
+  useEffect(() => {
+    shellRef.current?.focus();
+  }, []);
+
   return (
     <Box
+      ref={shellRef}
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
       sx={{
+        outline: "none",
         width: drawerWidth,
         p: RESOURCE_DRAWER_PADDING,
         display: "flex",

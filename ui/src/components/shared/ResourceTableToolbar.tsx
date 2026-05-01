@@ -21,6 +21,8 @@ export type ResourceTableToolbarProps = {
   filter: string;
   onFilterChange: (value: string) => void;
   filterInputRef?: React.Ref<HTMLInputElement>;
+  onFilterKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onFilterFocus?: React.FocusEventHandler<HTMLInputElement>;
   selectedQuickFilter: string | null;
   onQuickFilterToggle: (value: string) => void;
   refreshSec: number;
@@ -35,6 +37,8 @@ export default function ResourceTableToolbar({
   filter,
   onFilterChange,
   filterInputRef,
+  onFilterKeyDown,
+  onFilterFocus,
   selectedQuickFilter,
   onQuickFilterToggle,
   refreshSec,
@@ -52,6 +56,8 @@ export default function ResourceTableToolbar({
           value={filter}
           onChange={(e) => onFilterChange(e.target.value)}
           inputRef={filterInputRef}
+          onKeyDown={onFilterKeyDown}
+          onFocus={onFilterFocus}
           sx={{ minWidth: 340 }}
           disabled={disabled}
           InputProps={{

@@ -18,6 +18,9 @@ import { formatBinding, shortcutCommands, type ShortcutCommand, type ShortcutCom
 
 type TableKeyboardControls = {
   focusFilter: () => boolean;
+  focusGrid: () => boolean;
+  pagePrevious: () => boolean;
+  pageNext: () => boolean;
   openSelectedRow: () => boolean;
 };
 
@@ -106,6 +109,12 @@ export default function KeyboardProvider({
         return true;
       case "table.filter.focus":
         return tableControlsRef.current?.focusFilter() ?? false;
+      case "table.grid.focus":
+        return tableControlsRef.current?.focusGrid() ?? false;
+      case "table.page.previous":
+        return tableControlsRef.current?.pagePrevious() ?? false;
+      case "table.page.next":
+        return tableControlsRef.current?.pageNext() ?? false;
       case "command.open":
         openCommand();
         return true;
@@ -305,8 +314,17 @@ function KeyboardHelpDialog({ open, onClose }: { open: boolean; onClose: () => v
               <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{group}</Typography>
               <List dense disablePadding>
                 {grouped[group].map((command) => (
-                  <ListItem key={command.id} disableGutters sx={{ gap: 2 }}>
-                    <Box sx={{ minWidth: 130 }}>
+                  <ListItem
+                    key={command.id}
+                    disableGutters
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(150px, 0.58fr) minmax(0, 1fr)",
+                      columnGap: 2,
+                      alignItems: "baseline",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
                       <Typography component="kbd" variant="caption" sx={{ fontFamily: "monospace" }}>
                         {command.bindings.map(formatBinding).join(" / ")}
                       </Typography>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Paper, Typography, Box } from "@mui/material";
-import { DataGrid, GridColDef, GridRowSelectionModel } from "@mui/x-data-grid";
+import { DataGrid, GridColDef, GridRowSelectionModel, useGridApiRef } from "@mui/x-data-grid";
 import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
@@ -16,6 +16,22 @@ import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 
 const defaultDataplaneRefreshSec = 10;
+
+function escapeAttributeValue(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/["\\]/g, "\\$&");
+}
+
+const tableNavigationKeys: Record<string, { rowDelta: number; colDelta: number }> = {
+  h: { rowDelta: 0, colDelta: -1 },
+  j: { rowDelta: 1, colDelta: 0 },
+  k: { rowDelta: -1, colDelta: 0 },
+  l: { rowDelta: 0, colDelta: 1 },
+  a: { rowDelta: 0, colDelta: -1 },
+  s: { rowDelta: 1, colDelta: 0 },
+  d: { rowDelta: -1, colDelta: 0 },
+  f: { rowDelta: 0, colDelta: 1 },
+};
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
@@ -128,6 +144,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
   /** Id of the row shown in the drawer (set when opening via Open or double-click). */
   const [drawerSelectedId, setDrawerSelectedId] = useState<string | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
+  const keepFilterFocusRef = useRef(false);
+  const apiRef = useGridApiRef();
   const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec ?? 0);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
@@ -192,17 +210,94 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setDrawerOpen(true);
   }, []);
 
-  const handleOpenSelectedRow = useCallback(() => {
-    if (!selectedId) return false;
-    setDrawerSelectedId(selectedId);
+  const handleOpenRowId = useCallback((rowId: string) => {
+    if (!rowId) return false;
+    keepFilterFocusRef.current = false;
+    setSelectionModel([rowId]);
+    setDrawerSelectedId(rowId);
     setDrawerOpen(true);
     return true;
-  }, [selectedId]);
+  }, []);
+
+  const focusGridCell = useCallback((rowId: string, field: string) => {
+    if (!rowId || !field) return false;
+    setSelectionModel([rowId]);
+    apiRef.current.setCellFocus(rowId, field);
+    const focusCell = () => {
+      const root = apiRef.current?.rootElementRef?.current;
+      const row = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-id]') || [])
+        .find((el) => el.getAttribute("data-id") === rowId);
+      const cell = row?.querySelector<HTMLElement>(`[role="gridcell"][data-field="${escapeAttributeValue(field)}"]`);
+      cell?.focus();
+    };
+    window.requestAnimationFrame(focusCell);
+    window.setTimeout(focusCell, 0);
+    window.setTimeout(focusCell, 50);
+    return true;
+  }, [apiRef]);
+
+  const handleOpenSelectedRow = useCallback(() => {
+    const focusedId = apiRef.current?.state?.focus?.cell?.id;
+    const targetId = focusedId != null ? String(focusedId) : (selectedId || "");
+    return handleOpenRowId(targetId);
+  }, [apiRef, handleOpenRowId, selectedId]);
+
+  const handleFocusGrid = useCallback((preferredId?: string | null) => {
+    keepFilterFocusRef.current = false;
+    const field = orderedColumns[0]?.field;
+    if (!field) return false;
+    const rowIds = apiRef.current?.getAllRowIds?.() || [];
+    const focusedId = apiRef.current?.state?.focus?.cell?.id;
+    const targetId = preferredId || (focusedId != null ? String(focusedId) : "") || selectedId || String(rowIds[0] ?? filteredRows[0]?.id ?? "");
+    return focusGridCell(targetId, field);
+  }, [apiRef, filteredRows, focusGridCell, orderedColumns, selectedId]);
+
+  const handleMoveGridFocus = useCallback((key: string, rowId: string, field: string) => {
+    const move = tableNavigationKeys[key.toLowerCase()];
+    if (!move) return false;
+    const rowIds = apiRef.current?.getAllRowIds?.().map(String) || filteredRows.map((row) => row.id);
+    const fields = orderedColumns.map((col) => String(col.field));
+    const rowIndex = rowIds.indexOf(rowId);
+    const colIndex = fields.indexOf(field);
+    if (rowIndex < 0 || colIndex < 0) return false;
+    const nextRowIndex = Math.max(0, Math.min(rowIds.length - 1, rowIndex + move.rowDelta));
+    const nextColIndex = Math.max(0, Math.min(fields.length - 1, colIndex + move.colDelta));
+    return focusGridCell(rowIds[nextRowIndex], fields[nextColIndex]);
+  }, [apiRef, filteredRows, focusGridCell, orderedColumns]);
 
   const handleCloseDrawer = useCallback(() => {
+    const returnId = drawerSelectedId;
     setDrawerOpen(false);
     setDrawerSelectedId(null);
-  }, []);
+    window.setTimeout(() => {
+      handleFocusGrid(returnId);
+    }, 0);
+  }, [drawerSelectedId, handleFocusGrid]);
+
+  const handlePageBy = useCallback((delta: number) => {
+    const pagination = apiRef.current?.state?.pagination;
+    if (!pagination?.enabled) return false;
+    const page = pagination.paginationModel.page;
+    const pageSize = pagination.paginationModel.pageSize;
+    const rowCount = pagination.rowCount >= 0 ? pagination.rowCount : filteredRows.length;
+    const pageCount = Math.max(1, Math.ceil(rowCount / Math.max(1, pageSize)));
+    const nextPage = Math.max(0, Math.min(pageCount - 1, page + delta));
+    if (nextPage === page) return false;
+    apiRef.current.setPage(nextPage);
+    window.setTimeout(() => {
+      const rowIds = apiRef.current?.getAllRowIds?.() || [];
+      const targetId = String(rowIds[nextPage * pageSize] ?? rowIds[0] ?? "");
+      handleFocusGrid(targetId);
+    }, 0);
+    return true;
+  }, [apiRef, filteredRows.length, handleFocusGrid]);
+
+  useEffect(() => {
+    if (!keepFilterFocusRef.current) return;
+    if (!filterInputRef.current) return;
+    if (document.activeElement === filterInputRef.current) return;
+    filterInputRef.current.focus();
+  }, [filter, filteredRows]);
 
   useEffect(() => {
     return registerTableControls({
@@ -211,9 +306,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
         filterInputRef.current?.select();
         return !!filterInputRef.current;
       },
+      focusGrid: handleFocusGrid,
+      pagePrevious: () => handlePageBy(-1),
+      pageNext: () => handlePageBy(1),
       openSelectedRow: handleOpenSelectedRow,
     });
-  }, [handleOpenSelectedRow, registerTableControls]);
+  }, [handleFocusGrid, handleOpenSelectedRow, handlePageBy, registerTableControls]);
 
   const emptyMessage = `No ${resourceLabel} found.`;
   const filteredEmptyMessage = `No ${resourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
@@ -245,6 +343,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
         <DataGrid<TRow>
           rows={filteredRows}
           columns={orderedColumns}
+          apiRef={apiRef}
           density="compact"
           loading={loading}
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
@@ -252,6 +351,17 @@ export default function ResourceListPage<TRow extends { id: string }>({
           hideFooterSelectedRowCount
           rowSelectionModel={selectionModel}
           onRowSelectionModelChange={(m) => setSelectionModel(m)}
+          onCellKeyDown={(params, event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              handleOpenRowId(String(params.id));
+              return;
+            }
+            if (!handleMoveGridFocus(event.key, String(params.id), String(params.field))) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           onRowDoubleClick={(params) => handleRowDoubleClick(params.row)}
           initialState={{
             sorting: { sortModel },
@@ -266,8 +376,19 @@ export default function ResourceListPage<TRow extends { id: string }>({
             toolbar: {
               filterLabel,
               filter,
-              onFilterChange: setFilter,
+              onFilterChange: (value: string) => {
+                keepFilterFocusRef.current = true;
+                setFilter(value);
+              },
               filterInputRef,
+              onFilterFocus: () => {
+                keepFilterFocusRef.current = true;
+              },
+              onFilterKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                handleFocusGrid();
+              },
               selectedQuickFilter,
               onQuickFilterToggle: toggleQuickFilter,
               refreshSec,
