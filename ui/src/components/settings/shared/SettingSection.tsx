@@ -13,6 +13,7 @@ import InfoHint from "../../shared/InfoHint";
 
 type Props = {
   title: string;
+  icon?: React.ReactNode;
   hint?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
@@ -22,6 +23,7 @@ type Props = {
 
 export default function SettingSection({
   title,
+  icon,
   hint,
   actions,
   children,
@@ -31,6 +33,7 @@ export default function SettingSection({
   const content = (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minHeight: 36 }}>
+        {icon ? <Box sx={{ display: "flex", color: "primary.main", mr: 0.25 }}>{icon}</Box> : null}
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
           {title}
         </Typography>

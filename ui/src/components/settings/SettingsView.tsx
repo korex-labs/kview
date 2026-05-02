@@ -11,6 +11,7 @@ import {
   InputLabel,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   MenuItem,
   Paper,
@@ -71,6 +72,7 @@ import ScopedCountChip from "../shared/ScopedCountChip";
 import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
 import { apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
+import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -121,17 +123,51 @@ function dataplaneProfileEnrichmentText(profile: DataplaneProfile): string {
   }
 }
 
-const sections: Array<{ id: SettingsSection; label: string }> = [
-  { id: "appearance", label: "Appearance" },
-  { id: "keyboard", label: "Keyboard" },
-  { id: "smartFilters", label: "Smart Filters" },
-  { id: "commands", label: "Custom Commands" },
-  { id: "actions", label: "Custom Actions" },
-  { id: "dataplane", label: "Dataplane" },
-  { id: "importExport", label: "Import / Export" },
+const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconName }> = [
+  { id: "appearance", label: "Appearance", icon: "appearance" },
+  { id: "keyboard", label: "Keyboard", icon: "keyboard" },
+  { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
+  { id: "commands", label: "Custom Commands", icon: "commands" },
+  { id: "actions", label: "Custom Actions", icon: "actions" },
+  { id: "dataplane", label: "Dataplane", icon: "dataplane" },
+  { id: "importExport", label: "Import / Export", icon: "importExport" },
+];
+
+const dataplaneTabs: Array<{ value: DataplaneTab; label: string; icon: SettingsIconName }> = [
+  { value: "overview", label: "Overview", icon: "overview" },
+  { value: "enrichment", label: "Enrichment", icon: "enrichment" },
+  { value: "metrics", label: "Metrics", icon: "metrics" },
+  { value: "signals", label: "Signals", icon: "signals" },
+  { value: "cache", label: "Cache", icon: "cache" },
 ];
 
 const headerRowSx = { display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" };
+const settingsTabsSx = {
+  minHeight: 40,
+  "& .MuiTabs-flexContainer": {
+    alignItems: "stretch",
+  },
+  "& .MuiTab-root": {
+    minHeight: 40,
+    py: 0,
+    px: 1.5,
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 1.25,
+    lineHeight: 1.2,
+    textTransform: "none",
+    whiteSpace: "nowrap",
+  },
+  "& .MuiTab-root.MuiTab-labelIcon": {
+    minHeight: 40,
+    pt: 0,
+    pb: 0,
+  },
+  "& .MuiTab-root .MuiTab-iconWrapper": {
+    mr: 0,
+    mb: 0,
+  },
+};
 const denseSelectMenuProps = {
   PaperProps: {
     sx: {
@@ -675,7 +711,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   };
 
   const renderAppearance = () => (
-    <SettingSection title="Appearance">
+    <SettingSection title="Appearance" icon={<SettingsIcon name="appearance" />}>
       <SettingRow
         label="Smart filters"
         checked={settings.appearance.smartFiltersEnabled}
@@ -748,6 +784,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     return (
       <SettingSection
         title="Keyboard"
+        icon={<SettingsIcon name="keyboard" />}
         hint="Command mode and core browser-safe shortcuts stay enabled; these options tune the extra convenience bindings."
       >
         <Box sx={{ ...panelBoxSx, display: "grid", gap: 0.75 }}>
@@ -967,6 +1004,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const renderSmartFilters = () => (
     <SettingSection
       title="Smart Filters"
+      icon={<SettingsIcon name="smartFilters" />}
       hint="Rules are evaluated in order; each row stops at the first matching rule. Current quick filter chips are generated from these rules when smart filters are enabled."
       actions={
         <Button
@@ -1137,6 +1175,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const renderCustomCommands = () => (
     <SettingSection
       title="Custom Commands"
+      icon={<SettingsIcon name="commands" />}
       hint="Commands are stored in this browser profile and become available on matching Pod containers."
       actions={
         <Button
@@ -1338,6 +1377,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const renderCustomActions = () => (
     <SettingSection
       title="Custom Actions"
+      icon={<SettingsIcon name="actions" />}
       hint="Custom actions are browser-local presets for patch-capable workload resources."
       actions={
         <Button
@@ -1580,6 +1620,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, maxWidth: 900 }}>
         <SettingSection
           title="Dataplane"
+          icon={<SettingsIcon name="dataplane" />}
           hint={
             dataplaneEditScope === "context" && activeContext
               ? `Dataplane controls cached Kubernetes snapshots, namespace enrichment, metrics sampling cadence, and derived signals. Editing sparse overrides for ${activeContext}; unchanged fields inherit from global defaults.`
@@ -1606,12 +1647,17 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             variant="scrollable"
             scrollButtons="auto"
             aria-label="Dataplane settings groups"
+            sx={settingsTabsSx}
           >
-            <Tab value="overview" label="Overview" />
-            <Tab value="enrichment" label="Enrichment" />
-            <Tab value="metrics" label="Metrics" />
-            <Tab value="signals" label="Signals" />
-            <Tab value="cache" label="Cache" />
+            {dataplaneTabs.map((item) => (
+              <Tab
+                key={item.value}
+                value={item.value}
+                icon={<SettingsIcon name={item.icon} size={16} />}
+                iconPosition="start"
+                label={item.label}
+              />
+            ))}
           </Tabs>
         </SettingSection>
 
@@ -1619,6 +1665,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           <>
             <SettingSection
               title="Profile and Scheduler"
+              icon={<SettingsIcon name="profile" />}
               hint="Profiles tune observers, enrichment scope, sweep behavior, and scheduler limits together. Manual keeps cached dataplane reads but turns off automatic background work."
               actions={isContextEditing ? (
                 <Tooltip title="Reset section to global">
@@ -1707,6 +1754,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
 
             <SettingSection
               title="Observers and Dashboard"
+              icon={<SettingsIcon name="observers" />}
               hint="Observers keep cluster-wide namespace and node snapshots reasonably fresh. Dashboard controls decide how cached dataplane data is summarized."
             >
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -1726,6 +1774,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
 
             <SettingSection
               title="All Context Background"
+              icon={<SettingsIcon name="allContexts" />}
               hint="Optionally cycles through kube contexts with low-priority background work. Each context still follows its own effective dataplane profile, so manual contexts stay quiet and wide/diagnostic contexts may run their configured namespace sweep."
             >
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -1746,6 +1795,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           <>
             <SettingSection
               title={`${profileLabel} Namespace Enrichment`}
+              icon={<SettingsIcon name="namespaceEnrichment" />}
               hint={`Enrichment warms namespace snapshots ahead of direct navigation. Profile defaults set the breadth; these controls let you tune the current browser profile. ${profileEnrichmentText}`}
             >
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -1806,6 +1856,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
 
             <SettingSection
               title="Background Namespace Sweep"
+              icon={<SettingsIcon name="sweep" />}
               hint={`Sweep slowly enriches namespaces outside the focused set while the app is idle. On this context, ${namespaces.length || "unknown"} namespaces would take about ${estimatedSweepHours || "?"} idle hour(s) at the current hourly cap.`}
             >
               <SettingRow label="Enable background sweep" hint="Allows slow idle discovery across namespaces that are not current, recent, or favourites." checked={sweep.enabled} onChange={autoToggle((v) => setNamespaceSweep({ enabled: v }), ["namespaceEnrichment", "sweep", "enabled"])} overrideState={os(["namespaceEnrichment", "sweep", "enabled"])} onReset={() => resetOverridePath(["namespaceEnrichment", "sweep", "enabled"])} />
@@ -1829,6 +1880,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         {dataplaneTab === "metrics" && (
           <SettingSection
             title="Metrics (metrics.k8s.io)"
+            icon={<SettingsIcon name="metrics" />}
             hint="Real-time pod and node usage from metrics-server. This section controls metrics sampling only. Disabled automatically when the API is missing or RBAC denies it; this toggle adds a soft gate on top of capability detection."
           >
             <SettingRow
@@ -1853,6 +1905,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           <>
             <SettingSection
               title="Persisted Dataplane Cache"
+              icon={<SettingsIcon name="persistence" />}
               hint="Persisted snapshots keep the last observed list data on this device for restart recovery and cached quick access search. Results are stale until refreshed by the cluster."
             >
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -1876,6 +1929,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
 
             <SettingSection
               title="Snapshot TTLs"
+              icon={<SettingsIcon name="ttl" />}
               hint="TTL values control how long cached list snapshots are treated as fresh before dataplane schedules a live refresh. They do not override manual refresh when bypass is enabled."
             >
               <SettingGrid variant="three">
@@ -1899,6 +1953,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         {dataplaneTab === "signals" && (
           <SettingSection
             title="Signal Catalog"
+            icon={<SettingsIcon name="signals" />}
             hint="Signal cards define enable/severity/priority plus detector-specific emission thresholds. Scope follows the Dataplane context switch above."
             actions={
               <Tooltip title={dataplaneEditScope === "context" ? "Reset context signal overrides and thresholds" : "Reset all signal defaults and thresholds"}>
@@ -2135,6 +2190,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const renderImportExport = () => (
     <SettingSection
       title="Import / Export"
+      icon={<SettingsIcon name="importExport" />}
       hint="This exports user settings only. Active context, namespace history, favourites, and theme are not included."
     >
       <Box sx={actionRowSx}>
@@ -2217,6 +2273,9 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         <List dense disablePadding>
           {sections.map((item) => (
             <ListItemButton key={item.id} selected={section === item.id} onClick={() => setSection(item.id)}>
+              <ListItemIcon sx={{ minWidth: 30, color: section === item.id ? "primary.main" : "text.secondary" }}>
+                <SettingsIcon name={item.icon} size={17} />
+              </ListItemIcon>
               <ListItemText primary={item.label} primaryTypographyProps={{ variant: "body2" }} />
             </ListItemButton>
           ))}
