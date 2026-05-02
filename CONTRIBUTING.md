@@ -18,7 +18,7 @@ Contributions are welcome, but the workflow is intentionally lightweight.
 ## Prerequisites
 
 - Docker, for the pinned build toolchain used by `make`, `make check`, `make build`, and `make build-release`
-- Go 1.25+, Node.js 22+, and npm only for explicit maintainer debugging with `local-*` Makefile targets
+- Go 1.26+, Node.js 22+, and npm only for explicit maintainer debugging with `local-*` Makefile targets
 
 ---
 

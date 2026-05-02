@@ -27,7 +27,7 @@ func (s *Server) registerHelmRoutes(api chi.Router) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 		defer cancel()
 
-		clients, active, err := s.mgr.GetClients(ctx)
+		clients, active, err := s.clientsForRequest(ctx, r)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 			return

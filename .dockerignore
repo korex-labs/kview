@@ -13,5 +13,4 @@ tmp
 ui/dist
 ui/node_modules
 internal/server/ui_dist/*
-!internal/server/ui_dist/.keep
-!internal/server/ui_dist/index.html
+!internal/server/ui_dist/placeholder.txt

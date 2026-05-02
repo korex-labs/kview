@@ -155,7 +155,7 @@ func (s *Server) registerSessionRoutes(api chi.Router) {
 			return
 		}
 
-		clusterName := s.mgr.ActiveContext()
+		clusterName := s.readContextName(r)
 		title := strings.TrimSpace(body.Title)
 		if title == "" {
 			title = body.Pod
@@ -320,7 +320,7 @@ func (s *Server) registerSessionRoutes(api chi.Router) {
 			return
 		}
 
-		clients, active, err := s.mgr.GetClients(ctx)
+		clients, active, err := s.clientsForRequest(ctx, r)
 		if err != nil {
 			logStructured(s.rt, runtime.LogLevelError, "portforward", "failure",
 				fmt.Sprintf("failed to get clients for port-forward session %s: %v", created.ID, err),

@@ -11,6 +11,20 @@ export type ApiError = { status?: number; message: string; details?: unknown };
 
 type ApiErrorShape = { status?: number; message: string };
 
+let defaultApiContext = "";
+
+export function setApiDefaultContext(contextName: string) {
+  defaultApiContext = contextName.trim();
+}
+
+function mergeRequestHeaders(headers?: Record<string, string>, opts?: { useDefaultContext?: boolean }) {
+  const merged = { ...(headers || {}) };
+  if (opts?.useDefaultContext !== false && defaultApiContext && !merged["X-Kview-Context"]) {
+    merged["X-Kview-Context"] = defaultApiContext;
+  }
+  return merged;
+}
+
 // API error envelope: backend sends either top-level "message" or "error" (string),
 // or structured "error": { "code", "message" } for mutations. We extract message for consistent display.
 function extractJsonMessage(payload: unknown): string | null {
@@ -140,11 +154,14 @@ export function toApiError(error: unknown): ApiError {
 export async function apiGet<T>(
   path: string,
   token: string,
-  opts?: { headers?: Record<string, string>; signal?: AbortSignal },
+  opts?: { headers?: Record<string, string>; signal?: AbortSignal; useDefaultContext?: boolean },
 ): Promise<T> {
   let res: Response;
   // Prefer Authorization header; do not put token in query string (see WebSocket paths for query fallback).
-  const mergedHeaders = { Authorization: `Bearer ${token}`, ...(opts?.headers || {}) };
+  const mergedHeaders = {
+    Authorization: `Bearer ${token}`,
+    ...mergeRequestHeaders(opts?.headers, { useDefaultContext: opts?.useDefaultContext }),
+  };
   try {
     res = await fetch(path, {
       headers: mergedHeaders,
@@ -177,7 +194,7 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
   const mergedHeaders = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-    ...(opts?.headers || {}),
+    ...mergeRequestHeaders(opts?.headers),
   };
   try {
     res = await fetch(path, {
@@ -212,7 +229,7 @@ export async function apiGetWithContext<T>(
   contextName: string,
   opts?: { signal?: AbortSignal },
 ): Promise<T> {
-  if (!contextName) return apiGet<T>(path, token, { signal: opts?.signal });
+  if (!contextName) return apiGet<T>(path, token, { signal: opts?.signal, useDefaultContext: false });
   return apiGet<T>(path, token, { headers: { "X-Kview-Context": contextName }, signal: opts?.signal });
 }
 

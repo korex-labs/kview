@@ -122,7 +122,12 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clients, _, err := t.Mgr.GetClients(ctx)
+	var clients *cluster.Clients
+	if sess.TargetCluster != "" {
+		clients, _, err = t.Mgr.GetClientsForContext(ctx, sess.TargetCluster)
+	} else {
+		clients, _, err = t.Mgr.GetClients(ctx)
+	}
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("error: failed to get Kubernetes client"))
 		sess.Status = session.StatusFailed

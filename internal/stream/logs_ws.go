@@ -46,7 +46,13 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	clients, _, err := h.Mgr.GetClients(ctx)
+	contextName := r.URL.Query().Get("context")
+	var clients *cluster.Clients
+	if contextName != "" {
+		clients, _, err = h.Mgr.GetClientsForContext(ctx, contextName)
+	} else {
+		clients, _, err = h.Mgr.GetClients(ctx)
+	}
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+err.Error()))
 		return

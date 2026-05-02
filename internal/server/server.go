@@ -86,3 +86,7 @@ func (s *Server) readContextName(r *http.Request) string {
 	}
 	return s.mgr.ActiveContext()
 }
+
+func (s *Server) clientsForRequest(ctx context.Context, r *http.Request) (*cluster.Clients, string, error) {
+	return s.mgr.GetClientsForContext(ctx, s.readContextName(r))
+}

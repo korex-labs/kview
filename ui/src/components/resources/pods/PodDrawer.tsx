@@ -625,6 +625,7 @@ export default function PodDrawer(props: {
     setLogLines([]);
 
     const qs = new URLSearchParams();
+    if (activeContext) qs.set("context", activeContext);
     if (container) qs.set("container", container);
     qs.set("follow", "1");
     if (lineLimit > 0) {
@@ -658,7 +659,7 @@ export default function PodDrawer(props: {
     ws.onclose = () => {
       setFollowing(false);
     };
-  }, [container, lineLimit, logWsBase, name, props.token, stopLogs]);
+  }, [activeContext, container, lineLimit, logWsBase, name, props.token, stopLogs]);
 
   // Cleanup on close / pod switch
   useEffect(() => {

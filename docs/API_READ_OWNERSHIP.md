@@ -151,6 +151,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 | `GET /api/dataplane/work/live` | In-process snapshot of scheduler running/queued work (observability). |
 | `GET /api/dataplane/config`, `POST /api/dataplane/config` | Process-local dataplane policy read/update, synced from browser-local Settings. Does not itself read the Kubernetes API. |
 | `GET /api/dataplane/metrics/status` | Cluster metrics-server capability probe (`installed`, `allowed`) plus the policy `enabled` flag. Backed by a short-TTL cache so repeated UI mounts share one probe per cluster. UI uses this to gate metric widgets. |
+| `GET /api/dataplane/signals/catalog` | Dataplane signal catalog derived from the effective process-local policy for the selected context. Does not itself read the Kubernetes API. |
 
 ---
 

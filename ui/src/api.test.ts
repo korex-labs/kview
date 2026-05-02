@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiGet, apiGetWithContext, apiPost, apiPostWithContext, toApiError } from "./api";
+import { apiGet, apiGetWithContext, apiPost, apiPostWithContext, setApiDefaultContext, toApiError } from "./api";
 import { getConnectionState, notifyStatus } from "./connectionState";
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -22,6 +22,7 @@ function resetConnectionState() {
 
 describe("api helpers", () => {
   afterEach(() => {
+    setApiDefaultContext("");
     vi.unstubAllGlobals();
     resetConnectionState();
   });
@@ -52,6 +53,32 @@ describe("api helpers", () => {
       signal: undefined,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/pods", {
+      headers: { Authorization: "Bearer token" },
+      signal: undefined,
+    });
+  });
+
+  it("apiGet sends the default context unless a caller overrides or suppresses it", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    setApiDefaultContext("kind-dev");
+
+    await apiGet("/api/pods", "token");
+    await apiGet("/api/pods", "token", { headers: { "X-Kview-Context": "kind-prod" } });
+    await apiGet("/api/pods", "token", { useDefaultContext: false });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/pods", {
+      headers: { Authorization: "Bearer token", "X-Kview-Context": "kind-dev" },
+      signal: undefined,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/pods", {
+      headers: { Authorization: "Bearer token", "X-Kview-Context": "kind-prod" },
+      signal: undefined,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/pods", {
       headers: { Authorization: "Bearer token" },
       signal: undefined,
     });

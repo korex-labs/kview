@@ -32,7 +32,7 @@ import HelmChartsTable from "./components/resources/helm/HelmChartsTable";
 import CustomResourceDefinitionsTable from "./components/resources/customresourcedefinitions/CustomResourceDefinitionsTable";
 import CustomResourcesTable from "./components/resources/customresources/CustomResourcesTable";
 import ClusterCustomResourcesTable from "./components/resources/customresources/ClusterCustomResourcesTable";
-import { apiGet, apiGetWithContext, apiPost, toApiError } from "./api";
+import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext, toApiError } from "./api";
 import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api";
 import {
   loadState,
@@ -138,6 +138,10 @@ function AppInner() {
 
   // load from localStorage once
   const [appState, setAppState] = useState(() => loadState());
+
+  useEffect(() => {
+    setApiDefaultContext(activeContext);
+  }, [activeContext]);
 
   const namespacesListPath = useMemo(
     () =>

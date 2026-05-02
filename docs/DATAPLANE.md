@@ -23,7 +23,7 @@ Clients are resolved via `cluster.Manager.GetClientsForContext`.
 
 Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dataplane snapshot execution (scheduler, TTL cache, normalized errors)—not in HTTP handlers for migrated list routes.
 
-**Cluster-scoped snapshot kinds:** namespaces, nodes, **nodemetrics**.
+**Cluster-scoped snapshot kinds:** namespaces, nodes, persistentvolumes, clusterroles, clusterrolebindings, customresourcedefinitions, **nodemetrics**.
 
 **Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, horizontalpodautoscalers, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges, **podmetrics**.
 
