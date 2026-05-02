@@ -41,7 +41,7 @@ function extractTabs(src: string, dynamicHelmTabs = false): string[] {
     // Keep first occurrence ordering and unique values.
     return Array.from(new Set(labels));
   }
-  return [...src.matchAll(/<Tab label="([^"]+)"/g)].map((m) => m[1]);
+  return [...src.matchAll(/<Tab\b[^>]*\blabel="([^"]+)"/g)].map((m) => m[1]);
 }
 
 function extractOverviewSlice(src: string, anchor: string): string {

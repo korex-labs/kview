@@ -19,6 +19,7 @@ import { conditionStatusColor, deploymentHealthBucketColor } from "../../../util
 import useResourceSignals from "../../../utils/useResourceSignals";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
@@ -245,7 +246,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
   return (
     <>
       <RightDrawer open={props.open} onClose={props.onClose}>
-        <ResourceDrawerShell
+        <ResourceDrawerShell resourceIcon="horizontalpodautoscalers"
           title={
             <>
               HPA: {name || "-"}{" "}
@@ -266,7 +267,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               {tabs.map((label) => (
-                <Tab key={label} label={label} />
+                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
 

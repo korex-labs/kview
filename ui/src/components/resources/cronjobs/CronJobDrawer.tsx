@@ -37,6 +37,7 @@ import WorkloadSpecPanels from "../../shared/WorkloadSpecPanels";
 import StatusChip from "../../shared/StatusChip";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
 import {
@@ -265,7 +266,7 @@ export default function CronJobDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell
+      <ResourceDrawerShell resourceIcon="cronjobs"
         title={
           <>
             CronJob: {name || "-"}{" "}
@@ -283,12 +284,12 @@ export default function CronJobDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Jobs" />
-              <Tab label="Spec" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Jobs" />} iconPosition="start" label="Jobs" />
+              <Tab icon={<DetailTabIcon label="Spec" />} iconPosition="start" label="Spec" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

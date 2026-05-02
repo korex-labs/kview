@@ -34,6 +34,7 @@ import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatu
 import NodeActions from "./NodeActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -181,7 +182,7 @@ export default function NodeDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={<>Node: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="nodes" title={<>Node: {name || "-"}</>} onClose={props.onClose}>
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -191,11 +192,11 @@ export default function NodeDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Pods" />
-              <Tab label="Conditions" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
+              <Tab icon={<DetailTabIcon label="Conditions" />} iconPosition="start" label="Conditions" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

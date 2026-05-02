@@ -10,10 +10,13 @@ import {
 } from "../../constants/drawerTokens";
 import { useUserSettings } from "../../settingsContext";
 import { useKeyboardControls, type ContextualKeyboardAction } from "../../keyboard/KeyboardProvider";
+import ResourceIcon from "../icons/resources/ResourceIcon";
+import type { ResourceIconName } from "../icons/resources/types";
 
 export type ResourceDrawerShellProps = {
   /** Header title (e.g. "Pod: my-pod" or a fragment with chips). */
   title: React.ReactNode;
+  resourceIcon?: ResourceIconName;
   onClose: () => void;
   children: React.ReactNode;
   /**
@@ -63,6 +66,7 @@ function isUsableControl(el: HTMLElement): boolean {
  */
 export default function ResourceDrawerShell({
   title,
+  resourceIcon,
   onClose,
   children,
   contentWidth = RESOURCE_DRAWER_WIDTH,
@@ -222,6 +226,32 @@ export default function ResourceDrawerShell({
         flexDirection: "column",
         height: "100%",
         position: "relative",
+        "& .MuiTabs-root": {
+          minHeight: 40,
+        },
+        "& .MuiTabs-flexContainer": {
+          alignItems: "stretch",
+        },
+        "& .MuiTab-root": {
+          minHeight: 40,
+          py: 0,
+          px: 1.5,
+          alignItems: "center",
+          flexDirection: "row",
+          gap: 1.25,
+          lineHeight: 1.2,
+          textTransform: "none",
+          whiteSpace: "nowrap",
+        },
+        "& .MuiTab-root.MuiTab-labelIcon": {
+          minHeight: 40,
+          pt: 0,
+          pb: 0,
+        },
+        "& .MuiTab-root .MuiTab-iconWrapper": {
+          mr: 0,
+          mb: 0,
+        },
       }}
     >
       <Box
@@ -243,7 +273,8 @@ export default function ResourceDrawerShell({
         }}
       />
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+        {resourceIcon ? <ResourceIcon name={resourceIcon} size={22} sx={{ color: "primary.main" }} /> : null}
+        <Typography variant="h6" sx={{ flexGrow: 1, minWidth: 0 }}>
           {title}
         </Typography>
         <IconButton onClick={onClose}>

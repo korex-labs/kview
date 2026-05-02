@@ -53,6 +53,7 @@ import GaugeTableRow from "../../shared/GaugeTableRow";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
@@ -323,7 +324,7 @@ export default function NamespaceDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={<>Namespace: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="namespaces" title={<>Namespace: {name || "-"}</>} onClose={props.onClose}>
         {insightsLoading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -334,7 +335,7 @@ export default function NamespaceDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, value) => setTab(value)}>
               {tabs.map((label) => (
-                <Tab key={label} label={label} />
+                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
 

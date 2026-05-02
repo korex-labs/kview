@@ -31,6 +31,7 @@ import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RoleBindingActions from "./RoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
@@ -170,7 +171,7 @@ export default function RoleBindingDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell
+      <ResourceDrawerShell resourceIcon="rolebindings"
         title={
           <>
             RoleBinding: {name || "-"}{" "}
@@ -190,12 +191,12 @@ export default function RoleBindingDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Subjects" />
-              <Tab label="Role Ref" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Subjects" />} iconPosition="start" label="Subjects" />
+              <Tab icon={<DetailTabIcon label="Role Ref" />} iconPosition="start" label="Role Ref" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

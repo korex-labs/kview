@@ -11,6 +11,7 @@ import {
   TextField,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Divider,
   Autocomplete,
@@ -19,7 +20,8 @@ import {
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import { sortNamespaces, type Section } from "../state";
-import { getResourceLabel, isClusterScopedSection, sidebarGroups } from "../utils/k8sResources";
+import ResourceIcon from "./icons/resources/ResourceIcon";
+import { getResourceIcon, getResourceLabel, isClusterScopedSection, sidebarGroups } from "../utils/k8sResources";
 import {
   getLatestReleaseWithCache,
   isComparableReleaseVersion,
@@ -191,8 +193,9 @@ export default function Sidebar(props: Props) {
               <Typography
                 variant="overline"
                 color="text.secondary"
-                sx={{ display: "block", lineHeight: 1.5, mb: 0.25 }}
+                sx={{ display: "flex", alignItems: "center", gap: 0.75, lineHeight: 1.5, mb: 0.25 }}
               >
+                <ResourceIcon name={group.icon} size={14} />
                 {group.label}
               </Typography>
               <List dense disablePadding>
@@ -201,8 +204,11 @@ export default function Sidebar(props: Props) {
                     key={item}
                     selected={props.section === item}
                     onClick={() => props.onSelectSection(item)}
-                    sx={{ minHeight: 30, py: 0.25 }}
+                    sx={{ minHeight: 30, py: 0.25, px: 1 }}
                   >
+                    <ListItemIcon sx={{ minWidth: 28, color: props.section === item ? "primary.main" : "text.secondary" }}>
+                      <ResourceIcon name={getResourceIcon(item)} size={17} />
+                    </ListItemIcon>
                     <ListItemText
                       primary={getResourceLabel(item)}
                       primaryTypographyProps={{ variant: "body2" }}

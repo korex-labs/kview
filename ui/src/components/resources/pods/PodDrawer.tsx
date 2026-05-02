@@ -53,6 +53,7 @@ import PodActions from "./PodActions";
 import EnvValueDisplay from "./EnvValueDisplay";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type {
   ApiItemResponse,
@@ -1375,7 +1376,7 @@ export default function PodDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell
+      <ResourceDrawerShell resourceIcon="pods"
         title={
           <>
             Pod: {name || "-"}{" "}
@@ -1393,14 +1394,14 @@ export default function PodDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Containers" />
-              <Tab label="Resources" />
-              <Tab label="Networking" />
-              <Tab label="Events" />
-              <Tab label="Logs" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Containers" />} iconPosition="start" label="Containers" />
+              <Tab icon={<DetailTabIcon label="Resources" />} iconPosition="start" label="Resources" />
+              <Tab icon={<DetailTabIcon label="Networking" />} iconPosition="start" label="Networking" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Logs" />} iconPosition="start" label="Logs" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
             <Box sx={{ ...drawerBodySx, mt: 3 }}>
               {/* OVERVIEW */}

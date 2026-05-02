@@ -27,6 +27,7 @@ import PersistentVolumeClaimDrawer from "../persistentvolumeclaims/PersistentVol
 import PVActions from "./PVActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import StatusChip from "../../shared/StatusChip";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
@@ -240,7 +241,7 @@ export default function PersistentVolumeDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={<>PV: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="persistentvolumes" title={<>PV: {name || "-"}</>} onClose={props.onClose}>
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -250,11 +251,11 @@ export default function PersistentVolumeDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Spec" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Spec" />} iconPosition="start" label="Spec" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

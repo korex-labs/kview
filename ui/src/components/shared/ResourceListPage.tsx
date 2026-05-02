@@ -11,7 +11,7 @@ import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
-import type { AccessReviewResource } from "../../utils/k8sResources";
+import { getResourceIcon, type AccessReviewResource } from "../../utils/k8sResources";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import type { ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
@@ -20,6 +20,7 @@ import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
+import ResourceIcon from "../icons/resources/ResourceIcon";
 
 const defaultDataplaneRefreshSec = 10;
 
@@ -340,7 +341,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 0.5, flexShrink: 0 }}>
+      <Typography variant="h6" sx={{ mb: 0.5, flexShrink: 0, display: "flex", alignItems: "center", gap: 1 }}>
+        <ResourceIcon name={getResourceIcon(resourceKey)} size={21} sx={{ color: "primary.main" }} />
         {title}
       </Typography>
       <Box sx={{ flexShrink: 0 }}>

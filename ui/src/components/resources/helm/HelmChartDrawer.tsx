@@ -17,6 +17,7 @@ import Section from "../../shared/Section";
 import AttentionSummary from "../../shared/AttentionSummary";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import EmptyState from "../../shared/EmptyState";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import ScopedCountChip from "../../shared/ScopedCountChip";
@@ -93,15 +94,15 @@ export default function HelmChartDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={<>Helm Chart: {chart?.chartName || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="helmcharts" title={<>Helm Chart: {chart?.chartName || "-"}</>} onClose={props.onClose}>
         {!chart ? (
           <EmptyState message="No Helm chart selected." />
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Versions" />
-              <Tab label="Namespaces" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Versions" />} iconPosition="start" label="Versions" />
+              <Tab icon={<DetailTabIcon label="Namespaces" />} iconPosition="start" label="Namespaces" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

@@ -31,6 +31,7 @@ import CodeBlock from "../../shared/CodeBlock";
 import IngressActions from "./IngressActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
@@ -214,7 +215,7 @@ export default function IngressDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell
+      <ResourceDrawerShell resourceIcon="ingresses"
         title={
           <>
             Ingress: {name || "-"}{" "}
@@ -232,12 +233,12 @@ export default function IngressDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Rules" />
-              <Tab label="TLS" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Rules" />} iconPosition="start" label="Rules" />
+              <Tab icon={<DetailTabIcon label="TLS" />} iconPosition="start" label="TLS" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

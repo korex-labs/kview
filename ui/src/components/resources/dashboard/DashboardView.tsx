@@ -28,6 +28,7 @@ import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
+import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import DashboardSignalsPanel from "./DashboardSignalsPanel";
@@ -341,6 +342,7 @@ export default function DashboardView(props: Props) {
       }}
     >
       <Box sx={{ px: 2, pt: 1, display: "flex", alignItems: "center", gap: 0.75 }}>
+        <ResourceIcon name="dashboard" size={21} sx={{ color: "primary.main" }} />
         <Typography variant="h6">Cluster dashboard</Typography>
         <InfoHint title="Dataplane snapshot view. Resource totals and signals use cached namespace list snapshots only; unknown namespaces are not inferred." />
       </Box>

@@ -28,6 +28,7 @@ import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ClusterRoleActions from "./ClusterRoleActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
 import {
@@ -141,7 +142,7 @@ export default function ClusterRoleDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={<>ClusterRole: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="clusterroles" title={<>ClusterRole: {name || "-"}</>} onClose={props.onClose}>
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -153,11 +154,11 @@ export default function ClusterRoleDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Rules" />
-              <Tab label="Events" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Rules" />} iconPosition="start" label="Rules" />
+              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

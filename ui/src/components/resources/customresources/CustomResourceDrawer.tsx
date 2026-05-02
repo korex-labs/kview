@@ -11,6 +11,7 @@ import ConditionsTable from "../../shared/ConditionsTable";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import DetailTabIcon from "../../shared/DetailTabIcon";
 import type { ApiItemResponse } from "../../../types/api";
 import {
   panelBoxSx,
@@ -152,7 +153,7 @@ export default function CustomResourceDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell title={title} onClose={props.onClose}>
+      <ResourceDrawerShell resourceIcon="customresources" title={title} onClose={props.onClose}>
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -162,10 +163,10 @@ export default function CustomResourceDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab label="Overview" />
-              <Tab label="Conditions" />
-              <Tab label="Metadata" />
-              <Tab label="YAML" />
+              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab icon={<DetailTabIcon label="Conditions" />} iconPosition="start" label="Conditions" />
+              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>
