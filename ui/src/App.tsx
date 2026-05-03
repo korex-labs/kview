@@ -38,7 +38,9 @@ import {
   loadState,
   namespacesListApiPath,
   recordRecentNamespace,
+  recordRecentSection,
   saveState,
+  setSidebarGroupCollapsed,
   toggleFavouriteNamespace,
   type AppStateV1,
   type Section,
@@ -435,7 +437,14 @@ function AppInner() {
   function onSelectSection(sec: Section) {
     setSettingsOpen(false);
     setSection(sec);
-    setAppState((s) => ({ ...s, activeSection: sec }));
+    setAppState((s) => recordRecentSection({ ...s, activeSection: sec }, sec, settings.appearance.recentMenuLimit));
+  }
+
+  function onToggleSidebarGroup(groupId: string) {
+    setAppState((s) => {
+      const nextCollapsed = !s.sidebarCollapsedGroups?.[groupId];
+      return setSidebarGroupCollapsed(s, groupId, nextCollapsed);
+    });
   }
 
   function onOpenSearchResult(item: ApiDataplaneSearchItem) {
@@ -540,8 +549,13 @@ function AppInner() {
               nsLimited={nsLimited}
               favourites={favourites}
               recentNamespaces={recentNamespaces}
+              recentSections={appState.recentSections || []}
+              collapsedGroups={appState.sidebarCollapsedGroups || {}}
               smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
+              recentMenuEnabled={settings.appearance.recentMenuEnabled}
+              recentMenuLimit={settings.appearance.recentMenuLimit}
               onToggleFavourite={onToggleFavourite}
+              onToggleGroup={onToggleSidebarGroup}
               section={section}
               onSelectSection={onSelectSection}
               buildVersion={backendVersion}

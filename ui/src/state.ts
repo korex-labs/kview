@@ -27,6 +27,42 @@ export type Section =
   | "helm"
   | "helmcharts";
 
+const sections: Section[] = [
+  "dashboard",
+  "pods",
+  "nodes",
+  "namespaces",
+  "deployments",
+  "daemonsets",
+  "statefulsets",
+  "replicasets",
+  "jobs",
+  "cronjobs",
+  "horizontalpodautoscalers",
+  "services",
+  "ingresses",
+  "configmaps",
+  "secrets",
+  "serviceaccounts",
+  "roles",
+  "rolebindings",
+  "clusterroles",
+  "clusterrolebindings",
+  "persistentvolumes",
+  "persistentvolumeclaims",
+  "customresourcedefinitions",
+  "customresources",
+  "clusterresources",
+  "helm",
+  "helmcharts",
+];
+
+const sectionSet = new Set<string>(sections);
+
+export function isSection(value: unknown): value is Section {
+  return typeof value === "string" && sectionSet.has(value);
+}
+
 export type AppStateV1 = {
   v: 1;
   activeContext?: string;
@@ -35,6 +71,10 @@ export type AppStateV1 = {
   favouriteNamespacesByContext: Record<string, string[]>;
   /** MRU namespaces per kube context (for background list enrichment). */
   recentNamespacesByContext?: Record<string, string[]>;
+  /** MRU side navigation sections for fast resource switching. */
+  recentSections?: Section[];
+  /** Collapsed state for side navigation groups. */
+  sidebarCollapsedGroups?: Record<string, boolean>;
 };
 
 const KEY = "kview.state.v1";
@@ -51,10 +91,23 @@ export function loadState(): AppStateV1 {
     if (parsed?.v !== 1) return { v: 1, favouriteNamespacesByContext: {} };
     if (!parsed.favouriteNamespacesByContext) parsed.favouriteNamespacesByContext = {};
     if (!parsed.recentNamespacesByContext) parsed.recentNamespacesByContext = {};
+    if (!Array.isArray(parsed.recentSections)) parsed.recentSections = [];
+    parsed.recentSections = parsed.recentSections.filter(isSection);
+    parsed.sidebarCollapsedGroups = normalizeBooleanRecord(parsed.sidebarCollapsedGroups);
+    if (!isSection(parsed.activeSection)) delete parsed.activeSection;
     return parsed as AppStateV1;
   } catch {
     return { v: 1, favouriteNamespacesByContext: {} };
   }
+}
+
+function normalizeBooleanRecord(input: unknown): Record<string, boolean> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === "boolean") out[key] = value;
+  }
+  return out;
 }
 
 export function saveState(s: AppStateV1) {
@@ -130,6 +183,27 @@ export function recordRecentNamespace(state: AppStateV1, ctx: string, ns: string
     recentNamespacesByContext: {
       ...(state.recentNamespacesByContext || {}),
       [ctx]: next,
+    },
+  };
+}
+
+export function recordRecentSection(state: AppStateV1, section: Section, limit: number): AppStateV1 {
+  const max = Math.max(0, Math.floor(limit));
+  const prev = state.recentSections || [];
+  const next = [section, ...prev.filter((x) => x !== section)].slice(0, max);
+  return {
+    ...state,
+    recentSections: next,
+  };
+}
+
+export function setSidebarGroupCollapsed(state: AppStateV1, groupId: string, collapsed: boolean): AppStateV1 {
+  if (!groupId) return state;
+  return {
+    ...state,
+    sidebarCollapsedGroups: {
+      ...(state.sidebarCollapsedGroups || {}),
+      [groupId]: collapsed,
     },
   };
 }

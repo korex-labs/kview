@@ -16,7 +16,11 @@ import {
   Divider,
   Autocomplete,
   IconButton,
+  Tooltip,
 } from "@mui/material";
+import HistoryIcon from "@mui/icons-material/History";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import { sortNamespaces, type Section } from "../state";
@@ -42,8 +46,13 @@ type Props = {
 
   favourites: string[];
   recentNamespaces?: string[];
+  recentSections?: Section[];
+  collapsedGroups?: Record<string, boolean>;
   smartNamespaceSorting?: boolean;
+  recentMenuEnabled?: boolean;
+  recentMenuLimit?: number;
   onToggleFavourite: (ns: string) => void;
+  onToggleGroup: (groupId: string) => void;
 
   section: Section;
   onSelectSection: (s: Section) => void;
@@ -105,6 +114,27 @@ export default function Sidebar(props: Props) {
     ? isUpdateAvailable(currentVersion, latestRelease.latestTag)
     : false;
   const updateRelease = updateAvailable ? latestRelease : null;
+  const recentItems = useMemo(() => {
+    if (!props.recentMenuEnabled) return [];
+    return (props.recentSections || []).slice(0, Math.max(0, props.recentMenuLimit || 0));
+  }, [props.recentMenuEnabled, props.recentMenuLimit, props.recentSections]);
+
+  const visibleGroups = [
+    ...(recentItems.length
+      ? [
+          {
+            id: "recent",
+            label: "Recent",
+            icon: <HistoryIcon sx={{ fontSize: 14 }} />,
+            items: recentItems,
+          },
+        ]
+      : []),
+    ...sidebarGroups.map((group) => ({
+      ...group,
+      icon: <ResourceIcon name={group.icon} size={14} />,
+    })),
+  ];
 
   return (
     <Drawer
@@ -188,38 +218,64 @@ export default function Sidebar(props: Props) {
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
-          {sidebarGroups.map((group, index) => (
+          {visibleGroups.map((group, index) => {
+            const collapsed = Boolean(props.collapsedGroups?.[group.id]);
+            return (
             <Box key={group.id}>
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                sx={{ display: "flex", alignItems: "center", gap: 0.75, lineHeight: 1.5, mb: 0.25 }}
+              <Box
+                onDoubleClick={() => props.onToggleGroup(group.id)}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.75,
+                  mb: 0.25,
+                  userSelect: "none",
+                }}
               >
-                <ResourceIcon name={group.icon} size={14} />
-                {group.label}
-              </Typography>
-              <List dense disablePadding>
-                {group.items.map((item) => (
-                  <ListItemButton
-                    key={item}
-                    selected={props.section === item}
-                    onClick={() => props.onSelectSection(item)}
-                    sx={{ minHeight: 30, py: 0.25, px: 1 }}
+                {group.icon}
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ lineHeight: 1.5, flex: 1, minWidth: 0 }}
+                >
+                  {group.label}
+                </Typography>
+                <Tooltip title={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}>
+                  <IconButton
+                    size="small"
+                    aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                    onClick={() => props.onToggleGroup(group.id)}
+                    sx={{ width: 24, height: 24, color: "text.secondary" }}
                   >
-                    <ListItemIcon sx={{ minWidth: 28, color: props.section === item ? "primary.main" : "text.secondary" }}>
-                      <ResourceIcon name={getResourceIcon(item)} size={17} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={getResourceLabel(item)}
-                      primaryTypographyProps={{ variant: "body2" }}
-                      sx={{ my: 0 }}
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
-              {index < sidebarGroups.length - 1 ? <Divider sx={{ my: 0.5 }} /> : null}
+                    {collapsed ? <KeyboardArrowRightIcon fontSize="inherit" /> : <KeyboardArrowDownIcon fontSize="inherit" />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              {!collapsed ? (
+                <List dense disablePadding>
+                  {group.items.map((item) => (
+                    <ListItemButton
+                      key={item}
+                      selected={props.section === item}
+                      onClick={() => props.onSelectSection(item)}
+                      sx={{ minHeight: 30, py: 0.25, px: 1 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 28, color: props.section === item ? "primary.main" : "text.secondary" }}>
+                        <ResourceIcon name={getResourceIcon(item)} size={17} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={getResourceLabel(item)}
+                        primaryTypographyProps={{ variant: "body2" }}
+                        sx={{ my: 0 }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              ) : null}
+              {index < visibleGroups.length - 1 ? <Divider sx={{ my: 0.5 }} /> : null}
             </Box>
-          ))}
+          );
+          })}
         </Box>
 
         <Box sx={{ pt: 0.5 }}>

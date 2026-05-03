@@ -734,7 +734,24 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         checked={settings.appearance.smartNamespaceSorting}
         onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
       />
-      <Box sx={{ maxWidth: 320 }}>
+      <SettingRow
+        label="Recent menu"
+        hint="Shows a Recent section at the top of the side navigation with recently opened resource sections."
+        checked={settings.appearance.recentMenuEnabled}
+        onChange={(v) => setSettings((prev) => updateAppearance(prev, { recentMenuEnabled: v }))}
+      />
+      <SettingGrid>
+        <SettingField
+          label="Recent menu limit"
+          hint="Maximum resource sections shown in the side navigation Recent section."
+          type="number"
+          min={1}
+          max={20}
+          value={settings.appearance.recentMenuLimit}
+          onChange={(v) =>
+            setSettings((prev) => updateAppearance(prev, { recentMenuLimit: Number(v) || 1 }))
+          }
+        />
         <SettingField
           label="Initial activity panel state"
           hint="Used when the app starts. The current panel can still be opened or collapsed manually."
@@ -755,7 +772,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             <MenuItem value="collapsed">Collapsed</MenuItem>
           </TextField>
         </SettingField>
-      </Box>
+      </SettingGrid>
     </SettingSection>
   );
 
