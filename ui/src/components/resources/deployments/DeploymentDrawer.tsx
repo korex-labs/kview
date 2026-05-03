@@ -373,8 +373,7 @@ export default function DeploymentDrawer(props: {
                     isHealthy={(cond) => isConditionHealthy(cond as DeploymentCondition)}
                   />
 
-                  <Box sx={panelBoxSx}>
-                    <Section
+                  <Section
                       title="Rollout Summary"
                       dividerPlacement="content"
                       actions={
@@ -413,10 +412,8 @@ export default function DeploymentDrawer(props: {
                         ]}
                       />
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section
+                  <Section
                       title="Rollout Diagnostics"
                       dividerPlacement="content"
                       actions={rolloutNeedsAttention ? <Chip size="small" color="warning" label="Attention" /> : null}
@@ -453,21 +450,17 @@ export default function DeploymentDrawer(props: {
                         </Box>
                       )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Recent Warning events" dividerPlacement="content">
+                  <Section title="Recent Warning events" dividerPlacement="content">
                       <EventsList events={warningEvents} emptyMessage="No recent warning events." />
                     </Section>
-                  </Box>
                 </Box>
               )}
 
               {/* INVENTORY */}
               {tab === 1 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-                  <Box sx={panelBoxSx}>
-                    <Section title="Pods" dividerPlacement="content">
+                  <Section title="Pods" dividerPlacement="content">
                       {(details?.pods || []).length === 0 ? (
                         <EmptyState message="No pods found for this Deployment." />
                       ) : (
@@ -504,10 +497,8 @@ export default function DeploymentDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="ReplicaSets" dividerPlacement="content">
+                  <Section title="ReplicaSets" dividerPlacement="content">
                       {(details?.replicaSets || []).length === 0 ? (
                         <EmptyState message="No ReplicaSets found for this Deployment." />
                       ) : (
@@ -557,15 +548,13 @@ export default function DeploymentDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
                 </Box>
               )}
 
               {/* SPEC */}
               {tab === 2 && (
                 <Box sx={drawerTabContentCompactSx}>
-                  <Box sx={panelBoxSx}>
-                    <Section title="Pod Template Summary" dividerPlacement="content">
+                  <Section title="Pod Template Summary" dividerPlacement="content">
                       <Typography variant="caption" color="text.secondary">
                         Containers
                       </Typography>
@@ -662,10 +651,8 @@ export default function DeploymentDrawer(props: {
                         )}
                       </Box>
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Scheduling & Placement" dividerPlacement="content">
+                  <Section title="Scheduling & Placement" dividerPlacement="content">
                       <KeyValueTable
                         columns={2}
                         rows={[{ label: "Affinity", value: details?.spec?.scheduling?.affinitySummary }]}
@@ -748,10 +735,8 @@ export default function DeploymentDrawer(props: {
                         )}
                       </Box>
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Volumes" dividerPlacement="content">
+                  <Section title="Volumes" dividerPlacement="content">
                       {(details?.spec?.volumes || []).length === 0 ? (
                         <EmptyState message="No volumes defined." />
                       ) : (
@@ -799,7 +784,6 @@ export default function DeploymentDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
                 </Box>
               )}
 

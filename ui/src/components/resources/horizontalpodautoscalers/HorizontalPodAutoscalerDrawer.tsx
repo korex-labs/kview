@@ -282,22 +282,20 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                   />
 
                   <Section title="Scaling signals">
-                    <Box sx={panelBoxSx}>
-                      <GaugeTableRow
-                        label="Current replicas"
-                        bar={<GaugeBar value={details.summary.currentGauge?.percent ?? 0} tone={details.summary.currentGauge?.tone} />}
-                        summary={`${details.summary.currentReplicas} current / ${details.summary.maxReplicas} max`}
-                      />
-                      <GaugeTableRow
-                        label="Desired replicas"
-                        bar={<GaugeBar value={details.summary.desiredGauge?.percent ?? 0} tone={details.summary.desiredGauge?.tone} />}
-                        summary={`${details.summary.desiredReplicas} desired / min ${details.summary.minReplicas}`}
-                      />
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                        <ScopedCountChip size="small" variant="outlined" label="Min" count={details.summary.minReplicas} />
-                        <ScopedCountChip size="small" variant="outlined" label="Max" count={details.summary.maxReplicas} />
-                        <ScopedCountChip size="small" variant="outlined" label="Last scale" count={details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-"} />
-                      </Box>
+                    <GaugeTableRow
+                      label="Current replicas"
+                      bar={<GaugeBar value={details.summary.currentGauge?.percent ?? 0} tone={details.summary.currentGauge?.tone} />}
+                      summary={`${details.summary.currentReplicas} current / ${details.summary.maxReplicas} max`}
+                    />
+                    <GaugeTableRow
+                      label="Desired replicas"
+                      bar={<GaugeBar value={details.summary.desiredGauge?.percent ?? 0} tone={details.summary.desiredGauge?.tone} />}
+                      summary={`${details.summary.desiredReplicas} desired / min ${details.summary.minReplicas}`}
+                    />
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+                      <ScopedCountChip size="small" variant="outlined" label="Min" count={details.summary.minReplicas} />
+                      <ScopedCountChip size="small" variant="outlined" label="Max" count={details.summary.maxReplicas} />
+                      <ScopedCountChip size="small" variant="outlined" label="Last scale" count={details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-"} />
                     </Box>
                   </Section>
 
@@ -305,16 +303,14 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                     {!details.metrics?.length ? (
                       <EmptyState message="No metric targets configured." />
                     ) : (
-                      <Box sx={panelBoxSx}>
-                        {details.metrics.map((metric, idx) => (
-                          <GaugeTableRow
-                            key={`${metric.type}-${metric.name || idx}`}
-                            label={[metric.type, metric.name].filter(Boolean).join(" / ") || "Metric"}
-                            bar={<GaugeBar value={metric.gaugePercent ?? 0} tone={metric.gaugeTone ?? "default"} />}
-                            summary={`${valueOrDash(metric.current)} / ${valueOrDash(metric.target)}`}
-                          />
-                        ))}
-                      </Box>
+                      details.metrics.map((metric, idx) => (
+                        <GaugeTableRow
+                          key={`${metric.type}-${metric.name || idx}`}
+                          label={[metric.type, metric.name].filter(Boolean).join(" / ") || "Metric"}
+                          bar={<GaugeBar value={metric.gaugePercent ?? 0} tone={metric.gaugeTone ?? "default"} />}
+                          summary={`${valueOrDash(metric.current)} / ${valueOrDash(metric.target)}`}
+                        />
+                      ))
                     )}
                   </Section>
 
@@ -375,36 +371,33 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                       />
                     }
                   >
-                    <Box sx={panelBoxSx}>
-                      <KeyValueTable
-                        rows={[
-                          { label: "Name", value: details.summary.name, monospace: true },
-                          {
-                            label: "Namespace",
-                            value: details.summary.namespace ? (
-                              <ResourceLinkChip
-                                label={details.summary.namespace}
-                                onClick={() => setDrawerNamespace(details.summary.namespace)}
-                              />
-                            ) : (
-                              "-"
-                            ),
-                          },
-                          { label: "Target", value: renderTargetRefValue(details.summary.scaleTargetRef) },
-                          { label: "Replicas", value: `${details.summary.currentReplicas}/${details.summary.desiredReplicas}` },
-                          { label: "Min / Max", value: `${details.summary.minReplicas} / ${details.summary.maxReplicas}` },
-                          { label: "Last Scale", value: details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-" },
-                          { label: "Age", value: fmtAge(details.summary.ageSec, "detail") },
-                        ]}
-                        valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                      />
-                    </Box>
+                    <KeyValueTable
+                      rows={[
+                        { label: "Name", value: details.summary.name, monospace: true },
+                        {
+                          label: "Namespace",
+                          value: details.summary.namespace ? (
+                            <ResourceLinkChip
+                              label={details.summary.namespace}
+                              onClick={() => setDrawerNamespace(details.summary.namespace)}
+                            />
+                          ) : (
+                            "-"
+                          ),
+                        },
+                        { label: "Target", value: renderTargetRefValue(details.summary.scaleTargetRef) },
+                        { label: "Replicas", value: `${details.summary.currentReplicas}/${details.summary.desiredReplicas}` },
+                        { label: "Min / Max", value: `${details.summary.minReplicas} / ${details.summary.maxReplicas}` },
+                        { label: "Last Scale", value: details.summary.lastScaleTime ? fmtTs(details.summary.lastScaleTime) : "-" },
+                        { label: "Age", value: fmtAge(details.summary.ageSec, "detail") },
+                      ]}
+                      valueSx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    />
                   </Section>
 
                   <Section title="Scaling Spec">
-                    <Box sx={panelBoxSx}>
-                      <KeyValueTable
-                        rows={[
+                    <KeyValueTable
+                      rows={[
                           { label: "Scale Target", value: renderTargetRefValue(details.spec.scaleTargetRef) },
                           { label: "Min Replicas", value: details.spec.minReplicas },
                           { label: "Max Replicas", value: details.spec.maxReplicas },
@@ -434,10 +427,9 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                               "-"
                             ),
                           },
-                        ]}
-                        columns={2}
-                      />
-                    </Box>
+                      ]}
+                      columns={2}
+                    />
                   </Section>
 
                   <Section title="Labels and annotations">

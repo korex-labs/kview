@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
-import { panelBoxSx } from "../../theme/sxTokens";
 import { valueOrDash } from "../../utils/format";
 import Section from "./Section";
 import EmptyState from "./EmptyState";
@@ -149,8 +148,7 @@ export default function WorkloadSpecPanels({
 
   return (
     <>
-      <Box sx={panelBoxSx}>
-        <Section title={templateTitle} dividerPlacement="content">
+      <Section title={templateTitle} dividerPlacement="content">
           <Typography variant="caption" color="text.secondary">
             Containers
           </Typography>
@@ -184,10 +182,8 @@ export default function WorkloadSpecPanels({
             )}
           </Box>
         </Section>
-      </Box>
 
-      <Box sx={panelBoxSx}>
-        <Section title="Scheduling & Placement" dividerPlacement="content">
+      <Section title="Scheduling & Placement" dividerPlacement="content">
           <KeyValueTable columns={2} rows={[{ label: "Affinity", value: scheduling?.affinitySummary }]} />
 
           <Box sx={{ mt: 2 }}>
@@ -265,10 +261,8 @@ export default function WorkloadSpecPanels({
             )}
           </Box>
         </Section>
-      </Box>
 
-      <Box sx={panelBoxSx}>
-        <Section title="Volumes" dividerPlacement="content">
+      <Section title="Volumes" dividerPlacement="content">
           {volumes.length === 0 ? (
             <EmptyState message="No volumes defined." />
           ) : (
@@ -305,7 +299,6 @@ export default function WorkloadSpecPanels({
             </Table>
           )}
         </Section>
-      </Box>
     </>
   );
 }

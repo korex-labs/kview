@@ -12,6 +12,11 @@ export const panelBoxSx: SxProps<Theme> = {
   border: "1px solid var(--panel-border)",
   borderRadius: 2,
   p: 1.5,
+  ".KviewSectionContent > &": {
+    border: 0,
+    borderRadius: 0,
+    p: 0,
+  },
 };
 
 /** Tighter panel padding (e.g. event list items). */

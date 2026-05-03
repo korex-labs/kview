@@ -12,6 +12,7 @@ import {
   Button,
   Chip,
 } from "@mui/material";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
@@ -237,7 +238,7 @@ export default function ClusterRoleBindingDrawer(props: {
                     />
                   </Box>
                   <Box>
-                    <Button variant="outlined" onClick={openRoleRef} disabled={!canOpenRoleRef}>
+                    <Button variant="outlined" startIcon={<OpenInNewIcon />} onClick={openRoleRef} disabled={!canOpenRoleRef}>
                       Open Role Ref
                     </Button>
                   </Box>

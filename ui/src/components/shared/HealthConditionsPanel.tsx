@@ -1,6 +1,4 @@
 import React from "react";
-import { Box } from "@mui/material";
-import { panelBoxSx } from "../../theme/sxTokens";
 import ConditionsTable, { type Condition } from "./ConditionsTable";
 import type { ChipColor } from "../../utils/k8sUi";
 
@@ -22,16 +20,14 @@ export default function HealthConditionsPanel({
   unhealthyFirst = true,
 }: HealthConditionsPanelProps) {
   return (
-    <Box sx={panelBoxSx}>
-      <ConditionsTable
-        conditions={conditions}
-        isHealthy={isHealthy}
-        chipColor={chipColor}
-        emptyMessage={emptyMessage}
-        title={title}
-        unhealthyFirst={unhealthyFirst}
-        variant="section"
-      />
-    </Box>
+    <ConditionsTable
+      conditions={conditions}
+      isHealthy={isHealthy}
+      chipColor={chipColor}
+      emptyMessage={emptyMessage}
+      title={title}
+      unhealthyFirst={unhealthyFirst}
+      variant="section"
+    />
   );
 }

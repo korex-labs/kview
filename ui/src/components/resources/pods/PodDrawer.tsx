@@ -33,6 +33,10 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CloseIcon from "@mui/icons-material/Close";
+import CableIcon from "@mui/icons-material/Cable";
+import DownloadIcon from "@mui/icons-material/Download";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import TerminalIcon from "@mui/icons-material/Terminal";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -1258,6 +1262,7 @@ export default function PodDrawer(props: {
           </Typography>
           <Button
             variant="contained"
+            startIcon={<DownloadIcon />}
             onClick={() => downloadCommandOutput(selectedResult, selectedCommand.fileName || selectedCommand.name)}
           >
             Download output
@@ -1409,15 +1414,10 @@ export default function PodDrawer(props: {
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
-                      <PodActions
-                        token={props.token}
-                        namespace={ns}
-                        podName={name}
-                        onDeleted={props.onClose}
-                      />
                       <Button
                         variant="outlined"
                         size="small"
+                        startIcon={<TerminalIcon />}
                         disabled={offline || creatingTerminal || actionableContainers.length === 0}
                         onClick={(e) => {
                           if (!details) return;
@@ -1429,6 +1429,7 @@ export default function PodDrawer(props: {
                       <Button
                         variant="outlined"
                         size="small"
+                        startIcon={<CableIcon />}
                         disabled={offline || creatingPortForward || actionableContainers.length === 0}
                         onClick={handleOpenPortForwardDialog}
                       >
@@ -1437,6 +1438,7 @@ export default function PodDrawer(props: {
                       <Button
                         variant="outlined"
                         size="small"
+                        startIcon={<PlayCircleOutlineIcon />}
                         disabled={offline || runningCommand || overviewCommandItems.length === 0}
                         onClick={(e) => {
                           setCommandMenuContainer("");
@@ -1445,6 +1447,12 @@ export default function PodDrawer(props: {
                       >
                         Commands
                       </Button>
+                      <PodActions
+                        token={props.token}
+                        namespace={ns}
+                        podName={name}
+                        onDeleted={props.onClose}
+                      />
                       <Menu
                         anchorEl={terminalMenuAnchor}
                         open={!!terminalMenuAnchor}
@@ -1478,8 +1486,7 @@ export default function PodDrawer(props: {
 
                   <HealthConditionsPanel conditions={details?.conditions || []} />
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Lifecycle & Scheduling" dividerPlacement="content">
+                  <Section title="Lifecycle & Scheduling" dividerPlacement="content">
                       <KeyValueTable
                         columns={2}
                         rows={[
@@ -1537,7 +1544,6 @@ export default function PodDrawer(props: {
                         )}
                       </Box>
                     </Section>
-                  </Box>
                 </Box>
               )}
 
@@ -1585,6 +1591,7 @@ export default function PodDrawer(props: {
                                 <Button
                                   variant="outlined"
                                   size="small"
+                                  startIcon={<TerminalIcon />}
                                   disabled={offline || creatingTerminal || !ctn.name || !isContainerActionAvailable(ctn)}
                                   onClick={() => {
                                     if (!ctn.name) return;
@@ -1596,6 +1603,7 @@ export default function PodDrawer(props: {
                                 <Button
                                   variant="outlined"
                                   size="small"
+                                  startIcon={<PlayCircleOutlineIcon />}
                                   disabled={
                                     offline ||
                                     runningCommand ||
@@ -1615,7 +1623,7 @@ export default function PodDrawer(props: {
                             </Box>
                           </Box>
                             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              <Section title="Runtime" dividerPlacement="content">
+                              <Section title="Runtime" dividerPlacement="content" variant="plain">
                                 <KeyValueTable
                                   columns={3}
                                   sx={{ mt: 1 }}
@@ -1657,7 +1665,7 @@ export default function PodDrawer(props: {
                                 />
                               </Section>
 
-                              <Section title="Resources" dividerPlacement="content">
+                              <Section title="Resources" dividerPlacement="content" variant="plain">
                                 <KeyValueTable
                                   columns={2}
                                   sx={{ mt: 1 }}
@@ -1676,7 +1684,7 @@ export default function PodDrawer(props: {
                               </Section>
 
                               {metricsUsable && ctn.usage ? (
-                                <Section title="Usage" dividerPlacement="content">
+                                <Section title="Usage" dividerPlacement="content" variant="plain">
                                   {(() => {
                                     const u = ctn.usage!;
                                     const cpuPct = u.cpuPctLimit ?? u.cpuPctRequest;
@@ -1910,8 +1918,7 @@ export default function PodDrawer(props: {
               {/* RESOURCES */}
               {tab === 2 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
-                  <Box sx={panelBoxSx}>
-                    <Section title="Volumes" dividerPlacement="content">
+                  <Section title="Volumes" dividerPlacement="content">
                       {(details?.resources?.volumes || []).length === 0 ? (
                         <EmptyState message="No volumes defined." />
                       ) : (
@@ -1949,10 +1956,8 @@ export default function PodDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Image Pull Secrets" dividerPlacement="content">
+                  <Section title="Image Pull Secrets" dividerPlacement="content">
                       {(details?.resources?.imagePullSecrets || []).length === 0 ? (
                         <EmptyState message="No image pull secrets." />
                       ) : (
@@ -1974,10 +1979,8 @@ export default function PodDrawer(props: {
                         </Box>
                       )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Security Context" dividerPlacement="content">
+                  <Section title="Security Context" dividerPlacement="content">
                       <Typography variant="caption" color="text.secondary">
                         Pod Security Context
                       </Typography>
@@ -2070,10 +2073,8 @@ export default function PodDrawer(props: {
                         )}
                       </Box>
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="DNS & Host Aliases" dividerPlacement="content">
+                  <Section title="DNS & Host Aliases" dividerPlacement="content">
                       <Box sx={{ mb: 1 }}>
                         <Typography variant="caption" color="text.secondary">
                           DNS Policy
@@ -2101,10 +2102,8 @@ export default function PodDrawer(props: {
                           </Table>
                         )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Topology Spread Constraints" dividerPlacement="content">
+                  <Section title="Topology Spread Constraints" dividerPlacement="content">
                       {(details?.resources?.topologySpreadConstraints || []).length === 0 ? (
                         <EmptyState message="No topology spread constraints." />
                       ) : (
@@ -2130,15 +2129,13 @@ export default function PodDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
                 </Box>
               )}
 
               {/* NETWORKING */}
               {tab === 3 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
-                  <Box sx={panelBoxSx}>
-                    <Section title="Services" dividerPlacement="content">
+                  <Section title="Services" dividerPlacement="content">
                       {networkingServicesLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
                           <CircularProgress size={22} />
@@ -2193,10 +2190,8 @@ export default function PodDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
 
-                  <Box sx={panelBoxSx}>
-                    <Section title="Ingresses" dividerPlacement="content">
+                  <Section title="Ingresses" dividerPlacement="content">
                       {networkingIngressesLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
                           <CircularProgress size={22} />
@@ -2243,7 +2238,6 @@ export default function PodDrawer(props: {
                         </Table>
                       )}
                     </Section>
-                  </Box>
                 </Box>
               )}
 

@@ -313,8 +313,7 @@ export default function CronJobDrawer(props: {
                     onJumpToSpec={() => setTab(2)}
                   />
 
-                  <Box sx={panelBoxSx}>
-                    <Section
+                  <Section
                       title="Key policy state"
                       dividerPlacement="content"
                       actions={null}
@@ -337,7 +336,6 @@ export default function CronJobDrawer(props: {
                         ]}
                       />
                     </Section>
-                  </Box>
 
                   <Section title="Recent Warning events">
                     <Box sx={panelBoxSx}>

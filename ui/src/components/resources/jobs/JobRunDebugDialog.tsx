@@ -14,6 +14,7 @@ import {
   Tabs,
   Typography,
 } from "@mui/material";
+import StopCircleIcon from "@mui/icons-material/StopCircle";
 import { apiPostWithContext } from "../../../api";
 import { useActiveContext } from "../../../activeContext";
 
@@ -237,7 +238,13 @@ export default function JobRunDebugDialog({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button color="error" variant={stopArmed ? "contained" : "outlined"} onClick={stopRun} disabled={!canStop || stopping}>
+        <Button
+          color="error"
+          variant={stopArmed ? "contained" : "outlined"}
+          startIcon={<StopCircleIcon />}
+          onClick={stopRun}
+          disabled={!canStop || stopping}
+        >
           {stopping ? "Stopping..." : stopArmed ? "Confirm stop job" : "Stop job"}
         </Button>
         <Button onClick={onClose}>Close</Button>

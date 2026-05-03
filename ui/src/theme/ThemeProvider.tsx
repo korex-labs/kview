@@ -124,6 +124,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           mode: effectiveMode,
         },
         components: {
+          MuiButton: {
+            defaultProps: {
+              disableElevation: true,
+            },
+            styleOverrides: {
+              root: {
+                borderRadius: 6,
+                textTransform: "none",
+                fontWeight: 700,
+                letterSpacing: 0,
+              },
+              sizeSmall: {
+                minHeight: 30,
+              },
+            },
+          },
           MuiChip: {
             styleOverrides: {
               root: {

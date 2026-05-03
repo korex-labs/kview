@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import { Box, Button, Menu, MenuItem } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import TuneIcon from "@mui/icons-material/Tune";
 import { useActiveContext } from "../../activeContext";
 import ActionButton from "./ActionButton";
 import { useMutationDialog } from "./useMutationDialog";
@@ -104,6 +108,7 @@ function useCustomActionMenu(opts: {
       <Button
         size="small"
         variant="outlined"
+        startIcon={<MoreHorizIcon />}
         disabled={!canPatch}
         onClick={(e) => setAnchor(e.currentTarget)}
       >
@@ -178,6 +183,7 @@ export function DeleteOnlyActions({
       <ActionButton
         label="Delete"
         color="error"
+        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -271,6 +277,7 @@ export function WorkloadScaleRestartDeleteActions({
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Scale"
+        startIcon={<TuneIcon />}
         descriptor={buildScaleDescriptor({
           id: config.scaleId,
           title: config.scaleTitle,
@@ -291,6 +298,7 @@ export function WorkloadScaleRestartDeleteActions({
 
       <ActionButton
         label="Restart"
+        startIcon={<RestartAltIcon />}
         descriptor={buildRestartDescriptor({
           id: config.restartId,
           title: config.restartTitle,
@@ -308,6 +316,7 @@ export function WorkloadScaleRestartDeleteActions({
       <ActionButton
         label="Delete"
         color="error"
+        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -395,6 +404,7 @@ export function WorkloadRestartDeleteActions({
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Restart"
+        startIcon={<RestartAltIcon />}
         descriptor={buildRestartDescriptor({
           id: config.restartId,
           title: config.restartTitle,
@@ -414,6 +424,7 @@ export function WorkloadRestartDeleteActions({
       <ActionButton
         label="Delete"
         color="error"
+        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -503,6 +514,7 @@ export function WorkloadScaleDeleteActions({
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
         label="Scale"
+        startIcon={<TuneIcon />}
         descriptor={buildScaleDescriptor({
           id: config.scaleId,
           title: config.scaleTitle,
@@ -524,6 +536,7 @@ export function WorkloadScaleDeleteActions({
       <ActionButton
         label="Delete"
         color="error"
+        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,

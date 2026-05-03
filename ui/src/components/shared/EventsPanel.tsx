@@ -16,6 +16,7 @@ import type { ApiListResponse } from "../../types/api";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import EventCard, { type EventCardEvent } from "./EventCard";
+import Section from "./Section";
 
 type EventSubResourceOption = {
   label: string;
@@ -151,18 +152,15 @@ export default function EventsPanel<T extends EventCardEvent>({
     setSelectedSubResource(event.target.value);
   };
 
+  const panelTitle = title ?? "Events";
+
   return (
+    <Section title={panelTitle}>
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, minHeight: 0 }}>
       <Box ref={topRef} sx={{ height: 0, minHeight: 0 }} />
-      {(title || hasSubResourceFilter || visibleEvents.length > 0 || remoteMode) ? (
+      {(hasSubResourceFilter || visibleEvents.length > 0 || remoteMode) ? (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          {title ? (
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mr: "auto" }}>
-              {title}
-            </Typography>
-          ) : (
-            <Box sx={{ mr: "auto" }} />
-          )}
+          <Box sx={{ mr: "auto" }} />
           {hasSubResourceFilter ? (
             <FormControl size="small" sx={{ minWidth: 220 }}>
               <InputLabel id="events-sub-resource-label" shrink>
@@ -257,5 +255,6 @@ export default function EventsPanel<T extends EventCardEvent>({
         </>
       )}
     </Box>
+    </Section>
   );
 }

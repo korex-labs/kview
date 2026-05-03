@@ -19,6 +19,7 @@ import {
   MenuItem,
   TextField,
 } from "@mui/material";
+import CableIcon from "@mui/icons-material/Cable";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import IngressDrawer from "../ingresses/IngressDrawer";
@@ -412,15 +413,10 @@ export default function ServiceDrawer(props: {
                   {name && (
                     <DrawerActionStrip>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <ServiceActions
-                          token={props.token}
-                          namespace={ns}
-                          serviceName={name}
-                          onDeleted={props.onClose}
-                        />
                         <Button
                           variant="outlined"
                           size="small"
+                          startIcon={<CableIcon />}
                           disabled={
                             offline ||
                             creatingPortForward ||
@@ -431,6 +427,12 @@ export default function ServiceDrawer(props: {
                         >
                           Port forward
                         </Button>
+                        <ServiceActions
+                          token={props.token}
+                          namespace={ns}
+                          serviceName={name}
+                          onDeleted={props.onClose}
+                        />
                       </Box>
                     </DrawerActionStrip>
                   )}

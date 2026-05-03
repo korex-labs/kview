@@ -12,6 +12,7 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import { apiPostWithContext, toApiError } from "../../../api";
 import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
@@ -205,7 +206,7 @@ export function HelmInstallButton({ token, namespace, onSuccess }: InstallButton
 
   return (
     <>
-      <Button size="small" variant="contained" disabled={offline} onClick={() => setOpen(true)}>
+      <Button size="small" variant="contained" startIcon={<AddIcon />} disabled={offline} onClick={() => setOpen(true)}>
         Install
       </Button>
       <InstallDialog
@@ -354,7 +355,7 @@ function InstallDialog(props: {
         <Button onClick={props.onClose} disabled={busy}>
           Cancel
         </Button>
-        <Button onClick={handleConfirm} disabled={!valid || busy} variant="contained">
+        <Button onClick={handleConfirm} disabled={!valid || busy} variant="contained" startIcon={busy ? undefined : <AddIcon />}>
           {busy ? <CircularProgress size={20} /> : "Install"}
         </Button>
       </DialogActions>
