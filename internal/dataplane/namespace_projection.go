@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
@@ -18,6 +19,138 @@ type NamespaceSummaryProjection struct {
 	Resources dto.NamespaceSummaryResourcesDTO
 	Meta      SnapshotMetadata
 	Err       *NormalizedError
+}
+
+type namespaceProjectionSnapshots struct {
+	pods            PodsSnapshot
+	podsErr         error
+	deps            DeploymentsSnapshot
+	depsErr         error
+	svcs            ServicesSnapshot
+	svcsErr         error
+	ing             IngressesSnapshot
+	ingErr          error
+	pvcs            PVCsSnapshot
+	pvcsErr         error
+	cms             ConfigMapsSnapshot
+	cmsErr          error
+	secs            SecretsSnapshot
+	secsErr         error
+	ds              DaemonSetsSnapshot
+	dsErr           error
+	sts             StatefulSetsSnapshot
+	stsErr          error
+	rs              ReplicaSetsSnapshot
+	rsErr           error
+	jobs            JobsSnapshot
+	jobsErr         error
+	cj              CronJobsSnapshot
+	cjErr           error
+	hpa             HPAsSnapshot
+	hpaErr          error
+	sa              ServiceAccountsSnapshot
+	saErr           error
+	roles           RolesSnapshot
+	rolesErr        error
+	roleBindings    RoleBindingsSnapshot
+	roleBindingsErr error
+	helm            HelmReleasesSnapshot
+	helmErr         error
+	rq              ResourceQuotasSnapshot
+	rqErr           error
+	lr              LimitRangesSnapshot
+	lrErr           error
+}
+
+func (m *manager) loadNamespaceProjectionSnapshots(
+	ctx context.Context,
+	plane *clusterPlane,
+	namespace string,
+	prio WorkPriority,
+) namespaceProjectionSnapshots {
+	var snaps namespaceProjectionSnapshots
+	var wg sync.WaitGroup
+
+	wg.Add(19)
+	go func() {
+		defer wg.Done()
+		snaps.pods, snaps.podsErr = plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.deps, snaps.depsErr = plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.svcs, snaps.svcsErr = plane.ServicesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.ing, snaps.ingErr = plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.pvcs, snaps.pvcsErr = plane.PVCsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.cms, snaps.cmsErr = plane.ConfigMapsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.secs, snaps.secsErr = plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.ds, snaps.dsErr = plane.DaemonSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.sts, snaps.stsErr = plane.StatefulSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.rs, snaps.rsErr = plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.jobs, snaps.jobsErr = plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.cj, snaps.cjErr = plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.hpa, snaps.hpaErr = plane.HPAsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.sa, snaps.saErr = plane.ServiceAccountsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.roles, snaps.rolesErr = plane.RolesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.roleBindings, snaps.roleBindingsErr = plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.helm, snaps.helmErr = plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.rq, snaps.rqErr = plane.ResourceQuotasSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.lr, snaps.lrErr = plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+
+	wg.Wait()
+	return snaps
 }
 
 // NamespaceSummaryProjection builds a namespace summary from dataplane snapshots (projection-led).
@@ -55,144 +188,131 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	plane := planeAny.(*clusterPlane)
 
 	prio := WorkPriorityHigh
-	podsSnap, podsErr := plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	depsSnap, depsErr := plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	svcsSnap, svcsErr := plane.ServicesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	ingSnap, ingErr := plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	pvcsSnap, pvcsErr := plane.PVCsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	cmsSnap, cmsErr := plane.ConfigMapsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	secsSnap, secsErr := plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	dsSnap, dsErr := plane.DaemonSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	stsSnap, stsErr := plane.StatefulSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rsSnap, rsErr := plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	jobsSnap, jobsErr := plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	cjSnap, cjErr := plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	hpaSnap, hpaErr := plane.HPAsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	saSnap, saErr := plane.ServiceAccountsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rolesSnap, rolesErr := plane.RolesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	roleBindingsSnap, roleBindingsErr := plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	helmSnap, helmErr := plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rqSnap, rqErr := plane.ResourceQuotasSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	lrSnap, lrErr := plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	snaps := m.loadNamespaceProjectionSnapshots(ctx, plane, namespace, prio)
 
+	return buildNamespaceSummaryProjectionFromSnapshots(snaps)
+}
+
+func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnapshots) (NamespaceSummaryProjection, error) {
+	var out NamespaceSummaryProjection
 	res := dto.NamespaceSummaryResourcesDTO{
 		Problematic: []dto.ProblematicResource{},
 	}
 
-	if podsErr == nil {
-		res.Counts.Pods = len(podsSnap.Items)
+	if snaps.podsErr == nil {
+		res.Counts.Pods = len(snaps.pods.Items)
 	}
-	if depsErr == nil {
-		res.Counts.Deployments = len(depsSnap.Items)
+	if snaps.depsErr == nil {
+		res.Counts.Deployments = len(snaps.deps.Items)
 	}
-	if svcsErr == nil {
-		res.Counts.Services = len(svcsSnap.Items)
+	if snaps.svcsErr == nil {
+		res.Counts.Services = len(snaps.svcs.Items)
 	}
-	if ingErr == nil {
-		res.Counts.Ingresses = len(ingSnap.Items)
+	if snaps.ingErr == nil {
+		res.Counts.Ingresses = len(snaps.ing.Items)
 	}
-	if pvcsErr == nil {
-		res.Counts.PVCs = len(pvcsSnap.Items)
+	if snaps.pvcsErr == nil {
+		res.Counts.PVCs = len(snaps.pvcs.Items)
 	}
-	if cmsErr == nil {
-		res.Counts.ConfigMaps = len(cmsSnap.Items)
+	if snaps.cmsErr == nil {
+		res.Counts.ConfigMaps = len(snaps.cms.Items)
 	}
-	if secsErr == nil {
-		res.Counts.Secrets = len(secsSnap.Items)
+	if snaps.secsErr == nil {
+		res.Counts.Secrets = len(snaps.secs.Items)
 	}
-	if saErr == nil {
-		res.Counts.ServiceAccounts = len(saSnap.Items)
+	if snaps.saErr == nil {
+		res.Counts.ServiceAccounts = len(snaps.sa.Items)
 	}
-	if rolesErr == nil {
-		res.Counts.Roles = len(rolesSnap.Items)
+	if snaps.rolesErr == nil {
+		res.Counts.Roles = len(snaps.roles.Items)
 	}
-	if roleBindingsErr == nil {
-		res.Counts.RoleBindings = len(roleBindingsSnap.Items)
+	if snaps.roleBindingsErr == nil {
+		res.Counts.RoleBindings = len(snaps.roleBindings.Items)
 	}
-	if dsErr == nil {
-		res.Counts.DaemonSets = len(dsSnap.Items)
+	if snaps.dsErr == nil {
+		res.Counts.DaemonSets = len(snaps.ds.Items)
 	}
-	if stsErr == nil {
-		res.Counts.StatefulSets = len(stsSnap.Items)
+	if snaps.stsErr == nil {
+		res.Counts.StatefulSets = len(snaps.sts.Items)
 	}
-	if jobsErr == nil {
-		res.Counts.Jobs = len(jobsSnap.Items)
+	if snaps.jobsErr == nil {
+		res.Counts.Jobs = len(snaps.jobs.Items)
 	}
-	if cjErr == nil {
-		res.Counts.CronJobs = len(cjSnap.Items)
+	if snaps.cjErr == nil {
+		res.Counts.CronJobs = len(snaps.cj.Items)
 	}
-	if hpaErr == nil {
-		res.Counts.HPAs = len(hpaSnap.Items)
+	if snaps.hpaErr == nil {
+		res.Counts.HPAs = len(snaps.hpa.Items)
 	}
-	if helmErr == nil {
-		res.Counts.HelmReleases = len(helmSnap.Items)
-		res.HelmReleases = namespaceHelmReleasesFromSnapshot(helmSnap.Items)
+	if snaps.helmErr == nil {
+		res.Counts.HelmReleases = len(snaps.helm.Items)
+		res.HelmReleases = namespaceHelmReleasesFromSnapshot(snaps.helm.Items)
 	}
-	if rqErr == nil {
-		res.Counts.ResourceQuotas = len(rqSnap.Items)
+	if snaps.rqErr == nil {
+		res.Counts.ResourceQuotas = len(snaps.rq.Items)
 	}
-	if lrErr == nil {
-		res.Counts.LimitRanges = len(lrSnap.Items)
+	if snaps.lrErr == nil {
+		res.Counts.LimitRanges = len(snaps.lr.Items)
 	}
 
-	if podsErr == nil {
-		res.PodHealth = podPhaseRollup(podsSnap.Items)
+	if snaps.podsErr == nil {
+		res.PodHealth = podPhaseRollup(snaps.pods.Items)
 	}
-	if depsErr == nil {
-		res.DeployHealth = deploymentHealthRollup(depsSnap.Items)
+	if snaps.depsErr == nil {
+		res.DeployHealth = deploymentHealthRollup(snaps.deps.Items)
 	}
 
 	wh := ProjectWorkloadHealthFromNamespaceSnapshots(
-		depsSnap, depsErr,
-		dsSnap, dsErr,
-		stsSnap, stsErr,
-		rsSnap, rsErr,
-		jobsSnap, jobsErr,
-		cjSnap, cjErr,
+		snaps.deps, snaps.depsErr,
+		snaps.ds, snaps.dsErr,
+		snaps.sts, snaps.stsErr,
+		snaps.rs, snaps.rsErr,
+		snaps.jobs, snaps.jobsErr,
+		snaps.cj, snaps.cjErr,
 	)
 	res.WorkloadByKind = &wh.Rollup
 
 	workloadProblems := WorkloadProblematicCandidates(
-		depsSnap.Items,
-		dsSnap.Items,
-		stsSnap.Items,
-		jobsSnap.Items,
-		cjSnap.Items,
+		snaps.deps.Items,
+		snaps.ds.Items,
+		snaps.sts.Items,
+		snaps.jobs.Items,
+		snaps.cj.Items,
 		namespaceSummaryMaxProblematic,
 	)
 	var podProblems []dto.ProblematicResource
-	if podsErr == nil {
-		podProblems = podProblematicFromList(podsSnap.Items, namespaceSummaryMaxProblematic)
+	if snaps.podsErr == nil {
+		podProblems = podProblematicFromList(snaps.pods.Items, namespaceSummaryMaxProblematic)
 	}
 	res.Problematic = mergeProblematicUnique(namespaceSummaryMaxProblematic, workloadProblems, podProblems)
 
 	meta := composeNamespaceSummaryProjectionMeta(
-		podsSnap.Meta,
-		depsSnap.Meta,
-		svcsSnap.Meta,
-		ingSnap.Meta,
-		pvcsSnap.Meta,
-		cmsSnap.Meta,
-		secsSnap.Meta,
-		dsSnap.Meta,
-		stsSnap.Meta,
-		rsSnap.Meta,
-		jobsSnap.Meta,
-		cjSnap.Meta,
-		hpaSnap.Meta,
-		saSnap.Meta,
-		rolesSnap.Meta,
-		roleBindingsSnap.Meta,
-		helmSnap.Meta,
-		rqSnap.Meta,
-		lrSnap.Meta,
+		snaps.pods.Meta,
+		snaps.deps.Meta,
+		snaps.svcs.Meta,
+		snaps.ing.Meta,
+		snaps.pvcs.Meta,
+		snaps.cms.Meta,
+		snaps.secs.Meta,
+		snaps.ds.Meta,
+		snaps.sts.Meta,
+		snaps.rs.Meta,
+		snaps.jobs.Meta,
+		snaps.cj.Meta,
+		snaps.hpa.Meta,
+		snaps.sa.Meta,
+		snaps.roles.Meta,
+		snaps.roleBindings.Meta,
+		snaps.helm.Meta,
+		snaps.rq.Meta,
+		snaps.lr.Meta,
 	)
 	out.Meta = meta
 
 	firstNorm := FirstNonNilNormalizedError(
-		podsSnap.Err, depsSnap.Err, svcsSnap.Err, ingSnap.Err, pvcsSnap.Err, cmsSnap.Err, secsSnap.Err,
-		dsSnap.Err, stsSnap.Err, rsSnap.Err, jobsSnap.Err, cjSnap.Err, hpaSnap.Err,
-		saSnap.Err, rolesSnap.Err, roleBindingsSnap.Err, helmSnap.Err, rqSnap.Err, lrSnap.Err,
+		snaps.pods.Err, snaps.deps.Err, snaps.svcs.Err, snaps.ing.Err, snaps.pvcs.Err, snaps.cms.Err, snaps.secs.Err,
+		snaps.ds.Err, snaps.sts.Err, snaps.rs.Err, snaps.jobs.Err, snaps.cj.Err, snaps.hpa.Err,
+		snaps.sa.Err, snaps.roles.Err, snaps.roleBindings.Err, snaps.helm.Err, snaps.rq.Err, snaps.lr.Err,
 	)
 
 	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
@@ -202,9 +322,9 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 		res.Counts.ServiceAccounts + res.Counts.Roles + res.Counts.RoleBindings + res.Counts.HelmReleases +
 		res.Counts.ResourceQuotas + res.Counts.LimitRanges
 	usable := namespaceSummaryHasUsableSnapshot(
-		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
-		dsErr, stsErr, rsErr, jobsErr, cjErr, hpaErr,
-		saErr, rolesErr, roleBindingsErr, helmErr, rqErr, lrErr,
+		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
+		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
+		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.rqErr, snaps.lrErr,
 	)
 	state := ProjectionCoarseState(firstNorm, meaningful)
 
@@ -219,9 +339,9 @@ func (m *manager) NamespaceSummaryProjection(ctx context.Context, clusterName, n
 	out.Resources = res
 	out.Err = firstNorm
 	err := FirstError(
-		podsErr, depsErr, svcsErr, ingErr, pvcsErr, cmsErr, secsErr,
-		dsErr, stsErr, rsErr, jobsErr, cjErr, hpaErr,
-		saErr, rolesErr, roleBindingsErr, helmErr, rqErr, lrErr,
+		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
+		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
+		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.rqErr, snaps.lrErr,
 	)
 	return out, namespaceSummaryProjectionError(err, usable)
 }

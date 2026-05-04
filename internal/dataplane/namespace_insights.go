@@ -18,7 +18,32 @@ type NamespaceInsightsProjection struct {
 func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, namespace string) (NamespaceInsightsProjection, error) {
 	var out NamespaceInsightsProjection
 
-	proj, err := m.NamespaceSummaryProjection(ctx, clusterName, namespace)
+	if m.clients == nil {
+		proj, err := m.NamespaceSummaryProjection(ctx, clusterName, namespace)
+		out.Meta = proj.Meta
+		out.Err = proj.Err
+		out.Insights.Summary = proj.Resources
+		return out, err
+	}
+
+	ctx = ContextWithWorkSourceIfUnset(ctx, WorkSourceProjection)
+	if _, _, err := m.clients.GetClientsForContext(ctx, clusterName); err != nil {
+		proj, summaryErr := m.NamespaceSummaryProjection(ctx, clusterName, namespace)
+		out.Meta = proj.Meta
+		out.Err = proj.Err
+		out.Insights.Summary = proj.Resources
+		if summaryErr != nil {
+			return out, summaryErr
+		}
+		return out, err
+	}
+
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	prio := WorkPriorityHigh
+	snaps := m.loadNamespaceProjectionSnapshots(ctx, plane, namespace, prio)
+
+	proj, err := buildNamespaceSummaryProjectionFromSnapshots(snaps)
 	out.Meta = proj.Meta
 	out.Err = proj.Err
 	out.Insights.Summary = proj.Resources
@@ -26,38 +51,14 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 		return out, err
 	}
 
-	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
-	plane := planeAny.(*clusterPlane)
-	ctx = ContextWithWorkSourceIfUnset(ctx, WorkSourceProjection)
-	prio := WorkPriorityHigh
 	policy := m.EffectivePolicy(clusterName)
 	thresholds := signalThresholdsFromPolicy(policy)
 
-	podsSnap, podsErr := plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	depsSnap, depsErr := plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	svcsSnap, svcsErr := plane.ServicesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	ingSnap, ingErr := plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	pvcsSnap, pvcsErr := plane.PVCsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	cmsSnap, cmsErr := plane.ConfigMapsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	secsSnap, secsErr := plane.SecretsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	dsSnap, dsErr := plane.DaemonSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	stsSnap, stsErr := plane.StatefulSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rsSnap, rsErr := plane.ReplicaSetsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	jobsSnap, jobsErr := plane.JobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	cjSnap, cjErr := plane.CronJobsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	hpaSnap, hpaErr := plane.HPAsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	saSnap, saErr := plane.ServiceAccountsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rolesSnap, rolesErr := plane.RolesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	roleBindingsSnap, roleBindingsErr := plane.RoleBindingsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	helmSnap, helmErr := plane.HelmReleasesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	rqSnap, rqErr := plane.ResourceQuotasSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-	lrSnap, lrErr := plane.LimitRangesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
-
-	if rqErr == nil {
-		out.Insights.ResourceQuotas = append(out.Insights.ResourceQuotas, rqSnap.Items...)
+	if snaps.rqErr == nil {
+		out.Insights.ResourceQuotas = append(out.Insights.ResourceQuotas, snaps.rq.Items...)
 	}
-	if lrErr == nil {
-		out.Insights.LimitRanges = append(out.Insights.LimitRanges, lrSnap.Items...)
+	if snaps.lrErr == nil {
+		out.Insights.LimitRanges = append(out.Insights.LimitRanges, snaps.lr.Items...)
 	}
 	// Optional pod metrics rollup: cache-only read. The insights drawer must
 	// never be able to block on metrics-server being down or RBAC-denied, so
@@ -84,44 +85,44 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	now := time.Now()
 	signals.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectDashboardSignals(now, namespace, dashboardSnapshotSet{
 		restartThreshold:       thresholds.PodRestartCount,
-		pods:                   podsSnap,
-		podsOK:                 podsErr == nil,
-		deps:                   depsSnap,
-		depsOK:                 depsErr == nil,
-		ds:                     dsSnap,
-		dsOK:                   dsErr == nil,
-		sts:                    stsSnap,
-		stsOK:                  stsErr == nil,
-		rs:                     rsSnap,
-		rsOK:                   rsErr == nil,
-		jobs:                   jobsSnap,
-		jobsOK:                 jobsErr == nil,
-		cjs:                    cjSnap,
-		cjsOK:                  cjErr == nil,
-		hpas:                   hpaSnap,
-		hpasOK:                 hpaErr == nil,
-		svcs:                   svcsSnap,
-		svcsOK:                 svcsErr == nil,
-		ings:                   ingSnap,
-		ingsOK:                 ingErr == nil,
-		pvcs:                   pvcsSnap,
-		pvcsOK:                 pvcsErr == nil,
-		cms:                    cmsSnap,
-		cmsOK:                  cmsErr == nil,
-		secs:                   secsSnap,
-		secsOK:                 secsErr == nil,
-		sas:                    saSnap,
-		sasOK:                  saErr == nil,
-		roles:                  rolesSnap,
-		rolesOK:                rolesErr == nil,
-		roleBindings:           roleBindingsSnap,
-		roleBindingsOK:         roleBindingsErr == nil,
-		helmReleases:           helmSnap,
-		helmOK:                 helmErr == nil,
-		resourceQuotas:         rqSnap,
-		quotasOK:               rqErr == nil,
-		limitRanges:            lrSnap,
-		limitRangesOK:          lrErr == nil,
+		pods:                   snaps.pods,
+		podsOK:                 snaps.podsErr == nil,
+		deps:                   snaps.deps,
+		depsOK:                 snaps.depsErr == nil,
+		ds:                     snaps.ds,
+		dsOK:                   snaps.dsErr == nil,
+		sts:                    snaps.sts,
+		stsOK:                  snaps.stsErr == nil,
+		rs:                     snaps.rs,
+		rsOK:                   snaps.rsErr == nil,
+		jobs:                   snaps.jobs,
+		jobsOK:                 snaps.jobsErr == nil,
+		cjs:                    snaps.cj,
+		cjsOK:                  snaps.cjErr == nil,
+		hpas:                   snaps.hpa,
+		hpasOK:                 snaps.hpaErr == nil,
+		svcs:                   snaps.svcs,
+		svcsOK:                 snaps.svcsErr == nil,
+		ings:                   snaps.ing,
+		ingsOK:                 snaps.ingErr == nil,
+		pvcs:                   snaps.pvcs,
+		pvcsOK:                 snaps.pvcsErr == nil,
+		cms:                    snaps.cms,
+		cmsOK:                  snaps.cmsErr == nil,
+		secs:                   snaps.secs,
+		secsOK:                 snaps.secsErr == nil,
+		sas:                    snaps.sa,
+		sasOK:                  snaps.saErr == nil,
+		roles:                  snaps.roles,
+		rolesOK:                snaps.rolesErr == nil,
+		roleBindings:           snaps.roleBindings,
+		roleBindingsOK:         snaps.roleBindingsErr == nil,
+		helmReleases:           snaps.helm,
+		helmOK:                 snaps.helmErr == nil,
+		resourceQuotas:         snaps.rq,
+		quotasOK:               snaps.rqErr == nil,
+		limitRanges:            snaps.lr,
+		limitRangesOK:          snaps.lrErr == nil,
 		containerNearLimitPct:  thresholds.ContainerNearLimitPct,
 		longRunningJobDuration: thresholds.LongRunningJobDuration,
 		cronJobNoSuccessAge:    thresholds.CronJobNoSuccessDuration,
