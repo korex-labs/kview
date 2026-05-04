@@ -30,6 +30,7 @@ func main() {
 	open := flag.Bool("open", true, "open browser (deprecated, use --mode)")
 	modeFlag := flag.String("mode", "", "launch mode: browser|webview|server")
 	configPath := flag.String("config", "", "path to kubeconfig file or directory (overrides KUBECONFIG)")
+	readOnly := flag.Bool("read-only", false, "block backend endpoints that can mutate cluster state")
 	flag.Parse()
 
 	// Initialize runtime manager first so we can capture startup logs including kubeconfig discovery.
@@ -42,6 +43,7 @@ func main() {
 
 	token := randomToken(24)
 	srv := server.New(mgr, rt, token)
+	srv.SetReadOnly(*readOnly)
 
 	srv.Actions().Register("scale", kubeactions.HandleDeploymentScale)
 	srv.Actions().Register("restart", kubeactions.HandleDeploymentRestart)
@@ -106,6 +108,10 @@ func main() {
 	log.Printf("open: %s", url)
 	rt.Log(runtime.LogLevelInfo, "startup", fmt.Sprintf("listening on http://%s", *addr))
 	rt.Log(runtime.LogLevelInfo, "startup", fmt.Sprintf("application URL: %s", url))
+	if *readOnly {
+		log.Printf("read-only mode enabled: backend mutations are blocked")
+		rt.Log(runtime.LogLevelInfo, "startup", "read-only mode enabled: backend mutations are blocked")
+	}
 
 	mode, err := launcher.ResolveMode(*modeFlag, *open, defaultMode)
 	if err != nil {

@@ -748,7 +748,7 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
 function SettingsSelector({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <Tooltip title={open ? "Return to resources" : "Settings"}>
-      <IconButton size="small" color="inherit" onClick={onToggle}>
+      <IconButton aria-label={open ? "Return to resources" : "Settings"} data-testid="settings-toggle" size="small" color="inherit" onClick={onToggle}>
         <ConstructionIcon fontSize="small" />
       </IconButton>
     </Tooltip>

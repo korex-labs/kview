@@ -340,7 +340,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   );
 
   return (
-    <Paper sx={{ p: 2 }}>
+    <Paper sx={{ p: 2 }} data-testid={`resource-list-${resourceKey}`}>
       <Typography variant="h6" sx={{ mb: 0.5, flexShrink: 0, display: "flex", alignItems: "center", gap: 1 }}>
         <ResourceIcon name={getResourceIcon(resourceKey)} size={21} sx={{ color: "primary.main" }} />
         {title}

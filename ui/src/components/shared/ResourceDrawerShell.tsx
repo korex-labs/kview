@@ -211,6 +211,7 @@ export default function ResourceDrawerShell({
   return (
     <Box
       ref={shellRef}
+      data-testid={resourceIcon ? `drawer-${resourceIcon}` : "drawer-resource"}
       tabIndex={-1}
       onKeyDown={(e) => {
         if (e.key !== "Escape") return;

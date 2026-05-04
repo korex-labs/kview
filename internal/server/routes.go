@@ -21,6 +21,7 @@ func (s *Server) Router() http.Handler {
 	// Protected API
 	r.Route("/api", func(api chi.Router) {
 		api.Use(s.authMiddleware)
+		api.Use(s.readOnlyMiddleware)
 		api.Use(s.activityAccessDeniedLogMiddleware)
 		api.Use(s.dataplaneUserActivityMiddleware)
 

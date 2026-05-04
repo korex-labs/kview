@@ -313,6 +313,7 @@ export default function DashboardView(props: Props) {
   return (
     <Paper
       className="kview-dashboard-root"
+      data-testid="cluster-dashboard"
       sx={{
         flex: 1,
         minHeight: 0,

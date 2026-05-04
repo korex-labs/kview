@@ -9,6 +9,7 @@ COPY --from=node /usr/local /usr/local
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
+		chromium \
 		g++ \
 		pkg-config \
 		libgtk-3-dev \

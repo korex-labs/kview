@@ -1634,7 +1634,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     };
 
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, maxWidth: 900 }}>
+      <Box data-testid="settings-section-dataplane" sx={{ display: "flex", flexDirection: "column", gap: 1.25, maxWidth: 900 }}>
         <SettingSection
           title="Dataplane"
           icon={<SettingsIcon name="dataplane" />}
@@ -1669,6 +1669,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             {dataplaneTabs.map((item) => (
               <Tab
                 key={item.value}
+                data-testid={`settings-dataplane-tab-${item.value}`}
                 value={item.value}
                 icon={<SettingsIcon name={item.icon} size={16} />}
                 iconPosition="start"
@@ -2271,7 +2272,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   );
 
   return (
-    <Box sx={settingsShellSx}>
+    <Box data-testid="settings-view" sx={settingsShellSx}>
       <Paper
         variant="outlined"
         sx={{
@@ -2289,7 +2290,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         </Typography>
         <List dense disablePadding>
           {sections.map((item) => (
-            <ListItemButton key={item.id} selected={section === item.id} onClick={() => setSection(item.id)}>
+            <ListItemButton key={item.id} data-testid={`settings-nav-${item.id}`} selected={section === item.id} onClick={() => setSection(item.id)}>
               <ListItemIcon sx={{ minWidth: 30, color: section === item.id ? "primary.main" : "text.secondary" }}>
                 <SettingsIcon name={item.icon} size={17} />
               </ListItemIcon>

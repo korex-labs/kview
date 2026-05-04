@@ -127,6 +127,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
 
   return (
     <Box
+      data-testid="activity-panel"
       sx={{
         position: "fixed",
         // Align with main content area, not covering the permanent sidebar.
@@ -216,6 +217,8 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           </Box>
         </Tooltip>
         <IconButton
+          aria-label={open ? "Collapse activity panel" : "Expand activity panel"}
+          data-testid="activity-panel-toggle"
           size="small"
           onClick={() => setOpen((v) => !v)}
           onDoubleClick={(e) => e.stopPropagation()}

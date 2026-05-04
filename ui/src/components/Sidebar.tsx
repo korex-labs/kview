@@ -256,6 +256,7 @@ export default function Sidebar(props: Props) {
                   {group.items.map((item) => (
                     <ListItemButton
                       key={item}
+                      data-testid={`nav-${item}`}
                       selected={props.section === item}
                       onClick={() => props.onSelectSection(item)}
                       sx={{ minHeight: 30, py: 0.25, px: 1 }}

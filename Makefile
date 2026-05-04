@@ -9,6 +9,12 @@ DOCKER_IMAGE=kview-build:go1.26.2-node22.20.0
 DOCKER_BUILD?=1
 COVERAGE_DIR=.artifacts/coverage
 CODEX?=codex
+KVIEW_E2E_HOST_KUBECONFIG?=
+KVIEW_E2E_KUBECONFIG_BUNDLE?=.artifacts/e2e-kubeconfig
+KVIEW_E2E_CONTAINER_KUBECONFIG?=/tmp/.kube
+KVIEW_E2E_DOCKER_EXTRA_ARGS?=
+KVIEW_E2E_KUBECONFIG_ENV=$(if $(KVIEW_E2E_HOST_KUBECONFIG),-e KVIEW_E2E_KUBECONFIG=$(KVIEW_E2E_CONTAINER_KUBECONFIG),-e KVIEW_E2E_KUBECONFIG)
+KVIEW_E2E_KUBECONFIG_VOLUME=$(if $(KVIEW_E2E_HOST_KUBECONFIG),-v "$(CURDIR)/$(KVIEW_E2E_KUBECONFIG_BUNDLE):$(KVIEW_E2E_CONTAINER_KUBECONFIG):ro",)
 VERSION?=$(shell sh -c 'tag=""; \
 	if [ "$$GITHUB_REF_TYPE" = "tag" ] && [ -n "$$GITHUB_REF_NAME" ]; then \
 		tag="$$GITHUB_REF_NAME"; \
@@ -29,18 +35,41 @@ DOCKER_RUN=docker run --rm \
 	-e GOCACHE=/workspace/.cache/go-build \
 	-e GOMODCACHE=/workspace/.cache/go-mod \
 	-e npm_config_cache=/workspace/.cache/npm \
+	-e PLAYWRIGHT_BROWSERS_PATH=/workspace/.cache/ms-playwright \
+	-e PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium \
+	$(KVIEW_E2E_KUBECONFIG_ENV) \
+	-e KVIEW_E2E_BACKEND_PORT \
+	-e KVIEW_E2E_UI_PORT \
 	-v "$(CURDIR):/workspace" \
+	$(KVIEW_E2E_KUBECONFIG_VOLUME) \
+	$(KVIEW_E2E_DOCKER_EXTRA_ARGS) \
 	-w /workspace \
 	$(DOCKER_IMAGE)
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check lint-go coverage test-visibility ui build build-webview build-release docker-image clean prepare-cache install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-build local-build-webview local-build-release
+.PHONY: all check lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release
 
 all: install-git-hooks check build
 
 prepare-cache: install-git-hooks
-	mkdir -p .cache/go-build .cache/go-mod .cache/npm
+	mkdir -p .cache/go-build .cache/go-mod .cache/npm .cache/ms-playwright
+
+prepare-e2e-kubeconfig: prepare-cache
+	@if [ -n "$(KVIEW_E2E_HOST_KUBECONFIG)" ]; then \
+		rm -rf "$(KVIEW_E2E_KUBECONFIG_BUNDLE)"; \
+		mkdir -p "$(KVIEW_E2E_KUBECONFIG_BUNDLE)"; \
+		if [ -d "$(KVIEW_E2E_HOST_KUBECONFIG)" ]; then \
+			count=$$(find "$(KVIEW_E2E_HOST_KUBECONFIG)" -maxdepth 1 \( -type f -o -type l \) -print | wc -l); \
+			if [ "$$count" -eq 0 ]; then \
+				echo "No kubeconfig files found in $(KVIEW_E2E_HOST_KUBECONFIG)"; \
+				exit 2; \
+			fi; \
+			find "$(KVIEW_E2E_HOST_KUBECONFIG)" -maxdepth 1 \( -type f -o -type l \) -print -exec cp -L -t "$(KVIEW_E2E_KUBECONFIG_BUNDLE)" {} + >/dev/null; \
+		else \
+			cp -L "$(KVIEW_E2E_HOST_KUBECONFIG)" "$(KVIEW_E2E_KUBECONFIG_BUNDLE)/config"; \
+		fi; \
+	fi
 
 install-git-hooks:
 	@if [ "$${CI:-}" = "true" ]; then \
@@ -87,6 +116,12 @@ test-visibility: install-git-hooks docker-image prepare-cache
 
 ui: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-ui
+
+e2e: install-git-hooks docker-image prepare-e2e-kubeconfig
+	$(DOCKER_RUN) make local-e2e
+
+e2e-screenshots: install-git-hooks docker-image prepare-e2e-kubeconfig
+	$(DOCKER_RUN) make local-e2e-screenshots
 
 build: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-build OUTPUT=$(OUTPUT) VERSION=$(VERSION)
@@ -142,6 +177,12 @@ local-ui: install-git-hooks
 	find $(EMBED_DIR) -mindepth 1 ! -name placeholder.txt -exec rm -rf {} +
 	cp -r $(UI_DIR)/dist/* $(EMBED_DIR)/
 	@echo "UI built and copied into $(EMBED_DIR)"
+
+local-e2e: install-git-hooks
+	cd $(UI_DIR) && npm ci && npm run e2e
+
+local-e2e-screenshots: install-git-hooks
+	cd $(UI_DIR) && npm ci && npm run e2e:screenshots
 
 local-build: install-git-hooks local-ui
 	go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview

@@ -37,6 +37,7 @@ type Server struct {
 	dp             dataplane.DataPlaneManager
 	sessions       session.Manager
 	jobRuns        *jobdebug.Manager
+	readOnly       bool
 	deniedLogMu    sync.Mutex
 	deniedLogUntil map[string]time.Time
 	statusLogMu    sync.Mutex
@@ -74,6 +75,16 @@ func (s *Server) Actions() *kube.ActionRegistry {
 // Runtime exposes the runtime manager for startup/launcher logging.
 func (s *Server) Runtime() runtime.RuntimeManager {
 	return s.rt
+}
+
+// SetReadOnly controls whether backend endpoints that can mutate cluster state
+// are rejected before they reach Kubernetes clients.
+func (s *Server) SetReadOnly(readOnly bool) {
+	s.readOnly = readOnly
+}
+
+func (s *Server) ReadOnly() bool {
+	return s.readOnly
 }
 
 func (s *Server) Sessions() session.Manager {

@@ -3,6 +3,17 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: process.env.KVIEW_E2E_API_TARGET
+      ? {
+          "/api": {
+            target: process.env.KVIEW_E2E_API_TARGET,
+            changeOrigin: true,
+            ws: true,
+          },
+        }
+      : undefined,
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

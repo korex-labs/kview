@@ -79,6 +79,10 @@ func (s *Server) registerCapabilitiesAndActionsRoutes(api chi.Router) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("invalid body")})
 			return
 		}
+		if s.ReadOnly() && body.Action != "resource.yaml.validate" {
+			writeReadOnlyBlocked(w, r.URL.Path)
+			return
+		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutHelmMutate)
 		defer cancel()

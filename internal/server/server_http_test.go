@@ -1137,6 +1137,141 @@ func TestPostActions_Validation(t *testing.T) {
 	}
 }
 
+func TestReadOnlyBlocksMutationEndpoints(t *testing.T) {
+	cases := []struct {
+		name    string
+		method  string
+		path    string
+		body    []byte
+		headers map[string]string
+	}{
+		{
+			name:   "resource action",
+			method: http.MethodPost,
+			path:   "/api/actions",
+			body:   toJSON(t, map[string]any{"resource": "pods", "action": "pod.delete", "namespace": "default", "name": "pod-1"}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
+			},
+		},
+		{
+			name:   "helm install",
+			method: http.MethodPost,
+			path:   "/api/helm/install",
+			body:   toJSON(t, map[string]any{"namespace": "default", "release": "app", "chart": "repo/app"}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
+			},
+		},
+		{
+			name:   "terminal session",
+			method: http.MethodPost,
+			path:   "/api/sessions/terminal",
+			body:   toJSON(t, map[string]any{"namespace": "default", "pod": "pod-1"}),
+			headers: map[string]string{
+				"Authorization": "Bearer " + testToken,
+			},
+		},
+		{
+			name:   "container command",
+			method: http.MethodPost,
+			path:   "/api/container-commands/run",
+			body:   toJSON(t, map[string]any{"namespace": "default", "pod": "pod-1", "container": "app", "command": "date"}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
+			},
+		},
+		{
+			name:   "port forward",
+			method: http.MethodPost,
+			path:   "/api/sessions/portforward",
+			body:   toJSON(t, map[string]any{"namespace": "default", "pod": "pod-1", "remotePort": 8080}),
+			headers: map[string]string{
+				"Authorization": "Bearer " + testToken,
+			},
+		},
+		{
+			name:   "job debug run",
+			method: http.MethodPost,
+			path:   "/api/namespaces/default/job-runs/debug",
+			body:   toJSON(t, map[string]any{"kind": "Job", "name": "job-1"}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
+			},
+		},
+		{
+			name:   "job debug stop",
+			method: http.MethodPost,
+			path:   "/api/job-runs/run-1/stop",
+			body:   toJSON(t, map[string]any{}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
+			},
+		},
+		{
+			name:   "job debug close",
+			method: http.MethodDelete,
+			path:   "/api/job-runs/run-1",
+			headers: map[string]string{
+				"Authorization": "Bearer " + testToken,
+			},
+		},
+		{
+			name:   "terminal websocket",
+			method: http.MethodGet,
+			path:   "/api/sessions/session-1/terminal/ws",
+			headers: map[string]string{
+				"Authorization": "Bearer " + testToken,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			s.SetReadOnly(true)
+
+			rec := doReqWithHeader(t, h, tc.method, tc.path, tc.headers, tc.body)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, http.StatusForbidden, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), readOnlyMutationMessage) {
+				t.Fatalf("body does not mention read-only block: %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestReadOnlyAllowsResourceYAMLValidate(t *testing.T) {
+	s, h := newTestServer(t)
+	s.SetReadOnly(true)
+	s.Actions().Register("resource.yaml.validate", func(_ context.Context, _ *cluster.Clients, _ kube.ActionRequest) (*kube.ActionResult, error) {
+		return &kube.ActionResult{Status: "validated"}, nil
+	})
+
+	rec := doReqWithHeader(t, h, http.MethodPost, "/api/actions", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "test-context",
+	}, toJSON(t, map[string]any{
+		"resource": "deployments",
+		"action":   "resource.yaml.validate",
+		"params": map[string]any{
+			"yaml": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+		},
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), readOnlyMutationMessage) {
+		t.Fatalf("validate action was blocked in read-only mode: %s", rec.Body.String())
+	}
+}
+
 // ── POST /api/namespaces/{ns}/job-runs/debug ─────────────────────────────────
 
 func TestPostJobRunsDebug_Validation(t *testing.T) {
