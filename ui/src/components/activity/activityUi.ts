@@ -1,20 +1,26 @@
 import type { SxProps, Theme } from "@mui/material/styles";
+import type { ChipProps } from "@mui/material/Chip";
 
 export const compactTableContainerSx: SxProps<Theme> = {
   flex: 1,
   minHeight: 0,
   overflow: "auto",
-  border: "1px solid var(--border-subtle)",
-  borderRadius: 1,
+  borderTop: "1px solid var(--border-subtle)",
+  borderRadius: 0,
 };
 
 export const compactTableSx: SxProps<Theme> = {
   "& .MuiTableCell-root": {
     fontSize: "0.75rem",
-    fontFamily: "monospace",
   },
   "& .MuiTableHead-root .MuiTableCell-root": {
     backgroundColor: "var(--bg-primary)",
+  },
+  "& .MuiTableRow-root": {
+    transition: "opacity 700ms ease, background-color 700ms ease",
+  },
+  "& .MuiTableRow-root[data-exiting='true']": {
+    opacity: 0,
   },
 };
 
@@ -29,16 +35,14 @@ export const compactCellSx: SxProps<Theme> = {
   verticalAlign: "top",
 };
 
-export const badgeChipSx: SxProps<Theme> = {
-  height: 24,
-  fontSize: "0.75rem",
-  textTransform: "uppercase",
-  borderWidth: 1,
-  borderStyle: "solid",
+export const activityChipSx: SxProps<Theme> = {
+  height: 22,
+  fontSize: "0.72rem",
+  "& .MuiChip-label": { px: 0.8 },
 };
 
 type ChipCategory = "kind" | "type" | "status" | "level";
-type ChipTone = "default" | "success" | "warning" | "error" | "info" | "primary" | "secondary";
+type ChipTone = NonNullable<ChipProps["color"]>;
 
 export const panelEmptyStateSx: SxProps<Theme> = {
   color: "text.secondary",
@@ -123,45 +127,6 @@ export function chipToneForValue(value: string, category: ChipCategory = "status
   return genericChipTone(normalized);
 }
 
-const chipToneSx: Record<ChipTone, SxProps<Theme>> = {
-  default: {
-    color: "var(--chip-default-fg)",
-    bgcolor: "var(--chip-default-bg)",
-    borderColor: "var(--chip-default-border)",
-  },
-  success: {
-    color: "var(--chip-success-fg)",
-    bgcolor: "var(--chip-success-bg)",
-    borderColor: "var(--chip-success-border)",
-  },
-  warning: {
-    color: "var(--chip-warning-fg)",
-    bgcolor: "var(--chip-warning-bg)",
-    borderColor: "var(--chip-warning-border)",
-  },
-  error: {
-    color: "var(--chip-error-fg)",
-    bgcolor: "var(--chip-error-bg)",
-    borderColor: "var(--chip-error-border)",
-  },
-  info: {
-    color: "var(--chip-info-fg)",
-    bgcolor: "var(--chip-info-bg)",
-    borderColor: "var(--chip-info-border)",
-  },
-  primary: {
-    color: "var(--chip-primary-fg)",
-    bgcolor: "var(--chip-primary-bg)",
-    borderColor: "var(--chip-primary-border)",
-  },
-  secondary: {
-    color: "var(--chip-secondary-fg)",
-    bgcolor: "var(--chip-secondary-bg)",
-    borderColor: "var(--chip-secondary-border)",
-  },
-};
-
-export function chipSxForValue(value: string, category: ChipCategory = "status"): SxProps<Theme> {
-  const tone = chipToneForValue(value, category);
-  return [badgeChipSx, chipToneSx[tone]] as SxProps<Theme>;
+export function chipColorForValue(value: string, category: ChipCategory = "status"): ChipProps["color"] {
+  return chipToneForValue(value, category);
 }

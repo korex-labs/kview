@@ -12,6 +12,12 @@ export type ShortcutCommandId =
   | "table.page.previous"
   | "table.page.next"
   | "command.open"
+  | "activity.panel.toggle"
+  | "activity.panel.activities"
+  | "activity.panel.work"
+  | "activity.panel.terminals"
+  | "activity.panel.portForwards"
+  | "activity.panel.logs"
   | "table.row.open"
   | "nav.pods"
   | "nav.deployments"
@@ -36,6 +42,12 @@ export type ShortcutCommand = {
 export const shortcutCommands: ShortcutCommand[] = [
   { id: "help.open", label: "Show keyboard shortcuts", group: "Global", bindings: [["?"]] },
   { id: "search.focus", label: "Focus global search", group: "Global", bindings: [["ctrl+k"], ["s"]] },
+  { id: "activity.panel.toggle", label: "Toggle activity panel", group: "Global", bindings: [["alt+a"], ["g", "a"]] },
+  { id: "activity.panel.activities", label: "Open Activities tab", group: "Global", bindings: [["alt+1"], ["g", "1"]] },
+  { id: "activity.panel.work", label: "Open Work tab", group: "Global", bindings: [["alt+2"], ["g", "2"]] },
+  { id: "activity.panel.terminals", label: "Open Terminals tab", group: "Global", bindings: [["alt+3"], ["g", "3"]] },
+  { id: "activity.panel.portForwards", label: "Open Port forwards tab", group: "Global", bindings: [["alt+4"], ["g", "4"]] },
+  { id: "activity.panel.logs", label: "Open Logs tab", group: "Global", bindings: [["alt+5"], ["g", "5"]] },
   { id: "table.filter.focus", label: "Focus current table filter", group: "Table", bindings: [["/"]] },
   { id: "table.grid.focus", label: "Focus resource table", group: "Table", bindings: [["t"]] },
   { id: "table.cell.navigate", label: "Move around the table", group: "Table", bindings: [["Arrow keys"], ["h/j/k/l"], ["a/s/d/f"]] },

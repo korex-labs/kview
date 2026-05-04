@@ -19,6 +19,7 @@ import { panelBoxSx } from "../theme/sxTokens";
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "./commands";
 import { buildShortcutHelpSections } from "./help";
 import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
+import { emitFocusActivityPanelTab, emitToggleActivityPanel } from "../activityEvents";
 import {
   formatBinding,
   shortcutCommandsForSettings,
@@ -181,6 +182,24 @@ export default function KeyboardProvider({
         return tableControlsRef.current?.pageNext() ?? false;
       case "command.open":
         openCommand();
+        return true;
+      case "activity.panel.toggle":
+        emitToggleActivityPanel();
+        return true;
+      case "activity.panel.activities":
+        emitFocusActivityPanelTab(0);
+        return true;
+      case "activity.panel.work":
+        emitFocusActivityPanelTab(1);
+        return true;
+      case "activity.panel.terminals":
+        emitFocusActivityPanelTab(2);
+        return true;
+      case "activity.panel.portForwards":
+        emitFocusActivityPanelTab(3);
+        return true;
+      case "activity.panel.logs":
+        emitFocusActivityPanelTab(4);
         return true;
       case "table.row.open":
         return tableControlsRef.current?.openSelectedRow() ?? false;

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Chip,
   IconButton,
   Tabs,
   Tab,
@@ -18,13 +17,17 @@ import CloseIcon from "@mui/icons-material/Close";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ActivityList from "./ActivityList";
 import EmptyState from "../shared/EmptyState";
+import KeyValueChip from "../shared/KeyValueChip";
+import StatusChip from "../shared/StatusChip";
 import { apiGet, toApiError } from "../../api";
 import TerminalSessionView from "./TerminalSessionView";
 import { apiDelete } from "../../sessionsApi";
 import { emitFocusLogsTab, emitOpenTerminalSession } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
+import { fmtDurationMs } from "../../utils/format";
 import {
-  chipSxForValue,
+  activityChipSx,
+  chipColorForValue,
   compactCellSx,
   compactHeaderCellSx,
   compactTableSx,
@@ -79,6 +82,8 @@ type Activity = {
   metadata?: Record<string, string>;
 };
 
+type FadingRow<T> = T & { __exiting?: boolean };
+
 type ActivityLogEntry = {
   id: string;
   timestamp: string;
@@ -99,6 +104,53 @@ type Session = {
   targetContainer?: string;
   metadata?: Record<string, string>;
 };
+
+function useFadingRows<T>(
+  rows: T[],
+  keyForRow: (row: T) => string,
+  holdMs = 2400,
+): Array<FadingRow<T>> {
+  const [displayRows, setDisplayRows] = useState<Array<FadingRow<T>>>([]);
+  const removalTimersRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    const incomingKeys = new Set(rows.map(keyForRow));
+    setDisplayRows((prev) => {
+      const next = rows.map((row) => ({ ...row, __exiting: false }));
+
+      prev.forEach((row) => {
+        const key = keyForRow(row);
+        if (incomingKeys.has(key) || row.__exiting) return;
+        next.push({ ...row, __exiting: true });
+        const timer = window.setTimeout(() => {
+          removalTimersRef.current.delete(key);
+          setDisplayRows((current) => current.filter((item) => keyForRow(item) !== key));
+        }, holdMs);
+        removalTimersRef.current.set(key, timer);
+      });
+
+      rows.forEach((row) => {
+        const key = keyForRow(row);
+        const timer = removalTimersRef.current.get(key);
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+          removalTimersRef.current.delete(key);
+        }
+      });
+
+      return next;
+    });
+  }, [holdMs, keyForRow, rows]);
+
+  useEffect(() => {
+    return () => {
+      removalTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      removalTimersRef.current.clear();
+    };
+  }, []);
+
+  return displayRows;
+}
 
 export default function ActivityTabs({
   tab,
@@ -270,6 +322,20 @@ export default function ActivityTabs({
       ),
     [sessions],
   );
+  const liveWorkRunning = useMemo(() => liveWork?.running ?? [], [liveWork]);
+  const liveWorkQueued = useMemo(() => liveWork?.queued ?? [], [liveWork]);
+  const displayActivities = useFadingRows(
+    activities,
+    useCallback((activity: Activity) => activity.id, []),
+  );
+  const runningWorkRows = useFadingRows(
+    liveWorkRunning,
+    useCallback((row: LiveWorkRow) => row.workKey, []),
+  );
+  const queuedWorkRows = useFadingRows(
+    liveWorkQueued,
+    useCallback((row: LiveWorkRow) => row.workKey, []),
+  );
 
   const terminateSession = async (id: string) => {
     try {
@@ -369,7 +435,7 @@ export default function ActivityTabs({
     <Box sx={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <Box sx={{ display: tab === 0 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
         <ActivityList
-          items={activities}
+          items={displayActivities}
           loading={loading}
           error={err || undefined}
           onViewTerminal={(activity) => {
@@ -399,10 +465,11 @@ export default function ActivityTabs({
                 {liveWorkErr}
               </Typography>
             ) : null}
-            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, py: 0.25, display: "block" }}>
-              Slots / cluster: {liveWork?.maxSlotsPerCluster ?? "—"} · running {liveWork?.running?.length ?? 0} · queued{" "}
-              {liveWork?.queued?.length ?? 0}
-            </Typography>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5, py: 0.5 }}>
+              <KeyValueChip chipKey="slots/cluster" value={String(liveWork?.maxSlotsPerCluster ?? "-")} color="primary" maxKeyLen={16} />
+              <KeyValueChip chipKey="running" value={String(liveWork?.running?.length ?? 0)} color="success" />
+              <KeyValueChip chipKey="queued" value={String(liveWork?.queued?.length ?? 0)} color="info" />
+            </Box>
             <Table size="small" stickyHeader sx={compactTableSx}>
               <TableHead>
                 <TableRow>
@@ -413,10 +480,10 @@ export default function ActivityTabs({
                   <TableCell sx={compactHeaderCellSx}>Pri</TableCell>
                   <TableCell sx={compactHeaderCellSx}>Src</TableCell>
                   <TableCell sx={compactHeaderCellSx} align="right">
-                    Q ms
+                    Queued
                   </TableCell>
                   <TableCell sx={compactHeaderCellSx} align="right">
-                    Run ms
+                    Running
                   </TableCell>
                   <TableCell sx={compactHeaderCellSx}>Key</TableCell>
                 </TableRow>
@@ -431,6 +498,7 @@ export default function ActivityTabs({
                 ) : null}
                 {liveWork &&
                 (liveWork.running?.length ?? 0) + (liveWork.queued?.length ?? 0) === 0 &&
+                runningWorkRows.length + queuedWorkRows.length === 0 &&
                 !liveWorkErr ? (
                   <TableRow>
                     <TableCell sx={compactCellSx} colSpan={9}>
@@ -438,10 +506,10 @@ export default function ActivityTabs({
                     </TableCell>
                   </TableRow>
                 ) : null}
-                {(liveWork?.running ?? []).map((row, i) => (
-                  <TableRow key={`r-${row.workKey}-${i}`} hover>
+                {runningWorkRows.map((row, i) => (
+                  <TableRow key={`r-${row.workKey}-${i}`} data-exiting={row.__exiting ? "true" : undefined} hover>
                     <TableCell sx={compactCellSx}>
-                      <Chip size="small" label="run" sx={chipSxForValue("running", "status")} />
+                      <StatusChip size="small" label="Running" color={chipColorForValue("running", "status")} sx={activityChipSx} />
                     </TableCell>
                     <TableCell sx={compactCellSx}>
                       <Typography variant="caption" noWrap sx={{ maxWidth: 120, display: "block" }}>
@@ -468,12 +536,12 @@ export default function ActivityTabs({
                     </TableCell>
                     <TableCell sx={compactCellSx} align="right">
                       <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                        {row.waitMs}
+                        {fmtDurationMs(row.waitMs)}
                       </Typography>
                     </TableCell>
                     <TableCell sx={compactCellSx} align="right">
                       <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                        {row.runningMs}
+                        {fmtDurationMs(row.runningMs)}
                       </Typography>
                     </TableCell>
                     <TableCell sx={compactCellSx}>
@@ -485,10 +553,10 @@ export default function ActivityTabs({
                     </TableCell>
                   </TableRow>
                 ))}
-                {(liveWork?.queued ?? []).map((row, i) => (
-                  <TableRow key={`q-${row.workKey}-${i}`} hover>
+                {queuedWorkRows.map((row, i) => (
+                  <TableRow key={`q-${row.workKey}-${i}`} data-exiting={row.__exiting ? "true" : undefined} hover>
                     <TableCell sx={compactCellSx}>
-                      <Chip size="small" label="q" sx={chipSxForValue("pending", "status")} />
+                      <StatusChip size="small" label="Queued" color={chipColorForValue("pending", "status")} sx={activityChipSx} />
                     </TableCell>
                     <TableCell sx={compactCellSx}>
                       <Typography variant="caption" noWrap sx={{ maxWidth: 120, display: "block" }}>
@@ -515,7 +583,7 @@ export default function ActivityTabs({
                     </TableCell>
                     <TableCell sx={compactCellSx} align="right">
                       <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                        {row.waitMs}
+                        {fmtDurationMs(row.waitMs)}
                       </Typography>
                     </TableCell>
                     <TableCell sx={compactCellSx} align="right">
@@ -571,7 +639,7 @@ export default function ActivityTabs({
                           {label}
                         </Typography>
                         {info?.status ? (
-                          <Chip size="small" label={info.status} sx={chipSxForValue(info.status, "status")} />
+                          <StatusChip size="small" label={info.status} color={chipColorForValue(info.status, "status")} sx={activityChipSx} />
                         ) : null}
                         <IconButton
                           size="small"
@@ -748,7 +816,7 @@ export default function ActivityTabs({
                         </Typography>
                       </TableCell>
                       <TableCell sx={compactCellSx}>
-                        <Chip label={log.level.toUpperCase()} size="small" sx={chipSxForValue(log.level, "level")} />
+                        <StatusChip label={log.level} size="small" color={chipColorForValue(log.level, "level")} sx={activityChipSx} />
                       </TableCell>
                       <TableCell sx={compactCellSx}>
                         <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
@@ -771,4 +839,3 @@ export default function ActivityTabs({
     </Box>
   );
 }
-

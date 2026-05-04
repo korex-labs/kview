@@ -1,11 +1,14 @@
 import React from "react";
-import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography, Chip, CircularProgress, IconButton, Tooltip } from "@mui/material";
+import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography, CircularProgress, IconButton, Tooltip } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EmptyState from "../shared/EmptyState";
+import StatusChip from "../shared/StatusChip";
+import { fmtDurationMs } from "../../utils/format";
 import {
-  chipSxForValue,
+  activityChipSx,
+  chipColorForValue,
   compactCellSx,
   compactHeaderCellSx,
   compactTableSx,
@@ -24,16 +27,8 @@ type Activity = {
   resourceType?: string;
   executionMs?: number;
   metadata?: Record<string, string>;
+  __exiting?: boolean;
 };
-
-function fmtExecutionMs(ms: number | undefined): string {
-  if (ms === undefined || ms < 0) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  return `${m}m${s % 60}s`;
-}
 
 function fmtStarted(iso: string | undefined): string {
   if (!iso) return "—";
@@ -104,7 +99,7 @@ export default function ActivityList({
 }: Props) {
   const list = items || [];
 
-  if (loading) {
+  if (loading && list.length === 0) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
         <CircularProgress size={20} />
@@ -141,7 +136,7 @@ export default function ActivityList({
         </TableHead>
         <TableBody>
           {list.map((a) => (
-            <TableRow key={a.id}>
+            <TableRow key={a.id} data-exiting={a.__exiting ? "true" : undefined} hover>
               <TableCell sx={compactCellSx}>
                 <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                   {a.id}
@@ -149,13 +144,14 @@ export default function ActivityList({
               </TableCell>
               <TableCell sx={compactCellSx}>{a.title || "-"}</TableCell>
               <TableCell sx={compactCellSx}>
-                <Chip size="small" label={a.kind || "-"} sx={chipSxForValue(a.kind, "kind")} />
+                <StatusChip size="small" label={a.kind || "-"} color={chipColorForValue(a.kind, "kind")} sx={activityChipSx} />
               </TableCell>
               <TableCell sx={compactCellSx}>
-                <Chip
+                <StatusChip
                   size="small"
                   label={activityTypeDisplayLabel(a.type)}
-                  sx={chipSxForValue(a.type, "type")}
+                  color={chipColorForValue(a.type, "type")}
+                  sx={activityChipSx}
                 />
               </TableCell>
               <TableCell sx={compactCellSx}>
@@ -170,7 +166,7 @@ export default function ActivityList({
               </TableCell>
               <TableCell sx={compactCellSx} align="right">
                 <Typography variant="caption" sx={{ fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>
-                  {fmtExecutionMs(a.executionMs)}
+                  {fmtDurationMs(a.executionMs)}
                 </Typography>
               </TableCell>
               <TableCell sx={compactCellSx}>
@@ -179,10 +175,11 @@ export default function ActivityList({
                 </Typography>
               </TableCell>
               <TableCell sx={compactCellSx}>
-                <Chip
+                <StatusChip
                   size="small"
                   label={a.status || "-"}
-                  sx={chipSxForValue(a.status, "status")}
+                  color={chipColorForValue(a.status, "status")}
+                  sx={activityChipSx}
                 />
               </TableCell>
               <TableCell sx={compactCellSx} align="right">

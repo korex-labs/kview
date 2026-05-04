@@ -55,6 +55,21 @@ export function valueOrDash(val?: string | number | null): string {
   return String(val);
 }
 
+export function fmtDurationMs(ms?: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "-";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const seconds = Math.floor(ms / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${remainingSeconds}s`;
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${remainingSeconds}s`;
+}
+
 export function fmtAge(seconds?: number, style: "detail" | "table" = "detail"): string {
   if (style === "table") {
     if (seconds == null || Number.isNaN(seconds) || seconds < 0) return "-";

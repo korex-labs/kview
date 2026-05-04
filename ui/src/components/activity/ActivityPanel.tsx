@@ -5,8 +5,11 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ActivityTabs from "./ActivityTabs";
 import {
   FOCUS_LOGS_TAB_EVENT,
+  FOCUS_ACTIVITY_PANEL_TAB_EVENT,
   FOCUS_PORT_FORWARDS_TAB_EVENT,
   OPEN_TERMINAL_SESSION_EVENT,
+  TOGGLE_ACTIVITY_PANEL_EVENT,
+  type FocusActivityPanelTabEventDetail,
   type OpenTerminalSessionEventDetail,
 } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
@@ -105,6 +108,23 @@ export default function ActivityPanel({ token, covered = false }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    const onTogglePanel = () => setOpen((v) => !v);
+    const onFocusActivityTab = (event: Event) => {
+      const custom = event as CustomEvent<FocusActivityPanelTabEventDetail>;
+      const nextTab = custom.detail?.tab;
+      if (typeof nextTab !== "number" || nextTab < 0 || nextTab > 4) return;
+      setOpen(true);
+      setTab(nextTab);
+    };
+    window.addEventListener(TOGGLE_ACTIVITY_PANEL_EVENT, onTogglePanel);
+    window.addEventListener(FOCUS_ACTIVITY_PANEL_TAB_EVENT, onFocusActivityTab as EventListener);
+    return () => {
+      window.removeEventListener(TOGGLE_ACTIVITY_PANEL_EVENT, onTogglePanel);
+      window.removeEventListener(FOCUS_ACTIVITY_PANEL_TAB_EVENT, onFocusActivityTab as EventListener);
+    };
+  }, []);
+
   return (
     <Box
       sx={{
@@ -150,12 +170,12 @@ export default function ActivityPanel({ token, covered = false }: Props) {
             setTab(v);
             setOpen(true);
           }}
-          sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0 } }}
+          sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0, textTransform: "none" } }}
         >
-          <Tab label={`Activities (${tabCounts.activities})`} />
-          <Tab label={`Work (${tabCounts.dataplaneWork})`} />
-          <Tab label={`Terminals (${tabCounts.terminals})`} />
-          <Tab label={`Port Forwards (${tabCounts.portForwards})`} />
+          <Tab label={<TabLabel label="Activities" count={tabCounts.activities} />} />
+          <Tab label={<TabLabel label="Work" count={tabCounts.dataplaneWork} />} />
+          <Tab label={<TabLabel label="Terminals" count={tabCounts.terminals} />} />
+          <Tab label={<TabLabel label="Port forwards" count={tabCounts.portForwards} />} />
           <Tab label="Logs" />
         </Tabs>
         <Box sx={{ flexGrow: 1 }} />
@@ -206,8 +226,8 @@ export default function ActivityPanel({ token, covered = false }: Props) {
       <Box
         sx={{
           height: open ? height : 0,
-          px: 1,
-          py: open ? 0.75 : 0,
+          px: 0,
+          py: 0,
           display: "flex",
           flexDirection: "column",
           minHeight: 0,
@@ -223,6 +243,33 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           requestedTerminalRequestKey={requestKey}
           onCountsChange={setTabCounts}
         />
+      </Box>
+    </Box>
+  );
+}
+
+function TabLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+      <Box component="span">{label}</Box>
+      <Box
+        component="span"
+        sx={{
+          minWidth: 18,
+          height: 18,
+          px: 0.65,
+          borderRadius: 9,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: count > 0 ? "action.selected" : "transparent",
+          color: count > 0 ? "text.primary" : "text.disabled",
+          fontSize: "0.72rem",
+          lineHeight: 1,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {count}
       </Box>
     </Box>
   );
