@@ -71,7 +71,15 @@ make install-git-hooks
 To create a guarded release tag, run:
 
 ```bash
-make release-tag TAG=v5.4.0
+make release-tag TAG=v5.5.0
+```
+
+Release notes live in [CHANGELOG.md](CHANGELOG.md). `make release-tag` validates the Go module path, asks Codex to summarize commits from the latest release tag into the changelog, commits that changelog update, validates again, and only then creates the annotated tag. The target requires a clean worktree before it starts so the changelog commit does not include unrelated local edits.
+
+To prepare and commit release notes without tagging yet:
+
+```bash
+make release-notes TAG=v5.5.0
 ```
 
 Git does not provide a native pre-tag hook, so the helper validates before creating the tag. The installed pre-push hook also blocks pushing manually created tags such as `v6.0.0` unless `go.mod` declares the matching `/v6` module path and prints the migration steps to fix it.

@@ -8,6 +8,7 @@ GOARCH?=amd64
 DOCKER_IMAGE=kview-build:go1.26.2-node22.20.0
 DOCKER_BUILD?=1
 COVERAGE_DIR=.artifacts/coverage
+CODEX?=codex
 VERSION?=$(shell sh -c 'tag=""; \
 	if [ "$$GITHUB_REF_TYPE" = "tag" ] && [ -n "$$GITHUB_REF_NAME" ]; then \
 		tag="$$GITHUB_REF_NAME"; \
@@ -34,7 +35,7 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check lint-go coverage test-visibility ui build build-webview build-release docker-image clean prepare-cache install-git-hooks release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-build local-build-webview local-build-release
+.PHONY: all check lint-go coverage test-visibility ui build build-webview build-release docker-image clean prepare-cache install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-build local-build-webview local-build-release
 
 all: install-git-hooks check build
 
@@ -53,11 +54,21 @@ install-git-hooks:
 		echo "Git hooks installed from .githooks"; \
 	fi
 
-release-tag: install-git-hooks
+release-notes: install-git-hooks
 	@if [ -z "$(TAG)" ]; then \
-		echo "usage: make release-tag TAG=v5.4.0"; \
+		echo "usage: make release-notes TAG=v5.5.0"; \
 		exit 2; \
 	fi
+	sh scripts/validate-go-module-tag.sh "$(TAG)"
+	CODEX="$(CODEX)" sh scripts/prepare-release-notes.sh "$(TAG)"
+
+release-tag: install-git-hooks
+	@if [ -z "$(TAG)" ]; then \
+		echo "usage: make release-tag TAG=v5.5.0"; \
+		exit 2; \
+	fi
+	sh scripts/validate-go-module-tag.sh "$(TAG)"
+	CODEX="$(CODEX)" sh scripts/prepare-release-notes.sh "$(TAG)"
 	sh scripts/validate-go-module-tag.sh "$(TAG)"
 	git tag -a "$(TAG)" -m "$(TAG)"
 	@echo "Created release tag $(TAG). Push with: git push origin $(TAG)"
