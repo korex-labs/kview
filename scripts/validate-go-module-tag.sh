@@ -34,9 +34,15 @@ version="${tag_name#v}"
 major="${version%%.*}"
 
 if [ -n "$rev" ]; then
-	module_path="$(git show "${rev}^{commit}:go.mod" | awk '$1 == "module" { print $2; exit }')"
+	go_mod="$(git show "${rev}^{commit}:go.mod")"
 else
-	module_path="$(awk '$1 == "module" { print $2; exit }' go.mod)"
+	go_mod="$(cat go.mod)"
+fi
+
+module_path="$(printf "%s\n" "$go_mod" | awk '$1 == "module" { print $2; exit }')"
+has_replace=0
+if printf "%s\n" "$go_mod" | awk '$1 == "replace" { found = 1 } END { exit found ? 0 : 1 }'; then
+	has_replace=1
 fi
 
 case "$major" in
@@ -49,7 +55,25 @@ case "$major" in
 esac
 
 if [ "$module_path" = "$expected" ]; then
-	exit 0
+	if [ "$has_replace" -eq 0 ]; then
+		exit 0
+	fi
+	cat >&2 <<EOF
+Refusing release tag ${tag_name}.
+
+Go rejects 'go install module/path@version' when the released module's go.mod
+contains replace directives.
+
+Fix before tagging:
+  1. Remove replace directives from go.mod
+  2. Use normal module requirements or move local-only replacements outside
+     the released module metadata
+  3. Run go test ./...
+  4. Commit the installability fix
+  5. Recreate the tag on that commit, then push it
+EOF
+
+	exit 1
 fi
 
 cat >&2 <<EOF
