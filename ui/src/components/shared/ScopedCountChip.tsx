@@ -3,6 +3,7 @@ import { Box, Chip, Tooltip } from "@mui/material";
 import type { ChipProps } from "@mui/material/Chip";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { CHIP_BORDER_RADIUS } from "../../theme/sxTokens";
+import OverflowTooltip from "./OverflowTooltip";
 
 export type ScopedCountChipColor = "default" | "primary" | "secondary" | "success" | "warning" | "error" | "info";
 
@@ -54,8 +55,9 @@ export function ScopedCountContent({
 }) {
   const compact = density === "compact";
   const toolbar = density === "toolbar";
+  const countTitle = typeof count === "string" || typeof count === "number" ? String(count) : "";
   return (
-    <Box component="span" sx={{ display: "inline-flex", alignItems: "stretch", minWidth: 0, height: "100%" }}>
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "stretch", minWidth: 0, maxWidth: "100%", height: "100%" }}>
       <Box
         component="span"
         sx={{
@@ -69,9 +71,11 @@ export function ScopedCountContent({
           whiteSpace: "nowrap",
           display: "inline-flex",
           alignItems: "center",
+          minWidth: 0,
+          overflow: "hidden",
         }}
       >
-        {label}
+        <OverflowTooltip title={label}>{label}</OverflowTooltip>
       </Box>
       <Box
         component="span"
@@ -88,9 +92,11 @@ export function ScopedCountContent({
           whiteSpace: "nowrap",
           display: "inline-flex",
           alignItems: "center",
+          minWidth: 0,
+          overflow: "hidden",
         }}
       >
-        {count}
+        {countTitle ? <OverflowTooltip title={countTitle}>{countTitle}</OverflowTooltip> : count}
       </Box>
     </Box>
   );
@@ -118,11 +124,15 @@ export function scopedCountChipSx(
     color: "var(--scoped-chip-fg)",
     height: compact ? 22 : toolbar ? 32 : sizeHeight(size),
     padding: 0,
+    minWidth: 0,
+    maxWidth: "100%",
     "& .MuiChip-label": {
       display: "flex",
       padding: 0,
       overflow: "hidden",
       height: "100%",
+      minWidth: 0,
+      maxWidth: "100%",
     },
     "&:hover": {
       backgroundColor: variant === "outlined" ? "var(--scoped-chip-bg)" : undefined,

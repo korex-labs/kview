@@ -10,15 +10,10 @@ type Props = {
   onClick?: () => void;
   color?: ChipColor | "primary";
   variant?: "filled" | "outlined";
+  maxWidth?: number | string;
   maxKeyLen?: number;
   maxValueLen?: number;
 };
-
-function truncate(value: string, maxLen: number): string {
-  if (value.length <= maxLen) return value;
-  if (maxLen <= 3) return value.slice(0, maxLen);
-  return `${value.slice(0, maxLen - 3)}...`;
-}
 
 export default function KeyValueChip({
   chipKey,
@@ -26,19 +21,14 @@ export default function KeyValueChip({
   onClick,
   color = "default",
   variant = "filled",
-  maxKeyLen = 28,
-  maxValueLen = 32,
+  maxWidth = "100%",
 }: Props) {
   const full = `${chipKey}=${value}`;
-  const displayKey = truncate(chipKey, maxKeyLen);
-  const displayValue = truncate(value, maxValueLen);
-  const truncated = displayKey !== chipKey || displayValue !== value;
   const chip = onClick ? (
-    <ResourceLinkChip label={displayKey} count={displayValue} color={color} onClick={onClick} />
+    <ResourceLinkChip label={chipKey} count={value} color={color} onClick={onClick} sx={{ maxWidth }} title={full} />
   ) : (
-    <ScopedCountChip size="small" label={displayKey} count={displayValue} color={color} variant={variant} />
+    <ScopedCountChip size="small" label={chipKey} count={value} color={color} variant={variant} sx={{ maxWidth }} title={full} />
   );
-  if (!truncated) return chip;
   return (
     <Tooltip title={full} arrow>
       <span>{chip}</span>

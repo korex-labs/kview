@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Chip } from "@mui/material";
+import { Chip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
@@ -11,6 +11,7 @@ import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import HorizontalPodAutoscalerDrawer from "./HorizontalPodAutoscalerDrawer";
+import OverflowTooltip from "../../shared/OverflowTooltip";
 
 type HPA = {
   name: string;
@@ -45,8 +46,22 @@ function metricSummary(row: HPA): string {
     .join(", ");
 }
 
+function TextCell({ value }: { value: string }) {
+  return (
+    <Typography component="div" variant="body2" sx={{ minWidth: 0, maxWidth: "100%" }}>
+      <OverflowTooltip title={value}>{value}</OverflowTooltip>
+    </Typography>
+  );
+}
+
 const columns: GridColDef<Row>[] = [
-  { field: "name", headerName: "Name", flex: 1, minWidth: 220 },
+  {
+    field: "name",
+    headerName: "Name",
+    flex: 1.7,
+    minWidth: 260,
+    renderCell: (p) => <TextCell value={String(p.row.name || "-")} />,
+  },
   {
     field: "listStatus",
     headerName: "Status",
@@ -69,9 +84,9 @@ const columns: GridColDef<Row>[] = [
   {
     field: "scaleTargetRef",
     headerName: "Target",
-    flex: 1,
+    flex: 1.1,
     minWidth: 180,
-    renderCell: (p) => targetRef(p.row),
+    renderCell: (p) => <TextCell value={targetRef(p.row)} />,
     sortable: false,
   },
   {
@@ -91,9 +106,9 @@ const columns: GridColDef<Row>[] = [
   {
     field: "metrics",
     headerName: "Metrics",
-    flex: 1,
+    flex: 1.2,
     minWidth: 220,
-    renderCell: (p) => metricSummary(p.row),
+    renderCell: (p) => <TextCell value={metricSummary(p.row)} />,
     sortable: false,
   },
   {

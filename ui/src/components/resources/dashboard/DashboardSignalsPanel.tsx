@@ -7,6 +7,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TablePagination,
   TableRow,
@@ -24,6 +25,7 @@ import SignalHintIcons from "../../shared/SignalHintIcons";
 import InfoHint from "../../shared/InfoHint";
 import ScopedCountChip, { activeChipSx } from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
+import OverflowTooltip from "../../shared/OverflowTooltip";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -225,9 +227,12 @@ const sectionSx = {
 
 const signalTableSx = {
   tableLayout: "fixed",
+  width: "100%",
+  minWidth: { xs: 760, md: "100%" },
   "& .MuiTableCell-root": {
     py: 0.65,
     verticalAlign: "top",
+    minWidth: 0,
   },
   "& .MuiTableHead-root .MuiTableCell-root": {
     color: "text.secondary",
@@ -274,15 +279,40 @@ const filterRowSx = {
 
 const filterChipSx = {
   flexShrink: 0,
-  maxWidth: "none",
+  maxWidth: { xs: "100%", sm: "none" },
 } satisfies SxProps<Theme>;
 
-const statusCellSx = { pl: 0, width: 104 };
-const kindCellSx = { width: 132 };
-const resourceCellSx = { width: "24%" };
-const detailCellSx = { width: "auto" };
-const seenCellSx = { width: 116, whiteSpace: "nowrap" };
-const lastSeenCellSx = { pr: 0, width: 116, whiteSpace: "nowrap" };
+const statusCellSx = { pl: 0, width: { xs: 92, lg: 104 } };
+const kindCellSx = { width: { xs: 116, lg: 132, xl: 148 } };
+const resourceCellSx = { width: { xs: 220, md: "30%", xl: "34%" }, minWidth: 0 };
+const detailCellSx = { width: "auto", minWidth: 0 };
+const seenCellSx = { display: { xs: "none", lg: "table-cell" }, width: { lg: 108, xl: 116 }, whiteSpace: "nowrap" };
+const lastSeenCellSx = { display: { xs: "none", lg: "table-cell" }, pr: 0, width: { lg: 108, xl: 116 }, whiteSpace: "nowrap" };
+const signalTableContainerSx = {
+  maxWidth: "100%",
+  overflowX: "auto",
+  scrollbarGutter: "stable",
+};
+
+function TruncatedText({
+  children,
+  title,
+  variant = "body2",
+  color,
+  fontWeight,
+}: {
+  children: React.ReactNode;
+  title: string;
+  variant?: "body2" | "caption";
+  color?: string;
+  fontWeight?: number;
+}) {
+  return (
+    <Typography component="div" variant={variant} color={color} sx={{ minWidth: 0, fontWeight }}>
+      <OverflowTooltip title={title}>{children}</OverflowTooltip>
+    </Typography>
+  );
+}
 
 function derivedMatchesQuery(row: DerivedSignalRow, query: string): boolean {
   if (!query) return true;
@@ -600,81 +630,84 @@ export default function DashboardSignalsPanel({
               No derived rows match this filter.
             </Typography>
           ) : (
-            <Table size="small" sx={signalTableSx}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={statusCellSx}>Status</TableCell>
-                  <TableCell sx={kindCellSx}>Kind</TableCell>
-                  <TableCell sx={resourceCellSx}>Resource</TableCell>
-                  <TableCell sx={detailCellSx}>Details</TableCell>
-                  <TableCell sx={seenCellSx}>First seen</TableCell>
-                  <TableCell sx={lastSeenCellSx}>Last verified</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pagedDerivedRows.map((row) => (
-                  <TableRow key={row.key} hover onClick={() => onInspect(row.target)} sx={{ cursor: "pointer" }}>
-                    <TableCell sx={statusCellSx}>
-                      <StatusChip
-                        size="small"
-                        color={row.signals > 0 ? severityColor(row.severity) : "default"}
-                        label={row.signals > 0 ? row.severity : "ok"}
-                      />
-                    </TableCell>
-                    <TableCell sx={kindCellSx}>
-                      <Chip size="small" variant="outlined" label={row.kindLabel} />
-                    </TableCell>
-                    <TableCell sx={resourceCellSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {row.primary}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {row.secondary}
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={detailCellSx}>
-                      {row.signals > 0 ? (
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                          <ScopedCountChip
-                            size="small"
-                            color={severityColor(row.severity)}
-                            label="Signals"
-                            count={row.signals}
-                          />
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {row.metric}
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          No signals
-                        </Typography>
-                      )}
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {row.signals > 0 ? "" : `${row.metric} · `}
-                        Derived from cached {row.type === "nodes" ? "node and pod" : "Helm release"} data
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={seenCellSx}>
-                      <Typography variant="caption" color="text.secondary">
-                        -
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={lastSeenCellSx}>
-                      <Typography variant="caption" color="text.secondary">
-                        -
-                      </Typography>
-                    </TableCell>
+            <TableContainer sx={signalTableContainerSx}>
+              <Table size="small" sx={signalTableSx}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={statusCellSx}>Status</TableCell>
+                    <TableCell sx={kindCellSx}>Kind</TableCell>
+                    <TableCell sx={resourceCellSx}>Resource</TableCell>
+                    <TableCell sx={detailCellSx}>Details</TableCell>
+                    <TableCell sx={seenCellSx}>First seen</TableCell>
+                    <TableCell sx={lastSeenCellSx}>Last verified</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {pagedDerivedRows.map((row) => (
+                    <TableRow key={row.key} hover onClick={() => onInspect(row.target)} sx={{ cursor: "pointer" }}>
+                      <TableCell sx={statusCellSx}>
+                        <StatusChip
+                          size="small"
+                          color={row.signals > 0 ? severityColor(row.severity) : "default"}
+                          label={row.signals > 0 ? row.severity : "ok"}
+                        />
+                      </TableCell>
+                      <TableCell sx={kindCellSx}>
+                        <Chip size="small" variant="outlined" label={row.kindLabel} sx={{ maxWidth: "100%" }} />
+                      </TableCell>
+                      <TableCell sx={resourceCellSx}>
+                        <TruncatedText title={row.primary} fontWeight={600}>
+                          {row.primary}
+                        </TruncatedText>
+                        <TruncatedText title={row.secondary} variant="caption" color="text.secondary">
+                          {row.secondary}
+                        </TruncatedText>
+                      </TableCell>
+                      <TableCell sx={detailCellSx}>
+                        {row.signals > 0 ? (
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                            <ScopedCountChip
+                              size="small"
+                              color={severityColor(row.severity)}
+                              label="Signals"
+                              count={row.signals}
+                            />
+                            <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                              {row.metric}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            No signals
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {row.signals > 0 ? "" : `${row.metric} · `}
+                          Derived from cached {row.type === "nodes" ? "node and pod" : "Helm release"} data
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={seenCellSx}>
+                        <Typography variant="caption" color="text.secondary">
+                          -
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={lastSeenCellSx}>
+                        <Typography variant="caption" color="text.secondary">
+                          -
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )
         ) : visibleSignals.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             No cached-scope signals for this filter.
           </Typography>
         ) : (
+          <TableContainer sx={signalTableContainerSx}>
             <Table size="small" sx={signalTableSx}>
               <TableHead>
                 <TableRow>
@@ -727,23 +760,23 @@ export default function DashboardSignalsPanel({
                       <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
                     </TableCell>
                     <TableCell sx={kindCellSx}>
-                      <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} />
+                      <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} sx={{ maxWidth: "100%" }} />
                     </TableCell>
                     <TableCell sx={resourceCellSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      <TruncatedText title={signalResourceName(f)} fontWeight={600}>
                         {signalResourceName(f)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </TruncatedText>
+                      <TruncatedText title={signalLocation(f)} variant="caption" color="text.secondary">
                         {signalLocation(f)}
-                      </Typography>
+                      </TruncatedText>
                     </TableCell>
                     <TableCell sx={detailCellSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                         {f.reason}
                         <SignalHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
                       </Typography>
                       {signalCalculatedText(f) ? (
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
                           {signalCalculatedText(f)}
                         </Typography>
                       ) : null}
@@ -763,6 +796,7 @@ export default function DashboardSignalsPanel({
               })}
             </TableBody>
           </Table>
+          </TableContainer>
         )}
 
         {visibleSignalsTotal > 0 ? (

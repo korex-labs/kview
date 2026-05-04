@@ -18,7 +18,8 @@ export default function ResourceLinkChip({ label, count, onClick, sx, color, tit
   const chipColor = color || (clickable ? "primary" : "default");
   const variant = clickable ? "outlined" : "filled";
   const countText = typeof count === "string" || typeof count === "number" ? String(count) : "";
-  const tooltipTitle = title || (label.length > 28 ? label : "") || (countText.length > 24 ? `${label}: ${countText}` : "");
+  const tooltipTitle = title || (countText ? `${label}: ${countText}` : label);
+  const rootSx = { minWidth: 0, maxWidth: "100%", textTransform: "none", ...sx };
   const chip = (
     <Chip
       size="small"
@@ -27,7 +28,7 @@ export default function ResourceLinkChip({ label, count, onClick, sx, color, tit
       label={count === undefined ? label : <ScopedCountContent label={label} count={count} size="small" />}
       onClick={onClick}
       clickable={clickable}
-      sx={count === undefined ? { textTransform: "none", ...sx } : scopedCountChipSx(chipColor, variant, "default", { textTransform: "none", ...sx })}
+      sx={count === undefined ? rootSx : scopedCountChipSx(chipColor, variant, "default", rootSx)}
     />
   );
   if (!tooltipTitle) return chip;
