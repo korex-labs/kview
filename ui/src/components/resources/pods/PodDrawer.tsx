@@ -1698,24 +1698,24 @@ export default function PodDrawer(props: {
                                           hint={cpuAnchor ? `Percentage of ${cpuAnchor}; sourced from metrics.k8s.io.` : "Live usage from metrics.k8s.io."}
                                           bar={
                                             cpuPct != null && cpuPct > 0 ? (
-                                              <GaugeBar value={cpuPct} tone={usageGaugeTone(cpuPct)} label={formatPct(cpuPct)} />
+                                              <GaugeBar value={cpuPct} tone={usageGaugeTone(cpuPct)} />
                                             ) : (
                                               <Box sx={{ fontSize: 12, color: "text.secondary" }}>No request/limit set</Box>
                                             )
                                           }
-                                          summary={formatCPUMilli(u.cpuMilli)}
+                                          summary={cpuPct != null && cpuPct > 0 ? `${formatPct(cpuPct)} / ${formatCPUMilli(u.cpuMilli)}` : formatCPUMilli(u.cpuMilli)}
                                         />
                                         <GaugeTableRow
                                           label="Memory"
                                           hint={memAnchor ? `Percentage of ${memAnchor}; sourced from metrics.k8s.io.` : "Live usage from metrics.k8s.io."}
                                           bar={
                                             memPct != null && memPct > 0 ? (
-                                              <GaugeBar value={memPct} tone={usageGaugeTone(memPct)} label={formatPct(memPct)} />
+                                              <GaugeBar value={memPct} tone={usageGaugeTone(memPct)} />
                                             ) : (
                                               <Box sx={{ fontSize: 12, color: "text.secondary" }}>No request/limit set</Box>
                                             )
                                           }
-                                          summary={formatMemoryBytes(u.memoryBytes)}
+                                          summary={memPct != null && memPct > 0 ? `${formatPct(memPct)} / ${formatMemoryBytes(u.memoryBytes)}` : formatMemoryBytes(u.memoryBytes)}
                                         />
                                       </Box>
                                     );

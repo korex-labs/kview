@@ -13,7 +13,7 @@ import {
   Chip,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import { apiGet, toApiError, type ApiError } from "../../../api";
+import { toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -34,8 +34,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { drawerBodySx, drawerTabContentSx, panelBoxSx } from "../../../theme/sxTokens";
 
@@ -65,15 +69,6 @@ type Subject = {
   namespace?: string;
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 export default function RoleBindingDrawer(props: {
   open: boolean;
   onClose: () => void;
@@ -85,7 +80,7 @@ export default function RoleBindingDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<RoleBindingDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState<ApiError | null>(null);
   const [drawerRole, setDrawerRole] = useState<string | null>(null);
   const [drawerClusterRole, setDrawerClusterRole] = useState<string | null>(null);
@@ -106,20 +101,16 @@ export default function RoleBindingDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<RoleBindingDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/rolebindings/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: RoleBindingDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/rolebindings/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<RoleBindingDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "rolebindings",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(toApiError(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce]);

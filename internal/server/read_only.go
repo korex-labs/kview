@@ -46,8 +46,6 @@ func readOnlyBlocksRequest(method, path string) bool {
 	}
 
 	switch {
-	case strings.HasPrefix(p, "/api/helm/"):
-		return true
 	case p == "/api/sessions/terminal",
 		p == "/api/sessions/portforward",
 		p == "/api/container-commands/run":

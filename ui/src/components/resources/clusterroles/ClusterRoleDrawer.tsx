@@ -12,7 +12,7 @@ import {
   TableBody,
   Chip,
 } from "@mui/material";
-import { apiGet, toApiError, type ApiError } from "../../../api";
+import { toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -29,8 +29,12 @@ import ClusterRoleActions from "./ClusterRoleActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchClusterResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -59,15 +63,6 @@ type PolicyRule = {
   nonResourceURLs?: string[];
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 function formatRuleValues(values?: string[]) {
   if (!values || values.length === 0) return "-";
   return values.join(", ");
@@ -83,7 +78,7 @@ export default function ClusterRoleDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ClusterRoleDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState<ApiError | null>(null);
 
   const name = props.clusterRoleName;
@@ -97,14 +92,15 @@ export default function ClusterRoleDrawer(props: {
     setEvents([]);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<ClusterRoleDetails>>(`/api/clusterroles/${encodeURIComponent(name)}`, props.token);
-      const item: ClusterRoleDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(`/api/clusterroles/${encodeURIComponent(name)}/events?limit=5&type=Warning`, props.token);
-      setEvents(ev?.items || []);
-    })()
+    fetchClusterResourceDetailWithWarnings<ClusterRoleDetails>({
+      token: props.token,
+      resource: "clusterroles",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(toApiError(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, props.token, retryNonce]);

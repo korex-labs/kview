@@ -12,7 +12,6 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import ServiceDrawer from "../services/ServiceDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -33,8 +32,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -60,15 +63,6 @@ type IngressDetails = {
   defaultBackend?: IngressBackend;
   warnings: IngressWarnings;
   yaml: string;
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
 };
 
 type IngressSummary = {
@@ -138,7 +132,7 @@ export default function IngressDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<IngressDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState("");
   const [drawerService, setDrawerService] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
@@ -158,20 +152,16 @@ export default function IngressDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<IngressDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/ingresses/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: IngressDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/ingresses/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<IngressDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "ingresses",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);

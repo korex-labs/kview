@@ -12,11 +12,11 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { conditionStatusColor, deploymentHealthBucketColor } from "../../../utils/k8sUi";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import { fetchNamespacedResourceDetailWithWarnings } from "../../../utils/resourceDrawerFetch";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
@@ -42,7 +42,6 @@ import AttentionSummary, {
 } from "../../shared/AttentionSummary";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
-import type { ApiItemResponse } from "../../../types/api";
 import { drawerBodySx, drawerTabContentCompactSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 
 const tabs = ["Signals", "Events", "Metadata", "YAML"] as const;
@@ -191,13 +190,13 @@ export default function HorizontalPodAutoscalerDrawer(props: {
     setLinkedTarget(null);
     setDetails(null);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<HPADetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/horizontalpodautoscalers/${encodeURIComponent(name)}`,
-        props.token,
-      );
-      setDetails(det.item || null);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<HPADetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "horizontalpodautoscalers",
+      name,
+    })
+      .then((res) => setDetails(res.item))
       .catch((e: unknown) => {
         const status = (e as { status?: number } | undefined)?.status;
         if (status === 401 || status === 403) setDenied(true);

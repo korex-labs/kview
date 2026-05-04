@@ -13,10 +13,10 @@ import {
   CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import { apiPostWithContext, toApiError } from "../../../api";
 import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import ActionButton from "../../mutations/ActionButton";
+import { executeAction } from "../../../lib/actions/executeAction";
 
 // --- Uninstall / Upgrade / Reinstall buttons for a selected release ---
 
@@ -264,17 +264,30 @@ function InstallDialog(props: {
     setBusy(true);
     setError("");
     try {
-      await apiPostWithContext("/api/helm/install", props.token, props.activeContext, {
-        namespace: namespace.trim(),
-        release: release.trim(),
-        chart: chart.trim(),
-        version: version.trim(),
-        valuesYaml,
-        createNamespace,
+      const result = await executeAction(props.token, props.activeContext, {
+        actionId: "helm.install",
+        targetRef: {
+          context: props.activeContext,
+          kind: "HelmRelease",
+          name: release.trim(),
+          namespace: namespace.trim(),
+        },
+        group: "",
+        resource: "helmreleases",
+        params: {
+          chart: chart.trim(),
+          version: version.trim(),
+          valuesYaml,
+          createNamespace,
+        },
       });
+      if (!result.success) {
+        setError(result.message || "Helm install failed");
+        return;
+      }
       props.onSuccess();
     } catch (e) {
-      setError(toApiError(e).message);
+      setError(String(e));
     } finally {
       setBusy(false);
     }

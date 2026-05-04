@@ -12,7 +12,6 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
 import CronJobDrawer from "../cronjobs/CronJobDrawer";
@@ -38,8 +37,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -55,18 +58,7 @@ type JobDetails = {
   yaml: string;
 };
 
-type JobDetailsResponse = ApiItemResponse<JobDetails> & {
-  detailSignals?: DashboardSignalItem[];
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
+type EventDTO = ResourceWarningEvent;
 
 type JobSummary = {
   name: string;
@@ -205,19 +197,15 @@ export default function JobDrawer(props: {
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<JobDetailsResponse>(
-        `/api/namespaces/${encodeURIComponent(ns)}/jobs/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: JobDetails | null = det?.item ?? null;
-      setDetails(item);
-      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/jobs/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
+      const result = await fetchNamespacedResourceDetailWithWarnings<JobDetails>({
+        token: props.token,
+        namespace: ns,
+        resource: "jobs",
+        name,
+      });
+      setDetails(result.item);
+      setDetailSignals(result.detailSignals);
+      setEvents(result.warningEvents);
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));

@@ -7,7 +7,6 @@ import {
   CircularProgress,
   Chip,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { pvPhaseChipColor } from "../../../utils/k8sUi";
@@ -29,8 +28,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import StatusChip from "../../shared/StatusChip";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchClusterResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -105,15 +108,6 @@ type PersistentVolumeClaimRef = {
   name?: string;
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 function formatAccessModes(modes?: string[]) {
   if (!modes || modes.length === 0) return "-";
   return modes.join(", ");
@@ -140,7 +134,7 @@ export default function PersistentVolumeDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<PersistentVolumeDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState("");
   const [drawerPVC, setDrawerPVC] = useState<{ name: string; namespace: string } | null>(null);
 
@@ -156,14 +150,15 @@ export default function PersistentVolumeDrawer(props: {
     setDrawerPVC(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<PersistentVolumeDetails>>(`/api/persistentvolumes/${encodeURIComponent(name)}`, props.token);
-      const item: PersistentVolumeDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(`/api/persistentvolumes/${encodeURIComponent(name)}/events?limit=5&type=Warning`, props.token);
-      setEvents(ev?.items || []);
-    })()
+    fetchClusterResourceDetailWithWarnings<PersistentVolumeDetails>({
+      token: props.token,
+      resource: "persistentvolumes",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, props.token, retryNonce]);

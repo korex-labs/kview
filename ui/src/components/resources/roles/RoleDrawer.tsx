@@ -11,7 +11,7 @@ import {
   TableBody,
   Chip,
 } from "@mui/material";
-import { apiGet, toApiError, type ApiError } from "../../../api";
+import { toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -30,8 +30,12 @@ import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -61,15 +65,6 @@ type PolicyRule = {
   nonResourceURLs?: string[];
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 function formatRuleValues(values?: string[]) {
   if (!values || values.length === 0) return "-";
   return values.join(", ");
@@ -86,7 +81,7 @@ export default function RoleDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<RoleDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState<ApiError | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
 
@@ -103,20 +98,16 @@ export default function RoleDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<RoleDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/roles/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: RoleDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/roles/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<RoleDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "roles",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(toApiError(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce]);

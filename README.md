@@ -219,7 +219,7 @@ Built with React, Vite, TypeScript, and MUI. Uses shared resource list and drawe
 
 If you are an AI coding agent using this README as context, read these files before making changes:
 
-- [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md)
+- [AGENTS.md](AGENTS.md)
 - [docs/AI_BOOTSTRAP_PROMPT.md](docs/AI_BOOTSTRAP_PROMPT.md)
 - [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -234,7 +234,8 @@ If you are an AI coding agent using this README as context, read these files bef
 | [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) | Route-by-route read ownership map |
 | [docs/UI_UX_GUIDE.md](docs/UI_UX_GUIDE.md) | UI architecture and UX contracts |
 | [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md) | Review checklist for changes |
+| [AGENTS.md](AGENTS.md) | Canonical execution rules for AI-assisted development |
 | [docs/AI_BOOTSTRAP_PROMPT.md](docs/AI_BOOTSTRAP_PROMPT.md) | Bootstrap context for executor agents |
-| [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md) | Execution rules for AI-assisted development |
+| [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md) | Compatibility pointer to `AGENTS.md` |
 
 Documentation is a contract. Update it in the same change whenever architecture, read ownership, UI contracts, or operator-visible behavior changes.

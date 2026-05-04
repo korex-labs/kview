@@ -13,7 +13,7 @@ import {
   Chip,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import { apiGet, toApiError, type ApiError } from "../../../api";
+import { toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -31,8 +31,12 @@ import ClusterRoleBindingActions from "./ClusterRoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchClusterResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import { panelBoxSx, drawerBodySx, drawerTabContentSx, loadingCenterSx } from "../../../theme/sxTokens";
 
 type ClusterRoleBindingDetails = {
@@ -60,15 +64,6 @@ type Subject = {
   namespace?: string;
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 export default function ClusterRoleBindingDrawer(props: {
   open: boolean;
   onClose: () => void;
@@ -79,7 +74,7 @@ export default function ClusterRoleBindingDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ClusterRoleBindingDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState<ApiError | null>(null);
   const [drawerClusterRole, setDrawerClusterRole] = useState<string | null>(null);
 
@@ -95,14 +90,15 @@ export default function ClusterRoleBindingDrawer(props: {
     setDrawerClusterRole(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<ClusterRoleBindingDetails>>(`/api/clusterrolebindings/${encodeURIComponent(name)}`, props.token);
-      const item: ClusterRoleBindingDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(`/api/clusterrolebindings/${encodeURIComponent(name)}/events?limit=5&type=Warning`, props.token);
-      setEvents(ev?.items || []);
-    })()
+    fetchClusterResourceDetailWithWarnings<ClusterRoleBindingDetails>({
+      token: props.token,
+      resource: "clusterrolebindings",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(toApiError(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, props.token, retryNonce]);

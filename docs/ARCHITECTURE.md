@@ -88,7 +88,7 @@ Prefer **clear** errors, activity timeline, and runtime logs for operator visibi
 
 - **Dataplane** owns scheduler-mediated **list snapshots** and **projections** built only from those snapshots (no hidden live kube calls inside projection builders).
 - **Handlers** use snapshots/projections for the surfaces documented in [API_READ_OWNERSHIP.md](API_READ_OWNERSHIP.md).
-- **Direct `kube` reads** in handlers are **intentional exceptions** (detail, events, YAML, relations, selected namespace helpers, cluster-scoped APIs, Helm chart catalog, etc.). Keep them obvious in `internal/server/server.go`.
+- **Direct `kube` reads** in handlers are **intentional exceptions** (detail, events, YAML, relations, selected namespace helpers, Helm chart catalog, etc.). Prefer dataplane ownership for list-style reads and keep remaining exceptions obvious in `internal/server`.
 
 When you add or change a user-facing **GET** (or read-shaped) route under `/api`, update **API_READ_OWNERSHIP.md** in the same change.
 

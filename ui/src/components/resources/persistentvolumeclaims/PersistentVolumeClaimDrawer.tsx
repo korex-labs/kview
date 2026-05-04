@@ -7,7 +7,6 @@ import {
   CircularProgress,
   Chip,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { pvcPhaseChipColor } from "../../../utils/k8sUi";
@@ -31,8 +30,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import StatusChip from "../../shared/StatusChip";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -110,15 +113,6 @@ type DataSourceRef = {
   apiGroup?: string;
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 function formatAccessModes(modes?: string[]) {
   if (!modes || modes.length === 0) return "-";
   return modes.join(", ");
@@ -148,7 +142,7 @@ export default function PersistentVolumeClaimDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<PersistentVolumeClaimDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState("");
   const [drawerPV, setDrawerPV] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
@@ -167,20 +161,16 @@ export default function PersistentVolumeClaimDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<PersistentVolumeClaimDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/persistentvolumeclaims/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: PersistentVolumeClaimDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/persistentvolumeclaims/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<PersistentVolumeClaimDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "persistentvolumeclaims",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce]);

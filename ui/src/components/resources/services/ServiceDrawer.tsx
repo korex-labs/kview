@@ -45,8 +45,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -63,15 +67,6 @@ type ServiceDetails = {
   traffic: ServiceTraffic;
   endpoints: ServiceEndpoints;
   yaml: string;
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
 };
 
 type ServiceSummary = {
@@ -188,7 +183,7 @@ export default function ServiceDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ServiceDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerPodNs, setDrawerPodNs] = useState<string>("");
@@ -226,20 +221,16 @@ export default function ServiceDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<ServiceDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/services/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: ServiceDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/services/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<ServiceDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "services",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce, offline, refreshNonce]);

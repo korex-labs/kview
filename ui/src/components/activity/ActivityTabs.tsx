@@ -143,9 +143,10 @@ function useFadingRows<T>(
   }, [holdMs, keyForRow, rows]);
 
   useEffect(() => {
+    const removalTimers = removalTimersRef.current;
     return () => {
-      removalTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      removalTimersRef.current.clear();
+      removalTimers.forEach((timer) => window.clearTimeout(timer));
+      removalTimers.clear();
     };
   }, []);
 

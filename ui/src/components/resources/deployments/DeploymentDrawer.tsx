@@ -13,7 +13,6 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import DeploymentActions from "./DeploymentActions";
 import Section from "../../shared/Section";
@@ -41,12 +40,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
-import type {
-  ApiItemResponse,
-  ApiListResponse,
-  DashboardSignalItem,
-} from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -64,18 +63,7 @@ type DeploymentDetails = {
   yaml: string;
 };
 
-type DeploymentDetailsResponse = ApiItemResponse<DeploymentDetails> & {
-  detailSignals?: DashboardSignalItem[];
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
+type EventDTO = ResourceWarningEvent;
 
 type DeploymentSummary = {
   name: string;
@@ -221,19 +209,15 @@ export default function DeploymentDrawer(props: {
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<DeploymentDetailsResponse>(
-        `/api/namespaces/${encodeURIComponent(ns)}/deployments/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: DeploymentDetails | null = det?.item ?? null;
-      setDetails(item);
-      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/deployments/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
+      const result = await fetchNamespacedResourceDetailWithWarnings<DeploymentDetails>({
+        token: props.token,
+        namespace: ns,
+        resource: "deployments",
+        name,
+      });
+      setDetails(result.item);
+      setDetailSignals(result.detailSignals);
+      setEvents(result.warningEvents);
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));

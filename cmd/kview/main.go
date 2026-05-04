@@ -49,6 +49,7 @@ func main() {
 	srv.Actions().Register("restart", kubeactions.HandleDeploymentRestart)
 	srv.Actions().Register("delete", kubeactions.HandleDeploymentDelete)
 
+	srv.Actions().Register("helm.install", kubehelm.HandleHelmInstall)
 	srv.Actions().Register("helm.uninstall", kubehelm.HandleHelmUninstall)
 	srv.Actions().Register("helm.upgrade", kubehelm.HandleHelmUpgrade)
 	srv.Actions().Register("helm.reinstall", kubehelm.HandleHelmReinstall)

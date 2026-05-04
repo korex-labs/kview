@@ -12,7 +12,6 @@ import {
   AccordionDetails,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import { detectLanguageFromKey } from "../../../utils/syntaxDetect";
@@ -33,8 +32,12 @@ import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -73,15 +76,6 @@ type ConfigMapKey = {
 type ConfigMapMetadata = {
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
 };
 
 function formatImmutable(val?: boolean) {
@@ -146,7 +140,7 @@ export default function ConfigMapDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ConfigMapDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState("");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
@@ -166,20 +160,16 @@ export default function ConfigMapDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<ConfigMapDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/configmaps/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: ConfigMapDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/configmaps/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<ConfigMapDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "configmaps",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);

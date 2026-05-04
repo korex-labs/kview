@@ -271,13 +271,12 @@ export default function NodeDrawer(props: {
                                     <GaugeBar
                                       value={details.capacity.cpuPctAllocatable}
                                       tone={nodeUsageTone(details.capacity.cpuPctAllocatable)}
-                                      label={formatPct(details.capacity.cpuPctAllocatable)}
                                     />
                                   ) : (
                                     <Box sx={{ fontSize: 12, color: "text.secondary" }}>No allocatable reported</Box>
                                   )
                                 }
-                                summary={formatCPUMilli(details.capacity.cpuMilliUsed)}
+                                summary={`${formatPct(details.capacity.cpuPctAllocatable)} / ${formatCPUMilli(details.capacity.cpuMilliUsed)}`}
                               />
                               <GaugeTableRow
                                 label="Memory usage"
@@ -287,13 +286,12 @@ export default function NodeDrawer(props: {
                                     <GaugeBar
                                       value={details.capacity.memoryPctAllocatable}
                                       tone={nodeUsageTone(details.capacity.memoryPctAllocatable)}
-                                      label={formatPct(details.capacity.memoryPctAllocatable)}
                                     />
                                   ) : (
                                     <Box sx={{ fontSize: 12, color: "text.secondary" }}>No allocatable reported</Box>
                                   )
                                 }
-                                summary={formatMemoryBytes(details.capacity.memoryBytesUsed)}
+                                summary={`${formatPct(details.capacity.memoryPctAllocatable)} / ${formatMemoryBytes(details.capacity.memoryBytesUsed)}`}
                               />
                             </Box>
                           ) : null}

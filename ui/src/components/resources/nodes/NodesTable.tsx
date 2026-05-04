@@ -64,10 +64,10 @@ function renderNodeUsage(usage: number | undefined, pct: number | undefined, lab
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
       <Box sx={{ flex: 1, minWidth: 60 }}>
-        <GaugeBar value={pct} tone={nodeUsageTone(pct)} label={formatPct(pct)} />
+        <GaugeBar value={pct} tone={nodeUsageTone(pct)} />
       </Box>
-      <Box component="span" sx={{ fontSize: 12, minWidth: 60, textAlign: "right" }}>
-        {label}
+      <Box component="span" sx={{ fontSize: 12, minWidth: 92, textAlign: "right" }}>
+        {formatPct(pct)} / {label}
       </Box>
     </Box>
   );

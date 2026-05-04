@@ -12,7 +12,6 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
@@ -38,8 +37,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -56,18 +59,7 @@ type DaemonSetDetails = {
   yaml: string;
 };
 
-type DaemonSetDetailsResponse = ApiItemResponse<DaemonSetDetails> & {
-  detailSignals?: DashboardSignalItem[];
-};
-
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
+type EventDTO = ResourceWarningEvent;
 
 type DaemonSetSummary = {
   name: string;
@@ -188,19 +180,15 @@ export default function DaemonSetDrawer(props: {
     setLoading(true);
 
     (async () => {
-      const det = await apiGet<DaemonSetDetailsResponse>(
-        `/api/namespaces/${encodeURIComponent(ns)}/daemonsets/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: DaemonSetDetails | null = det?.item ?? null;
-      setDetails(item);
-      setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/daemonsets/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
+      const result = await fetchNamespacedResourceDetailWithWarnings<DaemonSetDetails>({
+        token: props.token,
+        namespace: ns,
+        resource: "daemonsets",
+        name,
+      });
+      setDetails(result.item);
+      setDetailSignals(result.detailSignals);
+      setEvents(result.warningEvents);
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));

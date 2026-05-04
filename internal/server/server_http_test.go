@@ -1156,16 +1156,6 @@ func TestReadOnlyBlocksMutationEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name:   "helm install",
-			method: http.MethodPost,
-			path:   "/api/helm/install",
-			body:   toJSON(t, map[string]any{"namespace": "default", "release": "app", "chart": "repo/app"}),
-			headers: map[string]string{
-				"Authorization":   "Bearer " + testToken,
-				"X-Kview-Context": "test-context",
-			},
-		},
-		{
 			name:   "terminal session",
 			method: http.MethodPost,
 			path:   "/api/sessions/terminal",

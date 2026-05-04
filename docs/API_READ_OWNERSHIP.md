@@ -6,9 +6,9 @@ This document maps how **GET** and read-shaped **`/api`** routes source data. It
 
 ## Principles
 
-1. **Dataplane snapshots** are the default substrate for the main **namespaced list** surfaces the UI uses as anchors.
+1. **Dataplane snapshots** are the default substrate for the main list surfaces the UI uses as anchors.
 2. **Projections** assemble answers from those snapshots (and metadata composition only)—**no** hidden live `kube` calls inside projection builders.
-3. **Direct cluster reads** in handlers are **explicit exceptions**: details, events, YAML (where present), relation lookups, cluster-scoped catalog/RBAC/storage APIs, and selected namespace helpers.
+3. **Direct Kubernetes reads** in handlers are **explicit exceptions**: details, events, YAML (where present), relation lookups, deferred catalogs, custom-resource discovery helpers, and selected namespace helpers.
 
 Underlying **list IO** for snapshot-backed routes is still `kube.List*` **inside** dataplane snapshot executors (scheduler, cache, normalization)—not in the HTTP handler.
 
@@ -22,6 +22,10 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | Route pattern | Snapshot / notes |
 |---------------|------------------|
 | `GET /api/nodes` | `NodesSnapshot`; cluster-scoped list. If direct node list is denied/unavailable and cached pod snapshots exist, returns explicitly marked derived node rows from cached pod snapshots instead. Rows may include CPU/memory `usage` (and percent of allocatable) overlaid from cached `NodeMetricsSnapshot` when metrics.k8s.io is installed/allowed and the policy enables it. |
+| `GET /api/clusterroles` | `ClusterRolesSnapshot`; cluster-scoped RBAC list with projection-derived privilege breadth hints. |
+| `GET /api/clusterrolebindings` | `ClusterRoleBindingsSnapshot`; cluster-scoped RBAC list with projection-derived subject breadth hints. |
+| `GET /api/customresourcedefinitions` | `CRDsSnapshot`; cluster-scoped CRD list with projection-derived established/attention hints. |
+| `GET /api/persistentvolumes` | `PersistentVolumesSnapshot`; cluster-scoped storage list with projection-derived health hints. |
 | `GET /api/namespaces/{ns}/pods` | `PodsSnapshot`; rows may include projection-derived fields (`restartSeverity`, `listHealthHint`) from `EnrichPodListItemsForAPI`, plus aggregated CPU/memory `usage` (and percent of request/limit) overlaid from cached `PodMetricsSnapshot` when metrics.k8s.io is installed/allowed and the policy enables it. |
 | `GET /api/namespaces/{ns}/deployments` | `DeploymentsSnapshot`; optional `EnrichDeploymentListItemsForAPI` fields. |
 | `GET /api/namespaces/{ns}/daemonsets` | `DaemonSetsSnapshot`; optional projection-derived `healthBucket` / `needsAttention` fields. |
@@ -100,15 +104,15 @@ Background row enrichment is **narrow and user-aligned**:
 |-------|--------|
 | `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. Rows are grouped by chart name and expose version rollups. If direct catalog read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived chart rows from cached Helm release snapshots instead. |
 
-### 4.3 Cluster-scoped families (not dataplane list–backed)
+### 4.3 Cluster-scoped detail families
 
 | Routes (representative) | Notes |
 |-------------------------|-------|
 | `GET /api/nodes/{name}` | Node detail direct read. If direct detail is denied/unavailable and cached pod snapshots reference the node, returns an explicitly marked derived detail with pod rollups only. Node list uses `NodesSnapshot` or the derived fallback described above. |
-| `GET /api/clusterroles`, `…/{name}`, events, yaml | RBAC cluster scope. |
-| `GET /api/clusterrolebindings`, … | Same. |
-| `GET /api/customresourcedefinitions`, … | CRD cluster scope. |
-| `GET /api/persistentvolumes`, … | Storage cluster scope. |
+| `GET /api/clusterroles/{name}`, events, yaml | RBAC cluster-scope detail surfaces; list is dataplane-backed. |
+| `GET /api/clusterrolebindings/{name}`, events, yaml | RBAC cluster-scope detail surfaces; list is dataplane-backed. |
+| `GET /api/customresourcedefinitions/{name}`, events, yaml | CRD cluster-scope detail surfaces; list is dataplane-backed. |
+| `GET /api/persistentvolumes/{name}`, events, yaml | Storage cluster-scope detail surfaces; list is dataplane-backed. |
 
 ### 4.4 Detail, events, YAML, relations
 
@@ -157,7 +161,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 
 ## 5. Design summary
 
-For the main **namespaced list** read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, and limit ranges), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, cluster-scoped families).
+For the main list read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, limit ranges, and supported cluster-scoped list families), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, and custom-resource discovery helpers).
 
 Derived projections are allowed only when explicitly labeled as derived/sparse/inexact. They may infer useful views such as node workload rollups from cached pod snapshots or chart catalog rows from cached Helm release snapshots, but they must not be represented as direct Kubernetes list results. When a canonical route serves a derived fallback, it must preserve the normal resource identity and deep-link target while making the fallback source visible in the payload/UI.
 

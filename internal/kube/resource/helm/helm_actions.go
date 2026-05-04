@@ -368,6 +368,35 @@ func HelmRollback(_ context.Context, c *cluster.Clients, req HelmRollbackRequest
 
 // ---------- ActionRegistry handlers ----------
 
+// HandleHelmInstall dispatches the "helm.install" action from the unified ActionRegistry.
+func HandleHelmInstall(ctx context.Context, c *cluster.Clients, req kubeactions.ActionRequest) (*kubeactions.ActionResult, error) {
+	if req.Namespace == "" || req.Name == "" {
+		return &kubeactions.ActionResult{Status: "error", Message: "namespace and release name are required"}, nil
+	}
+	chart, _ := req.Params["chart"].(string)
+	if chart == "" {
+		return &kubeactions.ActionResult{Status: "error", Message: "params.chart is required"}, nil
+	}
+	version, _ := req.Params["version"].(string)
+	valuesYaml, _ := req.Params["valuesYaml"].(string)
+	createNamespace, createNamespaceResult := helmBoolParam(req.Params, "createNamespace")
+	if createNamespaceResult != nil {
+		return createNamespaceResult, nil
+	}
+	result, err := HelmInstall(ctx, c, HelmInstallRequest{
+		Namespace:       req.Namespace,
+		Release:         req.Name,
+		Chart:           chart,
+		Version:         version,
+		ValuesYaml:      valuesYaml,
+		CreateNamespace: createNamespace,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &kubeactions.ActionResult{Status: result.Status, Message: result.Message, Details: result.Details}, nil
+}
+
 // HandleHelmUninstall dispatches the "helm.uninstall" action from the unified ActionRegistry.
 func HandleHelmUninstall(ctx context.Context, c *cluster.Clients, req kubeactions.ActionRequest) (*kubeactions.ActionResult, error) {
 	if req.Namespace == "" || req.Name == "" {

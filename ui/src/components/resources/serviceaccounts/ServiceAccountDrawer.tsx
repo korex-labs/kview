@@ -31,8 +31,12 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
-import type { ApiItemResponse, ApiListResponse, DashboardSignalItem } from "../../../types/api";
+import type { ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
+import {
+  fetchNamespacedResourceDetailWithWarnings,
+  type ResourceWarningEvent,
+} from "../../../utils/resourceDrawerFetch";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -70,15 +74,6 @@ type RoleBindingListItem = {
   ageSec: number;
 };
 
-type EventDTO = {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  firstSeen: number;
-  lastSeen: number;
-};
-
 function formatBool(val?: boolean) {
   if (val === undefined || val === null) return "-";
   return val ? "Yes" : "No";
@@ -101,7 +96,7 @@ export default function ServiceAccountDrawer(props: {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<ServiceAccountDetails | null>(null);
-  const [events, setEvents] = useState<EventDTO[]>([]);
+  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
   const [err, setErr] = useState<ApiError | null>(null);
   const [roleBindings, setRoleBindings] = useState<RoleBindingListItem[]>([]);
   const [roleBindingsLoading, setRoleBindingsLoading] = useState(false);
@@ -126,20 +121,16 @@ export default function ServiceAccountDrawer(props: {
     setDrawerNamespace(null);
     setLoading(true);
 
-    (async () => {
-      const det = await apiGet<ApiItemResponse<ServiceAccountDetails>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/serviceaccounts/${encodeURIComponent(name)}`,
-        props.token
-      );
-      const item: ServiceAccountDetails | null = det?.item ?? null;
-      setDetails(item);
-
-      const ev = await apiGet<ApiListResponse<EventDTO>>(
-        `/api/namespaces/${encodeURIComponent(ns)}/serviceaccounts/${encodeURIComponent(name)}/events?limit=5&type=Warning`,
-        props.token
-      );
-      setEvents(ev?.items || []);
-    })()
+    fetchNamespacedResourceDetailWithWarnings<ServiceAccountDetails>({
+      token: props.token,
+      namespace: ns,
+      resource: "serviceaccounts",
+      name,
+    })
+      .then((res) => {
+        setDetails(res.item);
+        setEvents(res.warningEvents);
+      })
       .catch((e) => setErr(toApiError(e)))
       .finally(() => setLoading(false));
   }, [props.open, name, ns, props.token, retryNonce]);

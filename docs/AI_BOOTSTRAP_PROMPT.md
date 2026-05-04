@@ -7,13 +7,13 @@ Project summary:
 - Read-side dataplane for the main list surfaces, namespace summary projections, and dashboard aggregates
 - Strict UI/UX contract in `docs/UI_UX_GUIDE.md`
 - Read ownership contract in `docs/API_READ_OWNERSHIP.md`
-- AI execution rules in `docs/AI_AGENT_RULES.md`
+- AI execution rules in `AGENTS.md`
 
 Current baseline:
-- Dataplane work is complete for the documented scope.
-- Main namespaced list anchors use dataplane snapshots and list metadata.
+- Dataplane is the preferred substrate for read-side work.
+- Main namespaced and supported cluster-scoped list anchors use dataplane snapshots and list metadata.
 - Namespace summary is projection-backed and must preserve usable partial/degraded payloads.
-- Details, events, YAML, relation lookups, Helm chart catalog, and cluster-scoped list families remain intentional direct-read exceptions unless explicitly migrated and documented.
+- Details, events, YAML, relation lookups, and Helm chart catalog remain intentional direct-read exceptions unless explicitly migrated and documented.
 - Mutations go through `POST /api/actions`; action capabilities use `POST /api/capabilities`.
 
 Development constraints:
@@ -26,6 +26,6 @@ Development constraints:
 - When asked to suggest a commit message, use a conventional commit title and a meaningful body with verification notes when relevant.
 
 Before implementing:
-1. Read `README.md`, `docs/AI_AGENT_RULES.md`, `docs/AI_BOOTSTRAP_PROMPT.md`, `docs/DEV_CHECKLIST.md`, `docs/ARCHITECTURE.md`, `docs/DATAPLANE.md`, `docs/API_READ_OWNERSHIP.md`, and `docs/UI_UX_GUIDE.md`.
+1. Read `README.md`, `AGENTS.md`, `docs/AI_BOOTSTRAP_PROMPT.md`, `docs/DEV_CHECKLIST.md`, `docs/ARCHITECTURE.md`, `docs/DATAPLANE.md`, `docs/API_READ_OWNERSHIP.md`, and `docs/UI_UX_GUIDE.md`.
 2. State the scoped change you are making.
 3. Keep diffs narrow and verify with targeted tests/typechecks/lint as appropriate.

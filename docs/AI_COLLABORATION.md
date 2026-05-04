@@ -14,12 +14,16 @@ AI_COLLABORATION.md
 - Used for defining Fix Packs / Feature Packs
 - Used for generating structured prompts for executor agents
 
-AI_AGENT_RULES.md
+AGENTS.md
 - Used by code-generation agents
 - Defines execution constraints
 - Enforces UI/UX contract
 - Enforces build verification
 - Does NOT contain roadmap or planning strategy
+
+AI_AGENT_RULES.md
+- Compatibility pointer for older prompts
+- Must not duplicate `AGENTS.md`
 
 ---
 
@@ -44,7 +48,7 @@ Execution agents:
 Each executor prompt must include:
 
 1. Scope definition
-2. Mandatory pre-read files: `README.md`, `docs/AI_AGENT_RULES.md`, `docs/AI_BOOTSTRAP_PROMPT.md`, `docs/DEV_CHECKLIST.md`, `docs/ARCHITECTURE.md`, `docs/DATAPLANE.md`, `docs/API_READ_OWNERSHIP.md`, and `docs/UI_UX_GUIDE.md`
+2. Mandatory pre-read files: `README.md`, `AGENTS.md`, `docs/AI_BOOTSTRAP_PROMPT.md`, `docs/DEV_CHECKLIST.md`, `docs/ARCHITECTURE.md`, `docs/DATAPLANE.md`, `docs/API_READ_OWNERSHIP.md`, and `docs/UI_UX_GUIDE.md`
 3. Backend requirements (if applicable)
 4. Frontend requirements (if applicable)
 5. UX contract reminders
