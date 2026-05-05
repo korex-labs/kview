@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Chip, Typography } from "@mui/material";
+import { Box, Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
@@ -48,9 +48,9 @@ function metricSummary(row: HPA): string {
 
 function TextCell({ value }: { value: string }) {
   return (
-    <Typography component="div" variant="body2" sx={{ minWidth: 0, maxWidth: "100%" }}>
+    <Box component="div" sx={{ minWidth: 0, maxWidth: "100%", font: "inherit", fontWeight: 400 }}>
       <OverflowTooltip title={value}>{value}</OverflowTooltip>
-    </Typography>
+    </Box>
   );
 }
 
