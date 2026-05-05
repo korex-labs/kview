@@ -13,7 +13,7 @@ fi
 tag_name="$1"
 notes_file="CHANGELOG.md"
 codex_bin="${CODEX:-codex}"
-codex_model="${CODEX_MODEL:-gpt-5}"
+codex_model="${CODEX_MODEL:-gpt-5.4}"
 
 case "$tag_name" in
 	v[0-9]*.[0-9]*.[0-9]*)
