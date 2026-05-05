@@ -3,6 +3,22 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.5.0 - 2026-05-05
+
+- Added all-context background enrichment so dataplane insights can keep filling
+  in across contexts while selected-context reads and streams stay pinned to the
+  active cluster for safer navigation.
+- Expanded keyboard-first workflows with shortcuts, resource-view and workflow
+  navigation, and settings to control keyboard preferences directly in the UI.
+- Improved cluster browsing with smart namespace sorting, sortable namespace
+  favourites, severity-grouped quick filters, collapsible sidebar sections, a
+  more consistent drawer/action layout, and persisted activity panel state.
+- Added resource and settings icons across navigation and details, refined the
+  activity panel, and improved responsive truncation hints for denser screens.
+- Strengthened release and quality workflows with read-only real-cluster
+  Playwright coverage, keyboard help tests, reused Docker release toolchains,
+  installable `go install` releases, and release documentation updates.
+
 ## v5.4.0 - 2026-04-29
 
 - Added custom resource browsing with Helm deep-links, giving operators a broader
