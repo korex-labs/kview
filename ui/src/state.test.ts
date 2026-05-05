@@ -67,3 +67,11 @@ describe("sidebar collapsed groups", () => {
     });
   });
 });
+
+describe("activity panel state", () => {
+  it("persists the last known panel visibility", () => {
+    saveState({ v: 1, favouriteNamespacesByContext: {}, activityPanelOpen: false });
+
+    expect(loadState().activityPanelOpen).toBe(false);
+  });
+});

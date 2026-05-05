@@ -75,6 +75,8 @@ export type AppStateV1 = {
   recentSections?: Section[];
   /** Collapsed state for side navigation groups. */
   sidebarCollapsedGroups?: Record<string, boolean>;
+  /** Last user-selected activity panel visibility. */
+  activityPanelOpen?: boolean;
 };
 
 const KEY = "kview.state.v1";
@@ -94,6 +96,7 @@ export function loadState(): AppStateV1 {
     if (!Array.isArray(parsed.recentSections)) parsed.recentSections = [];
     parsed.recentSections = parsed.recentSections.filter(isSection);
     parsed.sidebarCollapsedGroups = normalizeBooleanRecord(parsed.sidebarCollapsedGroups);
+    if (typeof parsed.activityPanelOpen !== "boolean") delete parsed.activityPanelOpen;
     if (!isSection(parsed.activeSection)) delete parsed.activeSection;
     return parsed as AppStateV1;
   } catch {

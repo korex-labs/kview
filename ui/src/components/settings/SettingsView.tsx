@@ -713,11 +713,6 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const renderAppearance = () => (
     <SettingSection title="Appearance" icon={<SettingsIcon name="appearance" />}>
       <SettingRow
-        label="Smart filters"
-        checked={settings.appearance.smartFiltersEnabled}
-        onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartFiltersEnabled: v }))}
-      />
-      <SettingRow
         label="Check for kview updates"
         checked={settings.appearance.releaseChecksEnabled}
         onChange={(v) => setSettings((prev) => updateAppearance(prev, { releaseChecksEnabled: v }))}
@@ -752,26 +747,6 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             setSettings((prev) => updateAppearance(prev, { recentMenuLimit: Number(v) || 1 }))
           }
         />
-        <SettingField
-          label="Initial activity panel state"
-          hint="Used when the app starts. The current panel can still be opened or collapsed manually."
-        >
-          <TextField
-            select
-            size="small"
-            fullWidth
-            value={settings.appearance.activityPanelInitiallyOpen ? "expanded" : "collapsed"}
-            SelectProps={{ MenuProps: denseSelectMenuProps }}
-            onChange={(e) =>
-              setSettings((prev) =>
-                updateAppearance(prev, { activityPanelInitiallyOpen: e.target.value === "expanded" }),
-              )
-            }
-          >
-            <MenuItem value="expanded">Expanded</MenuItem>
-            <MenuItem value="collapsed">Collapsed</MenuItem>
-          </TextField>
-        </SettingField>
       </SettingGrid>
     </SettingSection>
   );
@@ -1036,6 +1011,11 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         </Button>
       }
     >
+      <SettingRow
+        label="Enable smart filters"
+        checked={settings.appearance.smartFiltersEnabled}
+        onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartFiltersEnabled: v }))}
+      />
       <Box sx={{ maxWidth: 240 }}>
         <SettingField
           label="Minimum rows per chip"

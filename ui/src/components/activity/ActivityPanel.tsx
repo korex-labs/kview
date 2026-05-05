@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Tabs, Tab, IconButton, Tooltip, Typography } from "@mui/material";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -13,33 +13,46 @@ import {
   type OpenTerminalSessionEventDetail,
 } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
-import { useUserSettings } from "../../settingsContext";
 
 type Props = {
   token: string;
   covered?: boolean;
+  initialOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 const MIN_PANEL_HEIGHT = 160;
 const MAX_PANEL_HEIGHT = 630;
 const HEADER_HEIGHT = 28;
 
-export default function ActivityPanel({ token, covered = false }: Props) {
+export default function ActivityPanel({ token, covered = false, initialOpen = true, onOpenChange }: Props) {
   const { backendHealth, clusterHealth, cluster } = useConnectionState();
   const effectiveClusterHealth = backendHealth === "healthy" && clusterHealth === "healthy" ? "healthy" : "unhealthy";
-  const { settings } = useUserSettings();
-  const [open, setOpen] = useState(() => settings.appearance.activityPanelInitiallyOpen);
+  const [open, setOpen] = useState(() => initialOpen);
   const [tab, setTab] = useState(0);
   const [height, setHeight] = useState(230);
   const [dragging, setDragging] = useState(false);
   const [requestedTerminalId, setRequestedTerminalId] = useState<string | null>(null);
   const [requestKey, setRequestKey] = useState(0);
+  const didMountRef = useRef(false);
   const [tabCounts, setTabCounts] = useState({
     activities: 0,
     dataplaneWork: 0,
     terminals: 0,
     portForwards: 0,
   });
+
+  const updateOpen = useCallback((next: boolean | ((prev: boolean) => boolean)) => {
+    setOpen(next);
+  }, []);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     const offset = open ? `${HEADER_HEIGHT + height}px` : `${HEADER_HEIGHT}px`;
@@ -77,44 +90,44 @@ export default function ActivityPanel({ token, covered = false }: Props) {
       if (!sessionId) return;
       setRequestedTerminalId(sessionId);
       setRequestKey((v) => v + 1);
-      setOpen(true);
+      updateOpen(true);
       setTab(2);
     };
     window.addEventListener(OPEN_TERMINAL_SESSION_EVENT, onOpenTerminal as EventListener);
     return () => {
       window.removeEventListener(OPEN_TERMINAL_SESSION_EVENT, onOpenTerminal as EventListener);
     };
-  }, []);
+  }, [updateOpen]);
 
   useEffect(() => {
     const onFocusPortForwards = () => {
-      setOpen(true);
+      updateOpen(true);
       setTab(3);
     };
     window.addEventListener(FOCUS_PORT_FORWARDS_TAB_EVENT, onFocusPortForwards);
     return () => {
       window.removeEventListener(FOCUS_PORT_FORWARDS_TAB_EVENT, onFocusPortForwards);
     };
-  }, []);
+  }, [updateOpen]);
 
   useEffect(() => {
     const onFocusLogs = () => {
-      setOpen(true);
+      updateOpen(true);
       setTab(4);
     };
     window.addEventListener(FOCUS_LOGS_TAB_EVENT, onFocusLogs);
     return () => {
       window.removeEventListener(FOCUS_LOGS_TAB_EVENT, onFocusLogs);
     };
-  }, []);
+  }, [updateOpen]);
 
   useEffect(() => {
-    const onTogglePanel = () => setOpen((v) => !v);
+    const onTogglePanel = () => updateOpen((v) => !v);
     const onFocusActivityTab = (event: Event) => {
       const custom = event as CustomEvent<FocusActivityPanelTabEventDetail>;
       const nextTab = custom.detail?.tab;
       if (typeof nextTab !== "number" || nextTab < 0 || nextTab > 4) return;
-      setOpen(true);
+      updateOpen(true);
       setTab(nextTab);
     };
     window.addEventListener(TOGGLE_ACTIVITY_PANEL_EVENT, onTogglePanel);
@@ -123,7 +136,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
       window.removeEventListener(TOGGLE_ACTIVITY_PANEL_EVENT, onTogglePanel);
       window.removeEventListener(FOCUS_ACTIVITY_PANEL_TAB_EVENT, onFocusActivityTab as EventListener);
     };
-  }, []);
+  }, [updateOpen]);
 
   return (
     <Box
@@ -152,7 +165,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
         />
       )}
       <Box
-        onDoubleClick={() => setOpen((v) => !v)}
+        onDoubleClick={() => updateOpen((v) => !v)}
         sx={{
           display: "flex",
           alignItems: "center",
@@ -169,7 +182,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           value={tab}
           onChange={(_, v) => {
             setTab(v);
-            setOpen(true);
+            updateOpen(true);
           }}
           sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0, textTransform: "none" } }}
         >
@@ -220,7 +233,7 @@ export default function ActivityPanel({ token, covered = false }: Props) {
           aria-label={open ? "Collapse activity panel" : "Expand activity panel"}
           data-testid="activity-panel-toggle"
           size="small"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => updateOpen((v) => !v)}
           onDoubleClick={(e) => e.stopPropagation()}
         >
           {open ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}

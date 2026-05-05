@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert, IconButton, Tooltip } from "@mui/material";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -168,6 +168,10 @@ function AppInner() {
   useEffect(() => {
     saveState(appState);
   }, [appState]);
+
+  const handleActivityPanelOpenChange = useCallback((activityPanelOpen: boolean) => {
+    setAppState((s) => (s.activityPanelOpen === activityPanelOpen ? s : { ...s, activityPanelOpen }));
+  }, []);
 
   useEffect(() => {
     if (!lastRecoveryShownAt) return;
@@ -674,7 +678,12 @@ function AppInner() {
               Connection restored
             </Alert>
           </Snackbar>
-          <ActivityPanel token={token} covered={settingsOpen} />
+          <ActivityPanel
+            token={token}
+            covered={settingsOpen}
+            initialOpen={appState.activityPanelOpen ?? true}
+            onOpenChange={handleActivityPanelOpenChange}
+          />
           <DataplaneSearchDrawer
             token={token}
             item={searchDrawerItem}
