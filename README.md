@@ -76,6 +76,8 @@ make release-tag TAG=v5.5.0
 
 Release notes live in [CHANGELOG.md](CHANGELOG.md). `make release-tag` validates the Go module path, asks Codex to summarize commits from the latest release tag into the changelog, commits that changelog update, validates again, and only then creates the annotated tag. The target requires a clean worktree before it starts so the changelog commit does not include unrelated local edits.
 
+The release-note helper runs Codex with `gpt-5` by default so personal Codex model settings do not affect tagging. Override it with `CODEX_MODEL`, for example `CODEX_MODEL=gpt-5.4 make release-tag TAG=v5.5.0`.
+
 To prepare and commit release notes without tagging yet:
 
 ```bash

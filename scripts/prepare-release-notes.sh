@@ -13,6 +13,7 @@ fi
 tag_name="$1"
 notes_file="CHANGELOG.md"
 codex_bin="${CODEX:-codex}"
+codex_model="${CODEX_MODEL:-gpt-5}"
 
 case "$tag_name" in
 	v[0-9]*.[0-9]*.[0-9]*)
@@ -80,7 +81,7 @@ Commits in ${range}:
 $(cat "$log_file")
 EOF
 
-"$codex_bin" exec -C "$repo_root" -s workspace-write - < "$prompt_file"
+"$codex_bin" exec -m "$codex_model" -C "$repo_root" -s workspace-write - < "$prompt_file"
 
 changed_files="$(git diff --name-only)"
 if [ "$changed_files" != "$notes_file" ]; then
