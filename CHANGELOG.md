@@ -3,6 +3,15 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.5.2 - 2026-05-06
+
+- Reduced background polling overhead and added diagnostics capture to improve
+  performance visibility while lowering idle refresh noise.
+- Loaded pod namespace metrics immediately and lazy-loaded the settings view for
+  faster access to key resource data and a lighter UI startup path.
+- Fixed release and install reliability by resolving the `go install` version
+  flow used for distributed builds.
+
 ## v5.5.1 - 2026-05-06
 
 - Fixed release packaging so shipped builds consistently include the latest
