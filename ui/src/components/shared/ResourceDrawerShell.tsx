@@ -160,15 +160,7 @@ export default function ResourceDrawerShell({
 
   useEffect(() => {
     const root = shellRef.current;
-    const actions: ContextualKeyboardAction[] = [{
-      id: "drawer.close",
-      label: "Close drawer",
-      binding: ["escape"],
-      run: () => {
-        onClose();
-        return true;
-      },
-    }];
+    const actions: ContextualKeyboardAction[] = [];
 
     const tabs = Array.from(root?.querySelectorAll<HTMLElement>("[role='tab']") || [])
       .filter(isUsableControl)
@@ -213,12 +205,6 @@ export default function ResourceDrawerShell({
       ref={shellRef}
       data-testid={resourceIcon ? `drawer-${resourceIcon}` : "drawer-resource"}
       tabIndex={-1}
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }}
       sx={{
         outline: "none",
         width: drawerWidth,

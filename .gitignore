@@ -30,10 +30,6 @@ ui/yarn-debug.log*
 ui/yarn-error.log*
 ui/pnpm-debug.log*
 
-# --- Embedded UI output (we store placeholder in git, build outputs are copied here) ---
-internal/server/ui_dist/*
-!internal/server/ui_dist/placeholder.txt
-
 # --- Build/CI artifacts ---
 .artifacts/
 
