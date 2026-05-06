@@ -53,7 +53,6 @@ import { ActiveContextProvider, useActiveContext } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
 import { ThemeProvider, useThemeMode } from "./theme/ThemeProvider";
 import { UserSettingsProvider, useUserSettings } from "./settingsContext";
-import SettingsView from "./components/settings/SettingsView";
 import DataplaneQuickSearch from "./components/search/DataplaneQuickSearch";
 import DataplaneSearchDrawer from "./components/search/DataplaneSearchDrawer";
 import type { ApiDataplaneSearchItem } from "./types/api";
@@ -71,6 +70,8 @@ import {
 } from "./utils/performanceDiagnostics";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import "./styles/theme.css";
+
+const SettingsView = React.lazy(() => import("./components/settings/SettingsView"));
 
 function getToken(): string {
   const u = new URL(window.location.href);
@@ -658,14 +659,16 @@ function AppInner() {
             {/* Single bounded main column: children fill width/height; dashboard scrolls here; tables scroll inside Paper/DataGrid */}
             <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               {settingsOpen ? (
-                <SettingsView
-                  token={token}
-                  contexts={contexts}
-                  namespaces={namespaces}
-                  activeContext={activeContext}
-                  activeNamespace={namespace}
-                  onClose={() => setSettingsOpen(false)}
-                />
+                <React.Suspense fallback={<Box sx={{ flex: 1, minHeight: 0 }} />}>
+                  <SettingsView
+                    token={token}
+                    contexts={contexts}
+                    namespaces={namespaces}
+                    activeContext={activeContext}
+                    activeNamespace={namespace}
+                    onClose={() => setSettingsOpen(false)}
+                  />
+                </React.Suspense>
               ) : null}
               {!settingsOpen && section === "dashboard" ? (
                 <DashboardView
