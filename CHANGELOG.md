@@ -3,6 +3,13 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.5.1 - 2026-05-06
+
+- Fixed release packaging so shipped builds consistently include the latest
+  embedded UI assets and committed frontend build output.
+- Improved release reliability for installed binaries by aligning the embedded
+  interface with the expected application version.
+
 ## v5.5.0 - 2026-05-05
 
 - Added all-context background enrichment so dataplane insights can keep filling
