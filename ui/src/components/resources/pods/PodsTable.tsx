@@ -6,6 +6,7 @@ import {
   type ApiDataplaneListResponse,
   dataplaneListMetaFromResponse,
   type PodListItemUsage,
+  type PodMetricsItem,
 } from "../../../types/api";
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
@@ -33,6 +34,8 @@ type Pod = PodListItemUsage & {
 };
 
 type Row = Pod & { id: string };
+
+const podMetricsRefreshSec = 10;
 
 function usageToneForPct(pct: number | undefined): GaugeTone {
   switch (severityForPct(pct)) {
@@ -135,10 +138,44 @@ const metricsColumns: GridColDef<Row>[] = [
   },
 ];
 
+function percentOf(usage: number, denominator: number | undefined): number | undefined {
+  if (!denominator || denominator <= 0) return undefined;
+  return (usage / denominator) * 100;
+}
+
+function mergePodMetrics(rows: Row[], metrics: PodMetricsItem[]): Row[] {
+  if (!rows.length || !metrics.length) return rows;
+  const metricsByPod = new Map<string, PodMetricsItem>();
+  for (const item of metrics) {
+    metricsByPod.set(`${item.namespace}/${item.name}`, item);
+  }
+  return rows.map((row) => {
+    const sample = metricsByPod.get(`${row.namespace}/${row.name}`);
+    if (!sample?.containers?.length) return row;
+    let cpuMilli = 0;
+    let memoryBytes = 0;
+    for (const container of sample.containers) {
+      cpuMilli += container.cpuMilli || 0;
+      memoryBytes += container.memoryBytes || 0;
+    }
+    return {
+      ...row,
+      cpuMilli,
+      memoryBytes,
+      cpuPctRequest: percentOf(cpuMilli, row.cpuRequestMilli),
+      cpuPctLimit: percentOf(cpuMilli, row.cpuLimitMilli),
+      memoryPctRequest: percentOf(memoryBytes, row.memoryRequestBytes),
+      memoryPctLimit: percentOf(memoryBytes, row.memoryLimitBytes),
+      usageAvailable: true,
+    };
+  });
+}
+
 export default function PodsTable({ token, namespace }: { token: string; namespace: string }) {
   const metricsStatus = useMetricsStatus(token);
+  const metricsUsable = isMetricsUsable(metricsStatus);
   const columns = useMemo<GridColDef<Row>[]>(() => {
-    if (!isMetricsUsable(metricsStatus)) return baseColumns;
+    if (!metricsUsable) return baseColumns;
     // Insert metric columns before Age so the scan-left-to-right story stays:
     // identity, health, signals, live usage, age.
     const ageIdx = baseColumns.findIndex((c) => c.field === "ageSec");
@@ -146,19 +183,28 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
     const cols = baseColumns.slice();
     cols.splice(insertAt, 0, ...metricsColumns);
     return cols;
-  }, [metricsStatus]);
+  }, [metricsUsable]);
   const fetchRows = useCallback(async (contextName?: string) => {
-    const res = await apiGetWithContext<ApiDataplaneListResponse<Pod>>(
+    const podsPromise = apiGetWithContext<ApiDataplaneListResponse<Pod>>(
       `/api/namespaces/${encodeURIComponent(namespace)}/pods`,
       token,
       contextName || "",
     );
+    const metricsPromise = metricsUsable
+      ? apiGetWithContext<ApiDataplaneListResponse<PodMetricsItem>>(
+          `/api/namespaces/${encodeURIComponent(namespace)}/podmetrics`,
+          token,
+          contextName || "",
+        ).catch(() => null)
+      : Promise.resolve(null);
+    const [res, metricsRes] = await Promise.all([podsPromise, metricsPromise]);
     const items = res.items || [];
+    const rows = items.map((p) => ({ ...p, id: `${p.namespace}/${p.name}` }));
     return {
-      rows: items.map((p) => ({ ...p, id: `${p.namespace}/${p.name}` })),
+      rows: metricsRes?.items ? mergePodMetrics(rows, metricsRes.items) : rows,
       dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
     };
-  }, [token, namespace]);
+  }, [token, namespace, metricsUsable]);
 
   const filterPredicate = useCallback((row: Row, q: string) => {
     return (
@@ -170,8 +216,9 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
     );
   }, []);
 
-  return (
+  const list = (
     <ResourceListPage<Row>
+      key={`${namespace}:${metricsUsable ? "metrics" : "base"}`}
       token={token}
       title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
@@ -180,6 +227,7 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
         fetchRevision: dataplaneRevisionFetcher(token, "pods", namespace),
         pollSec: defaultRevisionPollSec,
       }}
+      dataplaneRefreshSec={metricsUsable ? podMetricsRefreshSec : undefined}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
       filterLabel="Filter (name/node/status)"
@@ -201,4 +249,6 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
       }}
     />
   );
+
+  return list;
 }

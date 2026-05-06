@@ -531,8 +531,8 @@ export function defaultDataplaneSettings(): DataplaneSettings {
     },
     metrics: {
       enabled: true,
-      podMetricsTtlSec: 30,
-      nodeMetricsTtlSec: 30,
+      podMetricsTtlSec: 10,
+      nodeMetricsTtlSec: 10,
       containerNearLimitPct: 90,
       nodePressurePct: 85,
     },

@@ -329,8 +329,8 @@ func DefaultDataplanePolicy() DataplanePolicy {
 				string(ResourceKindHelmReleases):        120,
 				string(ResourceKindResourceQuotas):      180,
 				string(ResourceKindLimitRanges):         180,
-				string(ResourceKindPodMetrics):          30,
-				string(ResourceKindNodeMetrics):         30,
+				string(ResourceKindPodMetrics):          10,
+				string(ResourceKindNodeMetrics):         10,
 			},
 			ManualRefreshBypassesTTL:   true,
 			InvalidateAfterKnownWrites: true,
@@ -397,8 +397,8 @@ func DefaultDataplanePolicy() DataplanePolicy {
 		},
 		Metrics: MetricsPolicy{
 			Enabled:               true,
-			PodMetricsTTLSeconds:  30,
-			NodeMetricsTTLSeconds: 30,
+			PodMetricsTTLSeconds:  10,
+			NodeMetricsTTLSeconds: 10,
 			ContainerNearLimitPct: 90,
 			NodePressurePct:       85,
 		},
@@ -490,8 +490,8 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out.Dashboard.RestartElevatedThreshold = clampInt(out.Dashboard.RestartElevatedThreshold, 1, 1000, def.Dashboard.RestartElevatedThreshold)
 	out.Dashboard.SignalLimit = clampInt(out.Dashboard.SignalLimit, 1, 100, def.Dashboard.SignalLimit)
 
-	out.Metrics.PodMetricsTTLSeconds = clampInt(out.Metrics.PodMetricsTTLSeconds, 15, 300, def.Metrics.PodMetricsTTLSeconds)
-	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 15, 300, def.Metrics.NodeMetricsTTLSeconds)
+	out.Metrics.PodMetricsTTLSeconds = clampInt(out.Metrics.PodMetricsTTLSeconds, 5, 300, def.Metrics.PodMetricsTTLSeconds)
+	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 5, 300, def.Metrics.NodeMetricsTTLSeconds)
 	out.Metrics.ContainerNearLimitPct = clampInt(out.Metrics.ContainerNearLimitPct, 50, 100, def.Metrics.ContainerNearLimitPct)
 	out.Metrics.NodePressurePct = clampInt(out.Metrics.NodePressurePct, 50, 100, def.Metrics.NodePressurePct)
 
