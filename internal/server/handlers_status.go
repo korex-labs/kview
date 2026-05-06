@@ -130,7 +130,7 @@ func (s *Server) buildStatus(parent context.Context, contextName string) statusD
 	return statusDTO{
 		OK:            clusterStatus.OK,
 		ActiveContext: clusterStatus.Context,
-		Backend:       statusBackendDTO{OK: true, Version: buildinfo.Version},
+		Backend:       statusBackendDTO{OK: true, Version: buildinfo.ResolvedVersion()},
 		Cluster:       clusterStatus,
 		CheckedAt:     checkedAt,
 	}

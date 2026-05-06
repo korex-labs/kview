@@ -22,7 +22,7 @@ import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 
-const defaultDataplaneRefreshSec = 10;
+const defaultDataplaneRefreshSec = 0;
 
 function escapeAttributeValue(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
@@ -92,7 +92,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
     fetchRevision: (contextName?: string) => Promise<string>;
     pollSec?: number;
   };
-  /** Full dataplane-backed refetch cadence while toolbar refresh remains Off. Default 10s for dataplane lists. */
+  /** Full dataplane-backed refetch cadence while toolbar refresh remains Off. Default 0: revision changes drive refetches. */
   dataplaneRefreshSec?: number;
 };
 

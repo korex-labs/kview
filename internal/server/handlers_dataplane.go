@@ -210,8 +210,6 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		defer cancel()
 
 		active := s.readContextName(r)
-		s.dp.EnsureObservers(ctx, active)
-
 		env, err := s.dp.ListSnapshotRevision(ctx, active, kind, ns)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})

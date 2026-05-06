@@ -62,6 +62,8 @@ The default Go install path builds browser/server modes. Desktop webview mode re
 
 The `/v5` path is required by Go's semantic import versioning. Using the unsuffixed module path can make Go ignore current `v5` tags and fall back to an older `v1` tag.
 
+When installed this way, kview reports the version resolved by Go module metadata. Release binaries built by the project workflow still use the explicit release tag injected at build time.
+
 To enable the local release-tag guard, run:
 
 ```bash

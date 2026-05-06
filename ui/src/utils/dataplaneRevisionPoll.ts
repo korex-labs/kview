@@ -1,7 +1,7 @@
 import { apiGet, apiGetWithContext } from "../api";
 
 /** Default interval for GET /api/dataplane/revision polling (seconds). */
-export const defaultRevisionPollSec = 2;
+export const defaultRevisionPollSec = 5;
 
 export type ApiDataplaneRevisionResponse = {
   active?: string;

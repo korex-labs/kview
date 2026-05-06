@@ -23,6 +23,7 @@ import {
 import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import { useUserSettings } from "../../../settingsContext";
+import usePageVisible from "../../../utils/usePageVisible";
 import InfoHint from "../../shared/InfoHint";
 import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
@@ -231,6 +232,7 @@ export default function DashboardView(props: Props) {
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const { settings } = useUserSettings();
+  const pageVisible = usePageVisible();
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
@@ -239,7 +241,7 @@ export default function DashboardView(props: Props) {
   const lastSignalsParamsRef = useRef("");
 
   useEffect(() => {
-    if (health === "unhealthy") return;
+    if (health === "unhealthy" || !pageVisible) return;
     let cancelled = false;
     const loadScope = `${activeContext || ""}:${props.token}`;
     const load = async (initial: boolean) => {
@@ -297,6 +299,7 @@ export default function DashboardView(props: Props) {
     dashboardRefreshSec,
     deferredSignalsQuery,
     health,
+    pageVisible,
     signalFilter,
     signalsSort,
     signalsPage,

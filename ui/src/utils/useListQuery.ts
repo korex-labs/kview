@@ -3,6 +3,7 @@ import type { ApiError } from "../api";
 import { toApiError } from "../api";
 import type { DataplaneListMeta, ResourceListFetchResult } from "../types/api";
 import { useConnectionState } from "../connectionState";
+import usePageVisible from "./usePageVisible";
 
 type UseListQueryOptions<T> = {
   enabled?: boolean;
@@ -21,7 +22,7 @@ type UseListQueryOptions<T> = {
    * full fetchItems runs on mount, on connection recovery, on manual refetch, and when revision changes.
    */
   fetchRevision?: () => Promise<string>;
-  /** Seconds between revision polls when fetchRevision is used without full refreshSec. Default 2. */
+  /** Seconds between revision polls when fetchRevision is used without full refreshSec. */
   revisionPollSec?: number;
   /** Seconds between full dataplane-backed refetches while toolbar refresh is Off. Default 0. */
   dataplaneRefreshSec?: number;
@@ -54,6 +55,7 @@ export default function useListQuery<T>({
   const [loading, setLoading] = useState<boolean>(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const { health } = useConnectionState();
+  const pageVisible = usePageVisible();
 
   const onInitialResultRef = useRef(onInitialResult);
 
@@ -133,7 +135,7 @@ export default function useListQuery<T>({
   }, [enabled, loadInitial, ...(queryKey ?? [])]);
 
   useEffect(() => {
-    if (!enabled || health === "unhealthy" || refreshSec <= 0) return;
+    if (!enabled || health === "unhealthy" || !pageVisible || refreshSec <= 0) return;
     const t = setInterval(async () => {
       const generation = generationRef.current;
       try {
@@ -158,10 +160,10 @@ export default function useListQuery<T>({
       }
     }, refreshSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, refreshSec, fetchItems]);
+  }, [enabled, health, pageVisible, refreshSec, fetchItems]);
 
   useEffect(() => {
-    if (!enabled || health === "unhealthy" || loading) return;
+    if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
     if (refreshSec > 0) return;
     const fr = fetchRevisionRef.current;
     if (!fr || revisionPollSec <= 0) return;
@@ -192,10 +194,10 @@ export default function useListQuery<T>({
 
     const t = setInterval(() => void tick(), revisionPollSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, loading, refreshSec, revisionPollSec, fetchRevision]);
+  }, [enabled, health, pageVisible, loading, refreshSec, revisionPollSec, fetchRevision]);
 
   useEffect(() => {
-    if (!enabled || health === "unhealthy" || loading) return;
+    if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
     if (refreshSec > 0) return;
     if (!fetchRevisionRef.current || dataplaneRefreshSec <= 0) return;
 
@@ -225,7 +227,7 @@ export default function useListQuery<T>({
 
     const t = setInterval(() => void tick(), dataplaneRefreshSec * 1000);
     return () => clearInterval(t);
-  }, [dataplaneRefreshSec, enabled, health, loading, refreshSec]);
+  }, [dataplaneRefreshSec, enabled, health, pageVisible, loading, refreshSec]);
 
   return { items, dataplaneMeta, error, loading, lastRefresh, refetch: loadInitial };
 }

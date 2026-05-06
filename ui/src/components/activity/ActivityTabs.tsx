@@ -25,6 +25,7 @@ import { apiDelete } from "../../sessionsApi";
 import { emitFocusLogsTab, emitOpenTerminalSession } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
 import { fmtDurationMs } from "../../utils/format";
+import usePageVisible from "../../utils/usePageVisible";
 import {
   activityChipSx,
   chipColorForValue,
@@ -36,6 +37,7 @@ import {
 } from "./activityUi";
 
 type Props = {
+  panelOpen: boolean;
   tab: number;
   token: string;
   requestedTerminalId?: string | null;
@@ -154,6 +156,7 @@ function useFadingRows<T>(
 }
 
 export default function ActivityTabs({
+  panelOpen,
   tab,
   token,
   requestedTerminalId,
@@ -162,6 +165,7 @@ export default function ActivityTabs({
 }: Props) {
   const { health } = useConnectionState();
   const offline = health === "unhealthy";
+  const pageVisible = usePageVisible();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -183,6 +187,26 @@ export default function ActivityTabs({
   const logsScrollRef = useRef<HTMLDivElement | null>(null);
   const terminalInfoCacheRef = useRef<Map<string, Session>>(new Map());
   const logsStickToBottomRef = useRef(true);
+  const activitiesLengthRef = useRef(0);
+  const sessionsLengthRef = useRef(0);
+  const logsLengthRef = useRef(0);
+  const liveWorkRef = useRef<LiveWork | null>(null);
+
+  useEffect(() => {
+    activitiesLengthRef.current = activities.length;
+  }, [activities.length]);
+
+  useEffect(() => {
+    sessionsLengthRef.current = sessions.length;
+  }, [sessions.length]);
+
+  useEffect(() => {
+    logsLengthRef.current = logs.length;
+  }, [logs.length]);
+
+  useEffect(() => {
+    liveWorkRef.current = liveWork;
+  }, [liveWork]);
 
   const mergeRuntimeLogs = useCallback(
     (prev: ActivityLogEntry[], incoming: ActivityLogEntry[]): ActivityLogEntry[] => {
@@ -234,17 +258,17 @@ export default function ActivityTabs({
       })
       .catch((e) => {
         // Keep stale activity rows visible while retrying in background.
-        if (activities.length === 0) setErr(String(e));
+        if (activitiesLengthRef.current === 0) setErr(String(e));
       })
       .finally(() => setLoading(false));
-  }, [activities.length, offline, token]);
+  }, [offline, token]);
 
   useEffect(() => {
-    if (offline) return;
+    if (offline || !pageVisible) return;
     reloadActivities();
-    const id = window.setInterval(reloadActivities, 5000);
+    const id = window.setInterval(reloadActivities, panelOpen ? 5000 : 30000);
     return () => window.clearInterval(id);
-  }, [offline, reloadActivities]);
+  }, [offline, pageVisible, panelOpen, reloadActivities]);
 
   const reloadLiveWork = useCallback(() => {
     if (offline) return;
@@ -254,16 +278,16 @@ export default function ActivityTabs({
         setLiveWork(res);
       })
       .catch((e) => {
-        if (!liveWork) setLiveWorkErr(String(e));
+        if (!liveWorkRef.current) setLiveWorkErr(String(e));
       });
-  }, [liveWork, offline, token]);
+  }, [offline, token]);
 
   useEffect(() => {
-    if (offline) return;
+    if (offline || !pageVisible || !panelOpen || tab !== 1) return;
     reloadLiveWork();
     const id = window.setInterval(reloadLiveWork, 3000);
     return () => window.clearInterval(id);
-  }, [offline, reloadLiveWork]);
+  }, [offline, pageVisible, panelOpen, tab, reloadLiveWork]);
 
   const reloadSessions = useCallback(() => {
     if (offline) return;
@@ -274,17 +298,19 @@ export default function ActivityTabs({
         setSessions(res.items || []);
       })
       .catch((e) => {
-        if (sessions.length === 0) setSessionsErr(String(e));
+        if (sessionsLengthRef.current === 0) setSessionsErr(String(e));
       })
       .finally(() => setSessionsLoading(false));
-  }, [offline, sessions.length, token]);
+  }, [offline, token]);
 
   useEffect(() => {
-    if (offline) return;
+    if (offline || !pageVisible) return;
+    if (!panelOpen && openTerminalIds.length === 0) return;
+    if (panelOpen && tab !== 2 && tab !== 3 && openTerminalIds.length === 0) return;
     reloadSessions();
     const id = window.setInterval(reloadSessions, 5000);
     return () => window.clearInterval(id);
-  }, [offline, reloadSessions]);
+  }, [offline, pageVisible, panelOpen, tab, openTerminalIds.length, reloadSessions]);
 
   useEffect(() => {
     if (!requestedTerminalId) return;
@@ -360,8 +386,8 @@ export default function ActivityTabs({
   };
 
   useEffect(() => {
-    if (tab !== 4) return;
-    if (offline) return;
+    if (tab !== 4 || !panelOpen) return;
+    if (offline || !pageVisible) return;
 
     const loadOnce = () => {
       const node = logsScrollRef.current;
@@ -376,7 +402,7 @@ export default function ActivityTabs({
           setLogs((prev) => mergeRuntimeLogs(prev, res.items || []));
         })
         .catch((e) => {
-          if (logs.length === 0) setLogsErr(String(e));
+          if (logsLengthRef.current === 0) setLogsErr(String(e));
         })
         .finally(() => setLogsLoading(false));
     };
@@ -384,7 +410,7 @@ export default function ActivityTabs({
     loadOnce();
     const id = window.setInterval(loadOnce, 5000);
     return () => window.clearInterval(id);
-  }, [tab, offline, token, mergeRuntimeLogs, logs.length]);
+  }, [tab, panelOpen, offline, pageVisible, token, mergeRuntimeLogs]);
 
   useEffect(() => {
     terminalSessions.forEach((s) => {

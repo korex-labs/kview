@@ -253,6 +253,7 @@ export default function ActivityPanel({ token, covered = false, initialOpen = tr
         }}
       >
         <ActivityTabs
+          panelOpen={open}
           tab={tab}
           token={token}
           requestedTerminalId={requestedTerminalId}

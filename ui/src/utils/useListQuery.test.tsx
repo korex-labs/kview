@@ -18,6 +18,10 @@ describe("useListQuery revision polling", () => {
   beforeEach(() => {
     mockConnection.health = "healthy";
     mockConnection.retryNonce = 0;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
   afterEach(() => {
@@ -140,6 +144,39 @@ describe("useListQuery revision polling", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_500);
+    });
+
+    expect(fetchRevision).not.toHaveBeenCalled();
+    expect(fetchItems).not.toHaveBeenCalled();
+  });
+
+  it("pauses revision polling while the page is hidden", async () => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+
+    const fetchItems = vi.fn().mockResolvedValue({ rows: [{ id: "1", name: "a" }] });
+    const fetchRevision = vi.fn().mockResolvedValue("5");
+
+    const { result } = renderHook(() =>
+      useListQuery({
+        enabled: true,
+        refreshSec: 0,
+        fetchItems,
+        fetchRevision,
+        revisionPollSec: 1,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fetchItems).toHaveBeenCalledTimes(1);
+
+    fetchItems.mockClear();
+    fetchRevision.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(fetchRevision).not.toHaveBeenCalled();

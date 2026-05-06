@@ -308,6 +308,9 @@ type manager struct {
 
 	nsEnrich *nsEnrichmentCoordinator
 
+	observerEnsureMu   sync.Mutex
+	observerEnsureLast map[string]time.Time
+
 	nsSweepMu        sync.Mutex
 	nsSweepLast      map[string]map[string]time.Time
 	nsSweepHourStart map[string]time.Time
@@ -356,6 +359,7 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		bundle:               bundle,
 		signalHistory:        map[string]map[string]signalHistoryRecord{},
 		nsEnrich:             newNsEnrichmentCoordinator(),
+		observerEnsureLast:   map[string]time.Time{},
 		nsSweepLast:          map[string]map[string]time.Time{},
 		nsSweepHourStart:     map[string]time.Time{},
 		nsSweepHourCount:     map[string]int{},
@@ -1557,6 +1561,21 @@ func (m *manager) PodMetricsCachedSnapshot(clusterName, namespace string) (PodMe
 }
 
 func (m *manager) EnsureObservers(ctx context.Context, clusterName string) {
+	if strings.TrimSpace(clusterName) == "" {
+		return
+	}
+	if !m.EffectivePolicy(clusterName).Observers.Enabled {
+		return
+	}
+	now := time.Now()
+	m.observerEnsureMu.Lock()
+	if last := m.observerEnsureLast[clusterName]; !last.IsZero() && now.Sub(last) < 30*time.Second {
+		m.observerEnsureMu.Unlock()
+		return
+	}
+	m.observerEnsureLast[clusterName] = now
+	m.observerEnsureMu.Unlock()
+
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	plane.EnsureObservers(context.WithoutCancel(ctx), m.scheduler, m.clients, m.rt)

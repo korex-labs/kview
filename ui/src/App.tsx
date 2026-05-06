@@ -62,6 +62,7 @@ import { POLL_STATUS_INTERVAL_MS } from "./constants/pollIntervals";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import { dataplaneSettingsForContext } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
+import usePageVisible from "./utils/usePageVisible";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import "./styles/theme.css";
 
@@ -117,6 +118,7 @@ function AppInner() {
   const token = useMemo(() => getToken(), []);
   const { settings } = useUserSettings();
   const { health, backendVersion, lastRecoveryShownAt, retryNonce } = useConnectionState();
+  const pageVisible = usePageVisible();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [lastRecoverySeenAt, setLastRecoverySeenAt] = useState<number | null>(null);
   const [contexts, setContexts] = useState<ContextOption[]>([]);
@@ -181,6 +183,7 @@ function AppInner() {
   }, [lastRecoverySeenAt, lastRecoveryShownAt]);
 
   useEffect(() => {
+    if (!pageVisible) return;
     let cancelled = false;
 
     const pollStatus = async () => {
@@ -211,7 +214,7 @@ function AppInner() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [activeContext, retryNonce, token]);
+  }, [activeContext, pageVisible, retryNonce, token]);
 
   // initial bootstrap
   useEffect(() => {
