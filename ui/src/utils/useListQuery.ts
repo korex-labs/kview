@@ -4,6 +4,7 @@ import { toApiError } from "../api";
 import type { DataplaneListMeta, ResourceListFetchResult } from "../types/api";
 import { useConnectionState } from "../connectionState";
 import usePageVisible from "./usePageVisible";
+import { performanceDiagnosticsEnabled, recordListTiming } from "./performanceDiagnostics";
 
 type UseListQueryOptions<T> = {
   enabled?: boolean;
@@ -26,6 +27,8 @@ type UseListQueryOptions<T> = {
   revisionPollSec?: number;
   /** Seconds between full dataplane-backed refetches while toolbar refresh is Off. Default 0. */
   dataplaneRefreshSec?: number;
+  /** Label used by optional performance diagnostics. */
+  diagnosticsLabel?: string;
 };
 
 type UseListQueryResult<T> = {
@@ -48,6 +51,7 @@ export default function useListQuery<T>({
   fetchRevision,
   revisionPollSec = 0,
   dataplaneRefreshSec = 0,
+  diagnosticsLabel,
 }: UseListQueryOptions<T>): UseListQueryResult<T> {
   const [fetchedRows, setFetchedRows] = useState<T[]>([]);
   const [dataplaneMeta, setDataplaneMeta] = useState<DataplaneListMeta | null>(null);
@@ -80,7 +84,16 @@ export default function useListQuery<T>({
     setLoading(true);
     setError(null);
     try {
+      const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
       const next = await fetchItemsRef.current();
+      if (startedAt && diagnosticsLabel) {
+        recordListTiming({
+          label: diagnosticsLabel,
+          phase: "fetch",
+          durationMs: window.performance.now() - startedAt,
+          rows: next.rows.length,
+        });
+      }
       if (generation !== generationRef.current) return;
       setFetchedRows(next.rows);
       setDataplaneMeta(next.dataplaneMeta ?? null);
@@ -108,7 +121,7 @@ export default function useListQuery<T>({
         setLoading(false);
       }
     }
-  }, []);
+  }, [diagnosticsLabel]);
 
   const mapRowsRef = useRef(mapRows);
   useEffect(() => {
@@ -118,9 +131,20 @@ export default function useListQuery<T>({
   const items = useMemo(() => {
     const fn = mapRowsRef.current;
     if (!fn) return fetchedRows;
-    return fn(fetchedRows);
+    const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
+    const next = fn(fetchedRows);
+    if (startedAt && diagnosticsLabel) {
+      recordListTiming({
+        label: diagnosticsLabel,
+        phase: "map",
+        durationMs: window.performance.now() - startedAt,
+        rows: fetchedRows.length,
+        filteredRows: next.length,
+      });
+    }
+    return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mapRowsDeps mirrors caller intent
-  }, [fetchedRows, mapRows, ...(mapRowsDeps ?? [])]);
+  }, [fetchedRows, mapRows, diagnosticsLabel, ...(mapRowsDeps ?? [])]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -139,7 +163,16 @@ export default function useListQuery<T>({
     const t = setInterval(async () => {
       const generation = generationRef.current;
       try {
+        const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
         const next = await fetchItemsRef.current();
+        if (startedAt && diagnosticsLabel) {
+          recordListTiming({
+            label: diagnosticsLabel,
+            phase: "fetch",
+            durationMs: window.performance.now() - startedAt,
+            rows: next.rows.length,
+          });
+        }
         if (generation !== generationRef.current) return;
         setFetchedRows(next.rows);
         setDataplaneMeta(next.dataplaneMeta ?? null);
@@ -160,7 +193,7 @@ export default function useListQuery<T>({
       }
     }, refreshSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, pageVisible, refreshSec, fetchItems]);
+  }, [enabled, health, pageVisible, refreshSec, fetchItems, diagnosticsLabel]);
 
   useEffect(() => {
     if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
@@ -180,7 +213,16 @@ export default function useListQuery<T>({
         }
         if (prev !== rev) {
           lastRevisionRef.current = rev;
+          const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
           const next = await fetchItemsRef.current();
+          if (startedAt && diagnosticsLabel) {
+            recordListTiming({
+              label: diagnosticsLabel,
+              phase: "fetch",
+              durationMs: window.performance.now() - startedAt,
+              rows: next.rows.length,
+            });
+          }
           if (generation !== generationRef.current) return;
           setFetchedRows(next.rows);
           setDataplaneMeta(next.dataplaneMeta ?? null);
@@ -194,7 +236,7 @@ export default function useListQuery<T>({
 
     const t = setInterval(() => void tick(), revisionPollSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, pageVisible, loading, refreshSec, revisionPollSec, fetchRevision]);
+  }, [enabled, health, pageVisible, loading, refreshSec, revisionPollSec, fetchRevision, diagnosticsLabel]);
 
   useEffect(() => {
     if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
@@ -204,7 +246,16 @@ export default function useListQuery<T>({
     const tick = async () => {
       const generation = generationRef.current;
       try {
+        const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
         const next = await fetchItemsRef.current();
+        if (startedAt && diagnosticsLabel) {
+          recordListTiming({
+            label: diagnosticsLabel,
+            phase: "fetch",
+            durationMs: window.performance.now() - startedAt,
+            rows: next.rows.length,
+          });
+        }
         if (generation !== generationRef.current) return;
         setFetchedRows(next.rows);
         setDataplaneMeta(next.dataplaneMeta ?? null);
@@ -227,7 +278,7 @@ export default function useListQuery<T>({
 
     const t = setInterval(() => void tick(), dataplaneRefreshSec * 1000);
     return () => clearInterval(t);
-  }, [dataplaneRefreshSec, enabled, health, pageVisible, loading, refreshSec]);
+  }, [dataplaneRefreshSec, enabled, health, pageVisible, loading, refreshSec, diagnosticsLabel]);
 
   return { items, dataplaneMeta, error, loading, lastRefresh, refetch: loadInitial };
 }

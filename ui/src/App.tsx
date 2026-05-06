@@ -63,6 +63,12 @@ import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import { dataplaneSettingsForContext } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
 import usePageVisible from "./utils/usePageVisible";
+import {
+  performanceDiagnosticsEnabled,
+  recordApiTiming,
+  setPerformanceDiagnosticsContext,
+  setPerformanceDiagnosticsEnabled,
+} from "./utils/performanceDiagnostics";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import "./styles/theme.css";
 
@@ -117,8 +123,13 @@ function startupSteps(phase: BootstrapPhase, detail: Partial<Record<BootstrapPha
 function AppInner() {
   const token = useMemo(() => getToken(), []);
   const { settings } = useUserSettings();
-  const { health, backendVersion, lastRecoveryShownAt, retryNonce } = useConnectionState();
+  const { health, backendHealth, backendVersion, lastRecoveryShownAt, retryNonce } = useConnectionState();
   const pageVisible = usePageVisible();
+
+  useEffect(() => {
+    setPerformanceDiagnosticsEnabled(settings.appearance.performanceDiagnosticsEnabled);
+    return () => setPerformanceDiagnosticsEnabled(false);
+  }, [settings.appearance.performanceDiagnosticsEnabled]);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [lastRecoverySeenAt, setLastRecoverySeenAt] = useState<number | null>(null);
   const [contexts, setContexts] = useState<ContextOption[]>([]);
@@ -166,6 +177,27 @@ function AppInner() {
   );
   const recentNamespaces = appState.recentNamespacesByContext?.[activeContext] || [];
 
+  useEffect(() => {
+    setPerformanceDiagnosticsContext({
+      activeContext,
+      activeNamespace: namespace,
+      activeSection: section,
+      activityPanelOpen: appState.activityPanelOpen,
+      dataplaneProfile: settings.dataplane.global.profile,
+      settingsOpen,
+      namespaceCount: namespaces.length,
+    });
+  }, [
+    activeContext,
+    appState.activityPanelOpen,
+    namespace,
+    namespaces.length,
+    section,
+    settings.dataplane.global.profile,
+    settings.appearance.performanceDiagnosticsEnabled,
+    settingsOpen,
+  ]);
+
   // persist on change
   useEffect(() => {
     saveState(appState);
@@ -187,6 +219,7 @@ function AppInner() {
     let cancelled = false;
 
     const pollStatus = async () => {
+      const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
       try {
         const res = await fetch("/api/status", {
           headers: {
@@ -195,13 +228,47 @@ function AppInner() {
           },
         });
         if (!res.ok) {
+          if (startedAt) {
+            recordApiTiming({
+              method: "GET",
+              path: "/api/status",
+              durationMs: window.performance.now() - startedAt,
+              parseMs: 0,
+              bytes: 0,
+              ok: false,
+              status: res.status,
+            });
+          }
           const message = res.statusText || `Status check failed (${res.status})`;
           if (!cancelled) notifyApiFailure(res.status >= 500 ? "backend" : "request", message);
           return;
         }
-        const status = (await res.json()) as AppStatus;
+        const text = await res.text();
+        const parseStartedAt = startedAt ? window.performance.now() : 0;
+        const status = JSON.parse(text || "null") as AppStatus;
+        if (startedAt) {
+          recordApiTiming({
+            method: "GET",
+            path: "/api/status",
+            durationMs: window.performance.now() - startedAt,
+            parseMs: parseStartedAt ? window.performance.now() - parseStartedAt : 0,
+            bytes: text.length,
+            ok: true,
+            status: res.status,
+          });
+        }
         if (!cancelled) notifyStatus(status);
       } catch (err) {
+        if (startedAt) {
+          recordApiTiming({
+            method: "GET",
+            path: "/api/status",
+            durationMs: window.performance.now() - startedAt,
+            parseMs: 0,
+            bytes: 0,
+            ok: false,
+          });
+        }
         if (!cancelled) {
           notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
         }
@@ -209,12 +276,13 @@ function AppInner() {
     };
 
     void pollStatus();
-    const id = window.setInterval(pollStatus, POLL_STATUS_INTERVAL_MS);
+    const statusPollIntervalMs = settingsOpen && backendHealth === "healthy" ? 30000 : POLL_STATUS_INTERVAL_MS;
+    const id = window.setInterval(pollStatus, statusPollIntervalMs);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [activeContext, pageVisible, retryNonce, token]);
+  }, [activeContext, backendHealth, pageVisible, retryNonce, settingsOpen, token]);
 
   // initial bootstrap
   useEffect(() => {

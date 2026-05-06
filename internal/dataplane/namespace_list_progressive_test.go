@@ -178,6 +178,36 @@ func TestNamespaceListEnrichmentPollUsesCachedRowProjection(t *testing.T) {
 	}
 }
 
+func TestNamespaceListEnrichmentPollSinceReturnsOnlyChangedRows(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	cluster := "ctx-delta-poll"
+	mm.nsEnrich.byCluster[cluster] = &nsEnrichSession{
+		rev:       7,
+		order:     []string{"app", "db"},
+		workNames: []string{"app", "db"},
+		merged: map[string]dto.NamespaceListItemDTO{
+			"app": {Name: "app", RowEnriched: true, PodCount: 3},
+			"db":  {Name: "db", RowEnriched: true, PodCount: 1},
+		},
+		seq: map[string]uint64{
+			"app": 2,
+			"db":  4,
+		},
+		nextSeq:  4,
+		complete: true,
+		total:    2,
+	}
+
+	got := mm.NamespaceListEnrichmentPollSince(cluster, 7, 2)
+	if got.Sequence != 4 {
+		t.Fatalf("sequence: got %d, want 4", got.Sequence)
+	}
+	if len(got.Updates) != 1 || got.Updates[0].Name != "db" {
+		t.Fatalf("updates: got %+v, want only db", got.Updates)
+	}
+}
+
 func TestNamespaceEnrichActivityIDIsStableAndSafe(t *testing.T) {
 	if got, want := namespaceEnrichActivityID("kind-dev/admin@cluster"), "ns-enrich-kind-dev-admin-cluster"; got != want {
 		t.Fatalf("activity id: got %q want %q", got, want)

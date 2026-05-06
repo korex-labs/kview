@@ -104,6 +104,7 @@ describe("user settings", () => {
     expect(parsed?.appearance.resourceDrawerWidthPx).toBe(820);
     expect(parsed?.appearance.recentMenuEnabled).toBe(false);
     expect(parsed?.appearance.recentMenuLimit).toBe(5);
+    expect(parsed?.appearance.performanceDiagnosticsEnabled).toBe(false);
     expect(parsed?.smartFilters.minCount).toBe(2);
     expect(parsed?.smartFilters.rules[0]).toMatchObject({
       id: "ticket",

@@ -30,7 +30,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
   applyDataplaneProfile,
@@ -70,9 +72,10 @@ import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
 import ScopedCountChip from "../shared/ScopedCountChip";
 import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
-import { apiGetWithContext } from "../../api";
+import { apiGet, apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
+import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -442,6 +445,9 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
+  const [performanceSnapshot, setPerformanceSnapshot] = useState("");
+  const [performanceSnapshotError, setPerformanceSnapshotError] = useState("");
+  const [performanceSnapshotLoading, setPerformanceSnapshotLoading] = useState(false);
   const [signalCatalog, setSignalCatalog] = useState<DataplaneSignalCatalogItem[]>([]);
   const [signalCatalogError, setSignalCatalogError] = useState<string | null>(null);
   const [dataplaneEditScope, setDataplaneEditScope] = useState<"global" | "context">("global");
@@ -710,45 +716,120 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     }
   };
 
+  const capturePerformanceSnapshot = async () => {
+    setPerformanceSnapshotLoading(true);
+    setPerformanceSnapshotError("");
+    try {
+      let backend: unknown;
+      let backendError = "";
+      try {
+        backend = await apiGet<unknown>("/api/performance/snapshot", token, { useDefaultContext: false });
+      } catch (err) {
+        backendError = (err as Error | undefined)?.message || "Backend snapshot failed.";
+      }
+      setPerformanceSnapshot(JSON.stringify(buildPerformanceDiagnosticsReport(backend, backendError), null, 2));
+    } catch (err) {
+      setPerformanceSnapshotError((err as Error | undefined)?.message || "Failed to capture performance snapshot.");
+    } finally {
+      setPerformanceSnapshotLoading(false);
+    }
+  };
+
+  const copyPerformanceSnapshot = async () => {
+    if (!performanceSnapshot) return;
+    try {
+      await window.navigator.clipboard.writeText(performanceSnapshot);
+    } catch (err) {
+      setPerformanceSnapshotError((err as Error | undefined)?.message || "Failed to copy performance snapshot.");
+    }
+  };
+
   const renderAppearance = () => (
-    <SettingSection title="Appearance" icon={<SettingsIcon name="appearance" />}>
-      <SettingRow
-        label="Check for kview updates"
-        checked={settings.appearance.releaseChecksEnabled}
-        onChange={(v) => setSettings((prev) => updateAppearance(prev, { releaseChecksEnabled: v }))}
-      />
-      <SettingRow
-        label="Smart YAML collapse"
-        hint="Auto-collapses noisy sections (e.g. managedFields) in resource YAML panels and enables per-block fold toggles"
-        checked={settings.appearance.yamlSmartCollapse}
-        onChange={(v) => setSettings((prev) => updateAppearance(prev, { yamlSmartCollapse: v }))}
-      />
-      <SettingRow
-        label="Smart namespace sorting"
-        hint="Prioritizes recently used favourites, then other favourites, recent namespaces, and the remaining namespaces."
-        checked={settings.appearance.smartNamespaceSorting}
-        onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
-      />
-      <SettingRow
-        label="Recent menu"
-        hint="Shows a Recent section at the top of the side navigation with recently opened resource sections."
-        checked={settings.appearance.recentMenuEnabled}
-        onChange={(v) => setSettings((prev) => updateAppearance(prev, { recentMenuEnabled: v }))}
-      />
-      <SettingGrid>
-        <SettingField
-          label="Recent menu limit"
-          hint="Maximum resource sections shown in the side navigation Recent section."
-          type="number"
-          min={1}
-          max={20}
-          value={settings.appearance.recentMenuLimit}
-          onChange={(v) =>
-            setSettings((prev) => updateAppearance(prev, { recentMenuLimit: Number(v) || 1 }))
-          }
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+      <SettingSection title="Appearance" icon={<SettingsIcon name="appearance" />}>
+        <SettingRow
+          label="Check for kview updates"
+          checked={settings.appearance.releaseChecksEnabled}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { releaseChecksEnabled: v }))}
         />
-      </SettingGrid>
-    </SettingSection>
+        <SettingRow
+          label="Smart YAML collapse"
+          hint="Auto-collapses noisy sections (e.g. managedFields) in resource YAML panels and enables per-block fold toggles"
+          checked={settings.appearance.yamlSmartCollapse}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { yamlSmartCollapse: v }))}
+        />
+        <SettingRow
+          label="Smart namespace sorting"
+          hint="Prioritizes recently used favourites, then other favourites, recent namespaces, and the remaining namespaces."
+          checked={settings.appearance.smartNamespaceSorting}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
+        />
+        <SettingRow
+          label="Recent menu"
+          hint="Shows a Recent section at the top of the side navigation with recently opened resource sections."
+          checked={settings.appearance.recentMenuEnabled}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { recentMenuEnabled: v }))}
+        />
+        <SettingGrid>
+          <SettingField
+            label="Recent menu limit"
+            hint="Maximum resource sections shown in the side navigation Recent section."
+            type="number"
+            min={1}
+            max={20}
+            value={settings.appearance.recentMenuLimit}
+            onChange={(v) =>
+              setSettings((prev) => updateAppearance(prev, { recentMenuLimit: Number(v) || 1 }))
+            }
+          />
+        </SettingGrid>
+      </SettingSection>
+
+      <SettingSection
+        title="Performance Diagnostics"
+        icon={<QueryStatsIcon fontSize="small" />}
+        hint="Optional diagnostics for feedback builds. Long-task collection runs only while enabled; backend memory and goroutine data is captured only when requested."
+      >
+        <SettingRow
+          label="Enable diagnostics"
+          hint="Collects browser long-task samples while this browser profile is active."
+          checked={settings.appearance.performanceDiagnosticsEnabled}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { performanceDiagnosticsEnabled: v }))}
+        />
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<QueryStatsIcon />}
+            disabled={!settings.appearance.performanceDiagnosticsEnabled || performanceSnapshotLoading}
+            onClick={capturePerformanceSnapshot}
+          >
+            {performanceSnapshotLoading ? "Capturing..." : "Capture snapshot"}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<ContentCopyIcon />}
+            disabled={!performanceSnapshot}
+            onClick={copyPerformanceSnapshot}
+          >
+            Copy JSON
+          </Button>
+        </Box>
+        {performanceSnapshotError ? <Alert severity="warning">{performanceSnapshotError}</Alert> : null}
+        {performanceSnapshot ? (
+          <TextField
+            value={performanceSnapshot}
+            multiline
+            minRows={8}
+            maxRows={14}
+            fullWidth
+            size="small"
+            inputProps={{ readOnly: true }}
+          />
+        ) : null}
+      </SettingSection>
+    </Box>
   );
 
   const renderKeyboard = () => {

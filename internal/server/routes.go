@@ -31,6 +31,7 @@ func (s *Server) Router() http.Handler {
 
 		s.registerActivityAndDataplaneRoutes(api)
 		s.registerSessionRoutes(api)
+		s.registerPerformanceRoutes(api)
 		s.registerNamespaceRoutes(api)
 		s.registerClusterResourceRoutes(api)
 		s.registerWorkloadRoutes(api)

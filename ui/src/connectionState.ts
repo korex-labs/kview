@@ -104,12 +104,35 @@ export function notifyApiFailure(kind: ConnectionIssueKind, message: string) {
 
 export function notifyStatus(status: AppStatus) {
   const now = Date.now();
-  state.backendHealth = status.backend?.ok === false ? "unhealthy" : "healthy";
-  state.backendVersion = status.backend?.version;
-  state.cluster = status.cluster;
-  state.clusterHealth = status.cluster?.ok ? "healthy" : "unhealthy";
+  const nextBackendHealth = status.backend?.ok === false ? "unhealthy" : "healthy";
+  const nextBackendVersion = status.backend?.version;
+  const nextCluster = status.cluster;
+  const nextClusterHealth = status.cluster?.ok ? "healthy" : "unhealthy";
+  if (
+    state.backendHealth === nextBackendHealth &&
+    state.backendVersion === nextBackendVersion &&
+    state.clusterHealth === nextClusterHealth &&
+    sameClusterStatus(state.cluster, nextCluster)
+  ) {
+    return;
+  }
+  state.backendHealth = nextBackendHealth;
+  state.backendVersion = nextBackendVersion;
+  state.cluster = nextCluster;
+  state.clusterHealth = nextClusterHealth;
   recomputeHealth(now);
   emitChange();
+}
+
+function sameClusterStatus(a: ClusterConnectionStatus | undefined, b: ClusterConnectionStatus | undefined): boolean {
+  if (!a || !b) return a === b;
+  return a.ok === b.ok &&
+    a.context === b.context &&
+    a.cluster === b.cluster &&
+    a.authInfo === b.authInfo &&
+    a.namespace === b.namespace &&
+    a.serverVersion === b.serverVersion &&
+    a.message === b.message;
 }
 
 function updateBackend(ok: boolean, message: string) {

@@ -1,4 +1,5 @@
 import { notifyApiFailure, notifyApiSuccess, type ConnectionIssueKind } from "./connectionState";
+import { performanceDiagnosticsEnabled, recordApiTiming } from "./utils/performanceDiagnostics";
 
 export type ContextInfo = {
   name: string;
@@ -157,6 +158,7 @@ export async function apiGet<T>(
   opts?: { headers?: Record<string, string>; signal?: AbortSignal; useDefaultContext?: boolean },
 ): Promise<T> {
   let res: Response;
+  const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
   // Prefer Authorization header; do not put token in query string (see WebSocket paths for query fallback).
   const mergedHeaders = {
     Authorization: `Bearer ${token}`,
@@ -168,11 +170,32 @@ export async function apiGet<T>(
       signal: opts?.signal,
     });
   } catch (err) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "GET",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+      });
+    }
     if (isAbortError(err)) throw err;
     notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
     throw err;
   }
   if (!res.ok) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "GET",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+        status: res.status,
+      });
+    }
     const shape = await parseErrorResponse(res);
     if (shouldNotifyFailure(shape)) {
       notifyApiFailure(classifyFailureKind(shape.status, shape.message), shape.message || res.statusText);
@@ -180,10 +203,34 @@ export async function apiGet<T>(
     throw toError(shape);
   }
   try {
-    const json = await res.json();
+    const text = await res.text();
+    const parseStartedAt = startedAt ? window.performance.now() : 0;
+    const json = JSON.parse(text || "null");
+    if (startedAt) {
+      recordApiTiming({
+        method: "GET",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: parseStartedAt ? window.performance.now() - parseStartedAt : 0,
+        bytes: text.length,
+        ok: true,
+        status: res.status,
+      });
+    }
     notifyApiSuccess();
     return json;
   } catch (err) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "GET",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+        status: res.status,
+      });
+    }
     notifyApiFailure("request", "Failed to parse response");
     throw err;
   }
@@ -191,6 +238,7 @@ export async function apiGet<T>(
 
 export async function apiPost<T>(path: string, token: string, body: unknown, opts?: { headers?: Record<string, string> }): Promise<T> {
   let res: Response;
+  const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
   const mergedHeaders = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -203,10 +251,31 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
       body: JSON.stringify(body),
     });
   } catch (err) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "POST",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+      });
+    }
     notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
     throw err;
   }
   if (!res.ok) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "POST",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+        status: res.status,
+      });
+    }
     const shape = await parseErrorResponse(res);
     if (shouldNotifyFailure(shape)) {
       notifyApiFailure(classifyFailureKind(shape.status, shape.message), shape.message || res.statusText);
@@ -214,10 +283,34 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
     throw toError(shape);
   }
   try {
-    const json = await res.json();
+    const text = await res.text();
+    const parseStartedAt = startedAt ? window.performance.now() : 0;
+    const json = JSON.parse(text || "null");
+    if (startedAt) {
+      recordApiTiming({
+        method: "POST",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: parseStartedAt ? window.performance.now() - parseStartedAt : 0,
+        bytes: text.length,
+        ok: true,
+        status: res.status,
+      });
+    }
     notifyApiSuccess();
     return json;
   } catch (err) {
+    if (startedAt) {
+      recordApiTiming({
+        method: "POST",
+        path,
+        durationMs: window.performance.now() - startedAt,
+        parseMs: 0,
+        bytes: 0,
+        ok: false,
+        status: res.status,
+      });
+    }
     notifyApiFailure("request", "Failed to parse response");
     throw err;
   }

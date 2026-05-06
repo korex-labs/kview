@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
@@ -223,6 +223,7 @@ export default function NamespacesTable({
   const [enrichedRowsByName, setEnrichedRowsByName] = useState<Map<string, NamespaceProjectionUpdate>>(
     () => new Map(),
   );
+  const enrichSequenceRef = useRef(0);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const { settings } = useUserSettings();
@@ -286,6 +287,7 @@ export default function NamespacesTable({
     setEnrichRows(null);
     setEnrichPoll(null);
     setEnrichedRowsByName(new Map());
+    enrichSequenceRef.current = 0;
   }, [activeContext]);
 
   const fetchRows = useCallback(async (contextName?: string) => {
@@ -343,10 +345,13 @@ export default function NamespacesTable({
 
     let cancelled = false;
     let id = 0;
+    enrichSequenceRef.current = 0;
     const tick = async () => {
       if (cancelled) return;
       try {
-        const path = `/api/namespaces/enrichment?revision=${revision}`;
+        const params = new URLSearchParams({ revision: String(revision) });
+        params.set("sinceSequence", String(enrichSequenceRef.current));
+        const path = `/api/namespaces/enrichment?${params.toString()}`;
         const res = activeContext
           ? await apiGetWithContext<ApiNamespacesEnrichmentPoll>(path, token, activeContext)
           : await apiGet<ApiNamespacesEnrichmentPoll>(path, token);
@@ -358,7 +363,8 @@ export default function NamespacesTable({
           return;
         }
         const updates = res.updates ?? [];
-        setEnrichRows(updates);
+        if (res.sequence != null) enrichSequenceRef.current = res.sequence;
+        if (updates.length > 0 || enrichSequenceRef.current === 0) setEnrichRows(updates);
         setEnrichPoll(res);
         setEnrichedRowsByName((prev) => {
           if (!updates.length) return prev;

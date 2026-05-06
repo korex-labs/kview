@@ -71,6 +71,7 @@ export type ResourceListFetchResult<TRow> = {
 /** GET /api/namespaces/enrichment?revision= */
 export type ApiNamespacesEnrichmentPoll = {
   revision: number;
+  sequence?: number;
   stale?: boolean;
   latestRevision?: number;
   complete: boolean;

@@ -21,6 +21,7 @@ import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 import ResourceIcon from "../icons/resources/ResourceIcon";
+import { recordListSnapshot } from "../../utils/performanceDiagnostics";
 
 const defaultDataplaneRefreshSec = 0;
 
@@ -162,6 +163,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const { health } = useConnectionState();
   const { registerTableControls, keyboardSettings } = useKeyboardControls();
   const offline = health === "unhealthy";
+  const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
 
   useEffect(() => {
     setRefreshSec(initialRefreshSec ?? 0);
@@ -186,6 +188,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     dataplaneRefreshSec: dataplaneRevisionPoll
       ? (dataplaneRefreshSec ?? defaultDataplaneRefreshSec)
       : 0,
+    diagnosticsLabel,
   });
 
   const accessDenied = useEmptyListAccessCheck({
@@ -213,7 +216,17 @@ export default function ResourceListPage<TRow extends { id: string }>({
       lastRefresh,
       filterPredicate,
       smartFilterContext,
+      diagnosticsLabel,
     });
+
+  useEffect(() => {
+    recordListSnapshot({
+      label: diagnosticsLabel,
+      rows: rows.length,
+      filteredRows: filteredRows.length,
+      quickFilters: quickFilters.length,
+    });
+  }, [diagnosticsLabel, filteredRows.length, quickFilters.length, rows.length]);
 
   const handleRowDoubleClick = useCallback((row: TRow) => {
     setSelectionModel([row.id]);

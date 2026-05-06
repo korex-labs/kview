@@ -96,8 +96,14 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid or missing revision query parameter", "active": active})
 			return
 		}
+		sinceSeq := uint64(0)
+		if raw := r.URL.Query().Get("sinceSequence"); raw != "" {
+			if parsed, err := strconv.ParseUint(raw, 10, 64); err == nil {
+				sinceSeq = parsed
+			}
+		}
 
-		poll := s.dp.NamespaceListEnrichmentPoll(active, rev)
+		poll := s.dp.NamespaceListEnrichmentPollSince(active, rev, sinceSeq)
 		writeJSON(w, http.StatusOK, poll)
 	})
 

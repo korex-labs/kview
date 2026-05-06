@@ -78,6 +78,9 @@ const dashboardPanelSectionSx = {
   backgroundColor: "transparent",
 };
 
+const DASHBOARD_PROFILE_REFRESH_FLOOR_SEC = 30;
+const DASHBOARD_LOAD_DEDUPE_MS = 10_000;
+
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <TableRow>
@@ -236,9 +239,16 @@ export default function DashboardView(props: Props) {
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
+  const dashboardProfile = settings.dataplane.global.profile;
+  const effectiveDashboardRefreshSec =
+    dashboardRefreshSec > 0 && (dashboardProfile === "wide" || dashboardProfile === "diagnostic")
+      ? Math.max(dashboardRefreshSec, DASHBOARD_PROFILE_REFRESH_FLOOR_SEC)
+      : dashboardRefreshSec;
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
   const lastSignalsParamsRef = useRef("");
+  const loadInFlightRef = useRef(false);
+  const responseCacheRef = useRef<{ key: string; at: number; data: ApiDashboardClusterResponse } | null>(null);
 
   useEffect(() => {
     if (health === "unhealthy" || !pageVisible) return;
@@ -246,6 +256,7 @@ export default function DashboardView(props: Props) {
     const loadScope = `${activeContext || ""}:${props.token}`;
     const load = async (initial: boolean) => {
       const resetView = initial && lastLoadScopeRef.current !== loadScope;
+      let acquiredLoad = false;
       if (resetView) {
         setLoading(true);
         setData(null);
@@ -259,6 +270,19 @@ export default function DashboardView(props: Props) {
           signalsLimit: String(signalsRowsPerPage),
         });
         const signalsParamsKey = params.toString();
+        const cacheKey = `${loadScope}:${signalsParamsKey}`;
+        const cached = responseCacheRef.current;
+        if (cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
+          if (!cancelled) {
+            lastLoadScopeRef.current = loadScope;
+            lastSignalsParamsRef.current = signalsParamsKey;
+            setData(cached.data);
+          }
+          return;
+        }
+        if (loadInFlightRef.current) return;
+        loadInFlightRef.current = true;
+        acquiredLoad = true;
         const showSignalsLoading =
           initial &&
           !resetView &&
@@ -270,6 +294,7 @@ export default function DashboardView(props: Props) {
           ? await apiGetWithContext<ApiDashboardClusterResponse>(path, props.token, activeContext)
           : await apiGet<ApiDashboardClusterResponse>(path, props.token);
         if (!cancelled) {
+          responseCacheRef.current = { key: cacheKey, at: Date.now(), data: res };
           lastLoadScopeRef.current = loadScope;
           lastSignalsParamsRef.current = signalsParamsKey;
           setData(res);
@@ -277,6 +302,7 @@ export default function DashboardView(props: Props) {
       } catch {
         // Keep stale dashboard data visible while retries continue.
       } finally {
+        if (acquiredLoad) loadInFlightRef.current = false;
         if (!cancelled) {
           if (resetView) setLoading(false);
           setSignalsLoading(false);
@@ -284,19 +310,19 @@ export default function DashboardView(props: Props) {
       }
     };
     void load(true);
-    if (dashboardRefreshSec <= 0) {
+    if (effectiveDashboardRefreshSec <= 0) {
       return () => {
         cancelled = true;
       };
     }
-    const id = window.setInterval(() => void load(false), dashboardRefreshSec * 1000);
+    const id = window.setInterval(() => void load(false), effectiveDashboardRefreshSec * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
   }, [
     activeContext,
-    dashboardRefreshSec,
+    effectiveDashboardRefreshSec,
     deferredSignalsQuery,
     health,
     pageVisible,
@@ -531,7 +557,7 @@ export default function DashboardView(props: Props) {
                       <ScopedCountChip size="small" variant="outlined" label="Profile" count={plane.profile} />
                       <ScopedCountChip size="small" variant="outlined" label="Discovery" count={plane.discoveryMode} />
                       <ScopedCountChip size="small" variant="outlined" label="Activation" count={plane.activationMode} />
-                      <ScopedCountChip size="small" variant="outlined" label="Refresh" count={dashboardRefreshSec > 0 ? `${dashboardRefreshSec}s` : "Manual"} />
+                      <ScopedCountChip size="small" variant="outlined" label="Refresh" count={effectiveDashboardRefreshSec > 0 ? `${effectiveDashboardRefreshSec}s` : "Manual"} />
                       <ScopedCountChip size="small" variant="outlined" label="Totals" count={cov.resourceTotalsCompleteness} color={cov.resourceTotalsCompleteness === "unknown" ? "warning" : "default"} />
                     </Box>
                     <Table size="small">

@@ -4,6 +4,7 @@ import { useUserSettings } from "../settingsContext";
 import type { SmartFilterMatchContext } from "../settings";
 import type { QuickFilter } from "./listFilters";
 import { buildQuickFilters } from "./listFilters";
+import { performanceDiagnosticsEnabled, recordListTiming } from "./performanceDiagnostics";
 
 type UseListFiltersOptions<T> = {
   rows: T[];
@@ -11,6 +12,7 @@ type UseListFiltersOptions<T> = {
   filterPredicate: (row: T, query: string) => boolean;
   getQuickFilterKey?: (row: T) => string;
   smartFilterContext: SmartFilterMatchContext;
+  diagnosticsLabel?: string;
 };
 
 type UseListFiltersResult<T> = {
@@ -23,25 +25,41 @@ type UseListFiltersResult<T> = {
   filteredRows: T[];
 };
 
+function defaultQuickFilterKey(row: unknown): string {
+  return String((row as { name?: string })?.name ?? "");
+}
+
 export default function useListFilters<T>({
   rows,
   lastRefresh,
   filterPredicate,
-  getQuickFilterKey = (row: T) => String((row as { name?: string })?.name ?? ""),
+  getQuickFilterKey = defaultQuickFilterKey,
   smartFilterContext,
+  diagnosticsLabel,
 }: UseListFiltersOptions<T>): UseListFiltersResult<T> {
   const [filter, setFilterRaw] = useState<string>(() => loadListTextFilter());
   const { settings } = useUserSettings();
 
   const quickFilters = useMemo(() => {
     if (!settings.appearance.smartFiltersEnabled) return [];
-    return buildQuickFilters(
+    const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
+    const next = buildQuickFilters(
       rows,
       getQuickFilterKey,
       settings.smartFilters.rules,
       smartFilterContext,
       settings.smartFilters.minCount,
     );
+    if (startedAt && diagnosticsLabel) {
+      recordListTiming({
+        label: diagnosticsLabel,
+        phase: "quickFilters",
+        durationMs: window.performance.now() - startedAt,
+        rows: rows.length,
+        quickFilters: next.length,
+      });
+    }
+    return next;
   }, [
     rows,
     getQuickFilterKey,
@@ -49,6 +67,7 @@ export default function useListFilters<T>({
     settings.smartFilters.rules,
     settings.smartFilters.minCount,
     smartFilterContext,
+    diagnosticsLabel,
   ]);
 
   // Derive: quick filter is highlighted iff filter exactly equals its value
@@ -113,8 +132,19 @@ export default function useListFilters<T>({
   const filteredRows = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((row) => filterPredicate(row, q));
-  }, [rows, filter, filterPredicate]);
+    const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
+    const next = rows.filter((row) => filterPredicate(row, q));
+    if (startedAt && diagnosticsLabel) {
+      recordListTiming({
+        label: diagnosticsLabel,
+        phase: "filter",
+        durationMs: window.performance.now() - startedAt,
+        rows: rows.length,
+        filteredRows: next.length,
+      });
+    }
+    return next;
+  }, [rows, filter, filterPredicate, diagnosticsLabel]);
 
   return {
     filter,

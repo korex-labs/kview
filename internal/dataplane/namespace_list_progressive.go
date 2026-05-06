@@ -22,6 +22,7 @@ const nsEnrichActivityTTL = 3 * time.Minute
 // NamespaceListEnrichmentPoll is the JSON body for GET /api/namespaces/enrichment.
 type NamespaceListEnrichmentPoll struct {
 	Revision       uint64                     `json:"revision"`
+	Sequence       uint64                     `json:"sequence,omitempty"`
 	Stale          bool                       `json:"stale,omitempty"`
 	LatestRevision uint64                     `json:"latestRevision,omitempty"`
 	Complete       bool                       `json:"complete"`
@@ -209,7 +210,9 @@ type nsEnrichSession struct {
 	// sweepNames is the optional cold trickle subset outside focused/recent/favourite hints.
 	sweepNames []string
 	// merged holds list row + progressive patches (detail then related).
-	merged map[string]dto.NamespaceListItemDTO
+	merged  map[string]dto.NamespaceListItemDTO
+	seq     map[string]uint64
+	nextSeq uint64
 
 	detailDone  int
 	relatedDone int
@@ -285,6 +288,7 @@ func (m *manager) BeginNamespaceListProgressiveEnrichment(cluster string, items 
 		favouriteInsightNames: favouriteInsightNames,
 		sweepNames:            sweepNames,
 		merged:                merged,
+		seq:                   map[string]uint64{},
 		total:                 len(workNames) + len(sweepNames),
 		activityID:            namespaceEnrichActivityID(cluster),
 	}
@@ -320,6 +324,17 @@ func (m *manager) BeginNamespaceListProgressiveEnrichment(cluster string, items 
 
 	go m.runNamespaceListEnrichment(ctx, cluster, sess)
 	return rev
+}
+
+func (s *nsEnrichSession) markUpdatedLocked(name string) {
+	if name == "" {
+		return
+	}
+	s.nextSeq++
+	if s.seq == nil {
+		s.seq = map[string]uint64{}
+	}
+	s.seq[name] = s.nextSeq
 }
 
 func (m *manager) hasNamespaceEnrichmentInFlight(cluster string) bool {
@@ -576,6 +591,7 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 					row.Phase = fields.Phase
 					row.AgeSec = fields.AgeSec
 					row.HasUnhealthyConditions = fields.HasUnhealthyConditions
+					sess.markUpdatedLocked(name)
 				}
 				sess.merged[name] = row
 				sess.detailDone++
@@ -618,6 +634,7 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 			cur := sess.merged[name]
 			mergeNamespaceRowInto(&cur, metrics)
 			sess.merged[name] = cur
+			sess.markUpdatedLocked(name)
 			sess.relatedDone++
 			sess.mu.Unlock()
 			m.markNamespaceSwept(cluster, name)
@@ -744,6 +761,16 @@ func (m *manager) waitAPIQuiet(ctx context.Context, minQuiet time.Duration) erro
 
 // NamespaceListEnrichmentPoll returns merged rows for the given cluster/revision.
 func (m *manager) NamespaceListEnrichmentPoll(cluster string, revision uint64) NamespaceListEnrichmentPoll {
+	return m.namespaceListEnrichmentPoll(cluster, revision, 0, false)
+}
+
+// NamespaceListEnrichmentPollSince returns only rows changed after sinceSeq. A zero
+// sinceSeq returns rows changed since the beginning of the enrichment session.
+func (m *manager) NamespaceListEnrichmentPollSince(cluster string, revision uint64, sinceSeq uint64) NamespaceListEnrichmentPoll {
+	return m.namespaceListEnrichmentPoll(cluster, revision, sinceSeq, true)
+}
+
+func (m *manager) namespaceListEnrichmentPoll(cluster string, revision uint64, sinceSeq uint64, deltaOnly bool) NamespaceListEnrichmentPoll {
 	out := NamespaceListEnrichmentPoll{
 		Revision: revision,
 		Active:   cluster,
@@ -777,7 +804,9 @@ func (m *manager) NamespaceListEnrichmentPoll(cluster string, revision uint64) N
 			mergeNamespaceRowInto(&row, cached)
 			sess.merged[name] = row
 		}
-		updates = append(updates, row)
+		if !deltaOnly || sess.seq[name] > sinceSeq {
+			updates = append(updates, row)
+		}
 	}
 	detailDone := sess.detailDone
 	relatedDone := sess.relatedDone
@@ -785,6 +814,7 @@ func (m *manager) NamespaceListEnrichmentPoll(cluster string, revision uint64) N
 	listTotal := len(sess.order)
 	enrichTargets := sess.total
 	complete := sess.complete
+	sequence := sess.nextSeq
 	var stage string
 	if !complete {
 		if detailDone < enrichTotal {
@@ -798,6 +828,7 @@ func (m *manager) NamespaceListEnrichmentPoll(cluster string, revision uint64) N
 	sess.mu.Unlock()
 
 	out.Updates = updates
+	out.Sequence = sequence
 	out.TotalRows = listTotal
 	out.EnrichTargets = enrichTargets
 	out.DetailRows = detailDone

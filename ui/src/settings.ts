@@ -47,6 +47,7 @@ export type KviewUserSettingsV1 = {
     smartNamespaceSorting: boolean;
     recentMenuEnabled: boolean;
     recentMenuLimit: number;
+    performanceDiagnosticsEnabled: boolean;
   };
   smartFilters: {
     minCount: number;
@@ -308,6 +309,7 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
       smartNamespaceSorting: false,
       recentMenuEnabled: false,
       recentMenuLimit: 5,
+      performanceDiagnosticsEnabled: false,
     },
     smartFilters: {
       minCount: 3,
@@ -587,6 +589,7 @@ export function dataplaneSettingsForProfile(profile: DataplaneProfile): Dataplan
       next.namespaceEnrichment.sweep.maxNamespacesPerCycle = 3;
       next.namespaceEnrichment.sweep.maxNamespacesPerHour = 60;
       next.backgroundBudget.maxConcurrentPerCluster = 6;
+      next.dashboard.refreshSec = 30;
       break;
     case "diagnostic":
       next.namespaceEnrichment.maxTargets = 100;
@@ -600,6 +603,7 @@ export function dataplaneSettingsForProfile(profile: DataplaneProfile): Dataplan
       next.namespaceEnrichment.sweep.minReenrichIntervalMinutes = 60;
       next.backgroundBudget.maxConcurrentPerCluster = 8;
       next.backgroundBudget.longRunNoticeSec = 1;
+      next.dashboard.refreshSec = 30;
       break;
     case "focused":
     default:
@@ -1252,6 +1256,10 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
         20,
         defaults.appearance.recentMenuLimit,
       ),
+      performanceDiagnosticsEnabled:
+        typeof rawAppearance.performanceDiagnosticsEnabled === "boolean"
+          ? rawAppearance.performanceDiagnosticsEnabled
+          : defaults.appearance.performanceDiagnosticsEnabled,
     },
     smartFilters: {
       minCount: validMinCount(rawSmartFilters.minCount, defaults.smartFilters.minCount),

@@ -19,6 +19,50 @@ const INITIAL_STATUS: MetricsStatus = {
   enabled: false,
   capability: DEFAULT_CAPABILITY,
 };
+const metricsStatusCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise?: Promise<MetricsStatus>;
+    value?: MetricsStatus;
+  }
+>();
+const metricsStatusTtlMs = 30_000;
+
+function metricsStatusCacheKey(token: string, contextName: string): string {
+  return `${contextName}\n${token}`;
+}
+
+function loadMetricsStatus(token: string, contextName: string): Promise<MetricsStatus> {
+  const key = metricsStatusCacheKey(token, contextName);
+  const now = Date.now();
+  const cached = metricsStatusCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    if (cached.value) return Promise.resolve(cached.value);
+    if (cached.promise) return cached.promise;
+  }
+
+  const promise = apiGetWithContext<ApiMetricsStatusResponse>(
+    "/api/dataplane/metrics/status",
+    token,
+    contextName,
+  )
+    .then((res) => {
+      const value = {
+        loaded: true,
+        enabled: Boolean(res.enabled),
+        capability: res.capability ?? DEFAULT_CAPABILITY,
+      };
+      metricsStatusCache.set(key, { value, expiresAt: Date.now() + metricsStatusTtlMs });
+      return value;
+    })
+    .catch((err) => {
+      metricsStatusCache.delete(key);
+      throw err;
+    });
+  metricsStatusCache.set(key, { promise, expiresAt: now + metricsStatusTtlMs });
+  return promise;
+}
 
 /**
  * Returns whether pod/node metrics are usable for the active cluster.
@@ -43,18 +87,10 @@ export function useMetricsStatus(token: string): MetricsStatus {
       return;
     }
     let cancelled = false;
-    apiGetWithContext<ApiMetricsStatusResponse>(
-      "/api/dataplane/metrics/status",
-      token,
-      activeContext,
-    )
+    loadMetricsStatus(token, activeContext)
       .then((res) => {
         if (cancelled) return;
-        setStatus({
-          loaded: true,
-          enabled: Boolean(res.enabled),
-          capability: res.capability ?? DEFAULT_CAPABILITY,
-        });
+        setStatus(res);
       })
       .catch(() => {
         if (cancelled) return;

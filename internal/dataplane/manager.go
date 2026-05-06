@@ -98,6 +98,8 @@ type DataPlaneManager interface {
 	BeginNamespaceListProgressiveEnrichment(clusterName string, items []dto.NamespaceListItemDTO, hints NamespaceEnrichHints) uint64
 	// NamespaceListEnrichmentPoll returns merged rows for a revision (GET /api/namespaces/enrichment).
 	NamespaceListEnrichmentPoll(clusterName string, revision uint64) NamespaceListEnrichmentPoll
+	// NamespaceListEnrichmentPollSince returns only rows changed after the provided sequence.
+	NamespaceListEnrichmentPollSince(clusterName string, revision uint64, sinceSeq uint64) NamespaceListEnrichmentPoll
 	// MergeCachedNamespaceRowProjection overlays cached namespace row metrics onto list rows when available.
 	MergeCachedNamespaceRowProjection(ctx context.Context, clusterName string, items []dto.NamespaceListItemDTO) ([]dto.NamespaceListItemDTO, int)
 	// NodesSnapshot returns a raw snapshot for nodes in the given cluster.

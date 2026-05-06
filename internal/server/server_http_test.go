@@ -128,6 +128,37 @@ func doReqWithHeader(t *testing.T, h http.Handler, method, path string, headers 
 	return rec
 }
 
+func TestPerformanceSnapshotRequiresAuth(t *testing.T) {
+	_, h := newTestServer(t)
+
+	rec := doReq(t, h, http.MethodGet, "/api/performance/snapshot", "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPerformanceSnapshotReturnsRuntimeStats(t *testing.T) {
+	_, h := newTestServer(t)
+
+	rec := doReq(t, h, http.MethodGet, "/api/performance/snapshot", testToken, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got performanceSnapshotDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.Go.Version == "" {
+		t.Fatal("missing go version")
+	}
+	if got.Go.Goroutines <= 0 {
+		t.Fatalf("goroutines: got %d", got.Go.Goroutines)
+	}
+	if got.Memory.SysBytes == 0 {
+		t.Fatal("missing memory sys bytes")
+	}
+}
+
 func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 	t.Helper()
 	var m map[string]any
@@ -199,6 +230,9 @@ func (s *stubDataplane) PersistenceMigrationStatus() dataplane.PersistenceMigrat
 	return dataplane.PersistenceMigrationStatus{Phase: dataplane.PersistenceMigrationPhaseDone}
 }
 func (s *stubDataplane) NamespaceListEnrichmentPoll(_ string, _ uint64) dataplane.NamespaceListEnrichmentPoll {
+	return dataplane.NamespaceListEnrichmentPoll{}
+}
+func (s *stubDataplane) NamespaceListEnrichmentPollSince(_ string, _ uint64, _ uint64) dataplane.NamespaceListEnrichmentPoll {
 	return dataplane.NamespaceListEnrichmentPoll{}
 }
 func (s *stubDataplane) BeginNamespaceListProgressiveEnrichment(_ string, _ []dto.NamespaceListItemDTO, _ dataplane.NamespaceEnrichHints) uint64 {
