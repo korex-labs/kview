@@ -214,6 +214,18 @@ const settingsMainSurfaceSx = {
   },
 };
 
+function isSettingsEscapeBlocked(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === "undefined") return false;
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest([
+    ".MuiAutocomplete-popper",
+    ".MuiMenu-root",
+    ".MuiPopover-root",
+    ".MuiDialog-root",
+    "[role='menu']",
+    "[role='listbox']",
+  ].join(","));
+}
 
 function ReorderButtons({
   label,
@@ -463,6 +475,16 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     () => Array.from(new Set([activeNamespace, ...namespaces].filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [activeNamespace, namespaces],
   );
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || isSettingsEscapeBlocked(event.target)) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   useEffect(() => {
     if (section !== "dataplane" || dataplaneTab !== "signals") return;

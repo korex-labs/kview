@@ -575,6 +575,7 @@ export default function PodDrawer(props: {
     result: RunContainerCommandResult;
   } | null>(null);
   const [commandOutputFilter, setCommandOutputFilter] = useState("");
+  const [commandKeyValuePretty, setCommandKeyValuePretty] = useState(true);
   const [portForwardDialogOpen, setPortForwardDialogOpen] = useState(false);
   const [portForwardRemotePort, setPortForwardRemotePort] = useState<string>("");
   const [portForwardLocalPort, setPortForwardLocalPort] = useState<string>("");
@@ -1312,7 +1313,9 @@ export default function PodDrawer(props: {
             {rows.map((row, idx) => (
               <TableRow key={`${row.key}-${idx}`}>
                 <TableCell sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}>{row.key}</TableCell>
-                <TableCell sx={{ fontFamily: "monospace", wordBreak: "break-word" }}>{row.value}</TableCell>
+                <TableCell sx={{ wordBreak: "break-word" }}>
+                  <EnvValueDisplay value={row.value} pretty={commandKeyValuePretty} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -1558,7 +1561,7 @@ export default function PodDrawer(props: {
                       const containerKey = ctn.name ?? String(idx);
                       const envQuery = envQueryByContainer[containerKey] || "";
                       const showRefs = envShowRefsByContainer[containerKey] || false;
-                      const prettyEnv = envPrettyByContainer[containerKey] || false;
+                      const prettyEnv = envPrettyByContainer[containerKey] ?? true;
                       const envFiltered = (ctn.env || []).filter((e) =>
                         String(e.name ?? "").toLowerCase().includes(envQuery.toLowerCase())
                       );
@@ -2475,20 +2478,39 @@ export default function PodDrawer(props: {
             </Alert>
           ) : null}
           {selectedCommand && selectedCommand.outputType !== "file" ? (
-            <TextField
-              size="small"
-              label="Filter output"
-              value={commandOutputFilter}
-              onChange={(e) => setCommandOutputFilter(e.target.value)}
-              placeholder={
-                selectedCommand.outputType === "keyValue"
-                  ? "Filter by key or value"
-                  : selectedCommand.outputType === "csv"
-                    ? "Filter table rows"
-                  : "Filter output lines"
-              }
-              fullWidth
-            />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+              <TextField
+                size="small"
+                label="Filter output"
+                value={commandOutputFilter}
+                onChange={(e) => setCommandOutputFilter(e.target.value)}
+                placeholder={
+                  selectedCommand.outputType === "keyValue"
+                    ? "Filter by key or value"
+                    : selectedCommand.outputType === "csv"
+                      ? "Filter table rows"
+                    : "Filter output lines"
+                }
+                sx={{ flex: "1 1 260px", minWidth: 220 }}
+              />
+              {selectedCommand.outputType === "keyValue" ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={commandKeyValuePretty}
+                      slotProps={{ input: { "aria-label": "Pretty command key-value output" } }}
+                      onChange={(e) => setCommandKeyValuePretty(e.target.checked)}
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                      <span>Pretty</span>
+                      <InfoHint title="Decorates exact boolean-like values, debug and log-level strings with themed chips, and turns http:// or https:// values into clickable links. Plain mode preserves text-only rendering." />
+                    </Box>
+                  }
+                />
+              ) : null}
+            </Box>
           ) : null}
           <Box sx={{ flex: 1, minHeight: 0 }}>{renderCommandOutput()}</Box>
         </DialogContent>
