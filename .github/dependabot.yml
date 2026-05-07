@@ -26,12 +26,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3
-    ignore:
-      # Deferred UI migrations: broad MUI/Data Grid and TypeScript majors need dedicated review.
-      - dependency-name: "@mui/*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
     groups:
       frontend-tooling:
         dependency-type: "development"
