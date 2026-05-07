@@ -27,14 +27,17 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 3
     ignore:
-      # Major npm upgrades (Vite, MUI, React) require explicit review
-      - dependency-name: "*"
+      # Deferred UI migrations: broad MUI/Data Grid and TypeScript majors need dedicated review.
+      - dependency-name: "@mui/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:
       frontend-tooling:
         dependency-type: "development"
         patterns:
           - "vite"
+          - "@vitejs/*"
           - "vitest"
           - "eslint*"
           - "@eslint/*"     # scoped package: @eslint/js — @eslint* would not match the slash
@@ -47,6 +50,7 @@ updates:
           - "react-dom"
           - "@mui/*"
           - "@emotion/*"
+          - "@xterm/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
