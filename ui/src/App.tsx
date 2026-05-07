@@ -673,6 +673,12 @@ function AppInner() {
               {!settingsOpen && section === "dashboard" ? (
                 <DashboardView
                   token={token}
+                  favouriteNamespaces={
+                    settings.appearance.dashboardFavouriteNamespaceFilters ? favourites : []
+                  }
+                  recentNamespaces={
+                    settings.appearance.dashboardRecentNamespaceFilters ? recentNamespaces : []
+                  }
                   onNavigate={(sec, ns) => {
                     onSelectNamespace(ns);
                     onSelectSection(sec as Section);

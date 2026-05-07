@@ -451,6 +451,30 @@ func TestDashboardSignalFiltersSortEachGroupBySeverity(t *testing.T) {
 	}
 }
 
+func TestDashboardSignalFiltersIncludeRequestedNamespaceGroups(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("empty_configmap", "ConfigMap", "team-a", "empty-cm", "low", 35, "ConfigMap has no data keys.", "high", "configmaps"),
+		dashboardSignalItem("service_no_ready_endpoints", "Service", "team-b", "api", "medium", 70, "Service has no ready endpoints.", "medium", "services"),
+	}, 10, ClusterDashboardListOptions{
+		SignalsLimit:               10,
+		SignalsFavouriteNamespaces: []string{"team-b", "team-z"},
+		SignalsRecentNamespaces:    []string{"team-a"},
+	})
+
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_favourite"); !dashboardStringSliceEqual(got, []string{"namespace:team-b", "namespace:team-z"}) {
+		t.Fatalf("favourite namespace filters should follow requested order: %v", got)
+	}
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_recent"); !dashboardStringSliceEqual(got, []string{"namespace:team-a"}) {
+		t.Fatalf("recent namespace filters should follow requested order: %v", got)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "namespace:team-b", "team-b", 1) {
+		t.Fatalf("expected counted favourite namespace filter in %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "namespace:team-z", "team-z", 0) {
+		t.Fatalf("expected zero-count favourite namespace filter in %+v", summary.Filters)
+	}
+}
+
 func TestDashboardPodRestartSignalUsesSignalShape(t *testing.T) {
 	item := dashboardPodRestartSignal("team-a", dto.PodListItemDTO{Name: "api-0", Restarts: 10, AgeSec: int64((48 * time.Hour).Seconds())}, 5)
 	summary := summarizeDashboardSignals([]ClusterDashboardSignal{item}, 10, ClusterDashboardListOptions{SignalsFilter: "signal:pod_restarts", SignalsLimit: 10})

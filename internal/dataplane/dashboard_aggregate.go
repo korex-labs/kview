@@ -463,7 +463,7 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 	} else {
 		out.Top = append(out.Top, signals...)
 	}
-	out.Filters = buildDashboardSignalFilters(signals, len(out.Top), out)
+	out.Filters = buildDashboardSignalFilters(signals, len(out.Top), out, opts)
 	pageSource := filterDashboardSignals(signals, opts.SignalsFilter, opts.SignalsQuery)
 	if opts.SignalsFilter == "" || opts.SignalsFilter == "top" {
 		if len(pageSource) > limit {
@@ -523,7 +523,7 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 	}
 }
 
-func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel) []ClusterDashboardSignalFilter {
+func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel, opts ClusterDashboardListOptions) []ClusterDashboardSignalFilter {
 	filters := []ClusterDashboardSignalFilter{
 		{ID: "top", Label: "Top priority", Count: topCount, Category: "priority"},
 		{ID: "high", Label: "High severity", Count: summary.High, Category: "severity", Severity: "high"},
@@ -634,6 +634,32 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 			Label:    item.label,
 			Count:    item.count,
 			Category: "namespace",
+			Severity: item.severity,
+		})
+	}
+	filters = appendRequestedNamespaceFilters(filters, "namespace_favourite", opts.SignalsFavouriteNamespaces, namespaceFilters)
+	filters = appendRequestedNamespaceFilters(filters, "namespace_recent", opts.SignalsRecentNamespaces, namespaceFilters)
+	return filters
+}
+
+func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, category string, namespaces []string, counted map[string]dashboardCountedFilter) []ClusterDashboardSignalFilter {
+	seen := map[string]struct{}{}
+	for _, namespace := range namespaces {
+		namespace = strings.TrimSpace(namespace)
+		if namespace == "" {
+			continue
+		}
+		id := "namespace:" + namespace
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		item := counted[id]
+		filters = append(filters, ClusterDashboardSignalFilter{
+			ID:       id,
+			Label:    namespace,
+			Count:    item.count,
+			Category: category,
 			Severity: item.severity,
 		})
 	}

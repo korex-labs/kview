@@ -789,6 +789,18 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
         />
         <SettingRow
+          label="Dashboard favourite namespace filters"
+          hint="Shows cluster dashboard signal filter chips for favourited namespaces in the active context."
+          checked={settings.appearance.dashboardFavouriteNamespaceFilters}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { dashboardFavouriteNamespaceFilters: v }))}
+        />
+        <SettingRow
+          label="Dashboard recent namespace filters"
+          hint="Shows cluster dashboard signal filter chips for recently visited namespaces in the active context."
+          checked={settings.appearance.dashboardRecentNamespaceFilters}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { dashboardRecentNamespaceFilters: v }))}
+        />
+        <SettingRow
           label="Recent menu"
           hint="Shows a Recent section at the top of the side navigation with recently opened resource sections."
           checked={settings.appearance.recentMenuEnabled}

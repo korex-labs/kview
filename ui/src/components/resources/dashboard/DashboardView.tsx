@@ -53,6 +53,8 @@ import NodeDrawer from "../nodes/NodeDrawer";
 
 type Props = {
   token: string;
+  favouriteNamespaces?: string[];
+  recentNamespaces?: string[];
   onNavigate?: (section: string, namespace: string) => void;
 };
 
@@ -238,6 +240,8 @@ export default function DashboardView(props: Props) {
   const pageVisible = usePageVisible();
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
+  const favouriteNamespaceFilterParam = (props.favouriteNamespaces || []).filter(Boolean).join(",");
+  const recentNamespaceFilterParam = (props.recentNamespaces || []).filter(Boolean).join(",");
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
   const dashboardProfile = settings.dataplane.global.profile;
   const effectiveDashboardRefreshSec =
@@ -269,6 +273,12 @@ export default function DashboardView(props: Props) {
           signalsOffset: String(signalsPage * signalsRowsPerPage),
           signalsLimit: String(signalsRowsPerPage),
         });
+        if (favouriteNamespaceFilterParam) {
+          params.set("signalsFavouriteNamespaces", favouriteNamespaceFilterParam);
+        }
+        if (recentNamespaceFilterParam) {
+          params.set("signalsRecentNamespaces", recentNamespaceFilterParam);
+        }
         const signalsParamsKey = params.toString();
         const cacheKey = `${loadScope}:${signalsParamsKey}`;
         const cached = responseCacheRef.current;
@@ -330,6 +340,8 @@ export default function DashboardView(props: Props) {
     signalsSort,
     signalsPage,
     signalsRowsPerPage,
+    favouriteNamespaceFilterParam,
+    recentNamespaceFilterParam,
     props.token,
   ]);
 

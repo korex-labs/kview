@@ -198,11 +198,13 @@ type ClusterDashboardSignal struct {
 }
 
 type ClusterDashboardListOptions struct {
-	SignalsFilter string
-	SignalsQuery  string
-	SignalsSort   string
-	SignalsOffset int
-	SignalsLimit  int
+	SignalsFilter              string
+	SignalsQuery               string
+	SignalsSort                string
+	SignalsOffset              int
+	SignalsLimit               int
+	SignalsFavouriteNamespaces []string
+	SignalsRecentNamespaces    []string
 }
 
 type ClusterDashboardDataplaneStats struct {

@@ -134,12 +134,34 @@ func warmNodeMetricsAsync(s *Server, clusterName string) {
 func parseClusterDashboardListOptions(r *http.Request) dataplane.ClusterDashboardListOptions {
 	q := r.URL.Query()
 	return dataplane.ClusterDashboardListOptions{
-		SignalsFilter: q.Get("signalsFilter"),
-		SignalsQuery:  q.Get("signalsQ"),
-		SignalsSort:   q.Get("signalsSort"),
-		SignalsOffset: parseNonNegativeQueryInt(q.Get("signalsOffset")),
-		SignalsLimit:  parseNonNegativeQueryInt(q.Get("signalsLimit")),
+		SignalsFilter:              q.Get("signalsFilter"),
+		SignalsQuery:               q.Get("signalsQ"),
+		SignalsSort:                q.Get("signalsSort"),
+		SignalsOffset:              parseNonNegativeQueryInt(q.Get("signalsOffset")),
+		SignalsLimit:               parseNonNegativeQueryInt(q.Get("signalsLimit")),
+		SignalsFavouriteNamespaces: parseCommaListQuery(q.Get("signalsFavouriteNamespaces")),
+		SignalsRecentNamespaces:    parseCommaListQuery(q.Get("signalsRecentNamespaces")),
 	}
+}
+
+func parseCommaListQuery(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	return out
 }
 
 func parseNonNegativeQueryInt(raw string) int {

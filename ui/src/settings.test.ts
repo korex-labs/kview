@@ -99,6 +99,8 @@ describe("user settings", () => {
     expect(parsed?.appearance.dashboardRefreshSec).toBe(0);
     expect(parsed?.appearance.smartFiltersEnabled).toBe(false);
     expect(parsed?.appearance.smartNamespaceSorting).toBe(true);
+    expect(parsed?.appearance.dashboardFavouriteNamespaceFilters).toBe(false);
+    expect(parsed?.appearance.dashboardRecentNamespaceFilters).toBe(false);
     expect(parsed?.appearance.activityPanelInitiallyOpen).toBe(true);
     expect(parsed?.appearance.releaseChecksEnabled).toBe(false);
     expect(parsed?.appearance.resourceDrawerWidthPx).toBe(820);

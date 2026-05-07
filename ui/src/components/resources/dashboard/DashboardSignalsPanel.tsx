@@ -138,6 +138,8 @@ function signalFilterGroupLabel(category?: string): string {
     case "kind": return "By Kind";
     case "signal_type": return "By Signal Reason";
     case "namespace": return "Top 5 Namespaces With Problems";
+    case "namespace_favourite": return "Favourite Namespaces";
+    case "namespace_recent": return "Recent Namespaces";
     case "derived": return "Derived";
     case "priority": return "Priority";
     default: return "Other";
@@ -151,8 +153,10 @@ function signalFilterGroupOrder(category?: string): number {
     case "kind": return 2;
     case "signal_type": return 3;
     case "namespace": return 4;
-    case "derived": return 5;
-    default: return 6;
+    case "namespace_favourite": return 5;
+    case "namespace_recent": return 6;
+    case "derived": return 7;
+    default: return 8;
   }
 }
 
