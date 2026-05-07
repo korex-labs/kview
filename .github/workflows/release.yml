@@ -78,6 +78,7 @@ jobs:
     name: Publish GitHub release
     runs-on: ubuntu-latest
     needs: build
+    # Required for gh release create/upload on v* tag pushes.
     permissions:
       contents: write
 

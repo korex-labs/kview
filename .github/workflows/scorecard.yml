@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   scorecard:
@@ -23,11 +22,13 @@ jobs:
       - name: Run Scorecard
         uses: ossf/scorecard-action@99c09fe975337306107572b4fdf4db224cf8e2f2 # v2.4.3
         with:
-          results_file: scorecard.sarif
-          results_format: sarif
+          results_file: scorecard.json
+          results_format: json
           publish_results: false
 
-      - name: Upload Scorecard results to code scanning
-        uses: github/codeql-action/upload-sarif@ed410739ba306e4ebe5e123421a6bd694e494a2b # v4
+      - name: Upload Scorecard results artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          sarif_file: scorecard.sarif
+          name: scorecard
+          path: scorecard.json
+          if-no-files-found: error

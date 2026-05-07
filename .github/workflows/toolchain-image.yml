@@ -16,6 +16,7 @@ jobs:
   publish:
     name: Publish toolchain image
     runs-on: ubuntu-latest
+    # Required for docker push to ghcr.io on Dockerfile changes and manual runs.
     permissions:
       packages: write
 
