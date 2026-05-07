@@ -4,6 +4,7 @@ import {
   DataGrid,
   GridColDef,
   GridColumnVisibilityModel,
+  GridRowId,
   GridRowSelectionModel,
   useGridApiRef,
 } from "@mui/x-data-grid";
@@ -42,6 +43,16 @@ const tableNavigationKeys: Record<string, { rowDelta: number; colDelta: number }
 };
 const vimTableNavigationKeys = new Set(["h", "j", "k", "l"]);
 const homeRowTableNavigationKeys = new Set(["a", "s", "d", "f"]);
+const emptyRowSelectionModel: GridRowSelectionModel = { type: "include", ids: new Set() };
+
+function singleRowSelectionModel(id: GridRowId): GridRowSelectionModel {
+  return { type: "include", ids: new Set([id]) };
+}
+
+function selectedRowId(selectionModel: GridRowSelectionModel): string | null {
+  const first = selectionModel.ids.values().next();
+  return first.done ? null : String(first.value);
+}
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
@@ -146,10 +157,9 @@ export default function ResourceListPage<TRow extends { id: string }>({
     });
   }, [columns]);
 
-  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([]);
+  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(emptyRowSelectionModel);
   const selectedId = useMemo<string | null>(() => {
-    if (!selectionModel.length) return null;
-    return String(selectionModel[0]);
+    return selectedRowId(selectionModel);
   }, [selectionModel]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -180,7 +190,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     queryKey: [activeContext, namespace ?? "", resourceLabel, fetchRows],
     refreshSec,
     fetchItems: fetchRowsStable,
-    onInitialResult: () => setSelectionModel([]),
+    onInitialResult: () => setSelectionModel(emptyRowSelectionModel),
     mapRows,
     mapRowsDeps,
     fetchRevision: dataplaneRevisionPoll ? fetchRevisionStable : undefined,
@@ -229,7 +239,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [diagnosticsLabel, filteredRows.length, quickFilters.length, rows.length]);
 
   const handleRowDoubleClick = useCallback((row: TRow) => {
-    setSelectionModel([row.id]);
+    setSelectionModel(singleRowSelectionModel(row.id));
     setDrawerSelectedId(row.id);
     setDrawerOpen(true);
   }, []);
@@ -237,7 +247,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const handleOpenRowId = useCallback((rowId: string) => {
     if (!rowId) return false;
     keepFilterFocusRef.current = false;
-    setSelectionModel([rowId]);
+    setSelectionModel(singleRowSelectionModel(rowId));
     setDrawerSelectedId(rowId);
     setDrawerOpen(true);
     return true;
@@ -245,8 +255,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const focusGridCell = useCallback((rowId: string, field: string) => {
     if (!rowId || !field) return false;
-    setSelectionModel([rowId]);
-    apiRef.current.setCellFocus(rowId, field);
+    setSelectionModel(singleRowSelectionModel(rowId));
+    apiRef.current?.setCellFocus(rowId, field);
     const focusCell = () => {
       const root = apiRef.current?.rootElementRef?.current;
       const row = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-id]') || [])
@@ -310,7 +320,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const pageCount = Math.max(1, Math.ceil(rowCount / Math.max(1, pageSize)));
     const nextPage = Math.max(0, Math.min(pageCount - 1, page + delta));
     if (nextPage === page) return false;
-    apiRef.current.setPage(nextPage);
+    apiRef.current?.setPage(nextPage);
     window.setTimeout(() => {
       const rowIds = apiRef.current?.getAllRowIds?.() || [];
       const targetId = String(rowIds[nextPage * pageSize] ?? rowIds[0] ?? "");
@@ -381,6 +391,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
           disableMultipleRowSelection
           hideFooterSelectedRowCount
+          showToolbar
           rowSelectionModel={selectionModel}
           onRowSelectionModelChange={(m) => setSelectionModel(m)}
           onCellKeyDown={(params, event) => {
@@ -418,6 +429,15 @@ export default function ResourceListPage<TRow extends { id: string }>({
                 keepFilterFocusRef.current = true;
               },
               onFilterKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+                if (event.key === "Escape") {
+                  keepFilterFocusRef.current = false;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (event.target instanceof HTMLElement) {
+                    event.target.blur();
+                  }
+                  return;
+                }
                 if (event.key !== "Enter") return;
                 event.preventDefault();
                 handleFocusGrid();

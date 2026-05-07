@@ -132,7 +132,10 @@ export default function ResourceDrawerShell({
   }, [clampWidth, isResizing, setSettings]);
 
   useEffect(() => {
-    shellRef.current?.focus();
+    const focusShell = () => shellRef.current?.focus();
+    focusShell();
+    window.requestAnimationFrame(focusShell);
+    window.setTimeout(focusShell, 0);
   }, []);
 
   const clickDrawerControl = useCallback((predicate: (el: HTMLElement) => boolean) => {
@@ -161,6 +164,16 @@ export default function ResourceDrawerShell({
   useEffect(() => {
     const root = shellRef.current;
     const actions: ContextualKeyboardAction[] = [];
+
+    actions.push({
+      id: "drawer.close",
+      label: "Close drawer",
+      binding: ["escape"],
+      run: () => {
+        onClose();
+        return true;
+      },
+    });
 
     const tabs = Array.from(root?.querySelectorAll<HTMLElement>("[role='tab']") || [])
       .filter(isUsableControl)

@@ -20,14 +20,13 @@ function isOverlayEscapeTarget(target: EventTarget | null): boolean {
     ".MuiMenu-root",
     ".MuiPopover-root",
     ".MuiDialog-root",
-    "[role='dialog']",
     "[role='menu']",
     "[role='listbox']",
   ].join(","));
 }
 
 function onRightDrawerEscape(event: KeyboardEvent) {
-  if (event.defaultPrevented || event.key !== "Escape" || isOverlayEscapeTarget(event.target)) return;
+  if (event.key !== "Escape" || isOverlayEscapeTarget(event.target)) return;
   const top = rightDrawerStack[rightDrawerStack.length - 1];
   const onClose = top?.onCloseRef.current;
   if (!onClose) return;
@@ -38,12 +37,12 @@ function onRightDrawerEscape(event: KeyboardEvent) {
 
 function syncEscapeListener() {
   if (rightDrawerStack.length && !escapeListenerRegistered) {
-    window.addEventListener("keydown", onRightDrawerEscape);
+    window.addEventListener("keydown", onRightDrawerEscape, true);
     escapeListenerRegistered = true;
     return;
   }
   if (!rightDrawerStack.length && escapeListenerRegistered) {
-    window.removeEventListener("keydown", onRightDrawerEscape);
+    window.removeEventListener("keydown", onRightDrawerEscape, true);
     escapeListenerRegistered = false;
   }
 }

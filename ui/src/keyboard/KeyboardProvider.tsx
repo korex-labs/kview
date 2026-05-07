@@ -68,7 +68,6 @@ function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
     ".MuiPopover-root",
     ".MuiDialog-root",
     ".xterm",
-    "[role='dialog']",
     "[role='menu']",
     "[role='listbox']",
   ].join(","));
