@@ -3,7 +3,7 @@ import React from "react";
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
 
 export default function AutolinkText({ text }: { text: string }) {
-  const parts: (string | JSX.Element)[] = [];
+  const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
