@@ -31,7 +31,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
@@ -172,18 +172,20 @@ const settingsTabsSx = {
   },
 };
 const denseSelectMenuProps = {
-  PaperProps: {
-    sx: {
-      "& .MuiMenuItem-root": {
-        minHeight: 30,
-        py: 0.25,
-        fontSize: "0.875rem",
-      },
-      "& .MuiCheckbox-root": {
-        py: 0.25,
-      },
-      "& .MuiListItemText-root": {
-        my: 0,
+  slotProps: {
+    paper: {
+      sx: {
+        "& .MuiMenuItem-root": {
+          minHeight: 30,
+          py: 0.25,
+          fontSize: "0.875rem",
+        },
+        "& .MuiCheckbox-root": {
+          py: 0.25,
+        },
+        "& .MuiListItemText-root": {
+          my: 0,
+        },
       },
     },
   },
@@ -825,7 +827,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             maxRows={14}
             fullWidth
             size="small"
-            inputProps={{ readOnly: true }}
+            slotProps={{ htmlInput: { readOnly: true } }}
           />
         ) : null}
       </SettingSection>
@@ -950,7 +952,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={rule.context || "__all"}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setRule(index, { context: e.target.value === "__all" ? "" : e.target.value })}
             >
               <MenuItem value="__all">All contexts</MenuItem>
@@ -967,7 +969,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={rule.scope}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => {
                 const scope = e.target.value as SettingsScopeMode;
                 const allowed = new Set(smartFilterResourceKeysForScope(scope));
@@ -991,7 +993,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={rule.namespace || "__any"}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setRule(index, { namespace: e.target.value === "__any" ? "" : e.target.value })}
               disabled={rule.scope !== "namespace"}
             >
@@ -1009,7 +1011,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={rule.resourceScope}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setRule(index, { resourceScope: e.target.value as SettingsResourceScopeMode })}
             >
               <MenuItem value="any">Any resource</MenuItem>
@@ -1194,7 +1196,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={command.outputType}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setCommand(index, { outputType: e.target.value as CustomCommandOutputType })}
             >
               <MenuItem value="text">Free text</MenuItem>
@@ -1213,7 +1215,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={command.safety}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setCommand(index, { safety: e.target.value as CustomCommandSafety })}
             >
               <MenuItem value="safe">Safe: simple confirmation</MenuItem>
@@ -1315,7 +1317,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={action.action}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => {
                 const nextAction = e.target.value as CustomActionKind;
                 setAction(index, {
@@ -1335,7 +1337,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               size="small"
               fullWidth
               value={action.safety}
-              SelectProps={{ MenuProps: denseSelectMenuProps }}
+              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
               onChange={(e) => setAction(index, { safety: e.target.value as CustomCommandSafety })}
             >
               <MenuItem value="safe">Safe: simple confirmation</MenuItem>
@@ -1374,7 +1376,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                   size="small"
                   fullWidth
                   value={action.patchType}
-                  SelectProps={{ MenuProps: denseSelectMenuProps }}
+                  slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
                   onChange={(e) => setAction(index, { patchType: e.target.value as CustomActionPatchType })}
                 >
                   <MenuItem value="merge">Merge patch</MenuItem>
@@ -1395,7 +1397,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                 multiline
                 minRows={8}
                 fullWidth
-                InputProps={{ sx: { fontFamily: "monospace", fontSize: "0.85rem" } }}
+                slotProps={{ input: { sx: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
               />
             </SettingField>
           </FieldGroup>
@@ -1408,7 +1410,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                   size="small"
                   fullWidth
                   value={action.target}
-                  SelectProps={{ MenuProps: denseSelectMenuProps }}
+                  slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
                   onChange={(e) => setAction(index, { target: e.target.value as CustomActionTarget })}
                 >
                   <MenuItem value="env">Environment variable</MenuItem>
@@ -1773,7 +1775,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                     size="small"
                     fullWidth
                     value={dp.profile}
-                    SelectProps={{ MenuProps: denseSelectMenuProps }}
+                    slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
                     onChange={(e) => {
                       const nextProfile = e.target.value as DataplaneProfile;
                       if (dataplaneEditScope === "global") {
@@ -2228,7 +2230,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                             size="small"
                             fullWidth
                             value={severityValue}
-                            SelectProps={{ MenuProps: denseSelectMenuProps }}
+                            slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
                             onChange={(e) => {
                               const value = e.target.value;
                               setSignalOverride(item.type, dataplaneEditScope, {
@@ -2355,7 +2357,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               <ListItemIcon sx={{ minWidth: 30, color: section === item.id ? "primary.main" : "text.secondary" }}>
                 <SettingsIcon name={item.icon} size={17} />
               </ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ variant: "body2" }} />
+              <ListItemText primary={item.label} slotProps={{ primary: { variant: "body2" } }} />
             </ListItemButton>
           ))}
         </List>

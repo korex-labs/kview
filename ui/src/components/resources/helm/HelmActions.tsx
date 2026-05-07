@@ -345,7 +345,7 @@ function InstallDialog(props: {
           value={valuesYaml}
           onChange={(e) => setValuesYaml(e.target.value)}
           disabled={busy || props.offline}
-          InputProps={{ sx: { fontFamily: "monospace", fontSize: "0.85rem" } }}
+          slotProps={{ input: { sx: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
           sx={{ mb: 1 }}
         />
         <FormControlLabel

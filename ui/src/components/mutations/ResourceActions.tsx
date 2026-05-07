@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Box, Button, Menu, MenuItem } from "@mui/material";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import TuneIcon from "@mui/icons-material/Tune";

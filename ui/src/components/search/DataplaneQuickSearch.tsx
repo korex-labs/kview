@@ -173,7 +173,7 @@ export default function DataplaneQuickSearch({ token, activeContext, disabled, f
                 setQuery("");
               }}
             >
-              <ListItemText primary={item.name} secondary={resultSecondary(item)} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true }} />
+              <ListItemText primary={item.name} secondary={resultSecondary(item)} slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true } }} />
             </ListItemButton>
           ))}
         </List>
@@ -213,9 +213,11 @@ export default function DataplaneQuickSearch({ token, activeContext, disabled, f
             setOpen(false);
           }}
           onFocus={() => setOpen(true)}
-          InputProps={{
-            startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.75, color: "text.secondary" }} />,
-            endAdornment: loading ? <CircularProgress size={16} /> : null,
+          slotProps={{
+            input: {
+              startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.75, color: "text.secondary" }} />,
+              endAdornment: loading ? <CircularProgress size={16} /> : null,
+            },
           }}
           sx={{
             "& .MuiOutlinedInput-root": {

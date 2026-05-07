@@ -436,7 +436,7 @@ export default function NamespacesTable({
     const priorityHint =
       targets != null && targets > 0 ? ` · ${targets} namespace${targets === 1 ? "" : "s"} prioritized` : "";
     return (
-      <Typography variant="caption" color="text.secondary" display="block">
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
         {stageHint}
         {!done ? ` · Details ${d}/${progressTotal} · Counts ${r}/${progressTotal}` : ""}
         {priorityHint}

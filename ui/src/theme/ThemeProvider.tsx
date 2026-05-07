@@ -154,7 +154,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 height: 24,
                 fontSize: "0.75rem",
               },
-              labelSmall: {
+              label: {
                 paddingLeft: 8,
                 paddingRight: 8,
               },

@@ -48,7 +48,7 @@ function syncEscapeListener() {
 }
 
 export default function RightDrawer(props: Props) {
-  const { PaperProps, ModalProps, ...rest } = props;
+  const { ModalProps, slotProps, ...rest } = props;
   const [drawerDepth, setDrawerDepth] = useState(0);
   const onCloseRef = useRef(props.onClose);
   const hasOnClose = !!props.onClose;
@@ -84,20 +84,22 @@ export default function RightDrawer(props: Props) {
         disableRestoreFocus: true,
         hideBackdrop: ModalProps?.hideBackdrop ?? drawerDepth > 1,
         ...ModalProps,
-        disableEscapeKeyDown: true,
       }}
-      PaperProps={{
-        sx: {
+      slotProps={{
+        ...slotProps,
+        paper: {
+          ...slotProps?.paper,
+          sx: {
           // AppBar is 64px (mt: 8), keep drawer below it.
           // Subtract dynamic bottom panel offset; when panel is collapsed this is small,
           // when expanded it is larger, so the drawer never hides behind it.
-          mt: 8,
-          height: "calc(100% - 64px - var(--bottom-panel-offset, 0px))",
-          borderTopLeftRadius: 8,
-          borderBottomLeftRadius: 8,
-          ...(PaperProps?.sx || {}),
+            mt: 8,
+            height: "calc(100% - 64px - var(--bottom-panel-offset, 0px))",
+            borderTopLeftRadius: 8,
+            borderBottomLeftRadius: 8,
+            ...(typeof slotProps?.paper === "object" && "sx" in slotProps.paper ? slotProps.paper.sx : {}),
+          },
         },
-        ...PaperProps,
       }}
     />
   );

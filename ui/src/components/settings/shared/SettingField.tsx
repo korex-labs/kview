@@ -110,7 +110,10 @@ export default function SettingField(props: SettingFieldProps) {
     const child = props.children as React.ReactElement<Record<string, unknown>>;
     const childWithLabel = React.cloneElement(child, {
       label: labelNode,
-      InputLabelProps: { shrink: true },
+      slotProps: {
+        ...((child.props.slotProps as Record<string, unknown> | undefined) ?? {}),
+        inputLabel: { shrink: true },
+      },
     });
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
@@ -129,7 +132,6 @@ export default function SettingField(props: SettingFieldProps) {
         size="small"
         type={props.type}
         label={labelNode}
-        InputLabelProps={{ shrink: true }}
         value={props.value ?? ""}
         onChange={(e) => props.onChange?.(e.target.value)}
         placeholder={props.placeholder}
@@ -137,13 +139,14 @@ export default function SettingField(props: SettingFieldProps) {
         minRows={props.minRows}
         disabled={props.disabled}
         error={Boolean(error)}
-        inputProps={{
-          min: props.min,
-          max: props.max,
-          ...(required ? { "aria-required": true } : {}),
-        }}
-        InputProps={
-          props.unit
+        slotProps={{
+          inputLabel: { shrink: true },
+          htmlInput: {
+            min: props.min,
+            max: props.max,
+            ...(required ? { "aria-required": true } : {}),
+          },
+          input: props.unit
             ? {
                 endAdornment: (
                   <InputAdornment position="end">
@@ -153,8 +156,8 @@ export default function SettingField(props: SettingFieldProps) {
                   </InputAdornment>
                 ),
               }
-            : undefined
-        }
+            : undefined,
+        }}
         fullWidth
       />
       {helperNode}

@@ -304,7 +304,7 @@ export default function MutationDialog({
                         <TextField
                           size="small"
                           type="number"
-                          inputProps={{ min: spec.min ?? 0, step: 1 }}
+                          slotProps={{ htmlInput: { min: spec.min ?? 0, step: 1 } }}
                           value={val}
                           onChange={(e) =>
                             setParams((prev) => ({
@@ -350,9 +350,7 @@ export default function MutationDialog({
                           }
                           disabled={phase === "running" || offline}
                           fullWidth
-                          InputProps={{
-                            sx: { fontFamily: "monospace", fontSize: "0.85rem" },
-                          }}
+                          slotProps={{ input: { sx: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
                         />
                       </Box>
                     );

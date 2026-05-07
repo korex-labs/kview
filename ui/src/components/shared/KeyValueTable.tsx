@@ -44,7 +44,7 @@ export default function KeyValueTable({
 
         return (
           <Box key={row.label}>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
               {row.label}
             </Typography>
             {React.isValidElement(displayValue) ? (

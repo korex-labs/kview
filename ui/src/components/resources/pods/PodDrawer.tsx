@@ -35,7 +35,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CloseIcon from "@mui/icons-material/Close";
 import CableIcon from "@mui/icons-material/Cable";
 import DownloadIcon from "@mui/icons-material/Download";
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
@@ -1747,7 +1747,7 @@ export default function PodDrawer(props: {
                                     control={
                                       <Switch
                                         checked={showRefs}
-                                        inputProps={{ "aria-label": "Show environment source references" }}
+                                        slotProps={{ input: { "aria-label": "Show environment source references" } }}
                                         onChange={(e) =>
                                           setEnvShowRefsByContainer((prev) => ({
                                             ...prev,
@@ -1767,7 +1767,7 @@ export default function PodDrawer(props: {
                                     control={
                                       <Switch
                                         checked={prettyEnv}
-                                        inputProps={{ "aria-label": "Pretty environment values" }}
+                                        slotProps={{ input: { "aria-label": "Pretty environment values" } }}
                                         onChange={(e) =>
                                           setEnvPrettyByContainer((prev) => ({
                                             ...prev,

@@ -381,7 +381,7 @@ function KeyboardCommandPalette({
       onClose={onClose}
       fullWidth
       maxWidth="sm"
-      PaperProps={{ sx: { mt: 10, alignSelf: "flex-start" } }}
+      slotProps={{ paper: { sx: { mt: 10, alignSelf: "flex-start" } } }}
     >
       <DialogTitle sx={{ pb: 1 }}>Command</DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
@@ -517,7 +517,7 @@ function KeyboardHelpDialog({
                         />
                       ))}
                     </Box>
-                    <ListItemText primary={row.label} primaryTypographyProps={{ variant: "body2" }} sx={{ my: 0 }} />
+                    <ListItemText primary={row.label} slotProps={{ primary: { variant: "body2" } }} sx={{ my: 0 }} />
                   </ListItem>
                 ))}
               </List>

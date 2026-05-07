@@ -266,7 +266,7 @@ export default function Sidebar(props: Props) {
                       </ListItemIcon>
                       <ListItemText
                         primary={getResourceLabel(item)}
-                        primaryTypographyProps={{ variant: "body2" }}
+                        slotProps={{ primary: { variant: "body2" } }}
                         sx={{ my: 0 }}
                       />
                     </ListItemButton>

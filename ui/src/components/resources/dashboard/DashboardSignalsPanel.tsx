@@ -423,7 +423,7 @@ function SignalFilterGroup({
 
   return (
     <Box sx={{ position: "relative" }}>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 0.5  }}>
         {label}
       </Typography>
       <Box ref={measureRef} aria-hidden="true" sx={filterMeasureSx}>
@@ -586,7 +586,7 @@ export default function DashboardSignalsPanel({
       </Box>
 
       <Box sx={sectionSx}>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 1  }}>
           Filter direct and derived cached-scope signals by severity, kind, signal reason, namespace, or derived source.
         </Typography>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -681,7 +681,7 @@ export default function DashboardSignalsPanel({
                             No signals
                           </Typography>
                         )}
-                        <Typography variant="caption" color="text.secondary" display="block">
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                           {row.signals > 0 ? "" : `${row.metric} · `}
                           Derived from cached {row.type === "nodes" ? "node and pod" : "Helm release"} data
                         </Typography>

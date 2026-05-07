@@ -16,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 
@@ -108,7 +108,7 @@ export default function StartupDialog({
       open={open}
       maxWidth="sm"
       fullWidth
-      PaperProps={{ sx: { borderRadius: 1, border: "1px solid", borderColor: "divider" } }}
+      slotProps={{ paper: { sx: { borderRadius: 1, border: "1px solid", borderColor: "divider" } } }}
     >
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
         {loading ? <HourglassTopIcon color="primary" /> : <ErrorOutlineIcon color="warning" />}
@@ -131,8 +131,7 @@ export default function StartupDialog({
                 <ListItemText
                   primary={step.label}
                   secondary={step.detail}
-                  primaryTypographyProps={{ variant: "body2" }}
-                  secondaryTypographyProps={{ variant: "caption" }}
+                  slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
                 />
               </ListItem>
             ))}

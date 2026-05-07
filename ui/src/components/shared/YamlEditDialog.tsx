@@ -297,14 +297,16 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
             fullWidth
             spellCheck={false}
             placeholder="Paste a single Kubernetes object YAML."
-            InputProps={{
-              sx: {
-                fontFamily: "monospace",
-                alignItems: "stretch",
-                "& textarea": {
+            slotProps={{
+              input: {
+                sx: {
                   fontFamily: "monospace",
-                  fontSize: "0.85rem",
-                  lineHeight: 1.5,
+                  alignItems: "stretch",
+                  "& textarea": {
+                    fontFamily: "monospace",
+                    fontSize: "0.85rem",
+                    lineHeight: 1.5,
+                  },
                 },
               },
             }}
@@ -330,7 +332,7 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
             </Accordion>
           )}
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }} useFlexGap>
             <Button variant="outlined" onClick={() => setYamlText(initialYaml)} disabled={busy !== null}>
               Reset to Loaded YAML
             </Button>

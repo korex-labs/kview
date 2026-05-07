@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Tooltip } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ReplayIcon from "@mui/icons-material/Replay";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";

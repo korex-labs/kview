@@ -60,14 +60,16 @@ export default function ResourceTableToolbar({
           onFocus={onFilterFocus}
           sx={{ minWidth: 340 }}
           disabled={disabled}
-          InputProps={{
-            endAdornment: filter ? (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={() => onFilterChange("")}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ) : undefined,
+          slotProps={{
+            input: {
+              endAdornment: filter ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => onFilterChange("")}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : undefined,
+            },
           }}
         />
         {showRefresh ? (

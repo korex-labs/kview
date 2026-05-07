@@ -383,7 +383,7 @@ export default function NamespaceSignalsTab({
                   <TableCell sx={{ width: "auto" }}>
                     <Typography variant="body2">{signal.reason}</Typography>
                     {signalCalculatedText(signal) ? (
-                      <Typography variant="caption" color="text.secondary" display="block">
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                         {signalCalculatedText(signal)}
                       </Typography>
                     ) : null}
