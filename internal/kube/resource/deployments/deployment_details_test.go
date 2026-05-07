@@ -21,6 +21,7 @@ func TestParseRevision(t *testing.T) {
 		{"7", 7},
 		{"not-a-number", 0},
 		{"-1", -1},
+		{"2147483648", 0},
 	}
 	for _, tc := range cases {
 		if got := ParseRevision(tc.in); got != tc.want {

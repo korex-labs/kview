@@ -2,6 +2,7 @@ package deployments
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -359,6 +360,9 @@ func ParseRevision(val string) int32 {
 	}
 	i, err := strconv.Atoi(val)
 	if err != nil {
+		return 0
+	}
+	if i < math.MinInt32 || i > math.MaxInt32 {
 		return 0
 	}
 	return int32(i)

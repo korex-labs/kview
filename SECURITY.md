@@ -10,7 +10,9 @@ If you are running an older version, upgrade and verify the issue still reproduc
 
 Please do not open public GitHub issues for suspected security vulnerabilities.
 
-Report privately by opening a GitHub Security Advisory for this repository.
+Report privately by opening a [GitHub Security Advisory](https://github.com/korex-labs/kview/security/advisories/new) for this repository.
+
+For general repository security information, see the [Security tab](https://github.com/korex-labs/kview/security).
 
 When reporting, include:
 

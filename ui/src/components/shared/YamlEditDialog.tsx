@@ -480,7 +480,7 @@ function extractImmutableHints(message: string): string[] {
     ...message.matchAll(/([A-Za-z0-9_.[\]/-]+)\s*:?\s*field is immutable/gi),
   ];
   for (const match of fieldMatches) {
-    const field = (match[1] || "").replace(/^spec\./, "spec.").trim();
+    const field = (match[1] || "").trim();
     if (!field) continue;
     hints.add(`Review ${field}; it may require recreating the resource instead of updating it live.`);
   }
