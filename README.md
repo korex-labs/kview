@@ -1,5 +1,12 @@
 # kview
 
+[![CI](https://github.com/korex-labs/kview/actions/workflows/ci.yml/badge.svg)](https://github.com/korex-labs/kview/actions/workflows/ci.yml)
+[![Release](https://github.com/korex-labs/kview/actions/workflows/release.yml/badge.svg)](https://github.com/korex-labs/kview/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/korex-labs/kview?sort=semver)](https://github.com/korex-labs/kview/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/korex-labs/kview/v5.svg)](https://pkg.go.dev/github.com/korex-labs/kview/v5)
+[![Go version](https://img.shields.io/github/go-mod/go-version/korex-labs/kview)](go.mod)
+[![License](https://img.shields.io/github/license/korex-labs/kview)](LICENSE)
+
 kview is a **local, single-binary Kubernetes UI** for fast, view-first cluster exploration. It runs entirely on your machine — no cloud service, no agent installation, no cluster-side components required.
 
 ---
