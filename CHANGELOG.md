@@ -3,6 +3,21 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.6.0 - 2026-05-07
+
+- Improved settings and key-value presentation to make configuration details and
+  resource metadata easier to scan in the UI.
+- Added namespace signal filter options on the dashboard for faster isolation of
+  workloads that need attention.
+- Flagged node-bound persistent volumes and claims in dataplane-backed storage
+  views to surface placement constraints more clearly during investigation.
+- Refreshed the embedded dashboard assets and upgraded core UI dependencies,
+  including React, Material UI, TypeScript, Vite, ESLint, and xterm, for a more
+  current and stable frontend stack.
+- Strengthened release infrastructure with updated dependency automation plus
+  security and CodeQL workflow improvements, including code scanning
+  remediation and reduced permission scope noise in CI.
+
 ## v5.5.2 - 2026-05-06
 
 - Reduced background polling overhead and added diagnostics capture to improve
