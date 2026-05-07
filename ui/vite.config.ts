@@ -3,14 +3,6 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: [
-      {
-        find: /^@mui\/icons-material\/(.+)$/,
-        replacement: "@mui/icons-material/esm/$1",
-      },
-    ],
-  },
   server: {
     proxy: process.env.KVIEW_E2E_API_TARGET
       ? {

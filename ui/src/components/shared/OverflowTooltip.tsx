@@ -33,12 +33,11 @@ export default function OverflowTooltip({ children, title, component = "span", s
     return () => resizeObserver.disconnect();
   }, [children, title]);
 
-  const content = React.createElement(
-    Box,
-    {
-      component,
-      ref,
-      sx: [
+  const content = (
+    <Box
+      component={component}
+      ref={ref}
+      sx={[
         {
           minWidth: 0,
           maxWidth: "100%",
@@ -48,9 +47,10 @@ export default function OverflowTooltip({ children, title, component = "span", s
           display: "block",
         },
         ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
-      ],
-    },
-    children,
+      ]}
+    >
+      {children}
+    </Box>
   );
 
   if (!overflowed || !title) return content;

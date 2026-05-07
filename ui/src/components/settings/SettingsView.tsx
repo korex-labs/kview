@@ -1026,7 +1026,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                   <InfoHint title={smartFilterResourceHelperText(rule.scope)} />
                 </Box>
               </InputLabel>
-              <Select
+              <Select<ListResourceKey[]>
                 labelId={`resources-${rule.id}`}
                 label="Resources"
                 multiple
@@ -1345,7 +1345,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         </SettingGrid>
         <FormControl size="small" fullWidth>
           <InputLabel id={`action-resources-${action.id}`}>Resources</InputLabel>
-          <Select
+          <Select<ListResourceKey[]>
             labelId={`action-resources-${action.id}`}
             label="Resources"
             multiple
@@ -1910,7 +1910,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                       <InfoHint title="Namespaced list kinds that enrichment will keep warm for selected namespace targets. Wide and diagnostic profiles warm every namespaced dataplane list kind slowly within the same target and sweep caps." />
                     </Box>
                   </InputLabel>
-                  <Select
+                  <Select<string[]>
                     labelId="namespace-warm-kinds-label"
                     multiple
                     label="Resource snapshots warmed by enrichment"
