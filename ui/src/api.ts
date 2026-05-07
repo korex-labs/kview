@@ -75,12 +75,7 @@ function classifyFailureKind(status?: number, error?: unknown): ConnectionIssueK
 
 async function parseErrorResponse(res: Response): Promise<ApiErrorShape> {
   const status = res.status || undefined;
-  let text = "";
-  try {
-    text = await res.text();
-  } catch {
-    text = "";
-  }
+  const text = await res.text().catch(() => "");
   const raw = text.trim();
   if (raw) {
     const looksJson =
