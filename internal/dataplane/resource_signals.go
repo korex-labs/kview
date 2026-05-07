@@ -124,7 +124,12 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	case ResourceSignalsScopeCluster:
 		nodesSnap, _ := peekClusterSnapshot(&plane.nodesStore)
 		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), policy, clusterName)...)...)
+		pvsSnap, _ := peekClusterSnapshot(&plane.persistentVolumesStore)
+		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectClusterPVNodeBoundStorageSignals(pvsSnap), policy, clusterName)...)...)
 		meta = nodesSnap.Meta
+		if strings.EqualFold(kind, "PersistentVolume") {
+			meta = pvsSnap.Meta
+		}
 	}
 
 	scopeLocation := ""

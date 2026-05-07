@@ -232,6 +232,7 @@ func TestResourceSignals_ClusterScope_FallbackNeedsAttentionSignals(t *testing.T
 		Items: []dto.PersistentVolumeDTO{
 			{Name: "pv-critical", Phase: "Failed"},
 			{Name: "pv-healthy", Phase: "Bound"},
+			{Name: "pv-local", Phase: "Bound", VolumeSourceType: "Local", NodeAffinity: []string{"node-a"}, ClaimRef: "team-a/data"},
 		},
 	})
 	setClusterSnapshot(&plane.nodesStore, NodesSnapshot{
@@ -259,6 +260,14 @@ func TestResourceSignals_ClusterScope_FallbackNeedsAttentionSignals(t *testing.T
 	}
 	if len(clean.Signals) != 0 {
 		t.Fatalf("expected no signals for healthy pv, got %+v", clean.Signals)
+	}
+
+	localPV, err := mm.ResourceSignals(t.Context(), "ctx-rs-cluster", ResourceSignalsScopeCluster, "", "PersistentVolume", "pv-local")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(localPV.Signals) == 0 || localPV.Signals[0].SignalType != "pv_node_bound_storage" || localPV.Signals[0].Severity != "medium" {
+		t.Fatalf("expected medium node-bound PV signal, got %+v", localPV.Signals)
 	}
 
 	nodeSignals, err := mm.ResourceSignals(t.Context(), "ctx-rs-cluster", ResourceSignalsScopeCluster, "", "Node", "node-warn")

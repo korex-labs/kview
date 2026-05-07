@@ -295,7 +295,7 @@ func defaultDashboardSignalSeverity(signalType string) string {
 	switch signalType {
 	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference":
 		return "high"
-	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference":
+	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference":
 		return "medium"
 	default:
 		return "low"
@@ -391,6 +391,24 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		CalculatedData:  "no pods present in cached namespace snapshot",
 		LikelyCause:     "The claim may belong to a removed workload, a failed rollout, or a namespace that no longer has active consumers.",
 		SuggestedAction: "Check what last mounted it and whether data must be kept. Delete or archive it only after confirming retention expectations.",
+		Priority:        5,
+	},
+	"pvc_node_bound_storage": {
+		Type:            "pvc_node_bound_storage",
+		Label:           "PVCs tied to nodes",
+		SummaryCounter:  "pvc_warnings",
+		CalculatedData:  "bound PV has node affinity, node-local source type, or commonly node-local storage class",
+		LikelyCause:     "The claim is backed by storage that cannot freely move across nodes. If the node is drained, removed, or unavailable, pods using this PVC may be stuck on scheduling or mount.",
+		SuggestedAction: "Check the bound PV, storage class, and pod scheduling constraints. Plan node maintenance carefully and verify backups or migration before moving workloads that use this claim.",
+		Priority:        5,
+	},
+	"pv_node_bound_storage": {
+		Type:            "pv_node_bound_storage",
+		Label:           "PVs tied to nodes",
+		SummaryCounter:  "pvc_warnings",
+		CalculatedData:  "PV has node affinity, node-local source type, or commonly node-local storage class",
+		LikelyCause:     "The volume is tied to a particular node or node-local provisioner. Workloads using it may not reschedule cleanly if that node becomes unavailable.",
+		SuggestedAction: "Inspect the PV node affinity, storage class, and reclaim/backup expectations before draining or replacing the node.",
 		Priority:        5,
 	},
 	"service_no_ready_endpoints": {

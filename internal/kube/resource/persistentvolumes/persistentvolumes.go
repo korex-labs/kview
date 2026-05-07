@@ -35,6 +35,8 @@ func ListPersistentVolumes(ctx context.Context, c *cluster.Clients) ([]dto.Persi
 			StorageClassName: pv.Spec.StorageClassName,
 			ReclaimPolicy:    string(pv.Spec.PersistentVolumeReclaimPolicy),
 			VolumeMode:       pvcs.VolumeModeString(pv.Spec.VolumeMode),
+			VolumeSourceType: pvSourceTypeString(pv.Spec.PersistentVolumeSource),
+			NodeAffinity:     pvNodeAffinityStrings(pv.Spec.NodeAffinity),
 			ClaimRef:         pvClaimRefString(pv.Spec.ClaimRef),
 			AgeSec:           age,
 		})
@@ -62,4 +64,106 @@ func pvClaimRefString(ref *corev1.ObjectReference) string {
 		return ref.Name
 	}
 	return ns + "/" + ref.Name
+}
+
+func pvSourceTypeString(src corev1.PersistentVolumeSource) string {
+	switch {
+	case src.Local != nil:
+		return "Local"
+	case src.HostPath != nil:
+		return "HostPath"
+	case src.CSI != nil:
+		return "CSI"
+	case src.NFS != nil:
+		return "NFS"
+	case src.AWSElasticBlockStore != nil:
+		return "AWS EBS"
+	case src.GCEPersistentDisk != nil:
+		return "GCE PD"
+	case src.AzureDisk != nil:
+		return "Azure Disk"
+	case src.AzureFile != nil:
+		return "Azure File"
+	case src.CephFS != nil:
+		return "CephFS"
+	case src.Cinder != nil:
+		return "Cinder"
+	case src.FC != nil:
+		return "FC"
+	case src.FlexVolume != nil:
+		return "FlexVolume"
+	case src.Flocker != nil:
+		return "Flocker"
+	case src.Glusterfs != nil:
+		return "Glusterfs"
+	case src.ISCSI != nil:
+		return "iSCSI"
+	case src.PhotonPersistentDisk != nil:
+		return "Photon PD"
+	case src.PortworxVolume != nil:
+		return "Portworx"
+	case src.Quobyte != nil:
+		return "Quobyte"
+	case src.RBD != nil:
+		return "RBD"
+	case src.ScaleIO != nil:
+		return "ScaleIO"
+	case src.StorageOS != nil:
+		return "StorageOS"
+	case src.VsphereVolume != nil:
+		return "vSphere"
+	default:
+		return ""
+	}
+}
+
+func pvNodeAffinityStrings(affinity *corev1.VolumeNodeAffinity) []string {
+	if affinity == nil || affinity.Required == nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	add := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	for _, term := range affinity.Required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			key := strings.TrimSpace(expr.Key)
+			if !isNodeNameAffinityKey(key) {
+				continue
+			}
+			for _, value := range expr.Values {
+				add(value)
+			}
+		}
+		for _, field := range term.MatchFields {
+			if strings.TrimSpace(field.Key) != "metadata.name" {
+				continue
+			}
+			for _, value := range field.Values {
+				add(value)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func isNodeNameAffinityKey(key string) bool {
+	switch key {
+	case corev1.LabelHostname, "beta.kubernetes.io/hostname":
+		return true
+	default:
+		return false
+	}
 }

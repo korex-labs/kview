@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ var dashboardSignalDetectors = []dashboardSignalDetector{
 	{Type: "ingress_pending_address", Detect: detectIngressPendingAddressSignals},
 	{Type: "ingress_needs_attention", Detect: detectIngressNeedsAttentionSignals},
 	{Type: "pvc_needs_attention", Detect: detectPVCNeedsAttentionSignals},
+	{Type: "pvc_node_bound_storage", Detect: detectPVCNodeBoundStorageSignals},
 	{Type: "role_permission_surface", Detect: detectRolePermissionSurfaceSignals},
 	{Type: "rolebinding_subject_surface", Detect: detectRoleBindingSubjectSurfaceSignals},
 	{Type: "resource_quota_pressure", Detect: detectResourceQuotaPressureSignals},
@@ -270,6 +272,141 @@ func detectPVCNeedsAttentionSignals(_ time.Time, ns string, s dashboardSnapshotS
 		out = append(out, f)
 	}
 	return out
+}
+
+func detectPVCNodeBoundStorageSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.pvcsOK {
+		return nil
+	}
+	pvsByName := map[string]dto.PersistentVolumeDTO{}
+	if s.pvsOK {
+		for _, pv := range s.pvs.Items {
+			pvsByName[pv.Name] = pv
+		}
+	}
+	var out []ClusterDashboardSignal
+	for _, pvc := range s.pvcs.Items {
+		pv, hasPV := pvsByName[pvc.VolumeName]
+		evidence := nodeBoundStorageEvidence(pvc.StorageClassName, pv, hasPV)
+		if !evidence.bound {
+			continue
+		}
+
+		reason := "PersistentVolumeClaim is backed by storage tied to a specific node."
+		f := dashboardSignalItem("pvc_node_bound_storage", "PersistentVolumeClaim", ns, pvc.Name, "medium", 64, reason, evidence.confidence, "persistentvolumeclaims")
+		f.ActualData = fmt.Sprintf("storageClass %s, volume %s", valueOrUnknown(pvc.StorageClassName), valueOrUnknown(pvc.VolumeName))
+		f.CalculatedData = evidence.summary()
+		out = append(out, f)
+
+		if hasPV && strings.TrimSpace(pv.Name) != "" {
+			pvSignal := dashboardSignalItem("pv_node_bound_storage", "PersistentVolume", "", pv.Name, "medium", 62, "PersistentVolume is tied to a specific node.", evidence.confidence, "persistentvolumes")
+			pvSignal.Scope = "cluster"
+			pvSignal.ScopeLocation = ""
+			pvSignal.Namespace = ""
+			pvSignal.ActualData = fmt.Sprintf("claim %s/%s, storageClass %s", ns, pvc.Name, valueOrUnknown(pv.StorageClassName))
+			pvSignal.CalculatedData = evidence.summary()
+			out = append(out, pvSignal)
+		}
+	}
+	return out
+}
+
+func detectClusterPVNodeBoundStorageSignals(pvs PersistentVolumesSnapshot) []ClusterDashboardSignal {
+	var out []ClusterDashboardSignal
+	for _, pv := range pvs.Items {
+		evidence := nodeBoundStorageEvidence(pv.StorageClassName, pv, true)
+		if !evidence.bound {
+			continue
+		}
+		f := dashboardSignalItem("pv_node_bound_storage", "PersistentVolume", "", pv.Name, "medium", 62, "PersistentVolume is tied to a specific node.", evidence.confidence, "persistentvolumes")
+		f.Scope = "cluster"
+		f.ScopeLocation = ""
+		f.Namespace = ""
+		f.ActualData = fmt.Sprintf("claim %s, storageClass %s", valueOrUnknown(pv.ClaimRef), valueOrUnknown(pv.StorageClassName))
+		f.CalculatedData = evidence.summary()
+		out = append(out, f)
+	}
+	return out
+}
+
+type nodeBoundStorageSignalEvidence struct {
+	bound        bool
+	storageHint  string
+	sourceHint   string
+	nodeAffinity []string
+	confidence   string
+}
+
+func (e nodeBoundStorageSignalEvidence) summary() string {
+	parts := make([]string, 0, 3)
+	if e.storageHint != "" {
+		parts = append(parts, e.storageHint)
+	}
+	if e.sourceHint != "" {
+		parts = append(parts, e.sourceHint)
+	}
+	if len(e.nodeAffinity) > 0 {
+		nodes := append([]string(nil), e.nodeAffinity...)
+		sort.Strings(nodes)
+		parts = append(parts, "node affinity "+strings.Join(nodes, ", "))
+	}
+	if len(parts) == 0 {
+		return "storage appears node-local"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func nodeBoundStorageEvidence(storageClass string, pv dto.PersistentVolumeDTO, hasPV bool) nodeBoundStorageSignalEvidence {
+	out := nodeBoundStorageSignalEvidence{confidence: "medium"}
+	if isNodeLocalStorageClass(storageClass) {
+		out.bound = true
+		out.storageHint = fmt.Sprintf("storageClass %s is commonly node-local", storageClass)
+	}
+	if hasPV {
+		if isNodeLocalVolumeSource(pv.VolumeSourceType) {
+			out.bound = true
+			out.sourceHint = fmt.Sprintf("PV source %s", pv.VolumeSourceType)
+		}
+		if len(pv.NodeAffinity) > 0 {
+			out.bound = true
+			out.nodeAffinity = append([]string(nil), pv.NodeAffinity...)
+			out.confidence = "high"
+		}
+		if out.storageHint == "" && isNodeLocalStorageClass(pv.StorageClassName) {
+			out.bound = true
+			out.storageHint = fmt.Sprintf("storageClass %s is commonly node-local", pv.StorageClassName)
+		}
+	}
+	return out
+}
+
+func isNodeLocalVolumeSource(sourceType string) bool {
+	switch strings.ToLower(strings.TrimSpace(sourceType)) {
+	case "local", "hostpath":
+		return true
+	default:
+		return false
+	}
+}
+
+func isNodeLocalStorageClass(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	normalized = strings.ReplaceAll(normalized, "_", "-")
+	normalized = strings.ReplaceAll(normalized, ".", "-")
+	switch normalized {
+	case "local", "local-storage", "local-path", "hostpath", "host-path", "localpath", "microk8s-hostpath", "openebs-hostpath", "rancher-io-local-path":
+		return true
+	default:
+		return strings.Contains(normalized, "local-path") || strings.Contains(normalized, "hostpath") || strings.Contains(normalized, "host-path")
+	}
+}
+
+func valueOrUnknown(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "unknown"
+	}
+	return value
 }
 
 func detectRolePermissionSurfaceSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {

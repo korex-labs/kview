@@ -8,6 +8,8 @@ type PersistentVolumeDTO struct {
 	StorageClassName   string   `json:"storageClassName,omitempty"`
 	ReclaimPolicy      string   `json:"reclaimPolicy,omitempty"`
 	VolumeMode         string   `json:"volumeMode,omitempty"`
+	VolumeSourceType   string   `json:"volumeSourceType,omitempty"`
+	NodeAffinity       []string `json:"nodeAffinity,omitempty"`
 	ClaimRef           string   `json:"claimRef,omitempty"`
 	AgeSec             int64    `json:"ageSec"`
 	HealthBucket       string   `json:"healthBucket,omitempty"`

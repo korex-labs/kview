@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -343,6 +344,61 @@ func TestSummarizeDashboardSignalsSortsItemsByDiscoveryAndFreshness(t *testing.T
 	}
 	if freshness.Top[0].Kind != "Job" {
 		t.Fatalf("top priority ordering should stay severity/priority based, got %+v", freshness.Top)
+	}
+}
+
+func TestDetectDashboardSignals_NodeBoundPVCPVSignals(t *testing.T) {
+	ns := "team-a"
+	items := detectDashboardSignals(time.Now().UTC(), ns, dashboardSnapshotSet{
+		pvcs: PVCsSnapshot{Items: []dto.PersistentVolumeClaimDTO{{
+			Name:             "data",
+			Namespace:        ns,
+			Phase:            "Bound",
+			StorageClassName: "fast",
+			VolumeName:       "pv-data",
+		}}},
+		pvcsOK: true,
+		pvs: PersistentVolumesSnapshot{Items: []dto.PersistentVolumeDTO{{
+			Name:             "pv-data",
+			Phase:            "Bound",
+			StorageClassName: "fast",
+			VolumeSourceType: "Local",
+			NodeAffinity:     []string{"node-a"},
+			ClaimRef:         ns + "/data",
+		}}},
+		pvsOK: true,
+	})
+
+	var pvcSignal, pvSignal *ClusterDashboardSignal
+	for i := range items {
+		switch items[i].SignalType {
+		case "pvc_node_bound_storage":
+			pvcSignal = &items[i]
+		case "pv_node_bound_storage":
+			pvSignal = &items[i]
+		}
+	}
+	if pvcSignal == nil || pvcSignal.Severity != "medium" || !strings.Contains(pvcSignal.CalculatedData, "node-a") {
+		t.Fatalf("expected medium PVC node-bound signal with node evidence, got %+v from %+v", pvcSignal, items)
+	}
+	if pvSignal == nil || pvSignal.Scope != "cluster" || pvSignal.Namespace != "" || pvSignal.Severity != "medium" {
+		t.Fatalf("expected medium cluster PV node-bound signal, got %+v from %+v", pvSignal, items)
+	}
+}
+
+func TestDetectDashboardSignals_NodeLocalStorageClassWithoutPVCache(t *testing.T) {
+	ns := "team-a"
+	items := detectDashboardSignals(time.Now().UTC(), ns, dashboardSnapshotSet{
+		pvcs: PVCsSnapshot{Items: []dto.PersistentVolumeClaimDTO{{
+			Name:             "data",
+			Namespace:        ns,
+			Phase:            "Bound",
+			StorageClassName: "local-path",
+		}}},
+		pvcsOK: true,
+	})
+	if len(items) != 1 || items[0].SignalType != "pvc_node_bound_storage" || items[0].Severity != "medium" {
+		t.Fatalf("expected medium PVC node-local storage-class signal, got %+v", items)
 	}
 }
 

@@ -191,6 +191,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, thresholds res
 	svcsSnap, svcsOK := plane.svcsStore.getCached(ns)
 	ingsSnap, ingsOK := plane.ingStore.getCached(ns)
 	pvcSnap, pvcOK := plane.pvcsStore.getCached(ns)
+	pvSnap, pvOK := peekClusterSnapshot(&plane.persistentVolumesStore)
 	cmSnap, cmOK := plane.cmsStore.getCached(ns)
 	secSnap, secOK := plane.secsStore.getCached(ns)
 	saSnap, saOK := plane.saStore.getCached(ns)
@@ -224,6 +225,8 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, thresholds res
 		ingsOK:                 ingsOK && ingsSnap.Err == nil,
 		pvcs:                   pvcSnap,
 		pvcsOK:                 pvcOK && pvcSnap.Err == nil,
+		pvs:                    pvSnap,
+		pvsOK:                  pvOK && pvSnap.Err == nil,
 		cms:                    cmSnap,
 		cmsOK:                  cmOK && cmSnap.Err == nil,
 		secs:                   secSnap,
@@ -279,6 +282,8 @@ type dashboardSnapshotSet struct {
 	ingsOK         bool
 	pvcs           PVCsSnapshot
 	pvcsOK         bool
+	pvs            PersistentVolumesSnapshot
+	pvsOK          bool
 	cms            ConfigMapsSnapshot
 	cmsOK          bool
 	secs           SecretsSnapshot
