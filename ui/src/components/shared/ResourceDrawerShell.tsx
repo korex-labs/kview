@@ -17,6 +17,8 @@ export type ResourceDrawerShellProps = {
   /** Header title (e.g. "Pod: my-pod" or a fragment with chips). */
   title: React.ReactNode;
   resourceIcon?: ResourceIconName;
+  headerMeta?: React.ReactNode;
+  headerActions?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
   /**
@@ -67,6 +69,8 @@ function isUsableControl(el: HTMLElement): boolean {
 export default function ResourceDrawerShell({
   title,
   resourceIcon,
+  headerMeta,
+  headerActions,
   onClose,
   children,
   contentWidth = RESOURCE_DRAWER_WIDTH,
@@ -272,13 +276,21 @@ export default function ResourceDrawerShell({
           zIndex: 1,
         }}
       />
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        {resourceIcon ? <ResourceIcon name={resourceIcon} size={22} sx={{ color: "primary.main" }} /> : null}
-        <Typography variant="h6" sx={{ flexGrow: 1, minWidth: 0 }}>
-          {title}
-        </Typography>
-        <IconButton onClick={onClose}>
-          <CloseIcon />
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+        {resourceIcon ? <ResourceIcon name={resourceIcon} size={22} sx={{ color: "primary.main", mt: 0.35 }} /> : null}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            {title}
+          </Typography>
+          {headerMeta ? <Box sx={{ mt: 0.75, minWidth: 0 }}>{headerMeta}</Box> : null}
+        </Box>
+        {headerActions ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, flexShrink: 0, mt: 0.25 }}>
+            {headerActions}
+          </Box>
+        ) : null}
+        <IconButton onClick={onClose} aria-label="Close drawer" size="small" sx={{ flexShrink: 0, mt: 0.25 }}>
+          <CloseIcon fontSize="small" />
         </IconButton>
       </Box>
 

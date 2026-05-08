@@ -16,6 +16,20 @@ export type SignalOverride = {
   priority?: number;
 };
 
+export type ResourceTagDefinition = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type ResourceTagsSettings = {
+  enabled: boolean;
+  inheritNamespaceTags: boolean;
+  cleanupMissingAssignments: boolean;
+  definitions: ResourceTagDefinition[];
+  assignments: Record<string, string[]>;
+};
+
 export type KeyboardSettings = {
   vimTableNavigation: boolean;
   homeRowTableNavigation: boolean;
@@ -97,6 +111,7 @@ export type KviewUserSettingsV2 = {
   v: 2;
   appearance: KviewUserSettingsV1["appearance"];
   smartFilters: KviewUserSettingsV1["smartFilters"];
+  resourceTags: ResourceTagsSettings;
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
@@ -269,6 +284,8 @@ const allowedActionTargets = new Set<CustomActionTarget>(["env", "image"]);
 const allowedActionPatchTypes = new Set<CustomActionPatchType>(["json", "merge"]);
 const allowedDataplaneProfiles = new Set<DataplaneProfile>(["manual", "focused", "balanced", "wide", "diagnostic"]);
 const allowedSignalSeverityOverrides = new Set<SignalSeverityOverride>(["low", "medium", "high"]);
+const resourceTagIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+const resourceTagColorPattern = /^#[0-9a-fA-F]{6}$/;
 const customActionResourceKeys: ListResourceKey[] = ["deployments", "daemonsets", "statefulsets", "replicasets"];
 export const dataplaneTTLResourceKeys = [
   "namespaces",
@@ -408,6 +425,16 @@ export function defaultKeyboardSettings(): KeyboardSettings {
   };
 }
 
+export function defaultResourceTagsSettings(): ResourceTagsSettings {
+  return {
+    enabled: false,
+    inheritNamespaceTags: true,
+    cleanupMissingAssignments: true,
+    definitions: [],
+    assignments: {},
+  };
+}
+
 function dataplaneContextOverridesFromLegacy(
   input: Record<string, Record<string, SignalOverride>> | undefined,
 ): Record<string, DataplaneContextOverrideSettings> {
@@ -429,6 +456,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     v: 2,
     appearance: v1.appearance,
     smartFilters: v1.smartFilters,
+    resourceTags: defaultResourceTagsSettings(),
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
@@ -749,6 +777,67 @@ function normalizeSignalOverrides(input: unknown): Record<string, SignalOverride
     if (override) out[key] = override;
   }
   return out;
+}
+
+function normalizeResourceTagId(input: unknown): string {
+  if (typeof input !== "string") return "";
+  const id = input.trim();
+  return resourceTagIdPattern.test(id) ? id : "";
+}
+
+function normalizeResourceTagDefinition(input: unknown, fallbackId: string): ResourceTagDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<ResourceTagDefinition>;
+  const id = normalizeResourceTagId(raw.id) || fallbackId;
+  const name = typeof raw.name === "string" ? raw.name.trim().replace(/\s+/g, " ") : "";
+  if (!name) return null;
+  const color = typeof raw.color === "string" && resourceTagColorPattern.test(raw.color.trim())
+    ? raw.color.trim().toLowerCase()
+    : "#607d8b";
+  return {
+    id,
+    name: name.slice(0, 32),
+    color,
+  };
+}
+
+function normalizeResourceTagsSettings(input: unknown): ResourceTagsSettings {
+  const defaults = defaultResourceTagsSettings();
+  if (!input || typeof input !== "object") return defaults;
+  const raw = input as Partial<ResourceTagsSettings>;
+  const rawDefinitions = Array.isArray(raw.definitions) ? raw.definitions : [];
+  const definitions: ResourceTagDefinition[] = [];
+  const seenIds = new Set<string>();
+  rawDefinitions.forEach((definition, index) => {
+    const normalized = normalizeResourceTagDefinition(definition, `tag-${index + 1}`);
+    if (!normalized || seenIds.has(normalized.id)) return;
+    seenIds.add(normalized.id);
+    definitions.push(normalized);
+  });
+
+  const assignments: Record<string, string[]> = {};
+  const allowedIds = new Set(definitions.map((definition) => definition.id));
+  const rawAssignments = raw.assignments && typeof raw.assignments === "object" && !Array.isArray(raw.assignments)
+    ? raw.assignments as Record<string, unknown>
+    : {};
+  for (const [rawKey, rawTagIds] of Object.entries(rawAssignments)) {
+    const key = rawKey.trim();
+    if (!key || key.length > 512 || !Array.isArray(rawTagIds)) continue;
+    const tagIds = Array.from(new Set(rawTagIds.filter((value): value is string => typeof value === "string" && allowedIds.has(value))));
+    if (tagIds.length > 0) assignments[key] = tagIds;
+  }
+
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
+    inheritNamespaceTags:
+      typeof raw.inheritNamespaceTags === "boolean" ? raw.inheritNamespaceTags : defaults.inheritNamespaceTags,
+    cleanupMissingAssignments:
+      typeof raw.cleanupMissingAssignments === "boolean"
+        ? raw.cleanupMissingAssignments
+        : defaults.cleanupMissingAssignments,
+    definitions,
+    assignments,
+  };
 }
 
 function normalizeContextSignalOverrides(input: unknown): Record<string, Record<string, SignalOverride>> {
@@ -1474,6 +1563,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     v: 2,
     appearance: fallbackAsV1.appearance,
     smartFilters: fallbackAsV1.smartFilters,
+    resourceTags: normalizeResourceTagsSettings(root.resourceTags),
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,

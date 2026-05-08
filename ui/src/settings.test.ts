@@ -64,6 +64,54 @@ describe("user settings", () => {
     expect(validateUserSettings({ v: 1 })?.keyboard).toEqual(defaultUserSettings().keyboard);
   });
 
+  it("keeps resource tags disabled by default with namespace inheritance ready", () => {
+    expect(defaultUserSettings().resourceTags).toEqual({
+      enabled: false,
+      inheritNamespaceTags: true,
+      cleanupMissingAssignments: true,
+      definitions: [],
+      assignments: {},
+    });
+    expect(validateUserSettings({ v: 1 })?.resourceTags).toEqual(defaultUserSettings().resourceTags);
+  });
+
+  it("validates resource tag definitions and assignments", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      resourceTags: {
+        enabled: true,
+        inheritNamespaceTags: false,
+        cleanupMissingAssignments: false,
+        definitions: [
+          { id: "team-a", name: "  Team   A  ", color: "#AB12CD" },
+          { id: "bad id", name: "Bad", color: "#000000" },
+          { id: "ops", name: "Operations", color: "blue" },
+          { id: "ops", name: "Duplicate", color: "#111111" },
+        ],
+        assignments: {
+          "ctx/pods/app/api": ["team-a", "missing", "team-a"],
+          "ctx/namespaces//app": ["ops"],
+          "": ["team-a"],
+        },
+      },
+    });
+
+    expect(parsed?.resourceTags).toEqual({
+      enabled: true,
+      inheritNamespaceTags: false,
+      cleanupMissingAssignments: false,
+      definitions: [
+        { id: "team-a", name: "Team A", color: "#ab12cd" },
+        { id: "tag-2", name: "Bad", color: "#000000" },
+        { id: "ops", name: "Operations", color: "#607d8b" },
+      ],
+      assignments: {
+        "ctx/pods/app/api": ["team-a"],
+        "ctx/namespaces//app": ["ops"],
+      },
+    });
+  });
+
   it("falls back to defaults for unsupported versions", () => {
     window.localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify({ v: 99 }));
     expect(loadUserSettings()).toEqual(defaultUserSettings());

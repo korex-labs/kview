@@ -38,6 +38,7 @@ import ContainerImageLabel from "../../shared/ContainerImageLabel";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
+import { ResourceDrawerTags } from "../../shared/ResourceTags";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type { DashboardSignalItem } from "../../../types/api";
@@ -303,13 +304,16 @@ export default function DeploymentDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="deployments"
+      <ResourceDrawerShell
+        resourceIcon="deployments"
         title={
           <>
             Deployment: {name || "-"}{" "}
             <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} />
           </>
         }
+        headerMeta={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} />}
+        headerActions={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} mode="edit" />}
         onClose={props.onClose}
       >
         {loading ? (

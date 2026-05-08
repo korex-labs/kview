@@ -21,8 +21,16 @@ import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
+import { useUserSettings } from "../../settingsContext";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import { recordListSnapshot } from "../../utils/performanceDiagnostics";
+import {
+  buildResourceTagsIndex,
+  cleanupResourceTagAssignmentsForScope,
+  resourceTagFilterMatches,
+  type ResourceTagTarget,
+} from "../../resourceTags";
+import { ResourceTagsCell } from "./ResourceTags";
 
 const defaultDataplaneRefreshSec = 0;
 
@@ -67,6 +75,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   token: string;
   title: React.ReactNode;
   columns: GridColDef<TRow>[];
+  getResourceTagTarget?: (row: TRow, contextName: string) => ResourceTagTarget | null;
   /** Return rows plus optional dataplane list metadata for the shared meta strip. */
   fetchRows: (contextName?: string) => Promise<ResourceListFetchResult<TRow>>;
   /** Optional line above list quality strip (e.g. namespace row status). */
@@ -116,6 +125,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   token,
   title,
   columns,
+  getResourceTagTarget,
   fetchRows,
   enabled = true,
   filterPredicate,
@@ -137,25 +147,65 @@ export default function ResourceListPage<TRow extends { id: string }>({
   dataplaneRevisionPoll,
   dataplaneRefreshSec,
 }: ResourceListPageProps<TRow>) {
+  const { settings, setSettings } = useUserSettings();
+  const resourceTagsIndex = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
+  const activeContext = useActiveContext();
+  const { health } = useConnectionState();
+  const { registerTableControls, keyboardSettings } = useKeyboardControls();
+  const offline = health === "unhealthy";
+  const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
+  const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
+    if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
+    const shaped = row as TRow & { name?: unknown; namespace?: unknown };
+    if (typeof shaped.name !== "string" || !shaped.name) return null;
+    const rowNamespace = typeof shaped.namespace === "string" ? shaped.namespace : namespace;
+    return {
+      context: contextName,
+      resource: resourceKey,
+      namespace: rowNamespace || "",
+      name: shaped.name,
+    };
+  }, [getResourceTagTarget, namespace, resourceKey]);
+
+  const columnsWithTags = useMemo(() => {
+    if (!settings.resourceTags.enabled) return columns;
+    if (columns.some((col) => col.field === "resourceTags")) return columns;
+    const tagColumn: GridColDef<TRow> = {
+      field: "resourceTags",
+      headerName: "Tags",
+      width: 180,
+      sortable: false,
+      filterable: false,
+      renderCell: (p) => {
+        const target = resourceTagTargetForRow(p.row, activeContext);
+        return target ? <ResourceTagsCell target={target} /> : null;
+      },
+    };
+    const nameIndex = columns.findIndex((col) => col.field === "name");
+    if (nameIndex < 0) return [tagColumn, ...columns];
+    return [...columns.slice(0, nameIndex + 1), tagColumn, ...columns.slice(nameIndex + 1)];
+  }, [activeContext, columns, resourceTagTargetForRow, settings.resourceTags.enabled]);
+
   const orderedColumns = useMemo(() => {
-    if (!columns.some((col) => col.field === "listSignalSeverity")) return columns;
+    if (!columnsWithTags.some((col) => col.field === "listSignalSeverity")) return columnsWithTags;
     const fieldPriority = (field: string): number => {
       const f = field.toLowerCase();
       if (f === "isfavourite") return 0;
       if (f === "name") return 1;
+      if (f === "resourcetags") return 2;
       if (f === "listsignalseverity") return 2;
       if (f === "liststatus" || f === "status" || f === "phase" || f === "health") return 3;
       if (f.includes("age")) return 6;
       if (f.includes("time") || f.includes("last") || f.includes("seen") || f.includes("updated")) return 5;
       return 4;
     };
-    return [...columns].sort((a, b) => {
+    return [...columnsWithTags].sort((a, b) => {
       const pa = fieldPriority(String(a.field));
       const pb = fieldPriority(String(b.field));
       if (pa !== pb) return pa - pb;
       return 0;
     });
-  }, [columns]);
+  }, [columnsWithTags]);
 
   const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(emptyRowSelectionModel);
   const selectedId = useMemo<string | null>(() => {
@@ -169,11 +219,6 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const keepFilterFocusRef = useRef(false);
   const apiRef = useGridApiRef();
   const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec ?? 0);
-  const activeContext = useActiveContext();
-  const { health } = useConnectionState();
-  const { registerTableControls, keyboardSettings } = useKeyboardControls();
-  const offline = health === "unhealthy";
-  const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
 
   useEffect(() => {
     setRefreshSec(initialRefreshSec ?? 0);
@@ -224,10 +269,28 @@ export default function ResourceListPage<TRow extends { id: string }>({
     useListFilters<TRow>({
       rows,
       lastRefresh,
-      filterPredicate,
+      filterPredicate: (row, q) => {
+        if (filterPredicate(row, q)) return true;
+        const target = resourceTagTargetForRow(row, activeContext);
+        return target ? resourceTagFilterMatches(settings.resourceTags, resourceTagsIndex, target, q) : false;
+      },
       smartFilterContext,
       diagnosticsLabel,
     });
+
+  useEffect(() => {
+    if (!settings.resourceTags.enabled || loading || error) return;
+    const targets = rows
+      .map((row) => resourceTagTargetForRow(row, activeContext))
+      .filter((target): target is ResourceTagTarget => Boolean(target));
+    if (targets.length === 0) return;
+    const shouldCleanup = !dataplaneMeta?.state || dataplaneMeta.state === "ok" || dataplaneMeta.state === "empty";
+    if (!shouldCleanup) return;
+    setSettings((prev) => ({
+      ...prev,
+      resourceTags: cleanupResourceTagAssignmentsForScope(prev.resourceTags, targets, true),
+    }));
+  }, [activeContext, dataplaneMeta?.state, error, loading, resourceTagTargetForRow, rows, setSettings, settings.resourceTags.enabled]);
 
   useEffect(() => {
     recordListSnapshot({

@@ -60,6 +60,7 @@ import {
   type DataplaneSettings,
   type KeyboardSettings,
   type KviewUserSettingsV2,
+  type ResourceTagDefinition,
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
@@ -71,13 +72,14 @@ import { formatChipLabel } from "../../utils/k8sUi";
 import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
 import ScopedCountChip from "../shared/ScopedCountChip";
+import ResourceTagChip from "../shared/ResourceTagChip";
 import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
 import { apiGet, apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 
-type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "commands" | "actions" | "dataplane" | "importExport";
+type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 
 type Props = {
@@ -130,6 +132,7 @@ const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconNa
   { id: "appearance", label: "Appearance", icon: "appearance" },
   { id: "keyboard", label: "Keyboard", icon: "keyboard" },
   { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
+  { id: "resourceTags", label: "Resource Tags", icon: "resourceTags" },
   { id: "commands", label: "Custom Commands", icon: "commands" },
   { id: "actions", label: "Custom Actions", icon: "actions" },
   { id: "dataplane", label: "Dataplane", icon: "dataplane" },
@@ -142,6 +145,25 @@ const dataplaneTabs: Array<{ value: DataplaneTab; label: string; icon: SettingsI
   { value: "metrics", label: "Metrics", icon: "metrics" },
   { value: "signals", label: "Signals", icon: "signals" },
   { value: "cache", label: "Cache", icon: "cache" },
+];
+
+const resourceTagColorPresets = [
+  "#1e88e5",
+  "#43a047",
+  "#fb8c00",
+  "#8e24aa",
+  "#00acc1",
+  "#e53935",
+  "#3949ab",
+  "#7cb342",
+  "#f4511e",
+  "#6d4c41",
+  "#00897b",
+  "#5e35b1",
+  "#c0ca33",
+  "#d81b60",
+  "#546e7a",
+  "#039be5",
 ];
 
 const headerRowSx = { display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" };
@@ -287,6 +309,16 @@ function updateSmartFilters(
   };
 }
 
+function updateResourceTags(
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["resourceTags"]>,
+): KviewUserSettingsV2 {
+  return {
+    ...settings,
+    resourceTags: { ...settings.resourceTags, ...patch },
+  };
+}
+
 function updateKeyboard(
   settings: KviewUserSettingsV2,
   patch: Partial<KeyboardSettings>,
@@ -321,6 +353,19 @@ function updateDataplane(settings: KviewUserSettingsV2, patch: Partial<Dataplane
   return {
     ...settings,
     dataplane: { ...settings.dataplane, global: { ...settings.dataplane.global, ...patch } },
+  };
+}
+
+function suggestedResourceTagColor(usedColors: readonly string[]): string {
+  const used = new Set(usedColors.map((color) => color.toLowerCase()));
+  return resourceTagColorPresets.find((color) => !used.has(color.toLowerCase())) || resourceTagColorPresets[used.size % resourceTagColorPresets.length];
+}
+
+function newResourceTagDefinition(usedColors: readonly string[]): ResourceTagDefinition {
+  return {
+    id: `tag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: "New tag",
+    color: suggestedResourceTagColor(usedColors),
   };
 }
 
@@ -1151,6 +1196,161 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         />
       </Box>
       {settings.smartFilters.rules.map(renderRule)}
+    </SettingSection>
+  );
+
+  const setResourceTag = (index: number, patch: Partial<ResourceTagDefinition>) => {
+    setSettings((prev) => {
+      const definitions = prev.resourceTags.definitions.map((definition, i) =>
+        i === index ? { ...definition, ...patch } : definition,
+      );
+      return updateResourceTags(prev, { definitions });
+    });
+  };
+
+  const removeResourceTag = (index: number) => {
+    setSettings((prev) => {
+      const removed = prev.resourceTags.definitions[index];
+      if (!removed) return prev;
+      const definitions = prev.resourceTags.definitions.filter((_, i) => i !== index);
+      const assignments = Object.fromEntries(
+        Object.entries(prev.resourceTags.assignments)
+          .map(([key, tagIds]) => [key, tagIds.filter((id) => id !== removed.id)] as const)
+          .filter(([, tagIds]) => tagIds.length > 0),
+      );
+      return updateResourceTags(prev, { definitions, assignments });
+    });
+  };
+
+  const resourceTagAssignmentCount = (tagId: string): number =>
+    Object.values(settings.resourceTags.assignments).filter((tagIds) => tagIds.includes(tagId)).length;
+
+  const renderResourceTags = () => (
+    <SettingSection
+      title="Resource Tags"
+      icon={<SettingsIcon name="resourceTags" />}
+      hint="Personal tags are stored in kview settings and never written to Kubernetes resources."
+      actions={
+        <Button
+          variant="contained"
+          onClick={() =>
+            setSettings((prev) =>
+              updateResourceTags(prev, {
+                definitions: [
+                  ...prev.resourceTags.definitions,
+                  newResourceTagDefinition(prev.resourceTags.definitions.map((tag) => tag.color)),
+                ],
+              }),
+            )
+          }
+        >
+          Add tag
+        </Button>
+      }
+    >
+      <SettingRow
+        label="Enable resource tags"
+        hint="Shows tag columns in resource lists and tag controls in supported drawer headers."
+        checked={settings.resourceTags.enabled}
+        onChange={(v) => setSettings((prev) => updateResourceTags(prev, { enabled: v }))}
+      />
+      <SettingRow
+        label="Inherit namespace tags"
+        hint="Namespace-scoped resources automatically show tags assigned to their namespace."
+        checked={settings.resourceTags.inheritNamespaceTags}
+        onChange={(v) => setSettings((prev) => updateResourceTags(prev, { inheritNamespaceTags: v }))}
+      />
+      <SettingRow
+        label="Cleanup missing resource assignments"
+        hint="When a fresh list confirms a resource is gone, direct tag assignments in that visible scope are removed."
+        checked={settings.resourceTags.cleanupMissingAssignments}
+        onChange={(v) => setSettings((prev) => updateResourceTags(prev, { cleanupMissingAssignments: v }))}
+      />
+      {settings.resourceTags.definitions.length === 0 ? (
+        <Alert severity="info" variant="outlined">
+          Define at least one tag to start tagging resources.
+        </Alert>
+      ) : null}
+      {settings.resourceTags.definitions.map((tag, index) => (
+        <Paper key={tag.id} variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box sx={headerRowSx}>
+            <ResourceTagChip tag={{ ...tag, inherited: false }} />
+            <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+              {resourceTagAssignmentCount(tag.id)} direct assignment{resourceTagAssignmentCount(tag.id) === 1 ? "" : "s"}
+            </Typography>
+            <ReorderButtons
+              label={`tag ${index + 1}`}
+              index={index}
+              lastIndex={settings.resourceTags.definitions.length - 1}
+              onUp={() => setSettings((prev) => updateResourceTags(prev, { definitions: moveItem(prev.resourceTags.definitions, index, -1) }))}
+              onDown={() => setSettings((prev) => updateResourceTags(prev, { definitions: moveItem(prev.resourceTags.definitions, index, 1) }))}
+              onRemove={() => removeResourceTag(index)}
+            />
+          </Box>
+          <SettingGrid variant="auto">
+            <SettingField
+              label="Name"
+              value={tag.name}
+              onChange={(value) => setResourceTag(index, { name: value.slice(0, 32) })}
+            />
+            <SettingField label="Color">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <TextField
+                  type="color"
+                  size="small"
+                  value={/^#[0-9a-fA-F]{6}$/.test(tag.color) ? tag.color : "#607d8b"}
+                  onChange={(event) => setResourceTag(index, { color: event.target.value })}
+                  sx={{ width: 72 }}
+                />
+                <TextField
+                  size="small"
+                  value={tag.color}
+                  onChange={(event) => setResourceTag(index, { color: event.target.value })}
+                  sx={{ maxWidth: 140 }}
+                />
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
+                  {resourceTagColorPresets.map((color) => {
+                    const selected = tag.color.toLowerCase() === color.toLowerCase();
+                    const usedByOther = settings.resourceTags.definitions.some((other, otherIndex) =>
+                      otherIndex !== index && other.color.toLowerCase() === color.toLowerCase(),
+                    );
+                    return (
+                      <Tooltip
+                        key={color}
+                        title={usedByOther ? `${color} already used` : color}
+                      >
+                        <IconButton
+                          size="small"
+                          aria-label={`Use tag color ${color}`}
+                          onClick={() => setResourceTag(index, { color })}
+                          sx={{
+                            width: 26,
+                            height: 26,
+                            border: "1px solid",
+                            borderColor: selected ? "primary.main" : "divider",
+                            opacity: usedByOther && !selected ? 0.45 : 1,
+                          }}
+                        >
+                          <Box
+                            aria-hidden
+                            sx={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              bgcolor: color,
+                              boxShadow: selected ? "0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor" : "none",
+                            }}
+                          />
+                        </IconButton>
+                      </Tooltip>
+                    );
+                  })}
+                </Box>
+              </Box>
+            </SettingField>
+          </SettingGrid>
+        </Paper>
+      ))}
     </SettingSection>
   );
 
@@ -2407,6 +2607,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         {section === "appearance" ? renderAppearance() : null}
         {section === "keyboard" ? renderKeyboard() : null}
         {section === "smartFilters" ? renderSmartFilters() : null}
+        {section === "resourceTags" ? renderResourceTags() : null}
         {section === "commands" ? renderCustomCommands() : null}
         {section === "actions" ? renderCustomActions() : null}
         {section === "dataplane" ? renderDataplane() : null}

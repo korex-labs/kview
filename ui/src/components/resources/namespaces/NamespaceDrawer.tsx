@@ -63,6 +63,7 @@ import RightDrawer from "../../layout/RightDrawer";
 import Section from "../../shared/Section";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
+import { ResourceDrawerTags } from "../../shared/ResourceTags";
 import NamespaceSignalsTab from "./NamespaceSignalsTab";
 import PodDrawer from "../pods/PodDrawer";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
@@ -343,7 +344,13 @@ export default function NamespaceDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="namespaces" title={<>Namespace: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="namespaces"
+        title={<>Namespace: {name || "-"}</>}
+        headerMeta={<ResourceDrawerTags resource="namespaces" name={name} />}
+        headerActions={<ResourceDrawerTags resource="namespaces" name={name} mode="edit" />}
+        onClose={props.onClose}
+      >
         {insightsLoading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />

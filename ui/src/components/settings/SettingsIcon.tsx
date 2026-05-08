@@ -7,6 +7,7 @@ import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import KeyboardOutlinedIcon from "@mui/icons-material/KeyboardOutlined";
+import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import MemoryOutlinedIcon from "@mui/icons-material/MemoryOutlined";
 import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
@@ -22,6 +23,7 @@ export type SettingsIconName =
   | "appearance"
   | "keyboard"
   | "smartFilters"
+  | "resourceTags"
   | "commands"
   | "actions"
   | "dataplane"
@@ -56,6 +58,8 @@ export default function SettingsIcon({ name, size = 18 }: Props) {
       return <KeyboardOutlinedIcon sx={sx} />;
     case "smartFilters":
       return <FilterAltOutlinedIcon sx={sx} />;
+    case "resourceTags":
+      return <LocalOfferOutlinedIcon sx={sx} />;
     case "commands":
       return <TerminalOutlinedIcon sx={sx} />;
     case "actions":
