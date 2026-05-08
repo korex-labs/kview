@@ -287,12 +287,37 @@ type PodNetworkingIngress = {
   addresses?: string[];
 };
 
+type LogStreamNotice = {
+  severity: "info" | "warning" | "error";
+  message: string;
+};
+
+type LogStreamControlMessage = {
+  __kviewLogStream?: boolean;
+  type?: string;
+  message?: string;
+};
+
 // WebSocket URLs use query token: browser WebSocket API cannot set Authorization header.
 function wsURL(path: string, token: string) {
   const u = new URL(window.location.href);
   const proto = u.protocol === "https:" ? "wss:" : "ws:";
   const sep = path.includes("?") ? "&" : "?";
   return `${proto}//${u.host}${path}${sep}token=${encodeURIComponent(token)}`;
+}
+
+function parseLogStreamControlMessage(raw: string): LogStreamControlMessage | null {
+  const s = raw.trim();
+  if (!s.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(s) as LogStreamControlMessage;
+    if (parsed && parsed.__kviewLogStream === true && typeof parsed.type === "string") {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function tryPrettyJSONLine(line: string): string | null {
@@ -553,10 +578,13 @@ export default function PodDrawer(props: {
   const [following, setFollowing] = useState<boolean>(false);
   const [lineLimit, setLineLimit] = useState<number>(500);
   const [wrapLines, setWrapLines] = useState<boolean>(false);
+  const [logStreamNotice, setLogStreamNotice] = useState<LogStreamNotice | null>(null);
 
   // Store log entries as array for filtering + pretty formatting
   const [logLines, setLogLines] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const logStopRequestedRef = useRef(false);
+  const logStreamHadErrorRef = useRef(false);
   const logScrollRef = useRef<HTMLDivElement | null>(null);
   const containerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -614,6 +642,7 @@ export default function PodDrawer(props: {
 
   const stopLogs = useCallback(() => {
     setFollowing(false);
+    logStopRequestedRef.current = true;
     if (wsRef.current) {
       try {
         wsRef.current.close();
@@ -629,6 +658,9 @@ export default function PodDrawer(props: {
 
     stopLogs();
     setLogLines([]);
+    setLogStreamNotice(null);
+    logStopRequestedRef.current = false;
+    logStreamHadErrorRef.current = false;
 
     const qs = new URLSearchParams();
     if (activeContext) qs.set("context", activeContext);
@@ -643,7 +675,21 @@ export default function PodDrawer(props: {
     setFollowing(true);
 
     ws.onmessage = (ev) => {
+      if (wsRef.current !== ws) return;
       const chunk = String(ev.data ?? "");
+      const control = parseLogStreamControlMessage(chunk);
+      if (control) {
+        if (control.type === "error") {
+          const message = control.message || "Log stream failed.";
+          logStreamHadErrorRef.current = true;
+          setLogStreamNotice({
+            severity: "error",
+            message: `Log stream failed: ${message}`,
+          });
+          setFollowing(false);
+        }
+        return;
+      }
       // logs stream usually already ends with \n, but keep safe
       const parts = chunk.split("\n");
       setLogLines((prev) => {
@@ -658,12 +704,35 @@ export default function PodDrawer(props: {
     };
 
     ws.onerror = () => {
-      setLogLines((prev) => [...prev, "[WS ERROR]"]);
+      if (wsRef.current !== ws) return;
+      logStreamHadErrorRef.current = true;
+      setLogStreamNotice({
+        severity: "error",
+        message: "Log stream connection failed. The browser could not keep the WebSocket open.",
+      });
       setFollowing(false);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      if (wsRef.current !== ws) return;
+      wsRef.current = null;
       setFollowing(false);
+      if (logStopRequestedRef.current) {
+        logStopRequestedRef.current = false;
+        return;
+      }
+      if (logStreamHadErrorRef.current) return;
+      if (!ev.wasClean) {
+        setLogStreamNotice({
+          severity: "warning",
+          message: "Log stream closed unexpectedly. Start follow again to reconnect.",
+        });
+        return;
+      }
+      setLogStreamNotice({
+        severity: "info",
+        message: "Log stream ended.",
+      });
     };
   }, [activeContext, container, lineLimit, logWsBase, name, props.token, stopLogs]);
 
@@ -2337,6 +2406,12 @@ export default function PodDrawer(props: {
                       label="Follow"
                     />
                   </Box>
+
+                  {logStreamNotice && (
+                    <Alert severity={logStreamNotice.severity} variant="outlined" sx={{ alignItems: "center" }}>
+                      {logStreamNotice.message}
+                    </Alert>
+                  )}
 
                   <Box
                     ref={logScrollRef}

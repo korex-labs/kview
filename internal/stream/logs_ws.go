@@ -3,6 +3,7 @@ package stream
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -21,6 +22,27 @@ var upgrader = websocket.Upgrader{
 
 type LogsWS struct {
 	Mgr *cluster.Manager
+}
+
+type logStreamControlMessage struct {
+	KviewLogStream bool   `json:"__kviewLogStream"`
+	Type           string `json:"type"`
+	Message        string `json:"message"`
+}
+
+func writeLogStreamError(conn *websocket.Conn, err error) {
+	if err == nil {
+		return
+	}
+	msg, marshalErr := json.Marshal(logStreamControlMessage{
+		KviewLogStream: true,
+		Type:           "error",
+		Message:        err.Error(),
+	})
+	if marshalErr != nil {
+		msg = []byte("ERROR: " + err.Error())
+	}
+	_ = conn.WriteMessage(websocket.TextMessage, msg)
 }
 
 func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +76,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		clients, _, err = h.Mgr.GetClients(ctx)
 	}
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+err.Error()))
+		writeLogStreamError(conn, err)
 		return
 	}
 
@@ -69,7 +91,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := clients.Clientset.CoreV1().Pods(ns).GetLogs(pod, opts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+err.Error()))
+		writeLogStreamError(conn, err)
 		return
 	}
 	defer func() { _ = stream.Close() }()
@@ -98,7 +120,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err == io.EOF {
 				return
 			}
-			_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+err.Error()))
+			writeLogStreamError(conn, err)
 			return
 		}
 	}
