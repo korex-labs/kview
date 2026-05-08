@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, CircularProgress, Tabs, Tab } from "@mui/material";
+import { Box, Chip, CircularProgress, Tabs, Tab } from "@mui/material";
 import { apiGet } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
@@ -7,11 +7,12 @@ import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
 import ErrorState from "../../shared/ErrorState";
 import MetadataSection from "../../shared/MetadataSection";
-import ConditionsTable from "../../shared/ConditionsTable";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import ResourceLinkChip from "../../shared/ResourceLinkChip";
+import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import type { ApiItemResponse } from "../../../types/api";
 import {
   panelBoxSx,
@@ -69,6 +70,7 @@ export default function CustomResourceDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CRDetails | null>(null);
   const [err, setErr] = useState("");
+  const [namespaceDrawerOpen, setNamespaceDrawerOpen] = useState(false);
   // Resolved plural resource name — populated either directly from ref.resource
   // or via /api/customresources/resolve when resource is absent.
   const [resolvedResource, setResolvedResource] = useState<string | null>(null);
@@ -132,12 +134,22 @@ export default function CustomResourceDrawer(props: {
   }, [props.open, refKey, resolvedResource, resolvedVersion, props.token]);
 
   const summary = details?.summary;
-  const conditions = details?.conditions || [];
 
   const summaryItems = useMemo(
     () => [
       { label: "Name", value: valueOrDash(summary?.name), monospace: true },
-      ...(summary?.namespace ? [{ label: "Namespace", value: summary.namespace, monospace: true }] : []),
+      ...(summary?.namespace ? [{
+        label: "Namespace",
+        value: (
+          <Chip
+            size="small"
+            label={summary.namespace}
+            variant="outlined"
+            onClick={() => setNamespaceDrawerOpen(true)}
+            sx={{ fontFamily: "monospace" }}
+          />
+        ),
+      }] : []),
       { label: "Kind", value: valueOrDash(ref?.kind) },
       { label: "Group", value: valueOrDash(ref?.group), monospace: true },
       { label: "Version", value: valueOrDash(resolvedVersion || ref?.version), monospace: true },
@@ -147,9 +159,12 @@ export default function CustomResourceDrawer(props: {
     [summary, ref, resolvedVersion],
   );
 
-  const title = ref
-    ? `${ref.kind}: ${ref.name}${ref.namespace ? ` (${ref.namespace})` : ""}`
-    : "-";
+  const title = ref ? (
+    <>
+      {ref.kind}: {ref.name || "-"}{" "}
+      {ref.namespace ? <ResourceLinkChip label={ref.namespace} onClick={() => setNamespaceDrawerOpen(true)} /> : null}
+    </>
+  ) : "-";
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
@@ -164,7 +179,6 @@ export default function CustomResourceDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Conditions" />} iconPosition="start" label="Conditions" />
               <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
               <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
@@ -178,38 +192,18 @@ export default function CustomResourceDrawer(props: {
                       <KeyValueTable rows={summaryItems} columns={2} />
                     </Box>
                   </Section>
-                  <ConditionsTable
-                    conditions={conditions}
-                    variant="section"
-                    title="Conditions"
-                    emptyMessage="No status conditions reported."
-                    unhealthyFirst
-                  />
                 </Box>
               )}
 
               {/* CONDITIONS */}
               {tab === 1 && (
                 <Box sx={drawerTabContentSx}>
-                  <ConditionsTable
-                    conditions={conditions}
-                    variant="section"
-                    title="Conditions"
-                    emptyMessage="No status conditions reported."
-                    unhealthyFirst
-                  />
-                </Box>
-              )}
-
-              {/* METADATA */}
-              {tab === 2 && (
-                <Box sx={drawerTabContentSx}>
                   <MetadataSection labels={summary?.labels} annotations={summary?.annotations} />
                 </Box>
               )}
 
               {/* YAML */}
-              {tab === 3 && ref && resolvedResource && (
+              {tab === 2 && ref && resolvedResource && (
                 <ResourceYamlPanel
                   code={details?.yaml || ""}
                   token={props.token}
@@ -227,6 +221,12 @@ export default function CustomResourceDrawer(props: {
           </>
         )}
       </ResourceDrawerShell>
+      <NamespaceDrawer
+        open={namespaceDrawerOpen}
+        onClose={() => setNamespaceDrawerOpen(false)}
+        token={props.token}
+        namespaceName={summary?.namespace || null}
+      />
     </RightDrawer>
   );
 }

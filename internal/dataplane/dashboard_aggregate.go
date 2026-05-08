@@ -146,6 +146,10 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			res.HelmReleases += len(s.helmReleases.Items)
 			aggregateMetas = append(aggregateMetas, s.helmReleases.Meta)
 		}
+		if s.customResourcesOK {
+			res.CustomResources += len(s.customResources.Items)
+			aggregateMetas = append(aggregateMetas, s.customResources.Meta)
+		}
 		if s.quotasOK {
 			res.ResourceQuotas += len(s.resourceQuotas.Items)
 			aggregateMetas = append(aggregateMetas, s.resourceQuotas.Meta)
@@ -198,6 +202,7 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, thresholds res
 	rolesSnap, rolesOK := plane.rolesStore.getCached(ns)
 	roleBindingsSnap, roleBindingsOK := plane.roleBindingsStore.getCached(ns)
 	helmReleasesSnap, helmReleasesOK := plane.helmReleasesStore.getCached(ns)
+	customResourcesSnap, customResourcesOK := plane.customResourcesStore.getCached(ns)
 	rqSnap, rqOK := plane.rqStore.getCached(ns)
 	lrSnap, lrOK := plane.lrStore.getCached(ns)
 	podMetricsSnap, podMetricsOK := plane.podMetricsStore.getCached(ns)
@@ -239,6 +244,8 @@ func buildSnapshotSetForNamespace(plane *clusterPlane, ns string, thresholds res
 		roleBindingsOK:         roleBindingsOK && roleBindingsSnap.Err == nil,
 		helmReleases:           helmReleasesSnap,
 		helmOK:                 helmReleasesOK && helmReleasesSnap.Err == nil,
+		customResources:        customResourcesSnap,
+		customResourcesOK:      customResourcesOK && customResourcesSnap.Err == nil,
 		resourceQuotas:         rqSnap,
 		quotasOK:               rqOK && rqSnap.Err == nil,
 		limitRanges:            lrSnap,
@@ -260,48 +267,50 @@ type dashboardSnapshotSet struct {
 	// Set from policy.Signals.Detectors.PodRestarts.RestartCount.
 	restartThreshold int32
 
-	pods           PodsSnapshot
-	podsOK         bool
-	deps           DeploymentsSnapshot
-	depsOK         bool
-	ds             DaemonSetsSnapshot
-	dsOK           bool
-	sts            StatefulSetsSnapshot
-	stsOK          bool
-	rs             ReplicaSetsSnapshot
-	rsOK           bool
-	jobs           JobsSnapshot
-	jobsOK         bool
-	cjs            CronJobsSnapshot
-	cjsOK          bool
-	hpas           HPAsSnapshot
-	hpasOK         bool
-	svcs           ServicesSnapshot
-	svcsOK         bool
-	ings           IngressesSnapshot
-	ingsOK         bool
-	pvcs           PVCsSnapshot
-	pvcsOK         bool
-	pvs            PersistentVolumesSnapshot
-	pvsOK          bool
-	cms            ConfigMapsSnapshot
-	cmsOK          bool
-	secs           SecretsSnapshot
-	secsOK         bool
-	sas            ServiceAccountsSnapshot
-	sasOK          bool
-	roles          RolesSnapshot
-	rolesOK        bool
-	roleBindings   RoleBindingsSnapshot
-	roleBindingsOK bool
-	helmReleases   HelmReleasesSnapshot
-	helmOK         bool
-	resourceQuotas ResourceQuotasSnapshot
-	quotasOK       bool
-	limitRanges    LimitRangesSnapshot
-	limitRangesOK  bool
-	podMetrics     PodMetricsSnapshot
-	podMetricsOK   bool
+	pods              PodsSnapshot
+	podsOK            bool
+	deps              DeploymentsSnapshot
+	depsOK            bool
+	ds                DaemonSetsSnapshot
+	dsOK              bool
+	sts               StatefulSetsSnapshot
+	stsOK             bool
+	rs                ReplicaSetsSnapshot
+	rsOK              bool
+	jobs              JobsSnapshot
+	jobsOK            bool
+	cjs               CronJobsSnapshot
+	cjsOK             bool
+	hpas              HPAsSnapshot
+	hpasOK            bool
+	svcs              ServicesSnapshot
+	svcsOK            bool
+	ings              IngressesSnapshot
+	ingsOK            bool
+	pvcs              PVCsSnapshot
+	pvcsOK            bool
+	pvs               PersistentVolumesSnapshot
+	pvsOK             bool
+	cms               ConfigMapsSnapshot
+	cmsOK             bool
+	secs              SecretsSnapshot
+	secsOK            bool
+	sas               ServiceAccountsSnapshot
+	sasOK             bool
+	roles             RolesSnapshot
+	rolesOK           bool
+	roleBindings      RoleBindingsSnapshot
+	roleBindingsOK    bool
+	helmReleases      HelmReleasesSnapshot
+	helmOK            bool
+	customResources   CustomResourcesSnapshot
+	customResourcesOK bool
+	resourceQuotas    ResourceQuotasSnapshot
+	quotasOK          bool
+	limitRanges       LimitRangesSnapshot
+	limitRangesOK     bool
+	podMetrics        PodMetricsSnapshot
+	podMetricsOK      bool
 	// containerNearLimitPct is the minimum percent-of-limit required to raise
 	// a container_near_limit signal. Set from policy.Signals.Detectors.ContainerNearLimit.Percent.
 	containerNearLimitPct  int
@@ -899,6 +908,9 @@ func namespaceHasCachedDataplaneList(plane *clusterPlane, ns string) bool {
 	if _, ok := plane.helmReleasesStore.getCached(ns); ok {
 		return true
 	}
+	if _, ok := plane.customResourcesStore.getCached(ns); ok {
+		return true
+	}
 	if _, ok := plane.rqStore.getCached(ns); ok {
 		return true
 	}
@@ -926,6 +938,9 @@ func namespaceHasCachedRowProjection(plane *clusterPlane, ns string) bool {
 		return true
 	}
 	if _, ok := plane.depsStore.getCached(ns); ok {
+		return true
+	}
+	if _, ok := plane.customResourcesStore.getCached(ns); ok {
 		return true
 	}
 	if _, ok := plane.rqStore.getCached(ns); ok {

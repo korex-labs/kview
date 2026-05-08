@@ -118,6 +118,7 @@ type ClusterDashboardResourcesPanel struct {
 	Roles                    int    `json:"roles"`
 	RoleBindings             int    `json:"roleBindings"`
 	HelmReleases             int    `json:"helmReleases"`
+	CustomResources          int    `json:"customResources"`
 	ResourceQuotas           int    `json:"resourceQuotas"`
 	LimitRanges              int    `json:"limitRanges"`
 	TotalNamespaces          int    `json:"totalNamespaces"`

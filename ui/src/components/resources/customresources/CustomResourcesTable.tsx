@@ -1,12 +1,13 @@
 import React, { useCallback, useState } from "react";
-import { Box, Chip, Typography } from "@mui/material";
+import { Chip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
+import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import { fmtAge } from "../../../utils/format";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
-import ListSignalChip from "../../shared/ListSignalChip";
 import CustomResourceDrawer, { type CRRef } from "./CustomResourceDrawer";
+import CustomResourceStatusCell from "./CustomResourceStatusCell";
 import type { ResourceListFetchResult } from "../../../types/api";
 
 type CRInstanceItem = {
@@ -46,16 +47,7 @@ const columns: GridColDef<Row>[] = [
     field: "signalSeverity",
     headerName: "Status",
     width: 150,
-    renderCell: (p) => (
-      <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.5 }}>
-        <ListSignalChip severity={p.row.signalSeverity} />
-        {p.row.statusSummary && p.row.signalSeverity !== "ok" && (
-          <Typography variant="caption" color="text.secondary">
-            {p.row.statusSummary}
-          </Typography>
-        )}
-      </Box>
-    ),
+    renderCell: (p) => <CustomResourceStatusCell severity={p.row.signalSeverity} summary={p.row.statusSummary} />,
   },
   {
     field: "group",
@@ -116,6 +108,10 @@ export default function CustomResourcesTable({ token, namespace }: { token: stri
       title={`${resourceLabel} · ${namespace}`}
       columns={columns}
       fetchRows={fetchRows}
+      dataplaneRevisionPoll={{
+        fetchRevision: dataplaneRevisionFetcher(token, "customresources", namespace),
+        pollSec: defaultRevisionPollSec,
+      }}
       filterPredicate={filterPredicate}
       filterLabel="Filter (name/kind/group/status)"
       resourceLabel={resourceLabel}

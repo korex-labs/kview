@@ -347,6 +347,7 @@ export type ApiDashboardClusterResponse = {
       roles: number;
       roleBindings: number;
       helmReleases: number;
+      customResources: number;
       resourceQuotas: number;
       limitRanges: number;
       totalNamespaces: number;
@@ -624,6 +625,7 @@ export type NamespaceResourceCounts = {
   roles: number;
   roleBindings: number;
   helmReleases: number;
+  customResources?: number;
   resourceQuotas?: number;
   limitRanges?: number;
 };
@@ -654,6 +656,16 @@ export type NamespaceHelmRelease = {
   revision: number;
 };
 
+export type NamespaceCustomResourceKind = {
+  kind: string;
+  group?: string;
+  version?: string;
+  resource?: string;
+  count: number;
+  warnings?: number;
+  errors?: number;
+};
+
 export type NamespaceSummaryMeta = {
   freshness: string;
   coverage: string;
@@ -668,6 +680,7 @@ export type NamespaceSummaryResources = {
   deploymentHealth: NamespaceDeploymentHealth;
   problematic: NamespaceProblematicResource[];
   helmReleases?: NamespaceHelmRelease[];
+  customResourceKinds?: NamespaceCustomResourceKind[];
   workloadByKind?: NamespaceWorkloadHealthRollup;
   meta?: NamespaceSummaryMeta;
 };

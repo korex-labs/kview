@@ -69,6 +69,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	setNamespacedSnapshot(&plane.rolesStore, ns, RolesSnapshot{Meta: meta, Items: []dto.RoleListItemDTO{{Name: "role", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.roleBindingsStore, ns, RoleBindingsSnapshot{Meta: meta, Items: []dto.RoleBindingListItemDTO{{Name: "rb", Namespace: ns}}})
 	setNamespacedSnapshot(&plane.helmReleasesStore, ns, HelmReleasesSnapshot{Meta: meta, Items: []dto.HelmReleaseDTO{{Name: "rel", Namespace: ns}}})
+	setNamespacedSnapshot(&plane.customResourcesStore, ns, CustomResourcesSnapshot{Meta: meta, Items: []dto.CustomResourceInstanceDTO{{Name: "cr", Namespace: ns, Kind: "Widget"}}})
 	ratio := 0.93
 	setNamespacedSnapshot(&plane.rqStore, ns, ResourceQuotasSnapshot{Meta: meta, Items: []dto.ResourceQuotaDTO{{
 		Name:      "rq",
@@ -84,7 +85,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	if res.DaemonSets != 1 || res.StatefulSets != 1 || res.ReplicaSets != 1 || res.Jobs != 1 || res.CronJobs != 1 {
 		t.Fatalf("workload totals: %+v", res)
 	}
-	if res.ConfigMaps != 1 || res.Secrets != 1 || res.ServiceAccounts != 1 || res.Roles != 1 || res.RoleBindings != 1 || res.HelmReleases != 1 {
+	if res.ConfigMaps != 1 || res.Secrets != 1 || res.ServiceAccounts != 1 || res.Roles != 1 || res.RoleBindings != 1 || res.HelmReleases != 1 || res.CustomResources != 1 {
 		t.Fatalf("config/access totals: %+v", res)
 	}
 	if res.ResourceQuotas != 1 || res.LimitRanges != 1 {

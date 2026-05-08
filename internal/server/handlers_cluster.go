@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 
 	"github.com/korex-labs/kview/v5/internal/dataplane"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
@@ -446,29 +447,29 @@ func (s *Server) registerClusterResourceRoutes(api chi.Router) {
 		defer cancel()
 
 		active := s.readContextName(r)
-		crdSnap, err := s.dp.CRDsSnapshot(ctx, active)
-		if err != nil && len(crdSnap.Items) == 0 {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "CRD snapshot unavailable: " + err.Error(), "active": active})
+		if s.dp != nil {
+			s.dp.EnsureObservers(ctx, active)
+		}
+		snap, err := s.dp.CustomResourcesSnapshot(ctx, active, ns)
+		if err != nil && listLength(snap.Items) == 0 {
+			writeDataplaneListError(w, active, err)
 			return
 		}
-
-		clients, active, err := s.clientsForRequest(ctx, r)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-			return
-		}
-
-		dynClient, err := dynamic.NewForConfig(clients.RestConfig)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-			return
-		}
-
-		items, meta, _ := crs.ListAllNamespacedCRs(ctx, dynClient, crdSnap.Items, ns)
+		items := snap.Items
 		if items == nil {
 			items = []dto.CustomResourceInstanceDTO{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items, "meta": meta})
+		meta := dto.CustomResourceAggregationMeta{}
+		if snap.Aggregation != nil {
+			meta = *snap.Aggregation
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active":    active,
+			"items":     items,
+			"meta":      meta,
+			"observed":  snap.Meta.ObservedAt,
+			"dataplane": snap.Meta,
+		})
 	})
 
 	api.Get("/customresources/instances", func(w http.ResponseWriter, r *http.Request) {
@@ -476,29 +477,29 @@ func (s *Server) registerClusterResourceRoutes(api chi.Router) {
 		defer cancel()
 
 		active := s.readContextName(r)
-		crdSnap, err := s.dp.CRDsSnapshot(ctx, active)
-		if err != nil && len(crdSnap.Items) == 0 {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "CRD snapshot unavailable: " + err.Error(), "active": active})
+		if s.dp != nil {
+			s.dp.EnsureObservers(ctx, active)
+		}
+		snap, err := s.dp.ClusterCustomResourcesSnapshot(ctx, active)
+		if err != nil && listLength(snap.Items) == 0 {
+			writeDataplaneListError(w, active, err)
 			return
 		}
-
-		clients, active, err := s.clientsForRequest(ctx, r)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-			return
-		}
-
-		dynClient, err := dynamic.NewForConfig(clients.RestConfig)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
-			return
-		}
-
-		items, meta, _ := crs.ListAllClusterCRs(ctx, dynClient, crdSnap.Items)
+		items := snap.Items
 		if items == nil {
 			items = []dto.CustomResourceInstanceDTO{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items, "meta": meta})
+		meta := dto.CustomResourceAggregationMeta{}
+		if snap.Aggregation != nil {
+			meta = *snap.Aggregation
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active":    active,
+			"items":     items,
+			"meta":      meta,
+			"observed":  snap.Meta.ObservedAt,
+			"dataplane": snap.Meta,
+		})
 	})
 
 	// Single CR instance detail — group/version/resource from the aggregated list row;
@@ -519,7 +520,10 @@ func (s *Server) registerClusterResourceRoutes(api chi.Router) {
 			return
 		}
 
-		dynClient, err := dynamic.NewForConfig(clients.RestConfig)
+		cfg := rest.CopyConfig(clients.RestConfig)
+		cfg.WarningHandler = rest.NoWarnings{}
+		cfg.WarningHandlerWithContext = rest.NoWarnings{}
+		dynClient, err := dynamic.NewForConfig(cfg)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
 			return

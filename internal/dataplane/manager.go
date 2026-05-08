@@ -116,8 +116,12 @@ type DataPlaneManager interface {
 	ClusterRoleBindingsSnapshot(ctx context.Context, clusterName string) (ClusterRoleBindingsSnapshot, error)
 	// CRDsSnapshot returns a raw snapshot for custom resource definitions in the given cluster.
 	CRDsSnapshot(ctx context.Context, clusterName string) (CRDsSnapshot, error)
+	// ClusterCustomResourcesSnapshot returns aggregated cluster-scoped custom resource instances.
+	ClusterCustomResourcesSnapshot(ctx context.Context, clusterName string) (CustomResourcesSnapshot, error)
 	// PodsSnapshot returns a raw snapshot for pods in the given namespace.
 	PodsSnapshot(ctx context.Context, clusterName, namespace string) (PodsSnapshot, error)
+	// CustomResourcesSnapshot returns aggregated namespaced custom resource instances.
+	CustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) (CustomResourcesSnapshot, error)
 	// DeploymentsSnapshot returns a raw snapshot for deployments in the given namespace.
 	DeploymentsSnapshot(ctx context.Context, clusterName, namespace string) (DeploymentsSnapshot, error)
 	// ServicesSnapshot returns a raw snapshot for services in the given namespace.
@@ -567,6 +571,7 @@ func (m *manager) WarmClusterBackground(ctx context.Context, clusterName string)
 	if policy.Observers.Enabled && policy.Observers.NodesEnabled {
 		_, _ = plane.NodesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
 	}
+	_, _ = plane.ClusterCustomResourcesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
 	if err != nil {
 		return err
 	}
@@ -589,12 +594,13 @@ type clusterPlane struct {
 	capRegistry *CapabilityRegistry
 
 	// First-wave raw snapshots.
-	nsStore                  snapshotStore[NamespaceSnapshot]
-	nodesStore               snapshotStore[NodesSnapshot]
-	persistentVolumesStore   snapshotStore[PersistentVolumesSnapshot]
-	clusterRolesStore        snapshotStore[ClusterRolesSnapshot]
-	clusterRoleBindingsStore snapshotStore[ClusterRoleBindingsSnapshot]
-	crdsStore                snapshotStore[CRDsSnapshot]
+	nsStore                     snapshotStore[NamespaceSnapshot]
+	nodesStore                  snapshotStore[NodesSnapshot]
+	persistentVolumesStore      snapshotStore[PersistentVolumesSnapshot]
+	clusterRolesStore           snapshotStore[ClusterRolesSnapshot]
+	clusterRoleBindingsStore    snapshotStore[ClusterRoleBindingsSnapshot]
+	crdsStore                   snapshotStore[CRDsSnapshot]
+	clusterCustomResourcesStore snapshotStore[CustomResourcesSnapshot]
 	// Metrics snapshots are cluster-scoped for nodes and namespaced for pods.
 	// These kinds are not persisted (see snapshot_exec.go skipPersistence);
 	// they are short-TTL and optional, only meaningful when metrics-server is
@@ -602,26 +608,27 @@ type clusterPlane struct {
 	nodeMetricsStore snapshotStore[NodeMetricsSnapshot]
 
 	// Namespace-scoped snapshots for first-wave resources.
-	podsStore         namespacedSnapshotStore[PodsSnapshot]
-	depsStore         namespacedSnapshotStore[DeploymentsSnapshot]
-	svcsStore         namespacedSnapshotStore[ServicesSnapshot]
-	ingStore          namespacedSnapshotStore[IngressesSnapshot]
-	pvcsStore         namespacedSnapshotStore[PVCsSnapshot]
-	cmsStore          namespacedSnapshotStore[ConfigMapsSnapshot]
-	secsStore         namespacedSnapshotStore[SecretsSnapshot]
-	saStore           namespacedSnapshotStore[ServiceAccountsSnapshot]
-	rolesStore        namespacedSnapshotStore[RolesSnapshot]
-	roleBindingsStore namespacedSnapshotStore[RoleBindingsSnapshot]
-	helmReleasesStore namespacedSnapshotStore[HelmReleasesSnapshot]
-	dsStore           namespacedSnapshotStore[DaemonSetsSnapshot]
-	stsStore          namespacedSnapshotStore[StatefulSetsSnapshot]
-	rsStore           namespacedSnapshotStore[ReplicaSetsSnapshot]
-	jobsStore         namespacedSnapshotStore[JobsSnapshot]
-	cjStore           namespacedSnapshotStore[CronJobsSnapshot]
-	hpaStore          namespacedSnapshotStore[HPAsSnapshot]
-	rqStore           namespacedSnapshotStore[ResourceQuotasSnapshot]
-	lrStore           namespacedSnapshotStore[LimitRangesSnapshot]
-	podMetricsStore   namespacedSnapshotStore[PodMetricsSnapshot]
+	podsStore            namespacedSnapshotStore[PodsSnapshot]
+	depsStore            namespacedSnapshotStore[DeploymentsSnapshot]
+	svcsStore            namespacedSnapshotStore[ServicesSnapshot]
+	ingStore             namespacedSnapshotStore[IngressesSnapshot]
+	pvcsStore            namespacedSnapshotStore[PVCsSnapshot]
+	cmsStore             namespacedSnapshotStore[ConfigMapsSnapshot]
+	secsStore            namespacedSnapshotStore[SecretsSnapshot]
+	saStore              namespacedSnapshotStore[ServiceAccountsSnapshot]
+	rolesStore           namespacedSnapshotStore[RolesSnapshot]
+	roleBindingsStore    namespacedSnapshotStore[RoleBindingsSnapshot]
+	helmReleasesStore    namespacedSnapshotStore[HelmReleasesSnapshot]
+	dsStore              namespacedSnapshotStore[DaemonSetsSnapshot]
+	stsStore             namespacedSnapshotStore[StatefulSetsSnapshot]
+	rsStore              namespacedSnapshotStore[ReplicaSetsSnapshot]
+	jobsStore            namespacedSnapshotStore[JobsSnapshot]
+	cjStore              namespacedSnapshotStore[CronJobsSnapshot]
+	hpaStore             namespacedSnapshotStore[HPAsSnapshot]
+	rqStore              namespacedSnapshotStore[ResourceQuotasSnapshot]
+	lrStore              namespacedSnapshotStore[LimitRangesSnapshot]
+	customResourcesStore namespacedSnapshotStore[CustomResourcesSnapshot]
+	podMetricsStore      namespacedSnapshotStore[PodMetricsSnapshot]
 
 	// Observers state for this cluster.
 	obsMu     sync.Mutex
@@ -640,35 +647,36 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		persistence = func() snapshotPersistence { return nil }
 	}
 	p := &clusterPlane{
-		name:              name,
-		profile:           profile,
-		discoveryMode:     mode,
-		scope:             scope,
-		health:            PlaneHealthUnknown,
-		capRegistry:       NewCapabilityRegistry(),
-		podsStore:         newNamespacedSnapshotStore[PodsSnapshot](),
-		depsStore:         newNamespacedSnapshotStore[DeploymentsSnapshot](),
-		svcsStore:         newNamespacedSnapshotStore[ServicesSnapshot](),
-		ingStore:          newNamespacedSnapshotStore[IngressesSnapshot](),
-		pvcsStore:         newNamespacedSnapshotStore[PVCsSnapshot](),
-		cmsStore:          newNamespacedSnapshotStore[ConfigMapsSnapshot](),
-		secsStore:         newNamespacedSnapshotStore[SecretsSnapshot](),
-		saStore:           newNamespacedSnapshotStore[ServiceAccountsSnapshot](),
-		rolesStore:        newNamespacedSnapshotStore[RolesSnapshot](),
-		roleBindingsStore: newNamespacedSnapshotStore[RoleBindingsSnapshot](),
-		helmReleasesStore: newNamespacedSnapshotStore[HelmReleasesSnapshot](),
-		dsStore:           newNamespacedSnapshotStore[DaemonSetsSnapshot](),
-		stsStore:          newNamespacedSnapshotStore[StatefulSetsSnapshot](),
-		rsStore:           newNamespacedSnapshotStore[ReplicaSetsSnapshot](),
-		jobsStore:         newNamespacedSnapshotStore[JobsSnapshot](),
-		cjStore:           newNamespacedSnapshotStore[CronJobsSnapshot](),
-		hpaStore:          newNamespacedSnapshotStore[HPAsSnapshot](),
-		rqStore:           newNamespacedSnapshotStore[ResourceQuotasSnapshot](),
-		lrStore:           newNamespacedSnapshotStore[LimitRangesSnapshot](),
-		podMetricsStore:   newNamespacedSnapshotStore[PodMetricsSnapshot](),
-		policy:            policy,
-		persistence:       persistence,
-		stats:             stats,
+		name:                 name,
+		profile:              profile,
+		discoveryMode:        mode,
+		scope:                scope,
+		health:               PlaneHealthUnknown,
+		capRegistry:          NewCapabilityRegistry(),
+		podsStore:            newNamespacedSnapshotStore[PodsSnapshot](),
+		depsStore:            newNamespacedSnapshotStore[DeploymentsSnapshot](),
+		svcsStore:            newNamespacedSnapshotStore[ServicesSnapshot](),
+		ingStore:             newNamespacedSnapshotStore[IngressesSnapshot](),
+		pvcsStore:            newNamespacedSnapshotStore[PVCsSnapshot](),
+		cmsStore:             newNamespacedSnapshotStore[ConfigMapsSnapshot](),
+		secsStore:            newNamespacedSnapshotStore[SecretsSnapshot](),
+		saStore:              newNamespacedSnapshotStore[ServiceAccountsSnapshot](),
+		rolesStore:           newNamespacedSnapshotStore[RolesSnapshot](),
+		roleBindingsStore:    newNamespacedSnapshotStore[RoleBindingsSnapshot](),
+		helmReleasesStore:    newNamespacedSnapshotStore[HelmReleasesSnapshot](),
+		dsStore:              newNamespacedSnapshotStore[DaemonSetsSnapshot](),
+		stsStore:             newNamespacedSnapshotStore[StatefulSetsSnapshot](),
+		rsStore:              newNamespacedSnapshotStore[ReplicaSetsSnapshot](),
+		jobsStore:            newNamespacedSnapshotStore[JobsSnapshot](),
+		cjStore:              newNamespacedSnapshotStore[CronJobsSnapshot](),
+		hpaStore:             newNamespacedSnapshotStore[HPAsSnapshot](),
+		rqStore:              newNamespacedSnapshotStore[ResourceQuotasSnapshot](),
+		lrStore:              newNamespacedSnapshotStore[LimitRangesSnapshot](),
+		customResourcesStore: newNamespacedSnapshotStore[CustomResourcesSnapshot](),
+		podMetricsStore:      newNamespacedSnapshotStore[PodMetricsSnapshot](),
+		policy:               policy,
+		persistence:          persistence,
+		stats:                stats,
 	}
 	p.nsStore.configureTelemetry(stats, name, ResourceKindNamespaces)
 	p.nodesStore.configureTelemetry(stats, name, ResourceKindNodes)
@@ -676,6 +684,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 	p.clusterRolesStore.configureTelemetry(stats, name, ResourceKindClusterRoles)
 	p.clusterRoleBindingsStore.configureTelemetry(stats, name, ResourceKindClusterRoleBindings)
 	p.crdsStore.configureTelemetry(stats, name, ResourceKindCRDs)
+	p.clusterCustomResourcesStore.configureTelemetry(stats, name, ResourceKindClusterCustomResources)
 	p.podsStore.configureTelemetry(stats, name, ResourceKindPods)
 	p.depsStore.configureTelemetry(stats, name, ResourceKindDeployments)
 	p.svcsStore.configureTelemetry(stats, name, ResourceKindServices)
@@ -695,6 +704,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 	p.hpaStore.configureTelemetry(stats, name, ResourceKindHPAs)
 	p.rqStore.configureTelemetry(stats, name, ResourceKindResourceQuotas)
 	p.lrStore.configureTelemetry(stats, name, ResourceKindLimitRanges)
+	p.customResourcesStore.configureTelemetry(stats, name, ResourceKindCustomResources)
 	p.nodeMetricsStore.configureTelemetry(stats, name, ResourceKindNodeMetrics)
 	p.podMetricsStore.configureTelemetry(stats, name, ResourceKindPodMetrics)
 	return p
@@ -776,6 +786,8 @@ func (p *clusterPlane) hydratePersistedClusterSnapshot(kind ResourceKind, payloa
 		return hydratePersistedClusterSnapshotInto(&p.clusterRoleBindingsStore, payload, maxAge)
 	case ResourceKindCRDs:
 		return hydratePersistedClusterSnapshotInto(&p.crdsStore, payload, maxAge)
+	case ResourceKindClusterCustomResources:
+		return hydratePersistedClusterSnapshotInto(&p.clusterCustomResourcesStore, payload, maxAge)
 	}
 	return nil
 }
@@ -820,6 +832,8 @@ func (p *clusterPlane) hydratePersistedNamespacedSnapshot(kind ResourceKind, nam
 		return hydratePersistedNamespacedSnapshotInto(&p.rqStore, namespace, payload, maxAge)
 	case ResourceKindLimitRanges:
 		return hydratePersistedNamespacedSnapshotInto(&p.lrStore, namespace, payload, maxAge)
+	case ResourceKindCustomResources:
+		return hydratePersistedNamespacedSnapshotInto(&p.customResourcesStore, namespace, payload, maxAge)
 	}
 	return nil
 }
@@ -861,9 +875,10 @@ func hydratePersistedNamespacedSnapshotInto[I any](store *namespacedSnapshotStor
 // Snapshot is the shared raw snapshot container across dataplane-owned resources.
 // It keeps items, truthful metadata, and an optional normalized error.
 type Snapshot[I any] struct {
-	Items []I
-	Meta  SnapshotMetadata
-	Err   *NormalizedError
+	Items       []I
+	Meta        SnapshotMetadata
+	Err         *NormalizedError
+	Aggregation *dto.CustomResourceAggregationMeta `json:"aggregation,omitempty"`
 }
 
 func (s Snapshot[I]) ObservedAt() time.Time { return s.Meta.ObservedAt }
@@ -874,6 +889,7 @@ type PersistentVolumesSnapshot = Snapshot[dto.PersistentVolumeDTO]
 type ClusterRolesSnapshot = Snapshot[dto.ClusterRoleListItemDTO]
 type ClusterRoleBindingsSnapshot = Snapshot[dto.ClusterRoleBindingListItemDTO]
 type CRDsSnapshot = Snapshot[dto.CRDListItemDTO]
+type CustomResourcesSnapshot = Snapshot[dto.CustomResourceInstanceDTO]
 type PodsSnapshot = Snapshot[dto.PodListItemDTO]
 type DeploymentsSnapshot = Snapshot[dto.DeploymentListItemDTO]
 type ServicesSnapshot = Snapshot[dto.ServiceListItemDTO]
@@ -1294,10 +1310,22 @@ func (m *manager) CRDsSnapshot(ctx context.Context, clusterName string) (CRDsSna
 	return plane.CRDsSnapshot(ctx, m.scheduler, m.clients, WorkPriorityCritical)
 }
 
+func (m *manager) ClusterCustomResourcesSnapshot(ctx context.Context, clusterName string) (CustomResourcesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.ClusterCustomResourcesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityCritical)
+}
+
 func (m *manager) PodsSnapshot(ctx context.Context, clusterName, namespace string) (PodsSnapshot, error) {
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	return plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) CustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) (CustomResourcesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.CustomResourcesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
 }
 
 func (m *manager) DeploymentsSnapshot(ctx context.Context, clusterName, namespace string) (DeploymentsSnapshot, error) {

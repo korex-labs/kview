@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -86,5 +87,30 @@ func TestNamespaceSummaryProjectionState_TransientAndProxyDegradedButUsable(t *t
 				t.Fatalf("state: got %q want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNamespaceSummaryProjection_CustomResourcesCountAndProblems(t *testing.T) {
+	now := time.Now().UTC()
+	proj, err := buildNamespaceSummaryProjectionFromSnapshots(namespaceProjectionSnapshots{
+		customResources: CustomResourcesSnapshot{
+			Meta: SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
+			Items: []dto.CustomResourceInstanceDTO{
+				{Name: "ok", Kind: "Widget", SignalSeverity: "ok"},
+				{Name: "stuck", Kind: "Widget", SignalSeverity: "warning", StatusSummary: "NotReady"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := proj.Resources.Counts.CustomResources; got != 2 {
+		t.Fatalf("custom resource count: got %d want 2", got)
+	}
+	if len(proj.Resources.CustomResourceKinds) != 1 || proj.Resources.CustomResourceKinds[0].Kind != "Widget" || proj.Resources.CustomResourceKinds[0].Count != 2 || proj.Resources.CustomResourceKinds[0].Warnings != 1 {
+		t.Fatalf("custom resource kinds: %+v", proj.Resources.CustomResourceKinds)
+	}
+	if len(proj.Resources.Problematic) != 1 || proj.Resources.Problematic[0].Name != "stuck" {
+		t.Fatalf("problematic custom resources: %+v", proj.Resources.Problematic)
 	}
 }

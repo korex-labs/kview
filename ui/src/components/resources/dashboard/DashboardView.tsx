@@ -508,6 +508,7 @@ export default function DashboardView(props: Props) {
                       ["Roles", resources.roles],
                       ["RoleBindings", resources.roleBindings],
                       ["HelmReleases", resources.helmReleases],
+                      ["CustomResources", resources.customResources],
                       ["ResourceQuotas", resources.resourceQuotas],
                       ["LimitRanges", resources.limitRanges],
                     ].map(([label, value]) => (

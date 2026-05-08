@@ -2,6 +2,8 @@ package dataplane
 
 import (
 	"context"
+	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +16,8 @@ const (
 	namespaceSummaryMaxProblematic = 10
 )
 
+var errCustomResourcesNotCached = errors.New("custom resource snapshot not cached")
+
 // NamespaceSummaryProjection is a projection-backed view of namespace resources plus metadata.
 type NamespaceSummaryProjection struct {
 	Resources dto.NamespaceSummaryResourcesDTO
@@ -22,44 +26,46 @@ type NamespaceSummaryProjection struct {
 }
 
 type namespaceProjectionSnapshots struct {
-	pods            PodsSnapshot
-	podsErr         error
-	deps            DeploymentsSnapshot
-	depsErr         error
-	svcs            ServicesSnapshot
-	svcsErr         error
-	ing             IngressesSnapshot
-	ingErr          error
-	pvcs            PVCsSnapshot
-	pvcsErr         error
-	cms             ConfigMapsSnapshot
-	cmsErr          error
-	secs            SecretsSnapshot
-	secsErr         error
-	ds              DaemonSetsSnapshot
-	dsErr           error
-	sts             StatefulSetsSnapshot
-	stsErr          error
-	rs              ReplicaSetsSnapshot
-	rsErr           error
-	jobs            JobsSnapshot
-	jobsErr         error
-	cj              CronJobsSnapshot
-	cjErr           error
-	hpa             HPAsSnapshot
-	hpaErr          error
-	sa              ServiceAccountsSnapshot
-	saErr           error
-	roles           RolesSnapshot
-	rolesErr        error
-	roleBindings    RoleBindingsSnapshot
-	roleBindingsErr error
-	helm            HelmReleasesSnapshot
-	helmErr         error
-	rq              ResourceQuotasSnapshot
-	rqErr           error
-	lr              LimitRangesSnapshot
-	lrErr           error
+	pods               PodsSnapshot
+	podsErr            error
+	deps               DeploymentsSnapshot
+	depsErr            error
+	svcs               ServicesSnapshot
+	svcsErr            error
+	ing                IngressesSnapshot
+	ingErr             error
+	pvcs               PVCsSnapshot
+	pvcsErr            error
+	cms                ConfigMapsSnapshot
+	cmsErr             error
+	secs               SecretsSnapshot
+	secsErr            error
+	ds                 DaemonSetsSnapshot
+	dsErr              error
+	sts                StatefulSetsSnapshot
+	stsErr             error
+	rs                 ReplicaSetsSnapshot
+	rsErr              error
+	jobs               JobsSnapshot
+	jobsErr            error
+	cj                 CronJobsSnapshot
+	cjErr              error
+	hpa                HPAsSnapshot
+	hpaErr             error
+	sa                 ServiceAccountsSnapshot
+	saErr              error
+	roles              RolesSnapshot
+	rolesErr           error
+	roleBindings       RoleBindingsSnapshot
+	roleBindingsErr    error
+	helm               HelmReleasesSnapshot
+	helmErr            error
+	customResources    CustomResourcesSnapshot
+	customResourcesErr error
+	rq                 ResourceQuotasSnapshot
+	rqErr              error
+	lr                 LimitRangesSnapshot
+	lrErr              error
 }
 
 func (m *manager) loadNamespaceProjectionSnapshots(
@@ -150,6 +156,11 @@ func (m *manager) loadNamespaceProjectionSnapshots(
 	}()
 
 	wg.Wait()
+	if snap, ok := plane.customResourcesStore.getCached(namespace); ok {
+		snaps.customResources = snap
+	} else {
+		snaps.customResourcesErr = errCustomResourcesNotCached
+	}
 	return snaps
 }
 
@@ -248,6 +259,10 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 		res.Counts.HelmReleases = len(snaps.helm.Items)
 		res.HelmReleases = namespaceHelmReleasesFromSnapshot(snaps.helm.Items)
 	}
+	if snaps.customResourcesErr == nil {
+		res.Counts.CustomResources = len(snaps.customResources.Items)
+		res.CustomResourceKinds = namespaceCustomResourceKindsFromSnapshot(snaps.customResources.Items)
+	}
 	if snaps.rqErr == nil {
 		res.Counts.ResourceQuotas = len(snaps.rq.Items)
 	}
@@ -284,7 +299,11 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	if snaps.podsErr == nil {
 		podProblems = podProblematicFromList(snaps.pods.Items, namespaceSummaryMaxProblematic)
 	}
-	res.Problematic = mergeProblematicUnique(namespaceSummaryMaxProblematic, workloadProblems, podProblems)
+	var customProblems []dto.ProblematicResource
+	if snaps.customResourcesErr == nil {
+		customProblems = customResourceProblematicFromList(snaps.customResources.Items, namespaceSummaryMaxProblematic)
+	}
+	res.Problematic = mergeProblematicUnique(namespaceSummaryMaxProblematic, workloadProblems, podProblems, customProblems)
 
 	meta := composeNamespaceSummaryProjectionMeta(
 		snaps.pods.Meta,
@@ -304,6 +323,7 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 		snaps.roles.Meta,
 		snaps.roleBindings.Meta,
 		snaps.helm.Meta,
+		snaps.customResources.Meta,
 		snaps.rq.Meta,
 		snaps.lr.Meta,
 	)
@@ -312,7 +332,7 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	firstNorm := FirstNonNilNormalizedError(
 		snaps.pods.Err, snaps.deps.Err, snaps.svcs.Err, snaps.ing.Err, snaps.pvcs.Err, snaps.cms.Err, snaps.secs.Err,
 		snaps.ds.Err, snaps.sts.Err, snaps.rs.Err, snaps.jobs.Err, snaps.cj.Err, snaps.hpa.Err,
-		snaps.sa.Err, snaps.roles.Err, snaps.roleBindings.Err, snaps.helm.Err, snaps.rq.Err, snaps.lr.Err,
+		snaps.sa.Err, snaps.roles.Err, snaps.roleBindings.Err, snaps.helm.Err, snaps.customResources.Err, snaps.rq.Err, snaps.lr.Err,
 	)
 
 	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
@@ -320,11 +340,11 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs +
 		res.Counts.HPAs +
 		res.Counts.ServiceAccounts + res.Counts.Roles + res.Counts.RoleBindings + res.Counts.HelmReleases +
-		res.Counts.ResourceQuotas + res.Counts.LimitRanges
+		res.Counts.CustomResources + res.Counts.ResourceQuotas + res.Counts.LimitRanges
 	usable := namespaceSummaryHasUsableSnapshot(
 		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
 		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
-		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.rqErr, snaps.lrErr,
+		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.customResourcesErr, snaps.rqErr, snaps.lrErr,
 	)
 	state := ProjectionCoarseState(firstNorm, meaningful)
 
@@ -341,7 +361,7 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	err := FirstError(
 		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
 		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
-		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.rqErr, snaps.lrErr,
+		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.customResourcesErr, snaps.rqErr, snaps.lrErr,
 	)
 	return out, namespaceSummaryProjectionError(err, usable)
 }
@@ -371,6 +391,47 @@ func namespaceHelmReleasesFromSnapshot(items []dto.HelmReleaseDTO) []dto.Namespa
 			Revision: r.Revision,
 		})
 	}
+	return out
+}
+
+func namespaceCustomResourceKindsFromSnapshot(items []dto.CustomResourceInstanceDTO) []dto.NamespaceCustomResourceKind {
+	if len(items) == 0 {
+		return nil
+	}
+	byKey := make(map[string]*dto.NamespaceCustomResourceKind)
+	for _, item := range items {
+		key := strings.Join([]string{item.Group, item.Version, item.Resource, item.Kind}, "\x00")
+		row := byKey[key]
+		if row == nil {
+			row = &dto.NamespaceCustomResourceKind{
+				Kind:     item.Kind,
+				Group:    item.Group,
+				Version:  item.Version,
+				Resource: item.Resource,
+			}
+			byKey[key] = row
+		}
+		row.Count++
+		switch strings.ToLower(strings.TrimSpace(item.SignalSeverity)) {
+		case "warning":
+			row.Warnings++
+		case "error", "critical":
+			row.Errors++
+		}
+	}
+	out := make([]dto.NamespaceCustomResourceKind, 0, len(byKey))
+	for _, row := range byKey {
+		out = append(out, *row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Group < out[j].Group
+	})
 	return out
 }
 
@@ -447,6 +508,32 @@ func podProblematicFromList(items []dto.PodListItemDTO, limit int) []dto.Problem
 				Reason: reason,
 			})
 		}
+	}
+	return out
+}
+
+func customResourceProblematicFromList(items []dto.CustomResourceInstanceDTO, limit int) []dto.ProblematicResource {
+	if limit <= 0 {
+		limit = namespaceSummaryMaxProblematic
+	}
+	var out []dto.ProblematicResource
+	for _, item := range items {
+		if len(out) >= limit {
+			break
+		}
+		severity := strings.ToLower(strings.TrimSpace(item.SignalSeverity))
+		if severity != "warning" && severity != "error" && severity != "critical" {
+			continue
+		}
+		reason := strings.TrimSpace(item.StatusSummary)
+		if reason == "" {
+			reason = item.SignalSeverity
+		}
+		out = append(out, dto.ProblematicResource{
+			Kind:   item.Kind,
+			Name:   item.Name,
+			Reason: reason,
+		})
 	}
 	return out
 }

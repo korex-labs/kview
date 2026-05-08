@@ -74,6 +74,7 @@ func TestListSnapshotRevision_ClusterScopedKindsDoNotRequireNamespace(t *testing
 		ResourceKindClusterRoles,
 		ResourceKindClusterRoleBindings,
 		ResourceKindCRDs,
+		ResourceKindClusterCustomResources,
 	}
 	for _, kind := range kinds {
 		if ListRevisionKindNeedsNamespace(kind) {
@@ -83,6 +84,43 @@ func TestListSnapshotRevision_ClusterScopedKindsDoNotRequireNamespace(t *testing
 		if !ok || parsed != kind {
 			t.Fatalf("parse %s = %s/%v", kind, parsed, ok)
 		}
+	}
+}
+
+func TestListSnapshotRevision_CustomResourceKinds(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	planeAny, _ := mm.PlaneForCluster(context.Background(), "c1")
+	plane := planeAny.(*clusterPlane)
+	now := time.Now().UTC()
+	setClusterSnapshot(&plane.clusterCustomResourcesStore, CustomResourcesSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
+		Items: []dto.CustomResourceInstanceDTO{{Name: "cluster-widget", Kind: "Widget"}},
+	})
+	setNamespacedSnapshot(&plane.customResourcesStore, "app", CustomResourcesSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
+		Items: []dto.CustomResourceInstanceDTO{{Name: "widget", Namespace: "app", Kind: "Widget"}},
+	})
+
+	clusterEnv, err := mm.ListSnapshotRevision(context.Background(), "c1", ResourceKindClusterCustomResources, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !clusterEnv.Known || clusterEnv.Revision != "1" {
+		t.Fatalf("cluster custom resource env %+v", clusterEnv)
+	}
+	nsEnv, err := mm.ListSnapshotRevision(context.Background(), "c1", ResourceKindCustomResources, "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nsEnv.Known || nsEnv.Revision != "1" {
+		t.Fatalf("namespaced custom resource env %+v", nsEnv)
+	}
+	if ListRevisionKindNeedsNamespace(ResourceKindClusterCustomResources) {
+		t.Fatal("cluster custom resources should not require namespace")
+	}
+	if !ListRevisionKindNeedsNamespace(ResourceKindCustomResources) {
+		t.Fatal("namespaced custom resources should require namespace")
 	}
 }
 

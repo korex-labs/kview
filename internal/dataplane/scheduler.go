@@ -26,6 +26,7 @@ const (
 	ResourceKindClusterRoles        ResourceKind = "clusterroles"
 	ResourceKindClusterRoleBindings ResourceKind = "clusterrolebindings"
 	ResourceKindCRDs                ResourceKind = "customresourcedefinitions"
+	ResourceKindClusterCustomResources ResourceKind = "clusterresources"
 	ResourceKindServices            ResourceKind = "services"
 	ResourceKindIngresses           ResourceKind = "ingresses"
 	ResourceKindPVCs                ResourceKind = "persistentvolumeclaims"
@@ -43,6 +44,7 @@ const (
 	ResourceKindHPAs                ResourceKind = "horizontalpodautoscalers"
 	ResourceKindResourceQuotas      ResourceKind = "resourcequotas"
 	ResourceKindLimitRanges         ResourceKind = "limitranges"
+	ResourceKindCustomResources     ResourceKind = "customresources"
 	// ResourceKindPodMetrics and ResourceKindNodeMetrics hold point-in-time
 	// usage samples from metrics.k8s.io. They are intentionally not in
 	// dataplaneNamespacedListResourceKinds — metrics are not a namespace list
@@ -73,6 +75,7 @@ func dataplaneNamespacedListResourceKinds() []ResourceKind {
 		ResourceKindHelmReleases,
 		ResourceKindResourceQuotas,
 		ResourceKindLimitRanges,
+		ResourceKindCustomResources,
 	}
 }
 

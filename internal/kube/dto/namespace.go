@@ -95,6 +95,10 @@ type NamespaceSummaryResourcesDTO struct {
 	DeployHealth NamespaceDeploymentHealth `json:"deploymentHealth"`
 	Problematic  []ProblematicResource     `json:"problematic"`
 	HelmReleases []NamespaceHelmRelease    `json:"helmReleases,omitempty"`
+	// CustomResourceKinds is populated from the cached custom resource dataplane
+	// snapshot when available. It is intentionally a by-kind breakdown rather
+	// than a single global count so namespace inventory can stay actionable.
+	CustomResourceKinds []NamespaceCustomResourceKind `json:"customResourceKinds,omitempty"`
 	// WorkloadByKind rolls up coarse health from dataplane workload list snapshots (Stage 5C).
 	WorkloadByKind *NamespaceWorkloadHealthRollupDTO `json:"workloadByKind,omitempty"`
 	Meta           *NamespaceSummaryMetaDTO          `json:"meta,omitempty"`
@@ -135,6 +139,7 @@ type NamespaceResourceCounts struct {
 	Roles           int `json:"roles"`
 	RoleBindings    int `json:"roleBindings"`
 	HelmReleases    int `json:"helmReleases"`
+	CustomResources int `json:"customResources"`
 	ResourceQuotas  int `json:"resourceQuotas"`
 	LimitRanges     int `json:"limitRanges"`
 }
@@ -163,6 +168,16 @@ type NamespaceHelmRelease struct {
 	Name     string `json:"name"`
 	Status   string `json:"status"`
 	Revision int    `json:"revision"`
+}
+
+type NamespaceCustomResourceKind struct {
+	Kind     string `json:"kind"`
+	Group    string `json:"group,omitempty"`
+	Version  string `json:"version,omitempty"`
+	Resource string `json:"resource,omitempty"`
+	Count    int    `json:"count"`
+	Warnings int    `json:"warnings,omitempty"`
+	Errors   int    `json:"errors,omitempty"`
 }
 
 // NamespaceSummaryMetaDTO describes projection metadata for the namespace summary.

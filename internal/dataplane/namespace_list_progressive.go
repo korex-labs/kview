@@ -676,6 +676,8 @@ func (m *manager) warmNamespaceEnrichmentResourceKinds(ctx context.Context, plan
 		switch ResourceKind(raw) {
 		case ResourceKindPods:
 			_, _ = plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
+		case ResourceKindCustomResources:
+			_, _ = plane.CustomResourcesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
 		case ResourceKindDeployments:
 			_, _ = plane.DeploymentsSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityLow)
 		case ResourceKindDaemonSets:
@@ -719,6 +721,7 @@ func (m *manager) warmNamespaceEnrichmentResourceKinds(ctx context.Context, plan
 func (m *manager) warmNamespaceInsightsResourceKinds(ctx context.Context, plane *clusterPlane, namespace string) {
 	m.warmNamespaceEnrichmentResourceKinds(ctx, plane, namespace, []string{
 		string(ResourceKindPods),
+		string(ResourceKindCustomResources),
 		string(ResourceKindDeployments),
 		string(ResourceKindDaemonSets),
 		string(ResourceKindStatefulSets),

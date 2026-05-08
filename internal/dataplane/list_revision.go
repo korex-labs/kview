@@ -27,7 +27,8 @@ func ListRevisionKindNeedsNamespace(k ResourceKind) bool {
 		ResourceKindPersistentVolumes,
 		ResourceKindClusterRoles,
 		ResourceKindClusterRoleBindings,
-		ResourceKindCRDs:
+		ResourceKindCRDs,
+		ResourceKindClusterCustomResources:
 		return false
 	default:
 		return true
@@ -49,8 +50,12 @@ func ParseListRevisionResourceKind(s string) (ResourceKind, bool) {
 		return ResourceKindClusterRoleBindings, true
 	case string(ResourceKindCRDs):
 		return ResourceKindCRDs, true
+	case string(ResourceKindClusterCustomResources):
+		return ResourceKindClusterCustomResources, true
 	case string(ResourceKindPods):
 		return ResourceKindPods, true
+	case string(ResourceKindCustomResources):
+		return ResourceKindCustomResources, true
 	case string(ResourceKindDeployments):
 		return ResourceKindDeployments, true
 	case string(ResourceKindServices):
@@ -141,8 +146,20 @@ func (p *clusterPlane) listSnapshotRevision(kind ResourceKind, namespace string)
 			return env
 		}
 		fillListRevisionEnvFromSnap(&env, snap, snap.Err)
+	case ResourceKindClusterCustomResources:
+		snap, ok := peekClusterSnapshot(&p.clusterCustomResourcesStore)
+		if !ok {
+			return env
+		}
+		fillListRevisionEnvFromSnap(&env, snap, snap.Err)
 	case ResourceKindPods:
 		snap, ok := peekNamespacedSnapshot(&p.podsStore, namespace)
+		if !ok {
+			return env
+		}
+		fillListRevisionEnvFromSnap(&env, snap, snap.Err)
+	case ResourceKindCustomResources:
+		snap, ok := peekNamespacedSnapshot(&p.customResourcesStore, namespace)
 		if !ok {
 			return env
 		}

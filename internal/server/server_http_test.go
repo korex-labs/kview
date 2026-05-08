@@ -275,8 +275,14 @@ func (s *stubDataplane) ClusterRoleBindingsSnapshot(_ context.Context, _ string)
 func (s *stubDataplane) CRDsSnapshot(_ context.Context, _ string) (dataplane.CRDsSnapshot, error) {
 	panic("stubDataplane: CRDsSnapshot")
 }
+func (s *stubDataplane) ClusterCustomResourcesSnapshot(_ context.Context, _ string) (dataplane.CustomResourcesSnapshot, error) {
+	panic("stubDataplane: ClusterCustomResourcesSnapshot")
+}
 func (s *stubDataplane) PodsSnapshot(_ context.Context, _, _ string) (dataplane.PodsSnapshot, error) {
 	panic("stubDataplane: PodsSnapshot")
+}
+func (s *stubDataplane) CustomResourcesSnapshot(_ context.Context, _, _ string) (dataplane.CustomResourcesSnapshot, error) {
+	panic("stubDataplane: CustomResourcesSnapshot")
 }
 func (s *stubDataplane) DeploymentsSnapshot(_ context.Context, _, _ string) (dataplane.DeploymentsSnapshot, error) {
 	panic("stubDataplane: DeploymentsSnapshot")

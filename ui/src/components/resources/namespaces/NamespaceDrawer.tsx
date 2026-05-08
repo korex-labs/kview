@@ -21,6 +21,7 @@ import type {
   LimitRangeItem,
   NamespaceCondition,
   NamespaceDeploymentHealth,
+  NamespaceCustomResourceKind,
   NamespaceDetails,
   NamespaceHelmRelease,
   NamespaceInsights,
@@ -88,6 +89,7 @@ const sectionMap: Record<string, string> = {
   configMaps: "configmaps",
   secrets: "secrets",
   helmReleases: "helm",
+  customResources: "customresources",
   serviceAccounts: "serviceaccounts",
   roles: "roles",
   roleBindings: "rolebindings",
@@ -184,6 +186,22 @@ function mapCountChip(
       onClick={enabled ? () => onSelect(sectionKey) : undefined}
     />
   );
+}
+
+function customResourceKindCountLabel(item: NamespaceCustomResourceKind): string {
+  const flags = [item.errors ? `${item.errors} error` : "", item.warnings ? `${item.warnings} warning` : ""].filter(Boolean);
+  return flags.length ? `${item.count} · ${flags.join(" · ")}` : String(item.count);
+}
+
+function customResourceKindTooltip(item: NamespaceCustomResourceKind): string {
+  const api = [item.group, item.version].filter(Boolean).join("/");
+  const parts = [
+    item.resource ? `Resource: ${item.resource}` : "",
+    api ? `API: ${api}` : "",
+    item.errors ? `${item.errors} error signal${item.errors === 1 ? "" : "s"}` : "",
+    item.warnings ? `${item.warnings} warning signal${item.warnings === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return parts.join(" · ") || item.kind;
 }
 
 export default function NamespaceDrawer(props: {
@@ -293,6 +311,7 @@ export default function NamespaceDrawer(props: {
   const podHealth = insights?.summary?.podHealth;
   const problematic = insights?.summary?.problematic || [];
   const helmReleases = insights?.summary?.helmReleases || [];
+  const customResourceKinds = insights?.summary?.customResourceKinds || [];
   const summaryMeta = insights?.summary?.meta;
   const workloadByKind = insights?.summary?.workloadByKind;
   const signals = insights?.signals || [];
@@ -408,6 +427,23 @@ export default function NamespaceDrawer(props: {
                           {mapCountChip("Helm releases", counts.helmReleases, "helm", !!props.onNavigate, navigateTo)}
                         </Box>
                       </Section>
+
+                      {customResourceKinds.length > 0 && (
+                        <Section title="Custom resources">
+                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+                            {customResourceKinds.map((item) => (
+                              <ResourceLinkChip
+                                key={`${item.group}/${item.version}/${item.resource}/${item.kind}`}
+                                label={item.kind}
+                                count={customResourceKindCountLabel(item)}
+                                color={props.onNavigate ? "primary" : "default"}
+                                title={customResourceKindTooltip(item)}
+                                onClick={props.onNavigate ? () => navigateTo("customresources") : undefined}
+                              />
+                            ))}
+                          </Box>
+                        </Section>
+                      )}
                     </>
                   )}
 
