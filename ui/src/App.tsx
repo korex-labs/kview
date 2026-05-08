@@ -146,6 +146,7 @@ function AppInner() {
   const [namespace, setNamespace] = useState<string>("");
 
   const [section, setSection] = useState<Section>("pods");
+  const [customResourcesFilterIntent, setCustomResourcesFilterIntent] = useState<{ value: string; nonce: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchDrawerItem, setSearchDrawerItem] = useState<ApiDataplaneSearchItem | null>(null);
   const [searchFocusNonce, setSearchFocusNonce] = useState(0);
@@ -694,8 +695,11 @@ function AppInner() {
                   recentNamespaces={recentNamespaces}
                   smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
                   onToggleFavourite={onToggleFavourite}
-                  onNavigate={(sec, ns) => {
+                  onNavigate={(sec, ns, filter) => {
                     onSelectNamespace(ns);
+                    if (sec === "customresources" && filter) {
+                      setCustomResourcesFilterIntent((prev) => ({ value: filter, nonce: (prev?.nonce || 0) + 1 }));
+                    }
                     onSelectSection(sec as Section);
                   }}
                 />
@@ -737,7 +741,14 @@ function AppInner() {
                 <CustomResourceDefinitionsTable token={token} />
               ) : null}
               {!settingsOpen && section === "customresources" && namespace ? (
-                <CustomResourcesTable token={token} namespace={namespace} />
+                <CustomResourcesTable
+                  token={token}
+                  namespace={namespace}
+                  filterIntent={customResourcesFilterIntent}
+                  onFilterIntentApplied={(nonce) => {
+                    setCustomResourcesFilterIntent((prev) => (prev?.nonce === nonce ? null : prev));
+                  }}
+                />
               ) : null}
               {!settingsOpen && section === "clusterresources" ? (
                 <ClusterCustomResourcesTable token={token} />

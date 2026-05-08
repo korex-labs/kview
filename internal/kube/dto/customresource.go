@@ -30,13 +30,15 @@ type CustomResourceDetailsDTO struct {
 }
 
 type CustomResourceSummaryDTO struct {
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace,omitempty"`
-	Group       string            `json:"group"`
-	Version     string            `json:"version"`
-	Kind        string            `json:"kind"`
-	AgeSec      int64             `json:"ageSec"`
-	CreatedAt   int64             `json:"createdAt"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
+	Name           string            `json:"name"`
+	Namespace      string            `json:"namespace,omitempty"`
+	Group          string            `json:"group"`
+	Version        string            `json:"version"`
+	Kind           string            `json:"kind"`
+	AgeSec         int64             `json:"ageSec"`
+	CreatedAt      int64             `json:"createdAt"`
+	SignalSeverity string            `json:"signalSeverity,omitempty"`
+	StatusSummary  string            `json:"statusSummary,omitempty"`
+	Labels         map[string]string `json:"labels,omitempty"`
+	Annotations    map[string]string `json:"annotations,omitempty"`
 }

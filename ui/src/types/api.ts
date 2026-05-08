@@ -648,6 +648,9 @@ export type NamespaceProblematicResource = {
   kind: string;
   name: string;
   reason: string;
+  group?: string;
+  version?: string;
+  resource?: string;
 };
 
 export type NamespaceHelmRelease = {

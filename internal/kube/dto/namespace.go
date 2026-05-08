@@ -159,9 +159,12 @@ type NamespaceDeploymentHealth struct {
 }
 
 type ProblematicResource struct {
-	Kind   string `json:"kind"`
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Reason   string `json:"reason"`
+	Group    string `json:"group,omitempty"`
+	Version  string `json:"version,omitempty"`
+	Resource string `json:"resource,omitempty"`
 }
 
 type NamespaceHelmRelease struct {

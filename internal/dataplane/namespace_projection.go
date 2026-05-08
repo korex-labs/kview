@@ -530,9 +530,12 @@ func customResourceProblematicFromList(items []dto.CustomResourceInstanceDTO, li
 			reason = item.SignalSeverity
 		}
 		out = append(out, dto.ProblematicResource{
-			Kind:   item.Kind,
-			Name:   item.Name,
-			Reason: reason,
+			Kind:     item.Kind,
+			Name:     item.Name,
+			Reason:   reason,
+			Group:    item.Group,
+			Version:  item.Version,
+			Resource: item.Resource,
 		})
 	}
 	return out

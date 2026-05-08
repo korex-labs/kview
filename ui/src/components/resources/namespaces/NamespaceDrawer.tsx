@@ -69,6 +69,8 @@ import PodDrawer from "../pods/PodDrawer";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
 import JobDrawer from "../jobs/JobDrawer";
 import HelmReleaseDrawer from "../helm/HelmReleaseDrawer";
+import HorizontalPodAutoscalerDrawer from "../horizontalpodautoscalers/HorizontalPodAutoscalerDrawer";
+import CustomResourceDrawer, { type CRRef } from "../customresources/CustomResourceDrawer";
 import { drawerBodySx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 
 const tabs = ["Signals", "Inventory", "Capacity", "Events", "Metadata", "YAML"] as const;
@@ -210,7 +212,7 @@ export default function NamespaceDrawer(props: {
   onClose: () => void;
   token: string;
   namespaceName: string | null;
-  onNavigate?: (section: string, namespace: string) => void;
+  onNavigate?: (section: string, namespace: string, filter?: string) => void;
 }) {
   const { health, retryNonce } = useConnectionState();
   const offline = health === "unhealthy";
@@ -228,6 +230,8 @@ export default function NamespaceDrawer(props: {
   const [drawerDeployment, setDrawerDeployment] = useState<string | null>(null);
   const [drawerJob, setDrawerJob] = useState<string | null>(null);
   const [drawerHelmRelease, setDrawerHelmRelease] = useState<string | null>(null);
+  const [drawerHPA, setDrawerHPA] = useState<string | null>(null);
+  const [drawerCustomResource, setDrawerCustomResource] = useState<CRRef | null>(null);
   const eventTargetFor = (event: EventDTO) => {
     const kind = String(event.involvedKind || "").toLowerCase();
     const resourceName = event.involvedName || "";
@@ -237,6 +241,7 @@ export default function NamespaceDrawer(props: {
     if (kind === "pod") return { ...target, onClick: () => setDrawerPod(resourceName) };
     if (kind === "deployment") return { ...target, onClick: () => setDrawerDeployment(resourceName) };
     if (kind === "job") return { ...target, onClick: () => setDrawerJob(resourceName) };
+    if (kind === "horizontalpodautoscaler") return { ...target, onClick: () => setDrawerHPA(resourceName) };
     if (kind === "helmrelease" || kind === "helm release") {
       return { ...target, onClick: () => setDrawerHelmRelease(resourceName) };
     }
@@ -264,6 +269,8 @@ export default function NamespaceDrawer(props: {
     setDrawerDeployment(null);
     setDrawerJob(null);
     setDrawerHelmRelease(null);
+    setDrawerHPA(null);
+    setDrawerCustomResource(null);
 
     const encodedName = encodeURIComponent(name);
     (async () => {
@@ -335,9 +342,9 @@ export default function NamespaceDrawer(props: {
     [summary, name]
   );
 
-  function navigateTo(sectionKey: string) {
+  function navigateTo(sectionKey: string, filter?: string) {
     if (!props.onNavigate || !name) return;
-    props.onNavigate(sectionMap[sectionKey] || sectionKey, name);
+    props.onNavigate(sectionMap[sectionKey] || sectionKey, name, filter);
   }
 
   const primaryError = insightsErr || (tab >= metadataTabIndex ? detailsErr : "");
@@ -380,6 +387,8 @@ export default function NamespaceDrawer(props: {
                   onOpenPod={setDrawerPod}
                   onOpenDeployment={setDrawerDeployment}
                   onOpenJob={setDrawerJob}
+                  onOpenHPA={setDrawerHPA}
+                  onOpenCustomResource={setDrawerCustomResource}
                   onOpenHelmRelease={setDrawerHelmRelease}
                   onNavigate={navigateTo}
                   onSelectCapacityTab={() => setTab(2)}
@@ -445,7 +454,7 @@ export default function NamespaceDrawer(props: {
                                 count={customResourceKindCountLabel(item)}
                                 color={props.onNavigate ? "primary" : "default"}
                                 title={customResourceKindTooltip(item)}
-                                onClick={props.onNavigate ? () => navigateTo("customresources") : undefined}
+                                onClick={props.onNavigate ? () => navigateTo("customresources", item.kind) : undefined}
                               />
                             ))}
                           </Box>
@@ -702,6 +711,19 @@ export default function NamespaceDrawer(props: {
               token={props.token}
               namespace={name || ""}
               releaseName={drawerHelmRelease}
+            />
+            <HorizontalPodAutoscalerDrawer
+              open={!!drawerHPA}
+              onClose={() => setDrawerHPA(null)}
+              token={props.token}
+              namespace={name || ""}
+              hpaName={drawerHPA}
+            />
+            <CustomResourceDrawer
+              open={!!drawerCustomResource}
+              onClose={() => setDrawerCustomResource(null)}
+              token={props.token}
+              crRef={drawerCustomResource}
             />
           </>
         )}

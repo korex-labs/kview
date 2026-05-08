@@ -68,7 +68,17 @@ const columns: GridColDef<Row>[] = [
   },
 ];
 
-export default function CustomResourcesTable({ token, namespace }: { token: string; namespace: string }) {
+export default function CustomResourcesTable({
+  token,
+  namespace,
+  filterIntent,
+  onFilterIntentApplied,
+}: {
+  token: string;
+  namespace: string;
+  filterIntent?: { value: string; nonce: number } | null;
+  onFilterIntentApplied?: (nonce: number) => void;
+}) {
   const [aggMeta, setAggMeta] = useState<AggregationMeta | null>(null);
 
   const fetchRows = useCallback(async (contextName?: string): Promise<ResourceListFetchResult<Row>> => {
@@ -114,6 +124,8 @@ export default function CustomResourcesTable({ token, namespace }: { token: stri
       }}
       filterPredicate={filterPredicate}
       filterLabel="Filter (name/kind/group/status)"
+      filterIntent={filterIntent}
+      onFilterIntentApplied={onFilterIntentApplied}
       resourceLabel={resourceLabel}
       resourceKey="customresources"
       accessResource={listResourceAccess.customresources}

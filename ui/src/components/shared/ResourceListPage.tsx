@@ -86,6 +86,8 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   enabled?: boolean;
   filterPredicate: (row: TRow, query: string) => boolean;
   filterLabel: string;
+  filterIntent?: { value: string; nonce: number } | null;
+  onFilterIntentApplied?: (nonce: number) => void;
   resourceLabel: string;
   resourceKey: ListResourceKey;
   accessResource: AccessReviewResource;
@@ -130,6 +132,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
   enabled = true,
   filterPredicate,
   filterLabel,
+  filterIntent,
+  onFilterIntentApplied,
   resourceLabel,
   resourceKey,
   accessResource,
@@ -277,6 +281,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
       smartFilterContext,
       diagnosticsLabel,
     });
+
+  useEffect(() => {
+    if (!filterIntent) return;
+    setFilter(filterIntent.value);
+    onFilterIntentApplied?.(filterIntent.nonce);
+  }, [filterIntent, onFilterIntentApplied, setFilter]);
 
   useEffect(() => {
     if (!settings.resourceTags.enabled || loading || error) return;

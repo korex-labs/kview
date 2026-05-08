@@ -43,16 +43,19 @@ func GetCustomResourceDetails(ctx context.Context, dynClient dynamic.Interface, 
 		age = int64(now.Sub(ts.Time).Seconds())
 	}
 
+	severity, statusSummary := crSignal(item.Object)
 	summary := dto.CustomResourceSummaryDTO{
-		Name:        item.GetName(),
-		Namespace:   item.GetNamespace(),
-		Group:       group,
-		Version:     version,
-		Kind:        item.GetKind(),
-		AgeSec:      age,
-		CreatedAt:   createdAt,
-		Labels:      item.GetLabels(),
-		Annotations: item.GetAnnotations(),
+		Name:           item.GetName(),
+		Namespace:      item.GetNamespace(),
+		Group:          group,
+		Version:        version,
+		Kind:           item.GetKind(),
+		AgeSec:         age,
+		CreatedAt:      createdAt,
+		SignalSeverity: severity,
+		StatusSummary:  statusSummary,
+		Labels:         item.GetLabels(),
+		Annotations:    item.GetAnnotations(),
 	}
 
 	return &dto.CustomResourceDetailsDTO{

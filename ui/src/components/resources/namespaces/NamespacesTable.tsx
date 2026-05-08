@@ -215,7 +215,7 @@ export default function NamespacesTable({
   recentNamespaces?: string[];
   smartNamespaceSorting?: boolean;
   onToggleFavourite: (namespace: string) => void;
-  onNavigate?: (section: string, namespace: string) => void;
+  onNavigate?: (section: string, namespace: string, filter?: string) => void;
 }) {
   const [rowProjection, setRowProjection] = useState<ApiNamespacesListResponse["rowProjection"] | null>(null);
   const [enrichRows, setEnrichRows] = useState<ApiNamespacesEnrichmentPoll["updates"] | null>(null);

@@ -7,6 +7,7 @@ import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
 import ErrorState from "../../shared/ErrorState";
 import MetadataSection from "../../shared/MetadataSection";
+import ConditionsTable from "../../shared/ConditionsTable";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -14,6 +15,7 @@ import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import type { ApiItemResponse } from "../../../types/api";
+import CustomResourceStatusCell from "./CustomResourceStatusCell";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -37,6 +39,8 @@ type CRSummary = {
   kind: string;
   ageSec: number;
   createdAt: number;
+  signalSeverity?: string;
+  statusSummary?: string;
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
 };
@@ -153,6 +157,11 @@ export default function CustomResourceDrawer(props: {
       { label: "Kind", value: valueOrDash(ref?.kind) },
       { label: "Group", value: valueOrDash(ref?.group), monospace: true },
       { label: "Version", value: valueOrDash(resolvedVersion || ref?.version), monospace: true },
+      {
+        label: "Status",
+        value: <CustomResourceStatusCell severity={summary?.signalSeverity} summary={summary?.statusSummary} />,
+      },
+      { label: "Reason", value: valueOrDash(summary?.statusSummary) },
       { label: "Age", value: fmtAge(summary?.ageSec) },
       { label: "Created", value: summary?.createdAt ? fmtTs(summary.createdAt) : "-" },
     ],
@@ -192,6 +201,12 @@ export default function CustomResourceDrawer(props: {
                       <KeyValueTable rows={summaryItems} columns={2} />
                     </Box>
                   </Section>
+                  <ConditionsTable
+                    conditions={details?.conditions || []}
+                    variant="section"
+                    title="Conditions"
+                    emptyMessage="No conditions reported for this custom resource."
+                  />
                 </Box>
               )}
 

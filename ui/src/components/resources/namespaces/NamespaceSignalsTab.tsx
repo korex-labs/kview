@@ -45,6 +45,7 @@ import {
 } from "../../../theme/sxTokens";
 import NamespaceActions from "./NamespaceActions";
 import { dataplaneCoarseStateChipColor, formatChipLabel } from "../../../utils/k8sUi";
+import type { CRRef } from "../customresources/CustomResourceDrawer";
 
 function signalTarget(signal: DashboardSignalItem): string {
   if (!signal.name) return signal.namespace || signal.kind;
@@ -83,8 +84,10 @@ type Props = {
   onOpenPod: (name: string) => void;
   onOpenDeployment: (name: string) => void;
   onOpenJob: (name: string) => void;
+  onOpenHPA: (name: string) => void;
+  onOpenCustomResource: (ref: CRRef) => void;
   onOpenHelmRelease: (name: string | null) => void;
-  onNavigate: (sectionKey: string) => void;
+  onNavigate: (sectionKey: string, filter?: string) => void;
   onSelectCapacityTab: () => void;
   onJumpToEvents?: () => void;
   onJumpToConditions?: () => void;
@@ -114,6 +117,8 @@ export default function NamespaceSignalsTab({
   onOpenPod,
   onOpenDeployment,
   onOpenJob,
+  onOpenHPA,
+  onOpenCustomResource,
   onOpenHelmRelease,
   onNavigate,
   onSelectCapacityTab,
@@ -128,12 +133,24 @@ export default function NamespaceSignalsTab({
       case "Pod": onOpenPod(resource.name); return;
       case "Deployment": onOpenDeployment(resource.name); return;
       case "Job": onOpenJob(resource.name); return;
+      case "HorizontalPodAutoscaler": onOpenHPA(resource.name); return;
       case "DaemonSet": onNavigate("daemonSets"); return;
       case "StatefulSet": onNavigate("statefulSets"); return;
       case "CronJob": onNavigate("cronJobs"); return;
-      case "HorizontalPodAutoscaler": onNavigate("horizontalPodAutoscalers"); return;
       case "ReplicaSet": onNavigate("replicaSets"); return;
     }
+    if (resource.group && resource.version && resource.resource) {
+      onOpenCustomResource({
+        group: resource.group,
+        version: resource.version,
+        resource: resource.resource,
+        kind: resource.kind,
+        namespace: namespaceName,
+        name: resource.name,
+      });
+      return;
+    }
+    onNavigate("customresources", resource.name || resource.kind);
   }
 
   function handleSignal(signal: DashboardSignalItem) {
@@ -144,14 +161,15 @@ export default function NamespaceSignalsTab({
         return;
       case "HelmRelease": onOpenHelmRelease(signal.name || null); return;
       case "Job": onOpenJob(signal.name || ""); return;
+      case "HorizontalPodAutoscaler": onOpenHPA(signal.name || ""); return;
       case "Pod": onOpenPod(signal.name || ""); return;
       case "ConfigMap": onNavigate("configMaps"); return;
       case "Secret": onNavigate("secrets"); return;
       case "PersistentVolumeClaim": onNavigate("pvcs"); return;
       case "ServiceAccount": onNavigate("serviceAccounts"); return;
       case "CronJob": onNavigate("cronJobs"); return;
-      case "HorizontalPodAutoscaler": onNavigate("horizontalPodAutoscalers"); return;
     }
+    if (signal.name) onNavigate("customresources", signal.name);
   }
 
   const sortedSignals = useMemo(() => {

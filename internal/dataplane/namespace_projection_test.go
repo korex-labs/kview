@@ -96,8 +96,8 @@ func TestNamespaceSummaryProjection_CustomResourcesCountAndProblems(t *testing.T
 		customResources: CustomResourcesSnapshot{
 			Meta: SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
 			Items: []dto.CustomResourceInstanceDTO{
-				{Name: "ok", Kind: "Widget", SignalSeverity: "ok"},
-				{Name: "stuck", Kind: "Widget", SignalSeverity: "warning", StatusSummary: "NotReady"},
+				{Name: "ok", Kind: "Widget", Group: "example.com", Version: "v1", Resource: "widgets", SignalSeverity: "ok"},
+				{Name: "stuck", Kind: "Widget", Group: "example.com", Version: "v1", Resource: "widgets", SignalSeverity: "warning", StatusSummary: "NotReady"},
 			},
 		},
 	})
@@ -112,5 +112,8 @@ func TestNamespaceSummaryProjection_CustomResourcesCountAndProblems(t *testing.T
 	}
 	if len(proj.Resources.Problematic) != 1 || proj.Resources.Problematic[0].Name != "stuck" {
 		t.Fatalf("problematic custom resources: %+v", proj.Resources.Problematic)
+	}
+	if got := proj.Resources.Problematic[0]; got.Kind != "Widget" || got.Group != "example.com" || got.Version != "v1" || got.Resource != "widgets" {
+		t.Fatalf("problematic custom resource identity: %+v", got)
 	}
 }
