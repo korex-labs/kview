@@ -26,6 +26,7 @@ import {
   type ShortcutCommand,
   type ShortcutCommandId,
 } from "./shortcuts";
+import ShortcutKey from "./ShortcutKey";
 
 export type ContextualKeyboardAction = {
   id: string;
@@ -501,20 +502,7 @@ function KeyboardHelpDialog({
                   >
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, minWidth: 0 }}>
                       {row.bindings.map((binding) => (
-                        <Chip
-                          key={binding.join("+")}
-                          component="kbd"
-                          size="small"
-                          variant="outlined"
-                          label={formatBinding(binding)}
-                          sx={{
-                            height: 22,
-                            borderRadius: 1,
-                            fontFamily: "monospace",
-                            fontSize: "0.72rem",
-                            "& .MuiChip-label": { px: 0.75 },
-                          }}
-                        />
+                        <ShortcutKey key={binding.join("+")} label={formatBinding(binding)} />
                       ))}
                     </Box>
                     <ListItemText primary={row.label} slotProps={{ primary: { variant: "body2" } }} sx={{ my: 0 }} />

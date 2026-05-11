@@ -19,23 +19,38 @@ type Props = {
   token: string;
   covered?: boolean;
   initialOpen?: boolean;
+  initialHeight?: number;
   onOpenChange?: (open: boolean) => void;
+  onHeightChange?: (height: number) => void;
 };
 
 const MIN_PANEL_HEIGHT = 160;
 const MAX_PANEL_HEIGHT = 630;
 const HEADER_HEIGHT = 28;
 
-export default function ActivityPanel({ token, covered = false, initialOpen = true, onOpenChange }: Props) {
+function clampPanelHeight(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 230;
+  return Math.min(MAX_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, value));
+}
+
+export default function ActivityPanel({
+  token,
+  covered = false,
+  initialOpen = true,
+  initialHeight,
+  onOpenChange,
+  onHeightChange,
+}: Props) {
   const { backendHealth, clusterHealth, cluster } = useConnectionState();
   const effectiveClusterHealth = backendHealth === "healthy" && clusterHealth === "healthy" ? "healthy" : "unhealthy";
   const [open, setOpen] = useState(() => initialOpen);
   const [tab, setTab] = useState(0);
-  const [height, setHeight] = useState(230);
+  const [height, setHeight] = useState(() => clampPanelHeight(initialHeight));
   const [dragging, setDragging] = useState(false);
   const [requestedTerminalId, setRequestedTerminalId] = useState<string | null>(null);
   const [requestKey, setRequestKey] = useState(0);
   const didMountRef = useRef(false);
+  const didMountHeightRef = useRef(false);
   const [tabCounts, setTabCounts] = useState({
     activities: 0,
     dataplaneWork: 0,
@@ -54,6 +69,14 @@ export default function ActivityPanel({ token, covered = false, initialOpen = tr
     }
     onOpenChange?.(open);
   }, [onOpenChange, open]);
+
+  useEffect(() => {
+    if (!didMountHeightRef.current) {
+      didMountHeightRef.current = true;
+      return;
+    }
+    onHeightChange?.(height);
+  }, [height, onHeightChange]);
 
   useEffect(() => {
     const offset = open ? `${HEADER_HEIGHT + height}px` : `${HEADER_HEIGHT}px`;

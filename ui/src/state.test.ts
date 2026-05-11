@@ -74,4 +74,10 @@ describe("activity panel state", () => {
 
     expect(loadState().activityPanelOpen).toBe(false);
   });
+
+  it("persists the last known panel height", () => {
+    saveState({ v: 1, favouriteNamespacesByContext: {}, activityPanelHeightPx: 320 });
+
+    expect(loadState().activityPanelHeightPx).toBe(320);
+  });
 });

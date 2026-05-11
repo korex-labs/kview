@@ -93,6 +93,7 @@ import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
+import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -2991,26 +2992,28 @@ export default function SettingsView({
     <Box data-testid="settings-view" sx={settingsShellSx}>
       <Paper
         variant="outlined"
-        sx={{
-          width: 240,
-          flexShrink: 0,
-          borderRadius: 0,
-          borderTop: 0,
-          borderBottom: 0,
-          p: 1.5,
-          overflowY: "auto",
-        }}
+        sx={sideRailPaperSx}
       >
-        <Typography variant="overline" color="text.secondary">
+        <Typography variant="overline" color="text.secondary" sx={{ display: "block", mb: 0.25 }}>
           Settings
         </Typography>
         <List dense disablePadding>
           {sections.map((item) => (
-            <ListItemButton key={item.id} data-testid={`settings-nav-${item.id}`} selected={section === item.id} onClick={() => setSection(item.id)}>
-              <ListItemIcon sx={{ minWidth: 30, color: section === item.id ? "primary.main" : "text.secondary" }}>
+            <ListItemButton
+              key={item.id}
+              data-testid={`settings-nav-${item.id}`}
+              selected={section === item.id}
+              onClick={() => setSection(item.id)}
+              sx={sideRailListItemSx}
+            >
+              <ListItemIcon sx={sideRailIconSx(section === item.id)}>
                 <SettingsIcon name={item.icon} size={17} />
               </ListItemIcon>
-              <ListItemText primary={item.label} slotProps={{ primary: { variant: "body2" } }} />
+              <ListItemText
+                primary={item.label}
+                slotProps={{ primary: { variant: "body2" } }}
+                sx={sideRailListTextSx}
+              />
             </ListItemButton>
           ))}
         </List>

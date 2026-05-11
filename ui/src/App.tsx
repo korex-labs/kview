@@ -4,6 +4,7 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
 import ConstructionIcon from "@mui/icons-material/Construction";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
 import logoUrl from "./assets/logo.svg";
 import Sidebar from "./components/Sidebar";
 import NodesTable from "./components/resources/nodes/NodesTable";
@@ -73,6 +74,7 @@ import KeyboardProvider from "./keyboard/KeyboardProvider";
 import "./styles/theme.css";
 
 const SettingsView = React.lazy(() => import("./components/settings/SettingsView"));
+const HelpView = React.lazy(() => import("./components/help/HelpView"));
 
 function getToken(): string {
   const u = new URL(window.location.href);
@@ -149,6 +151,7 @@ function AppInner() {
   const [section, setSection] = useState<Section>("pods");
   const [customResourcesFilterIntent, setCustomResourcesFilterIntent] = useState<{ value: string; nonce: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [searchDrawerItem, setSearchDrawerItem] = useState<ApiDataplaneSearchItem | null>(null);
   const [searchFocusNonce, setSearchFocusNonce] = useState(0);
 
@@ -212,6 +215,12 @@ function AppInner() {
 
   const handleActivityPanelOpenChange = useCallback((activityPanelOpen: boolean) => {
     setAppState((s) => (s.activityPanelOpen === activityPanelOpen ? s : { ...s, activityPanelOpen }));
+  }, []);
+
+  const handleActivityPanelHeightChange = useCallback((activityPanelHeightPx: number) => {
+    setAppState((s) => (
+      s.activityPanelHeightPx === activityPanelHeightPx ? s : { ...s, activityPanelHeightPx }
+    ));
   }, []);
 
   useEffect(() => {
@@ -545,6 +554,7 @@ function AppInner() {
       : bootstrapPhase === "error"
         ? bootstrapError || "Startup did not complete."
         : "Preparing the active cluster view. Cached data may appear first while live snapshots refresh.";
+  const resourcesOpen = !settingsOpen && !helpOpen;
 
   return (
     <ActiveContextProvider value={activeContext}>
@@ -552,7 +562,7 @@ function AppInner() {
         <KeyboardProvider
           namespaces={namespaces}
           contexts={contexts.map((ctx) => ctx.name)}
-          settingsOpen={settingsOpen}
+          settingsOpen={settingsOpen || helpOpen}
           keyboardSettings={settings.keyboard}
           onFocusGlobalSearch={() => setSearchFocusNonce((nonce) => nonce + 1)}
           onSelectSection={onSelectSection}
@@ -560,7 +570,10 @@ function AppInner() {
           onSelectContext={(name) => {
             void onSelectContext(name);
           }}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => {
+            setHelpOpen(false);
+            setSettingsOpen(true);
+          }}
         >
           <DataplaneSettingsSync token={token} />
           <Box
@@ -576,7 +589,7 @@ function AppInner() {
         >
           <CssBaseline />
           <StartupDialog
-            open={!settingsOpen && bootstrapPhase !== "ready"}
+            open={resourcesOpen && bootstrapPhase !== "ready"}
             mode={startupMode}
             message={startupMessage}
             steps={startupSteps(bootstrapPhase, bootstrapDetail)}
@@ -593,9 +606,9 @@ function AppInner() {
                 sx={{ width: 42, height: 42, mr: 1.25, flex: "0 0 auto" }}
               />
               <Typography variant="h6" noWrap component="div">
-                {settingsOpen ? "kview — Settings" : `kview — ${activeContext || "no context"}`}
+                {settingsOpen ? "kview — Settings" : helpOpen ? "kview — Help" : `kview — ${activeContext || "no context"}`}
               </Typography>
-              {!settingsOpen ? (
+              {resourcesOpen ? (
                 <Box
                   sx={{
                     position: "absolute",
@@ -615,12 +628,25 @@ function AppInner() {
                 </Box>
               ) : null}
               <Box sx={{ flexGrow: 1 }} />
-              <SettingsSelector open={settingsOpen} onToggle={() => setSettingsOpen((v) => !v)} />
+              <HelpSelector
+                open={helpOpen}
+                onToggle={() => {
+                  setSettingsOpen(false);
+                  setHelpOpen((v) => !v);
+                }}
+              />
+              <SettingsSelector
+                open={settingsOpen}
+                onToggle={() => {
+                  setHelpOpen(false);
+                  setSettingsOpen((v) => !v);
+                }}
+              />
               <ThemeSelector />
             </Toolbar>
           </AppBar>
 
-          {!settingsOpen ? (
+          {resourcesOpen ? (
             <Sidebar
               contexts={contexts}
               activeContext={activeContext}
@@ -652,8 +678,8 @@ function AppInner() {
               minWidth: 0,
               minHeight: 0,
               position: "relative",
-              zIndex: settingsOpen ? 1300 : "auto",
-              pb: settingsOpen ? 0 : "var(--bottom-panel-offset, 32px)",
+              zIndex: settingsOpen || helpOpen ? 1300 : "auto",
+              pb: settingsOpen || helpOpen ? 0 : "var(--bottom-panel-offset, 32px)",
               backgroundColor: "var(--bg-primary)",
               color: "var(--text-primary)",
               display: "flex",
@@ -664,6 +690,11 @@ function AppInner() {
             <ConnectionBanner />
             {/* Single bounded main column: children fill width/height; dashboard scrolls here; tables scroll inside Paper/DataGrid */}
             <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {helpOpen ? (
+                <React.Suspense fallback={<Box sx={{ flex: 1, minHeight: 0 }} />}>
+                  <HelpView onClose={() => setHelpOpen(false)} />
+                </React.Suspense>
+              ) : null}
               {settingsOpen ? (
                 <React.Suspense fallback={<Box sx={{ flex: 1, minHeight: 0 }} />}>
                   <SettingsView
@@ -678,7 +709,7 @@ function AppInner() {
                   />
                 </React.Suspense>
               ) : null}
-              {!settingsOpen && section === "dashboard" ? (
+              {resourcesOpen && section === "dashboard" ? (
                 <DashboardView
                   token={token}
                   favouriteNamespaces={
@@ -693,8 +724,8 @@ function AppInner() {
                   }}
                 />
               ) : null}
-              {!settingsOpen && section === "nodes" ? <NodesTable token={token} /> : null}
-              {!settingsOpen && section === "namespaces" ? (
+              {resourcesOpen && section === "nodes" ? <NodesTable token={token} /> : null}
+              {resourcesOpen && section === "namespaces" ? (
                 <NamespacesTable
                   token={token}
                   listApiPath={namespacesListPath}
@@ -711,43 +742,43 @@ function AppInner() {
                   }}
                 />
               ) : null}
-              {!settingsOpen && section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "deployments" && namespace ? (
+              {resourcesOpen && section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "deployments" && namespace ? (
                 <DeploymentsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "daemonsets" && namespace ? (
+              {resourcesOpen && section === "daemonsets" && namespace ? (
                 <DaemonSetsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "statefulsets" && namespace ? (
+              {resourcesOpen && section === "statefulsets" && namespace ? (
                 <StatefulSetsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "replicasets" && namespace ? (
+              {resourcesOpen && section === "replicasets" && namespace ? (
                 <ReplicaSetsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "horizontalpodautoscalers" && namespace ? (
+              {resourcesOpen && section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "horizontalpodautoscalers" && namespace ? (
                 <HorizontalPodAutoscalersTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "serviceaccounts" && namespace ? (
+              {resourcesOpen && section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "serviceaccounts" && namespace ? (
                 <ServiceAccountsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
-              {!settingsOpen && section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
-              {!settingsOpen && section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
-              {!settingsOpen && section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
-              {!settingsOpen && section === "persistentvolumeclaims" && namespace ? (
+              {resourcesOpen && section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
+              {resourcesOpen && section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
+              {resourcesOpen && section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
+              {resourcesOpen && section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
+              {resourcesOpen && section === "persistentvolumeclaims" && namespace ? (
                 <PersistentVolumeClaimsTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "customresourcedefinitions" ? (
+              {resourcesOpen && section === "customresourcedefinitions" ? (
                 <CustomResourceDefinitionsTable token={token} />
               ) : null}
-              {!settingsOpen && section === "customresources" && namespace ? (
+              {resourcesOpen && section === "customresources" && namespace ? (
                 <CustomResourcesTable
                   token={token}
                   namespace={namespace}
@@ -757,13 +788,13 @@ function AppInner() {
                   }}
                 />
               ) : null}
-              {!settingsOpen && section === "clusterresources" ? (
+              {resourcesOpen && section === "clusterresources" ? (
                 <ClusterCustomResourcesTable token={token} />
               ) : null}
-              {!settingsOpen && section === "helm" && namespace ? (
+              {resourcesOpen && section === "helm" && namespace ? (
                 <HelmReleasesTable token={token} namespace={namespace} />
               ) : null}
-              {!settingsOpen && section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
+              {resourcesOpen && section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
             </Box>
           </Box>
           <Snackbar
@@ -778,9 +809,11 @@ function AppInner() {
           </Snackbar>
           <ActivityPanel
             token={token}
-            covered={settingsOpen}
+            covered={settingsOpen || helpOpen}
             initialOpen={appState.activityPanelOpen ?? true}
+            initialHeight={appState.activityPanelHeightPx}
             onOpenChange={handleActivityPanelOpenChange}
+            onHeightChange={handleActivityPanelHeightChange}
           />
           <DataplaneSearchDrawer
             token={token}
@@ -856,6 +889,14 @@ function SettingsSelector({ open, onToggle }: { open: boolean; onToggle: () => v
   return (
     <AppIconButton tooltip={open ? "Return to resources" : "Settings"} label={open ? "Return to resources" : "Settings"} data-testid="settings-toggle" color="inherit" onClick={onToggle}>
       <ConstructionIcon fontSize="small" />
+    </AppIconButton>
+  );
+}
+
+function HelpSelector({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <AppIconButton tooltip={open ? "Return to resources" : "Help"} label={open ? "Return to resources" : "Help"} color="inherit" onClick={onToggle}>
+      <HelpOutlineIcon fontSize="small" />
     </AppIconButton>
   );
 }

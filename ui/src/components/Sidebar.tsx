@@ -32,6 +32,7 @@ import {
   type LatestRelease,
 } from "../releaseCheck";
 import { AppIconButton } from "./shared/AppActions";
+import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailWidth } from "./shared/sideRail";
 
 type Props = {
   contexts: Array<{ name: string }>;
@@ -58,8 +59,6 @@ type Props = {
   buildVersion?: string;
   releaseChecksEnabled?: boolean;
 };
-
-const drawerWidth = 320;
 
 export default function Sidebar(props: Props) {
   const [nsInput, setNsInput] = useState("");
@@ -139,9 +138,9 @@ export default function Sidebar(props: Props) {
     <Drawer
       variant="permanent"
       sx={{
-        width: drawerWidth,
+        width: sideRailWidth,
         flexShrink: 0,
-        [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: "border-box", pt: 10, px: 2 },
+        [`& .MuiDrawer-paper`]: { width: sideRailWidth, boxSizing: "border-box", pt: 10, px: 2 },
       }}
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", minHeight: 0 }}>
@@ -257,15 +256,15 @@ export default function Sidebar(props: Props) {
                       data-testid={`nav-${item}`}
                       selected={props.section === item}
                       onClick={() => props.onSelectSection(item)}
-                      sx={{ minHeight: 30, py: 0.25, px: 1 }}
+                      sx={sideRailListItemSx}
                     >
-                      <ListItemIcon sx={{ minWidth: 28, color: props.section === item ? "primary.main" : "text.secondary" }}>
+                      <ListItemIcon sx={sideRailIconSx(props.section === item)}>
                         <ResourceIcon name={getResourceIcon(item)} size={17} />
                       </ListItemIcon>
                       <ListItemText
                         primary={getResourceLabel(item)}
                         slotProps={{ primary: { variant: "body2" } }}
-                        sx={{ my: 0 }}
+                        sx={sideRailListTextSx}
                       />
                     </ListItemButton>
                   ))}

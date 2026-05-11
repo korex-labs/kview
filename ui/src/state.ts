@@ -77,6 +77,8 @@ export type AppStateV1 = {
   sidebarCollapsedGroups?: Record<string, boolean>;
   /** Last user-selected activity panel visibility. */
   activityPanelOpen?: boolean;
+  /** Last user-selected activity panel height in pixels. */
+  activityPanelHeightPx?: number;
 };
 
 const KEY = "kview.state.v1";
@@ -97,6 +99,9 @@ export function loadState(): AppStateV1 {
     parsed.recentSections = parsed.recentSections.filter(isSection);
     parsed.sidebarCollapsedGroups = normalizeBooleanRecord(parsed.sidebarCollapsedGroups);
     if (typeof parsed.activityPanelOpen !== "boolean") delete parsed.activityPanelOpen;
+    if (typeof parsed.activityPanelHeightPx !== "number" || !Number.isFinite(parsed.activityPanelHeightPx)) {
+      delete parsed.activityPanelHeightPx;
+    }
     if (!isSection(parsed.activeSection)) delete parsed.activeSection;
     return parsed as AppStateV1;
   } catch {
