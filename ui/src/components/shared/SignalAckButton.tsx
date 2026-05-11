@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { apiDelete, apiPost } from "../../api";
 import type { DashboardSignalItem } from "../../types/api";
+import { AppIconButton, DialogActionButton } from "./AppActions";
 
 type Props = {
   token: string;
@@ -64,22 +62,20 @@ export default function SignalAckButton({ token, signal, onChanged }: Props) {
 
   return (
     <>
-      <Tooltip title={title}>
-        <IconButton
-          size="small"
-          aria-label={acknowledged ? "Clear signal acknowledgement" : "Acknowledge signal"}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpen(true);
-          }}
-          disabled={busy}
-          color={acknowledged ? "success" : "default"}
-          sx={{ p: 0.25 }}
-        >
-          {acknowledged ? <CheckCircleIcon fontSize="inherit" /> : <CheckCircleOutlineIcon fontSize="inherit" />}
-        </IconButton>
-      </Tooltip>
+      <AppIconButton
+        tooltip={title}
+        label={acknowledged ? "Clear signal acknowledgement" : "Acknowledge signal"}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        disabled={busy}
+        color={acknowledged ? "success" : "default"}
+        sx={{ p: 0.25 }}
+      >
+        {acknowledged ? <CheckCircleIcon fontSize="inherit" /> : <CheckCircleOutlineIcon fontSize="inherit" />}
+      </AppIconButton>
       <Dialog
         open={open}
         onClose={() => {
@@ -108,12 +104,12 @@ export default function SignalAckButton({ token, signal, onChanged }: Props) {
         </DialogContent>
         <DialogActions>
           {acknowledged ? (
-            <Button color="error" onClick={clearAcknowledgement} disabled={busy}>Clear acknowledgement</Button>
+            <DialogActionButton action="destructive" onClick={clearAcknowledgement} disabled={busy}>Clear acknowledgement</DialogActionButton>
           ) : null}
-          <Button onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
-          <Button variant="contained" onClick={acknowledge} disabled={busy}>
+          <DialogActionButton action="cancel" onClick={() => setOpen(false)} disabled={busy}>Cancel</DialogActionButton>
+          <DialogActionButton action="primary" onClick={acknowledge} disabled={busy}>
             {acknowledged ? "Save" : "Acknowledge"}
-          </Button>
+          </DialogActionButton>
         </DialogActions>
       </Dialog>
     </>

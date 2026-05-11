@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
   Chip,
   CircularProgress,
   Dialog,
@@ -16,6 +15,7 @@ import {
 } from "@mui/material";
 import StopCircleIcon from "@mui/icons-material/StopCircle";
 import { apiPostWithContext } from "../../../api";
+import { DialogActionButton } from "../../shared/AppActions";
 import { useActiveContext } from "../../../activeContext";
 
 type SourceKind = "Job" | "CronJob";
@@ -238,16 +238,16 @@ export default function JobRunDebugDialog({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button
-          color="error"
+        <DialogActionButton
+          action="destructive"
           variant={stopArmed ? "contained" : "outlined"}
           startIcon={<StopCircleIcon />}
           onClick={stopRun}
           disabled={!canStop || stopping}
         >
           {stopping ? "Stopping..." : stopArmed ? "Confirm stop job" : "Stop job"}
-        </Button>
-        <Button onClick={onClose}>Close</Button>
+        </DialogActionButton>
+        <DialogActionButton action="cancel" onClick={onClose}>Close</DialogActionButton>
       </DialogActions>
     </Dialog>
   );

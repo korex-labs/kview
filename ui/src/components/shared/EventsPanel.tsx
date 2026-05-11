@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Button,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -17,6 +16,7 @@ import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import EventCard, { type EventCardEvent } from "./EventCard";
 import Section from "./Section";
+import { AppButton } from "./AppActions";
 
 type EventSubResourceOption = {
   label: string;
@@ -233,22 +233,18 @@ export default function EventsPanel<T extends EventCardEvent>({
                   : `${remoteOffset + 1}-${Math.min(remoteOffset + remoteLimit, remoteTotal)} of ${remoteTotal}`}
               </Typography>
               <Box sx={{ display: "flex", gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
+                <AppButton
                   disabled={remoteLoading || remoteOffset <= 0}
                   onClick={() => setRemoteOffset(Math.max(0, remoteOffset - remoteLimit))}
                 >
                   Previous
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
+                </AppButton>
+                <AppButton
                   disabled={remoteLoading || !remoteHasMore}
                   onClick={() => setRemoteOffset(remoteOffset + remoteLimit)}
                 >
                   Next
-                </Button>
+                </AppButton>
               </Box>
             </Box>
           ) : null}

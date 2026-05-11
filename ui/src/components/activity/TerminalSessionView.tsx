@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { AppIconButton } from "../shared/AppActions";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -190,9 +191,9 @@ export default function TerminalSessionView({
           {session?.targetNamespace || "-"} / {session?.targetResource || "-"} / {session?.targetContainer || "-"}
         </Typography>
         {onClose && (
-          <IconButton size="small" onClick={onClose}>
+          <AppIconButton tooltip="Close terminal" label="Close terminal" onClick={onClose}>
             <CloseIcon fontSize="small" />
-          </IconButton>
+          </AppIconButton>
         )}
       </Box>
       <Box

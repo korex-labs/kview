@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Button,
   CircularProgress,
   ClickAwayListener,
   List,
@@ -13,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import { AppButton } from "../shared/AppActions";
 import { apiGetWithContext } from "../../api";
 import type { ApiDataplaneSearchItem, ApiDataplaneSearchResponse } from "../../types/api";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
@@ -179,9 +179,9 @@ export default function DataplaneQuickSearch({ token, activeContext, disabled, f
         </List>
         {hasMore ? (
           <Box sx={{ p: 0.75, borderTop: "1px solid", borderColor: "divider" }}>
-            <Button size="small" fullWidth onClick={loadMore} disabled={loadingMore}>
+            <AppButton fullWidth onClick={loadMore} disabled={loadingMore}>
               {loadingMore ? "Loading" : "Load 10 more"}
-            </Button>
+            </AppButton>
           </Box>
         ) : null}
       </>

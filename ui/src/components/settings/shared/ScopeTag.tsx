@@ -1,6 +1,7 @@
 import React from "react";
-import { Box, Chip, IconButton, Tooltip } from "@mui/material";
+import { Box, Chip, Tooltip } from "@mui/material";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import { AppIconButton } from "../../shared/AppActions";
 
 type Props = {
   state: "inherited" | "overridden";
@@ -23,11 +24,9 @@ export default function ScopeTag({ state, onReset, tooltip }: Props) {
       <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}>
         {tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip}
         {onReset && (
-          <Tooltip title="Reset to global">
-            <IconButton size="small" onClick={onReset} aria-label="Reset to global" sx={{ p: 0.25 }}>
-              <RestartAltIcon sx={{ fontSize: 14 }} />
-            </IconButton>
-          </Tooltip>
+          <AppIconButton tooltip="Reset to global" label="Reset to global" onClick={onReset} sx={{ p: 0.25 }}>
+            <RestartAltIcon sx={{ fontSize: 14 }} />
+          </AppIconButton>
         )}
       </Box>
     );

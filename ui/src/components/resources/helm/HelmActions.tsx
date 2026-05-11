@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   Box,
-  Button,
   Checkbox,
   Dialog,
   DialogTitle,
@@ -17,6 +16,7 @@ import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import ActionButton from "../../mutations/ActionButton";
 import { executeAction } from "../../../lib/actions/executeAction";
+import { AppButton, DialogActionButton } from "../../shared/AppActions";
 
 // --- Uninstall / Upgrade / Reinstall buttons for a selected release ---
 
@@ -206,9 +206,9 @@ export function HelmInstallButton({ token, namespace, onSuccess }: InstallButton
 
   return (
     <>
-      <Button size="small" variant="contained" startIcon={<AddIcon />} disabled={offline} onClick={() => setOpen(true)}>
+      <AppButton intent="primary" startIcon={<AddIcon />} disabled={offline} onClick={() => setOpen(true)}>
         Install
-      </Button>
+      </AppButton>
       <InstallDialog
         open={open}
         onClose={() => setOpen(false)}
@@ -365,12 +365,12 @@ function InstallDialog(props: {
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={props.onClose} disabled={busy}>
+        <DialogActionButton action="cancel" onClick={props.onClose} disabled={busy}>
           Cancel
-        </Button>
-        <Button onClick={handleConfirm} disabled={!valid || busy} variant="contained" startIcon={busy ? undefined : <AddIcon />}>
+        </DialogActionButton>
+        <DialogActionButton action="primary" onClick={handleConfirm} disabled={!valid || busy} startIcon={busy ? undefined : <AddIcon />}>
           {busy ? <CircularProgress size={20} /> : "Install"}
-        </Button>
+        </DialogActionButton>
       </DialogActions>
     </Dialog>
   );

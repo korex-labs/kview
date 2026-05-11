@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Box, Button, Typography } from "@mui/material";
+import { Alert, Box, Typography } from "@mui/material";
 import { requestConnectionRetry, useConnectionState } from "../../connectionState";
+import { AppButton } from "./AppActions";
 
 export default function ConnectionBanner() {
   const { health, activeIssue } = useConnectionState();
@@ -33,12 +34,12 @@ export default function ConnectionBanner() {
         severity="error"
         action={
           <Box sx={{ display: "flex", gap: 1 }}>
-            <Button color="inherit" size="small" onClick={() => requestConnectionRetry()}>
+            <AppButton color="inherit" variant="text" onClick={() => requestConnectionRetry()}>
               Retry now
-            </Button>
-            <Button color="inherit" size="small" onClick={() => setDismissedId(activeIssue.id)}>
+            </AppButton>
+            <AppButton color="inherit" variant="text" onClick={() => setDismissedId(activeIssue.id)}>
               Dismiss
-            </Button>
+            </AppButton>
           </Box>
         }
       >

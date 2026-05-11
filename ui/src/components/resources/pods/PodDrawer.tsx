@@ -22,8 +22,6 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  Button,
-  IconButton,
   Menu,
   Dialog,
   DialogTitle,
@@ -43,6 +41,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
+import { AppButton, AppIconButton, DialogActionButton } from "../../shared/AppActions";
 import CodeBlock from "../../shared/CodeBlock";
 import IngressDrawer from "../ingresses/IngressDrawer";
 import ServiceDrawer from "../services/ServiceDrawer";
@@ -1331,13 +1330,13 @@ export default function PodDrawer(props: {
           <Typography variant="body2" color="text.secondary">
             Output is ready to download{selectedResult.compressed ? " as a gzip file" : ""}.
           </Typography>
-          <Button
-            variant="contained"
+          <AppButton
+            intent="primary"
             startIcon={<DownloadIcon />}
             onClick={() => downloadCommandOutput(selectedResult, selectedCommand.fileName || selectedCommand.name)}
           >
             Download output
-          </Button>
+          </AppButton>
         </Box>
       );
     }
@@ -1490,9 +1489,7 @@ export default function PodDrawer(props: {
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
-                      <Button
-                        variant="outlined"
-                        size="small"
+                      <AppButton
                         startIcon={<TerminalIcon />}
                         disabled={offline || creatingTerminal || actionableContainers.length === 0}
                         onClick={(e) => {
@@ -1501,19 +1498,15 @@ export default function PodDrawer(props: {
                         }}
                       >
                         Terminal
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
+                      </AppButton>
+                      <AppButton
                         startIcon={<CableIcon />}
                         disabled={offline || creatingPortForward || actionableContainers.length === 0}
                         onClick={handleOpenPortForwardDialog}
                       >
                         Port forward
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
+                      </AppButton>
+                      <AppButton
                         startIcon={<PlayCircleOutlineIcon />}
                         disabled={offline || runningCommand || overviewCommandItems.length === 0}
                         onClick={(e) => {
@@ -1522,7 +1515,7 @@ export default function PodDrawer(props: {
                         }}
                       >
                         Commands
-                      </Button>
+                      </AppButton>
                       <PodActions
                         token={props.token}
                         namespace={ns}
@@ -1665,9 +1658,7 @@ export default function PodDrawer(props: {
                                 {unhealthy && <Chip size="small" color="error" label="Attention" />}
                               </Box>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", ml: "auto" }}>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
+                                <AppButton
                                   startIcon={<TerminalIcon />}
                                   disabled={offline || creatingTerminal || !ctn.name || !isContainerActionAvailable(ctn)}
                                   onClick={() => {
@@ -1676,10 +1667,8 @@ export default function PodDrawer(props: {
                                   }}
                                 >
                                   Terminal
-                                </Button>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
+                                </AppButton>
+                                <AppButton
                                   startIcon={<PlayCircleOutlineIcon />}
                                   disabled={
                                     offline ||
@@ -1695,7 +1684,7 @@ export default function PodDrawer(props: {
                                   }}
                                 >
                                   Commands
-                                </Button>
+                                </AppButton>
                               </Box>
                             </Box>
                           </Box>
@@ -2530,11 +2519,9 @@ export default function PodDrawer(props: {
       <Dialog open={!!commandResult} onClose={() => setCommandResult(null)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pr: 1 }}>
           <Box sx={{ flexGrow: 1 }}>{selectedCommand?.name || "Command output"}</Box>
-          <Tooltip title="Close">
-            <IconButton aria-label="Close command output" size="small" onClick={() => setCommandResult(null)}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <AppIconButton tooltip="Close" label="Close command output" onClick={() => setCommandResult(null)}>
+            <CloseIcon fontSize="small" />
+          </AppIconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2, minHeight: 260 }}>
           {commandResult ? (
@@ -2595,7 +2582,7 @@ export default function PodDrawer(props: {
           <Box sx={{ flex: 1, minHeight: 0 }}>{renderCommandOutput()}</Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCommandResult(null)}>Close</Button>
+          <DialogActionButton action="cancel" onClick={() => setCommandResult(null)}>Close</DialogActionButton>
         </DialogActions>
       </Dialog>
             <ServiceDrawer

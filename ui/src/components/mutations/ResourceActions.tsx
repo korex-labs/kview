@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Box, Button, Menu, MenuItem } from "@mui/material";
+import { Box, Menu, MenuItem } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import TuneIcon from "@mui/icons-material/Tune";
 import { useActiveContext } from "../../activeContext";
 import ActionButton from "./ActionButton";
+import { AppButton } from "../shared/AppActions";
 import { useMutationDialog } from "./useMutationDialog";
 import { useUserSettings } from "../../settingsContext";
 import {
@@ -105,15 +106,13 @@ function useCustomActionMenu(opts: {
 
   return (
     <>
-      <Button
-        size="small"
-        variant="outlined"
+      <AppButton
         startIcon={<MoreHorizIcon />}
         disabled={!canPatch}
         onClick={(e) => setAnchor(e.currentTarget)}
       >
         Custom actions
-      </Button>
+      </AppButton>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
         {actions.map((action) => (
           <MenuItem key={action.id} onClick={() => run(action)}>

@@ -9,7 +9,6 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Button,
   Chip,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -33,6 +32,7 @@ import RoleBindingActions from "./RoleBindingActions";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { AppButton } from "../../shared/AppActions";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import type { DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
@@ -262,9 +262,9 @@ export default function RoleBindingDrawer(props: {
                     />
                   </Box>
                   <Box>
-                    <Button variant="outlined" startIcon={<OpenInNewIcon />} onClick={openRoleRef} disabled={!canOpenRoleRef}>
+                    <AppButton startIcon={<OpenInNewIcon />} onClick={openRoleRef} disabled={!canOpenRoleRef}>
                       Open Role Ref
-                    </Button>
+                    </AppButton>
                   </Box>
                 </Box>
               )}

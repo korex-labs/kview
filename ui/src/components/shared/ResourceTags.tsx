@@ -1,13 +1,10 @@
 import React, { useMemo, useState } from "react";
 import {
   Box,
-  Button,
   Checkbox,
-  IconButton,
   ListItemText,
   Menu,
   MenuItem,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
@@ -23,6 +20,7 @@ import { useUserSettings } from "../../settingsContext";
 import { useActiveContext } from "../../activeContext";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import ResourceTagChip from "./ResourceTagChip";
+import { AppButton, AppIconButton } from "./AppActions";
 
 export function ResourceTagsRow({
   tags,
@@ -88,18 +86,9 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
 
   return (
     <>
-      <Tooltip title="Edit resource tags">
-        <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-          <IconButton
-            aria-label="Edit resource tags"
-            size="small"
-            disabled={!enabled}
-            onClick={(event) => setAnchorEl(event.currentTarget)}
-          >
-            <LocalOfferOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      </Tooltip>
+      <AppIconButton tooltip="Edit resource tags" label="Edit resource tags" disabled={!enabled} onClick={(event) => setAnchorEl(event.currentTarget)}>
+        <LocalOfferOutlinedIcon fontSize="small" />
+      </AppIconButton>
       <Menu anchorEl={anchorEl} open={open} onClose={() => setAnchorEl(null)} keepMounted>
         {settings.resourceTags.definitions.length === 0 ? (
           <MenuItem disabled>
@@ -134,14 +123,13 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
           </MenuItem>
         ) : null}
         <Box sx={{ px: 1, py: 0.75 }}>
-          <Button
-            size="small"
+          <AppButton
             startIcon={<AddIcon />}
             onClick={() => setAnchorEl(null)}
             disabled
           >
             Create in Settings
-          </Button>
+          </AppButton>
         </Box>
       </Menu>
     </>

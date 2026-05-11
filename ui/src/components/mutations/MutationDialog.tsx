@@ -3,7 +3,6 @@ import {
   Alert,
   AlertTitle,
   Box,
-  Button,
   Checkbox,
   Chip,
   CircularProgress,
@@ -25,6 +24,7 @@ import type {
   TargetRef,
 } from "../../lib/actions/types";
 import { useConnectionState } from "../../connectionState";
+import { AppButton, DialogActionButton } from "../shared/AppActions";
 
 type DialogPhase = "confirm" | "running" | "success" | "error";
 
@@ -485,12 +485,13 @@ export default function MutationDialog({
             </Alert>
             {result.details && (
               <Box sx={{ mt: 1 }}>
-                <Button
+                <AppButton
                   size="small"
+                  variant="text"
                   onClick={() => setDetailsOpen((v) => !v)}
                 >
                   {detailsOpen ? "Hide details" : "Show details"}
-                </Button>
+                </AppButton>
                 <Collapse in={detailsOpen}>
                   <Box
                     component="pre"
@@ -532,31 +533,31 @@ export default function MutationDialog({
       {/* ── Dialog Actions ── */}
       <DialogActions>
         {phase === "success" ? (
-          <Button onClick={onClose} variant="contained">
+          <DialogActionButton action="primary" onClick={onClose}>
             Close
-          </Button>
+          </DialogActionButton>
         ) : phase === "error" ? (
           <>
-            <Button onClick={handleRetry}>Retry</Button>
-            <Button onClick={onClose}>Cancel</Button>
+            <DialogActionButton action="secondary" onClick={handleRetry}>Retry</DialogActionButton>
+            <DialogActionButton action="cancel" onClick={onClose}>Cancel</DialogActionButton>
           </>
         ) : (
           <>
-            <Button onClick={onClose} disabled={phase === "running"}>
+            <DialogActionButton action="cancel" onClick={onClose} disabled={phase === "running"}>
               Cancel
-            </Button>
-            <Button
+            </DialogActionButton>
+            <DialogActionButton
               onClick={handleExecute}
               disabled={!canExecute}
+              action={descriptor.risk === "high" ? "destructive" : "primary"}
               variant="contained"
-              color={descriptor.risk === "high" ? "error" : "primary"}
             >
               {phase === "running" ? (
                 <CircularProgress size={20} color="inherit" />
               ) : (
                 descriptor.title
               )}
-            </Button>
+            </DialogActionButton>
           </>
         )}
       </DialogActions>

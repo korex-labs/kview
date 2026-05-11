@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,6 +12,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { DialogActionButton } from "./AppActions";
 
 export type PortForwardOption = {
   value: string;
@@ -123,17 +123,18 @@ export default function PortForwardDialog({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button
+        <DialogActionButton
+          action="cancel"
           onClick={() => {
             if (busy) return;
             onClose();
           }}
         >
           Cancel
-        </Button>
-        <Button onClick={onSubmit} variant="contained" disabled={busy || disabled}>
+        </DialogActionButton>
+        <DialogActionButton action="primary" onClick={onSubmit} disabled={busy || disabled}>
           {busy ? "Starting..." : "Start"}
-        </Button>
+        </DialogActionButton>
       </DialogActions>
     </Dialog>
   );

@@ -15,8 +15,6 @@ import {
   ListItemText,
   Divider,
   Autocomplete,
-  IconButton,
-  Tooltip,
 } from "@mui/material";
 import HistoryIcon from "@mui/icons-material/History";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -33,6 +31,7 @@ import {
   RELEASE_CHECK_INTERVAL_MS,
   type LatestRelease,
 } from "../releaseCheck";
+import { AppIconButton } from "./shared/AppActions";
 
 type Props = {
   contexts: Array<{ name: string }>;
@@ -185,8 +184,9 @@ export default function Sidebar(props: Props) {
                 return (
                   <li {...optionProps} key={option} style={{ display: "flex", alignItems: "center" }}>
                     <Box sx={{ flexGrow: 1 }}>{option}</Box>
-                    <IconButton
-                      size="small"
+                    <AppIconButton
+                      tooltip={isFav ? `Remove ${option} from favourites` : `Add ${option} to favourites`}
+                      label={isFav ? `Remove ${option} from favourites` : `Add ${option} to favourites`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -194,7 +194,7 @@ export default function Sidebar(props: Props) {
                       }}
                     >
                       {isFav ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-                    </IconButton>
+                    </AppIconButton>
                   </li>
                 );
               }}
@@ -240,16 +240,14 @@ export default function Sidebar(props: Props) {
                 >
                   {group.label}
                 </Typography>
-                <Tooltip title={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}>
-                  <IconButton
-                    size="small"
-                    aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
-                    onClick={() => props.onToggleGroup(group.id)}
-                    sx={{ width: 24, height: 24, color: "text.secondary" }}
-                  >
-                    {collapsed ? <KeyboardArrowRightIcon fontSize="inherit" /> : <KeyboardArrowDownIcon fontSize="inherit" />}
-                  </IconButton>
-                </Tooltip>
+                <AppIconButton
+                  tooltip={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                  label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                  onClick={() => props.onToggleGroup(group.id)}
+                  sx={{ width: 24, height: 24, color: "text.secondary" }}
+                >
+                  {collapsed ? <KeyboardArrowRightIcon fontSize="inherit" /> : <KeyboardArrowDownIcon fontSize="inherit" />}
+                </AppIconButton>
               </Box>
               {!collapsed ? (
                 <List dense disablePadding>

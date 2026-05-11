@@ -12,7 +12,6 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Button,
   FormControl,
   InputLabel,
   Select,
@@ -28,6 +27,7 @@ import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
 import DrawerActionStrip from "../../shared/DrawerActionStrip";
+import { AppButton } from "../../shared/AppActions";
 import KeyValueTable from "../../shared/KeyValueTable";
 import KeyValueChip from "../../shared/KeyValueChip";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
@@ -404,9 +404,7 @@ export default function ServiceDrawer(props: {
                   {name && (
                     <DrawerActionStrip>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
+                        <AppButton
                           startIcon={<CableIcon />}
                           disabled={
                             offline ||
@@ -417,7 +415,7 @@ export default function ServiceDrawer(props: {
                           onClick={handleOpenPortForwardDialog}
                         >
                           Port forward
-                        </Button>
+                        </AppButton>
                         <ServiceActions
                           token={props.token}
                           namespace={ns}

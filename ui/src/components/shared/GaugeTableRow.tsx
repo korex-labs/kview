@@ -1,6 +1,6 @@
 import React from "react";
-import { Box, IconButton, Tooltip } from "@mui/material";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import { Box } from "@mui/material";
+import InfoHint from "./InfoHint";
 
 export default function GaugeTableRow({
   label,
@@ -19,11 +19,7 @@ export default function GaugeTableRow({
         {hint ? (
           <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
             <span>{label}</span>
-            <Tooltip title={hint}>
-              <IconButton size="small" sx={{ p: 0.25 }}>
-                <InfoOutlinedIcon fontSize="inherit" />
-              </IconButton>
-            </Tooltip>
+            <InfoHint title={hint} />
           </Box>
         ) : (
           label

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert, IconButton, Tooltip } from "@mui/material";
+import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert } from "@mui/material";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
@@ -47,6 +47,7 @@ import {
 } from "./state";
 import { notifyApiFailure, notifyStatus, useConnectionState, type AppStatus } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
+import { AppIconButton } from "./components/shared/AppActions";
 import DashboardView from "./components/resources/dashboard/DashboardView";
 import ActivityPanel from "./components/activity/ActivityPanel";
 import { ActiveContextProvider, useActiveContext } from "./activeContext";
@@ -847,11 +848,9 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
 
 function SettingsSelector({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <Tooltip title={open ? "Return to resources" : "Settings"}>
-      <IconButton aria-label={open ? "Return to resources" : "Settings"} data-testid="settings-toggle" size="small" color="inherit" onClick={onToggle}>
-        <ConstructionIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
+    <AppIconButton tooltip={open ? "Return to resources" : "Settings"} label={open ? "Return to resources" : "Settings"} data-testid="settings-toggle" color="inherit" onClick={onToggle}>
+      <ConstructionIcon fontSize="small" />
+    </AppIconButton>
   );
 }
 
@@ -863,17 +862,16 @@ function ThemeSelector() {
   const title = mode === "light" ? "Theme: Light" : mode === "dark" ? "Theme: Dark" : "Theme: System";
 
   return (
-    <Tooltip title={`${title}. Click to switch to ${nextMode}.`}>
-      <IconButton
-        size="small"
-        color="inherit"
-        onClick={() => {
-          setMode(nextMode);
-        }}
-      >
-        {icon}
-      </IconButton>
-    </Tooltip>
+    <AppIconButton
+      tooltip={`${title}. Click to switch to ${nextMode}.`}
+      label={title}
+      color="inherit"
+      onClick={() => {
+        setMode(nextMode);
+      }}
+    >
+      {icon}
+    </AppIconButton>
   );
 }
 

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  IconButton,
   Tabs,
   Tab,
   Typography,
@@ -17,6 +16,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ActivityList from "./ActivityList";
 import EmptyState from "../shared/EmptyState";
+import { AppIconButton } from "../shared/AppActions";
 import KeyValueChip from "../shared/KeyValueChip";
 import StatusChip from "../shared/StatusChip";
 import { apiGet, toApiError } from "../../api";
@@ -668,8 +668,9 @@ export default function ActivityTabs({
                         {info?.status ? (
                           <StatusChip size="small" label={info.status} color={chipColorForValue(info.status, "status")} sx={activityChipSx} />
                         ) : null}
-                        <IconButton
-                          size="small"
+                        <AppIconButton
+                          tooltip="Close terminal"
+                          label="Close terminal"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -677,7 +678,7 @@ export default function ActivityTabs({
                           }}
                         >
                           <CloseIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        </AppIconButton>
                       </Box>
                     }
                   />
@@ -774,28 +775,26 @@ export default function ActivityTabs({
                         </Typography>
                       </TableCell>
                       <TableCell sx={compactCellSx} align="right">
-                        <Tooltip title={url || "Local endpoint not available"}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              disabled={!url}
-                              onClick={() => {
-                                if (!url) return;
-                                window.open(url, "_blank", "noopener,noreferrer");
-                              }}
-                            >
-                              <OpenInNewIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <IconButton
-                          size="small"
+                        <AppIconButton
+                          tooltip={url || "Local endpoint not available"}
+                          label="Open forwarded endpoint"
+                          disabled={!url}
+                          onClick={() => {
+                            if (!url) return;
+                            window.open(url, "_blank", "noopener,noreferrer");
+                          }}
+                        >
+                          <OpenInNewIcon fontSize="small" />
+                        </AppIconButton>
+                        <AppIconButton
+                          tooltip="Stop port forward"
+                          label="Stop port forward"
                           onClick={() => {
                             void terminateSession(session.id);
                           }}
                         >
                           <CloseIcon fontSize="small" />
-                        </IconButton>
+                        </AppIconButton>
                       </TableCell>
                     </TableRow>
                   );

@@ -2,7 +2,6 @@ import React from "react";
 import {
   Box,
   FormControl,
-  IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
@@ -10,6 +9,7 @@ import {
   TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { AppIconButton } from "./AppActions";
 import { GridToolbarContainer } from "@mui/x-data-grid";
 import type { QuickFilter } from "../../utils/listFilters";
 import { refreshOptions } from "../../utils/listFilters";
@@ -64,9 +64,9 @@ export default function ResourceTableToolbar({
             input: {
               endAdornment: filter ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => onFilterChange("")}>
+                  <AppIconButton tooltip="Clear filter" label="Clear filter" onClick={() => onFilterChange("")}>
                     <CloseIcon fontSize="small" />
-                  </IconButton>
+                  </AppIconButton>
                 </InputAdornment>
               ) : undefined,
             },

@@ -172,6 +172,24 @@ Examples:
 
 Avoid copy‑paste implementations.
 
+## Action controls
+
+All command-style controls use the shared action primitives in
+`ui/src/components/shared/AppActions.tsx`.
+
+| Component | Use |
+|---|---|
+| `AppButton` | Standard visible action button |
+| `AppIconButton` | Icon-only action with required tooltip and aria label |
+| `DialogActionButton` | Dialog footer action with fixed cancel / primary / destructive treatment |
+| `ActionButton` | Resource mutation actions that execute through the mutation dialog |
+
+Raw MUI `Button` and `IconButton` usage is limited to the shared primitives
+unless a component has a documented integration reason. New icon-only actions
+must provide a tooltip and accessible label through `AppIconButton`. Dialog
+footers must use `DialogActionButton` so cancel, save, warning, and destructive
+actions stay visually consistent.
+
 ---
 
 # Capability‑Aware UI

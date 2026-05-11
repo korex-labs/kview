@@ -2,7 +2,6 @@ import React, { useMemo, useState } from "react";
 import {
   Box,
   Chip,
-  IconButton,
   Menu,
   MenuItem,
   Table,
@@ -13,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import { AppIconButton } from "../../shared/AppActions";
 import type {
   DashboardSignalItem,
   NamespacePodHealth,
@@ -359,14 +359,14 @@ export default function NamespaceSignalsTab({
                 <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
                     <span>Seen</span>
-                    <IconButton
-                      size="small"
+                    <AppIconButton
+                      tooltip={`Sort: ${seenSortLabel(seenSortMode)}`}
+                      label="Sort signal seen time"
                       sx={{ p: 0.25 }}
                       onClick={(e) => setSeenSortAnchor(e.currentTarget)}
-                      title={`Sort: ${seenSortLabel(seenSortMode)}`}
                     >
                       <ArrowDropDownIcon fontSize="inherit" />
-                    </IconButton>
+                    </AppIconButton>
                   </Box>
                 </TableCell>
                 <TableCell sx={{ width: "auto" }}>Reason</TableCell>

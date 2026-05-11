@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Typography, IconButton, Divider } from "@mui/material";
+import { Box, Typography, Divider } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   RESOURCE_DRAWER_WIDTH,
@@ -12,6 +12,7 @@ import { useUserSettings } from "../../settingsContext";
 import { useKeyboardControls, type ContextualKeyboardAction } from "../../keyboard/KeyboardProvider";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import type { ResourceIconName } from "../icons/resources/types";
+import { AppIconButton } from "./AppActions";
 
 export type ResourceDrawerShellProps = {
   /** Header title (e.g. "Pod: my-pod" or a fragment with chips). */
@@ -289,9 +290,9 @@ export default function ResourceDrawerShell({
             {headerActions}
           </Box>
         ) : null}
-        <IconButton onClick={onClose} aria-label="Close drawer" size="small" sx={{ flexShrink: 0, mt: 0.25 }}>
+        <AppIconButton tooltip="Close drawer" label="Close drawer" onClick={onClose} sx={{ flexShrink: 0, mt: 0.25 }}>
           <CloseIcon fontSize="small" />
-        </IconButton>
+        </AppIconButton>
       </Box>
 
       <Divider sx={{ my: RESOURCE_DRAWER_HEADER_DIVIDER_MY }} />

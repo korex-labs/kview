@@ -2,7 +2,6 @@ import React from "react";
 import {
   Alert,
   Box,
-  Button,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -19,6 +18,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
+import { DialogActionButton } from "./shared/AppActions";
 
 export type StartupStepStatus = "pending" | "active" | "done" | "error";
 
@@ -152,9 +152,9 @@ export default function StartupDialog({
       </DialogContent>
       {!loading && onRetry ? (
         <DialogActions>
-          <Button onClick={onRetry} variant="contained">
+          <DialogActionButton action="primary" onClick={onRetry}>
             Retry
-          </Button>
+          </DialogActionButton>
         </DialogActions>
       ) : null}
     </Dialog>

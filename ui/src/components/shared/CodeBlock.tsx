@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { AppButton } from "./AppActions";
 
 type CodeBlockProps = {
   code: string;
@@ -21,8 +22,7 @@ type CodeBlockProps = {
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <Button
-      size="small"
+    <AppButton
       startIcon={<ContentCopyIcon />}
       onClick={() => {
         navigator.clipboard.writeText(text).then(() => {
@@ -33,7 +33,7 @@ function CopyButton({ text }: { text: string }) {
       sx={{ mb: 1 }}
     >
       {copied ? "Copied" : "Copy"}
-    </Button>
+    </AppButton>
   );
 }
 

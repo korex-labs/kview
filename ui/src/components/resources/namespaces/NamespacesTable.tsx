@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Tooltip, Typography } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import { GridColDef } from "@mui/x-data-grid";
@@ -10,6 +10,7 @@ import {
   dataplaneListMetaFromResponse,
 } from "../../../types/api";
 import NamespaceDrawer from "./NamespaceDrawer";
+import { AppIconButton } from "../../shared/AppActions";
 import { fmtAge } from "../../../utils/format";
 import { dataplaneCoarseStateChipColor, namespacePhaseChipColor } from "../../../utils/k8sUi";
 import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
@@ -262,19 +263,17 @@ export default function NamespacesTable({
           const isFavourite = Boolean(p.row.isFavourite);
           const label = isFavourite ? `Remove ${p.row.name} from favourites` : `Add ${p.row.name} to favourites`;
           return (
-            <Tooltip title={label}>
-              <IconButton
-                size="small"
-                aria-label={label}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleFavourite(p.row.name);
-                }}
-                sx={{ color: isFavourite ? "warning.main" : "text.secondary" }}
-              >
-                {isFavourite ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
+            <AppIconButton
+              tooltip={label}
+              label={label}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleFavourite(p.row.name);
+              }}
+              sx={{ color: isFavourite ? "warning.main" : "text.secondary" }}
+            >
+              {isFavourite ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+            </AppIconButton>
           );
         },
       },

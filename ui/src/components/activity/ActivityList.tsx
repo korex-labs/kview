@@ -1,10 +1,11 @@
 import React from "react";
-import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography, CircularProgress, IconButton, Tooltip } from "@mui/material";
+import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography, CircularProgress } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EmptyState from "../shared/EmptyState";
 import StatusChip from "../shared/StatusChip";
+import { AppIconButton } from "../shared/AppActions";
 import { fmtDurationMs } from "../../utils/format";
 import {
   activityChipSx,
@@ -185,44 +186,28 @@ export default function ActivityList({
               <TableCell sx={compactCellSx} align="right">
                 {a.type === "portforward" && (
                   <>
-                    <Tooltip title="Open forwarded endpoint">
-                      <span>
-                        <IconButton
-                          size="small"
-                          disabled={!a.metadata?.localPort}
-                          onClick={() => onOpenPortForward?.(a)}
-                        >
-                          <OpenInNewIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Delete session">
-                      <IconButton size="small" onClick={() => onDeleteSession?.(a)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <AppIconButton tooltip="Open forwarded endpoint" label="Open forwarded endpoint" disabled={!a.metadata?.localPort} onClick={() => onOpenPortForward?.(a)}>
+                      <OpenInNewIcon fontSize="small" />
+                    </AppIconButton>
+                    <AppIconButton tooltip="Delete session" label="Delete session" onClick={() => onDeleteSession?.(a)}>
+                      <DeleteIcon fontSize="small" />
+                    </AppIconButton>
                   </>
                 )}
                 {a.type === "terminal" && (
                   <>
-                    <Tooltip title="View terminal">
-                      <IconButton size="small" onClick={() => onViewTerminal?.(a)}>
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete session">
-                      <IconButton size="small" onClick={() => onDeleteSession?.(a)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <AppIconButton tooltip="View terminal" label="View terminal" onClick={() => onViewTerminal?.(a)}>
+                      <VisibilityIcon fontSize="small" />
+                    </AppIconButton>
+                    <AppIconButton tooltip="Delete session" label="Delete session" onClick={() => onDeleteSession?.(a)}>
+                      <DeleteIcon fontSize="small" />
+                    </AppIconButton>
                   </>
                 )}
                 {(a.kind === "runtime" || a.type === "runtime-log" || a.type === "runtime_log" || a.type === "log") && (
-                  <Tooltip title="Open Logs tab">
-                    <IconButton size="small" onClick={() => onFocusLogs?.(a)}>
-                      <VisibilityIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  <AppIconButton tooltip="Open Logs tab" label="Open Logs tab" onClick={() => onFocusLogs?.(a)}>
+                    <VisibilityIcon fontSize="small" />
+                  </AppIconButton>
                 )}
               </TableCell>
             </TableRow>

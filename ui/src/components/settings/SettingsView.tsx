@@ -2,12 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
   Chip,
   Checkbox,
   Divider,
   FormControl,
-  IconButton,
   InputLabel,
   List,
   ListItemButton,
@@ -73,6 +71,7 @@ import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
 import ScopedCountChip from "../shared/ScopedCountChip";
 import ResourceTagChip from "../shared/ResourceTagChip";
+import { AppButton, AppIconButton } from "../shared/AppActions";
 import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
 import { apiGet, apiGetWithContext } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
@@ -266,25 +265,15 @@ function ReorderButtons({
 }) {
   return (
     <Box sx={{ display: "flex", gap: 0.25 }}>
-      <Tooltip title={`Move ${label} up`}>
-        <span>
-          <IconButton size="small" onClick={onUp} disabled={index === 0} aria-label={`Move ${label} up`}>
-            <ArrowUpwardIcon fontSize="inherit" />
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={`Move ${label} down`}>
-        <span>
-          <IconButton size="small" onClick={onDown} disabled={index === lastIndex} aria-label={`Move ${label} down`}>
-            <ArrowDownwardIcon fontSize="inherit" />
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={`Remove ${label}`}>
-        <IconButton size="small" color="error" onClick={onRemove} aria-label={`Remove ${label}`}>
-          <DeleteOutlineIcon fontSize="inherit" />
-        </IconButton>
-      </Tooltip>
+      <AppIconButton tooltip={`Move ${label} up`} label={`Move ${label} up`} onClick={onUp} disabled={index === 0}>
+        <ArrowUpwardIcon fontSize="inherit" />
+      </AppIconButton>
+      <AppIconButton tooltip={`Move ${label} down`} label={`Move ${label} down`} onClick={onDown} disabled={index === lastIndex}>
+        <ArrowDownwardIcon fontSize="inherit" />
+      </AppIconButton>
+      <AppIconButton tooltip={`Remove ${label}`} label={`Remove ${label}`} intent="destructive" onClick={onRemove}>
+        <DeleteOutlineIcon fontSize="inherit" />
+      </AppIconButton>
     </Box>
   );
 }
@@ -878,24 +867,20 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           onChange={(v) => setSettings((prev) => updateAppearance(prev, { performanceDiagnosticsEnabled: v }))}
         />
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <Button
-            size="small"
-            variant="outlined"
+          <AppButton
             startIcon={<QueryStatsIcon />}
             disabled={!settings.appearance.performanceDiagnosticsEnabled || performanceSnapshotLoading}
             onClick={capturePerformanceSnapshot}
           >
             {performanceSnapshotLoading ? "Capturing..." : "Capture snapshot"}
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
+          </AppButton>
+          <AppButton
             startIcon={<ContentCopyIcon />}
             disabled={!performanceSnapshot}
             onClick={copyPerformanceSnapshot}
           >
             Copy JSON
-          </Button>
+          </AppButton>
         </Box>
         {performanceSnapshotError ? <Alert severity="warning">{performanceSnapshotError}</Alert> : null}
         {performanceSnapshot ? (
@@ -1161,8 +1146,8 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       icon={<SettingsIcon name="smartFilters" />}
       hint="Rules are evaluated in order; each row stops at the first matching rule. Current quick filter chips are generated from these rules when smart filters are enabled."
       actions={
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() =>
             setSettings((prev) =>
               updateSmartFilters(prev, { rules: [...prev.smartFilters.rules, newSmartFilterRule()] }),
@@ -1170,7 +1155,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           }
         >
           Add rule
-        </Button>
+        </AppButton>
       }
     >
       <SettingRow
@@ -1231,8 +1216,8 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       icon={<SettingsIcon name="resourceTags" />}
       hint="Personal tags are stored in kview settings and never written to Kubernetes resources."
       actions={
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() =>
             setSettings((prev) =>
               updateResourceTags(prev, {
@@ -1245,7 +1230,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           }
         >
           Add tag
-        </Button>
+        </AppButton>
       }
     >
       <SettingRow
@@ -1315,22 +1300,19 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                       otherIndex !== index && other.color.toLowerCase() === color.toLowerCase(),
                     );
                     return (
-                      <Tooltip
+                      <AppIconButton
                         key={color}
-                        title={usedByOther ? `${color} already used` : color}
+                        tooltip={usedByOther ? `${color} already used` : color}
+                        label={`Use tag color ${color}`}
+                        onClick={() => setResourceTag(index, { color })}
+                        sx={{
+                          width: 26,
+                          height: 26,
+                          border: "1px solid",
+                          borderColor: selected ? "primary.main" : "divider",
+                          opacity: usedByOther && !selected ? 0.45 : 1,
+                        }}
                       >
-                        <IconButton
-                          size="small"
-                          aria-label={`Use tag color ${color}`}
-                          onClick={() => setResourceTag(index, { color })}
-                          sx={{
-                            width: 26,
-                            height: 26,
-                            border: "1px solid",
-                            borderColor: selected ? "primary.main" : "divider",
-                            opacity: usedByOther && !selected ? 0.45 : 1,
-                          }}
-                        >
                           <Box
                             aria-hidden
                             sx={{
@@ -1341,8 +1323,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                               boxShadow: selected ? "0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor" : "none",
                             }}
                           />
-                        </IconButton>
-                      </Tooltip>
+                      </AppIconButton>
                     );
                   })}
                 </Box>
@@ -1492,8 +1473,8 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       icon={<SettingsIcon name="commands" />}
       hint="Commands are stored in this browser profile and become available on matching Pod containers."
       actions={
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() =>
             setSettings((prev) =>
               updateCustomCommands(prev, {
@@ -1503,7 +1484,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           }
         >
           Add command
-        </Button>
+        </AppButton>
       }
     >
       {settings.customCommands.commands.length === 0 ? (
@@ -1694,12 +1675,12 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       icon={<SettingsIcon name="actions" />}
       hint="Custom actions are browser-local presets for patch-capable workload resources."
       actions={
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() => setSettings((prev) => updateCustomActions(prev, { actions: [...prev.customActions.actions, newCustomActionDefinition()] }))}
         >
           Add action
-        </Button>
+        </AppButton>
       }
     >
       {settings.customActions.actions.length === 0 ? (
@@ -1983,18 +1964,14 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
               icon={<SettingsIcon name="profile" />}
               hint="Profiles tune observers, enrichment scope, sweep behavior, and scheduler limits together. Manual keeps cached dataplane reads but turns off automatic background work."
               actions={isContextEditing ? (
-                <Tooltip title="Reset section to global">
-                  <span>
-                    <IconButton
-                      size="small"
-                      disabled={!hasOverrideAtPath(["profile"]) && !hasOverrideAtPath(["backgroundBudget"])}
-                      onClick={() => { resetOverridePath(["profile"]); resetOverrideSection("backgroundBudget"); }}
-                      aria-label="Reset section to global"
-                    >
-                      <RestartAltIcon fontSize="inherit" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
+                <AppIconButton
+                  tooltip="Reset section to global"
+                  label="Reset section to global"
+                  disabled={!hasOverrideAtPath(["profile"]) && !hasOverrideAtPath(["backgroundBudget"])}
+                  onClick={() => { resetOverridePath(["profile"]); resetOverrideSection("backgroundBudget"); }}
+                >
+                  <RestartAltIcon fontSize="inherit" />
+                </AppIconButton>
               ) : null}
             >
               <SettingGrid variant="auto">
@@ -2271,18 +2248,16 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             icon={<SettingsIcon name="signals" />}
             hint="Signal cards define enable/severity/priority plus detector-specific emission thresholds. Scope follows the Dataplane context switch above."
             actions={
-              <Tooltip title={dataplaneEditScope === "context" ? "Reset context signal overrides and thresholds" : "Reset all signal defaults and thresholds"}>
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    if (dataplaneEditScope === "context") resetOverrideSection("signals");
-                    else setDataplaneSignals(signalDefaults);
-                  }}
-                  aria-label="Reset signals"
-                >
-                  <RestartAltIcon fontSize="inherit" />
-                </IconButton>
-              </Tooltip>
+              <AppIconButton
+                tooltip={dataplaneEditScope === "context" ? "Reset context signal overrides and thresholds" : "Reset all signal defaults and thresholds"}
+                label="Reset signals"
+                onClick={() => {
+                  if (dataplaneEditScope === "context") resetOverrideSection("signals");
+                  else setDataplaneSignals(signalDefaults);
+                }}
+              >
+                <RestartAltIcon fontSize="inherit" />
+              </AppIconButton>
             }
           >
             <SettingField
@@ -2426,11 +2401,9 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
                           <Typography variant="subtitle2">{item.label}</Typography>
                           <InfoHint title={`Signal type: ${item.type}. Reason: ${item.likelyCause || item.calculatedData || "Backend-defined dataplane signal."}`} />
                           {item.suggestedAction ? (
-                            <Tooltip title={`Next step: ${item.suggestedAction}`}>
-                              <IconButton size="small" sx={{ p: 0.25 }} aria-label={`${item.label} suggested action`}>
-                                <BuildOutlinedIcon fontSize="inherit" />
-                              </IconButton>
-                            </Tooltip>
+                            <AppIconButton tooltip={`Next step: ${item.suggestedAction}`} label={`${item.label} suggested action`} sx={{ p: 0.25 }}>
+                              <BuildOutlinedIcon fontSize="inherit" />
+                            </AppIconButton>
                           ) : null}
                           {changed ? <ScopeTag state="overridden" onReset={() => resetSignalCard(item.type)} tooltip={customTooltip} /> : null}
                         </Box>
@@ -2509,8 +2482,8 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       hint="This exports user settings only. Active context, namespace history, favourites, and theme are not included."
     >
       <Box sx={actionRowSx}>
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() => {
             const blob = new Blob([exportUserSettingsJSON(settings)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
@@ -2522,19 +2495,19 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           }}
         >
           Export JSON
-        </Button>
-        <Button
-          color="warning"
+        </AppButton>
+        <AppButton
+          intent="warning"
           onClick={() => {
             if (!window.confirm("Reset settings to defaults? This will overwrite the current settings profile.")) return;
             resetSettings();
           }}
         >
           Reset to defaults
-        </Button>
+        </AppButton>
       </Box>
       <Divider />
-      <Button variant="outlined" component="label" sx={{ alignSelf: "flex-start" }}>
+      <AppButton component="label" sx={{ alignSelf: "flex-start" }}>
         Upload JSON file
         <input
           type="file"
@@ -2546,7 +2519,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             e.target.value = "";
           }}
         />
-      </Button>
+      </AppButton>
       <SettingField
         label="Import settings JSON"
         value={importText}
@@ -2555,14 +2528,14 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         minRows={10}
       />
       <Box sx={actionRowSx}>
-        <Button
-          variant="contained"
+        <AppButton
+          intent="primary"
           onClick={() => importSettingsText(importText)}
           disabled={!importText.trim()}
         >
           Import JSON
-        </Button>
-        <Button onClick={() => setImportText("")}>Clear</Button>
+        </AppButton>
+        <AppButton variant="text" onClick={() => setImportText("")}>Clear</AppButton>
       </Box>
       {importMessage ? <Alert severity={importMessage.severity}>{importMessage.text}</Alert> : null}
     </SettingSection>
@@ -2598,11 +2571,9 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       </Paper>
       <Box sx={settingsMainSurfaceSx}>
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1.25 }}>
-          <Tooltip title="Close settings">
-            <IconButton aria-label="Close settings" onClick={onClose} size="small">
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <AppIconButton tooltip="Close settings" label="Close settings" onClick={onClose}>
+            <CloseIcon fontSize="small" />
+          </AppIconButton>
         </Box>
         {section === "appearance" ? renderAppearance() : null}
         {section === "keyboard" ? renderKeyboard() : null}

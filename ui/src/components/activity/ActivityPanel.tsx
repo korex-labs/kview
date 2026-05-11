@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Tabs, Tab, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Tabs, Tab, Tooltip, Typography } from "@mui/material";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ActivityTabs from "./ActivityTabs";
@@ -13,6 +13,7 @@ import {
   type OpenTerminalSessionEventDetail,
 } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
+import { AppIconButton } from "../shared/AppActions";
 
 type Props = {
   token: string;
@@ -229,15 +230,15 @@ export default function ActivityPanel({ token, covered = false, initialOpen = tr
             </Box>
           </Box>
         </Tooltip>
-        <IconButton
-          aria-label={open ? "Collapse activity panel" : "Expand activity panel"}
+        <AppIconButton
+          tooltip={open ? "Collapse activity panel" : "Expand activity panel"}
+          label={open ? "Collapse activity panel" : "Expand activity panel"}
           data-testid="activity-panel-toggle"
-          size="small"
           onClick={() => updateOpen((v) => !v)}
           onDoubleClick={(e) => e.stopPropagation()}
         >
           {open ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
-        </IconButton>
+        </AppIconButton>
       </Box>
       <Box
         sx={{

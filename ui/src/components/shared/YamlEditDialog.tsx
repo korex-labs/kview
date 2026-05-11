@@ -5,7 +5,6 @@ import {
   AccordionSummary,
   Alert,
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,6 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { AppButton, DialogActionButton } from "./AppActions";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { apiPostWithContext, toApiError } from "../../api";
 import { useActiveContext } from "../../activeContext";
@@ -333,13 +333,13 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
           )}
 
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }} useFlexGap>
-            <Button variant="outlined" onClick={() => setYamlText(initialYaml)} disabled={busy !== null}>
+            <AppButton onClick={() => setYamlText(initialYaml)} disabled={busy !== null}>
               Reset to Loaded YAML
-            </Button>
+            </AppButton>
             {normalizedDiffers && (
-              <Button variant="outlined" onClick={() => setYamlText(normalizedYaml)} disabled={busy !== null}>
+              <AppButton onClick={() => setYamlText(normalizedYaml)} disabled={busy !== null}>
                 Use Sanitized YAML
-              </Button>
+              </AppButton>
             )}
           </Stack>
 
@@ -365,15 +365,15 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={busy !== null}>
+        <DialogActionButton action="cancel" onClick={onClose} disabled={busy !== null}>
           Cancel
-        </Button>
-        <Button onClick={handleValidate} disabled={busy !== null || !manifestLooksComplete} variant="outlined">
+        </DialogActionButton>
+        <DialogActionButton action="secondary" onClick={handleValidate} disabled={busy !== null || !manifestLooksComplete}>
           {busy === "validate" ? "Validating..." : "Validate"}
-        </Button>
-        <Button onClick={handleApply} disabled={!canApply} variant="contained" color="warning">
+        </DialogActionButton>
+        <DialogActionButton action="warning" onClick={handleApply} disabled={!canApply}>
           {busy === "apply" ? "Applying..." : "Apply Live Edit"}
-        </Button>
+        </DialogActionButton>
       </DialogActions>
     </Dialog>
   );

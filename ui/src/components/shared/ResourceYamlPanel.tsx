@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
 import CodeBlock from "./CodeBlock";
@@ -7,6 +7,7 @@ import DrawerActionStrip from "./DrawerActionStrip";
 import YamlEditDialog from "./YamlEditDialog";
 import { canPatchOrUpdate, RBAC_DISABLED_REASON, useResourceCapabilities } from "../mutations/useResourceCapabilities";
 import { useUserSettings } from "../../settingsContext";
+import { AppButton } from "./AppActions";
 
 type EditTarget = {
   kind: string;
@@ -46,20 +47,18 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%" }}>
       <DrawerActionStrip>
-        <Button size="small" variant="outlined" startIcon={<ContentCopyIcon />} onClick={handleCopy}>
+        <AppButton startIcon={<ContentCopyIcon />} onClick={handleCopy}>
           {copied ? "Copied" : "Copy"}
-        </Button>
+        </AppButton>
         {target && (
-          <Button
-            size="small"
-            variant="outlined"
+          <AppButton
             startIcon={<EditIcon />}
             disabled={!canEdit}
-            title={!canEdit && caps ? RBAC_DISABLED_REASON : "Edit live YAML"}
+            tooltip={!canEdit && caps ? RBAC_DISABLED_REASON : "Edit live YAML"}
             onClick={() => setEditOpen(true)}
           >
             Edit
-          </Button>
+          </AppButton>
         )}
       </DrawerActionStrip>
       <Box sx={{ minHeight: 0, flex: 1 }}>
