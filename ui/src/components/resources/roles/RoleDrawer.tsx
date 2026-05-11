@@ -190,6 +190,7 @@ export default function RoleDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={roleSignals}
                     onJumpToEvents={() => setTab(2)}
                   />

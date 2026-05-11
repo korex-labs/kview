@@ -275,6 +275,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                 return (
                 <Box sx={drawerTabContentCompactSx}>
                   <AttentionSummary
+                    token={props.token}
                     signals={resourceSignals.signals}
                     onJumpToEvents={() => setTab(eventsTabIndex)}
                     onJumpToSpec={() => setTab(metadataTabIndex)}

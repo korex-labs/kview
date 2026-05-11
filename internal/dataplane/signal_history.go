@@ -12,6 +12,18 @@ type signalHistoryRecord struct {
 	SeenCount   uint64 `json:"seenCount,omitempty"`
 }
 
+type SignalAcknowledgementRecord struct {
+	AcknowledgedAt int64  `json:"acknowledgedAt"`
+	AcknowledgedBy string `json:"acknowledgedBy,omitempty"`
+	Comment        string `json:"comment,omitempty"`
+	UpdatedAt      int64  `json:"updatedAt"`
+}
+
+type SignalAcknowledgementRequest struct {
+	HistoryKey string `json:"historyKey"`
+	Comment    string `json:"comment,omitempty"`
+}
+
 func (m *manager) ensureSignalHistory(clusterName string) {
 	if clusterName == "" {
 		return
@@ -35,11 +47,35 @@ func (m *manager) ensureSignalHistory(clusterName string) {
 	m.signalHistoryMu.Unlock()
 }
 
+func (m *manager) ensureSignalAcknowledgements(clusterName string) {
+	if clusterName == "" {
+		return
+	}
+	m.signalAckMu.RLock()
+	_, ok := m.signalAck[clusterName]
+	m.signalAckMu.RUnlock()
+	if ok {
+		return
+	}
+	loaded := map[string]SignalAcknowledgementRecord{}
+	if sp := m.currentPersistence(); sp != nil {
+		if ack, err := sp.LoadSignalAcknowledgements(clusterName); err == nil && ack != nil {
+			loaded = ack
+		}
+	}
+	m.signalAckMu.Lock()
+	if _, ok := m.signalAck[clusterName]; !ok {
+		m.signalAck[clusterName] = loaded
+	}
+	m.signalAckMu.Unlock()
+}
+
 func (m *manager) attachSignalHistory(clusterName string, observedAt time.Time, items ...ClusterDashboardSignal) []ClusterDashboardSignal {
 	if len(items) == 0 || clusterName == "" {
 		return items
 	}
 	m.ensureSignalHistory(clusterName)
+	m.ensureSignalAcknowledgements(clusterName)
 	observedUnix := observedAt.UTC().Unix()
 	changed := map[string]signalHistoryRecord{}
 
@@ -66,10 +102,68 @@ func (m *manager) attachSignalHistory(clusterName string, observedAt time.Time, 
 	}
 	m.signalHistoryMu.Unlock()
 
+	m.signalAckMu.RLock()
+	clusterAck := m.signalAck[clusterName]
+	for i := range items {
+		if ack, ok := clusterAck[items[i].HistoryKey]; ok && ack.AcknowledgedAt > 0 {
+			items[i].Acknowledged = true
+			items[i].AcknowledgedAt = ack.AcknowledgedAt
+			items[i].AckComment = ack.Comment
+		}
+	}
+	m.signalAckMu.RUnlock()
+
 	if sp := m.currentPersistence(); sp != nil && len(changed) > 0 {
 		_ = sp.UpsertSignalHistory(clusterName, changed)
 	}
 	return items
+}
+
+func (m *manager) AcknowledgeSignal(clusterName string, req SignalAcknowledgementRequest) (SignalAcknowledgementRecord, error) {
+	key := strings.TrimSpace(req.HistoryKey)
+	if clusterName == "" || key == "" {
+		return SignalAcknowledgementRecord{}, nil
+	}
+	m.ensureSignalAcknowledgements(clusterName)
+	now := time.Now().UTC().Unix()
+	comment := strings.TrimSpace(req.Comment)
+	rec := SignalAcknowledgementRecord{
+		AcknowledgedAt: now,
+		Comment:        comment,
+		UpdatedAt:      now,
+	}
+	m.signalAckMu.Lock()
+	if m.signalAck[clusterName] == nil {
+		m.signalAck[clusterName] = map[string]SignalAcknowledgementRecord{}
+	}
+	if existing := m.signalAck[clusterName][key]; existing.AcknowledgedAt > 0 {
+		rec.AcknowledgedAt = existing.AcknowledgedAt
+	}
+	m.signalAck[clusterName][key] = rec
+	m.signalAckMu.Unlock()
+	if sp := m.currentPersistence(); sp != nil {
+		if err := sp.UpsertSignalAcknowledgement(clusterName, key, rec); err != nil {
+			return SignalAcknowledgementRecord{}, err
+		}
+	}
+	return rec, nil
+}
+
+func (m *manager) UnacknowledgeSignal(clusterName, historyKey string) error {
+	key := strings.TrimSpace(historyKey)
+	if clusterName == "" || key == "" {
+		return nil
+	}
+	m.ensureSignalAcknowledgements(clusterName)
+	m.signalAckMu.Lock()
+	if m.signalAck[clusterName] != nil {
+		delete(m.signalAck[clusterName], key)
+	}
+	m.signalAckMu.Unlock()
+	if sp := m.currentPersistence(); sp != nil {
+		return sp.DeleteSignalAcknowledgement(clusterName, key)
+	}
+	return nil
 }
 
 func signalHistoryIdentity(item ClusterDashboardSignal) string {

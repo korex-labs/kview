@@ -178,6 +178,10 @@ func namespaceInsightSignalsFromDashboard(items []ClusterDashboardSignal) []dto.
 			CalculatedData:  item.CalculatedData,
 			FirstSeenAt:     firstSeenAt,
 			LastSeenAt:      lastSeenAt,
+			HistoryKey:      item.HistoryKey,
+			Acknowledged:    item.Acknowledged,
+			AcknowledgedAt:  item.AcknowledgedAt,
+			AckComment:      item.AckComment,
 		})
 	}
 	return out

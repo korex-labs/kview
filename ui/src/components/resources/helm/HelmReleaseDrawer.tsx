@@ -311,6 +311,7 @@ export default function HelmReleaseDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={helmSignals}
                   />
 

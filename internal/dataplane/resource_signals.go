@@ -142,6 +142,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, thresholds.PodRestartCount), policy, clusterName)...)
 	}
 	out = dedupeNamespaceSignals(out)
+	out = m.attachNamespaceSignalAcknowledgements(clusterName, out)
 	if out == nil {
 		out = []dto.NamespaceInsightSignalDTO{}
 	}
@@ -435,6 +436,7 @@ func fallbackSignal(kind, namespace, name, severity string, score int, reason st
 		Scope:         scope,
 		ScopeLocation: scopeLocation,
 		ActualData:    reason,
+		HistoryKey:    strings.Join([]string{"resource_needs_attention_fallback", scope, scopeLocation, kind, name}, "|"),
 	}
 }
 
@@ -494,6 +496,35 @@ func applyNamespaceSignalPolicy(items []dto.NamespaceInsightSignalDTO, policy Da
 		out = append(out, item)
 	}
 	return out
+}
+
+func (m *manager) attachNamespaceSignalAcknowledgements(clusterName string, items []dto.NamespaceInsightSignalDTO) []dto.NamespaceInsightSignalDTO {
+	if len(items) == 0 || clusterName == "" {
+		return items
+	}
+	m.ensureSignalAcknowledgements(clusterName)
+	m.signalAckMu.RLock()
+	clusterAck := m.signalAck[clusterName]
+	for i := range items {
+		key := strings.TrimSpace(items[i].HistoryKey)
+		if key == "" {
+			key = strings.Join([]string{
+				strings.TrimSpace(items[i].SignalType),
+				strings.TrimSpace(items[i].Scope),
+				strings.TrimSpace(items[i].ScopeLocation),
+				strings.TrimSpace(items[i].ResourceKind),
+				strings.TrimSpace(items[i].ResourceName),
+			}, "|")
+			items[i].HistoryKey = key
+		}
+		if ack, ok := clusterAck[key]; ok && ack.AcknowledgedAt > 0 {
+			items[i].Acknowledged = true
+			items[i].AcknowledgedAt = ack.AcknowledgedAt
+			items[i].AckComment = ack.Comment
+		}
+	}
+	m.signalAckMu.RUnlock()
+	return items
 }
 
 // mergeSnapshotMetaForResourceSignals reports the worst-freshness /

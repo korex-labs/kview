@@ -289,6 +289,7 @@ export default function StatefulSetDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={statefulSetSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}

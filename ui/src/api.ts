@@ -311,6 +311,34 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
   }
 }
 
+export async function apiDelete<T = void>(
+  path: string,
+  token: string,
+  body?: unknown,
+  opts?: { headers?: Record<string, string> },
+): Promise<T> {
+  const res = await fetch(path, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...mergeRequestHeaders(opts?.headers),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const shape = await parseErrorResponse(res);
+    if (shouldNotifyFailure(shape)) {
+      notifyApiFailure(classifyFailureKind(shape.status, shape.message), shape.message || res.statusText);
+    }
+    throw toError(shape);
+  }
+  notifyApiSuccess();
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
 export async function apiGetWithContext<T>(
   path: string,
   token: string,

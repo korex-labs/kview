@@ -461,6 +461,7 @@ export default function DashboardView(props: Props) {
 
                 <Box sx={{ display: "block" }}>
                   <DashboardSignalsPanel
+                    token={props.token}
                     signalPanel={signalPanel}
                     signalFilter={signalFilter}
                     onSignalFilterChange={selectSignalFilter}

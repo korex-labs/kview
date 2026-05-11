@@ -279,6 +279,65 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	}
 }
 
+func TestBoltSnapshotPersistenceSignalAcknowledgementRoundTripAndPrune(t *testing.T) {
+	store, err := openBoltSnapshotPersistence(t.TempDir() + "/cache.bbolt")
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	now := time.Now().UTC().Unix()
+	freshKey := "pod_restarts|namespace|team-a|Pod|api-0"
+	staleKey := "empty_secret|namespace|team-a|Secret|token"
+	if err := store.UpsertSignalAcknowledgement("ctx", freshKey, SignalAcknowledgementRecord{
+		AcknowledgedAt: now - 60,
+		Comment:        "rollout in progress",
+		UpdatedAt:      now - 60,
+	}); err != nil {
+		t.Fatalf("upsert fresh acknowledgement: %v", err)
+	}
+	if err := store.UpsertSignalAcknowledgement("ctx", staleKey, SignalAcknowledgementRecord{
+		AcknowledgedAt: now - int64((48 * time.Hour).Seconds()),
+		Comment:        "old",
+		UpdatedAt:      now - int64((48 * time.Hour).Seconds()),
+	}); err != nil {
+		t.Fatalf("upsert stale acknowledgement: %v", err)
+	}
+
+	acks, err := store.LoadSignalAcknowledgements("ctx")
+	if err != nil {
+		t.Fatalf("load acknowledgements: %v", err)
+	}
+	if len(acks) != 2 {
+		t.Fatalf("acks len = %d, want 2", len(acks))
+	}
+	if got := acks[freshKey]; got.Comment != "rollout in progress" {
+		t.Fatalf("fresh acknowledgement = %+v", got)
+	}
+
+	if err := store.DeleteSignalAcknowledgement("ctx", freshKey); err != nil {
+		t.Fatalf("delete acknowledgement: %v", err)
+	}
+	acks, err = store.LoadSignalAcknowledgements("ctx")
+	if err != nil {
+		t.Fatalf("reload acknowledgements: %v", err)
+	}
+	if _, ok := acks[freshKey]; ok {
+		t.Fatalf("fresh acknowledgement was not deleted: %+v", acks)
+	}
+
+	if err := store.PruneSignalAcknowledgementsOlderThan("ctx", 24*time.Hour); err != nil {
+		t.Fatalf("prune acknowledgements: %v", err)
+	}
+	acks, err = store.LoadSignalAcknowledgements("ctx")
+	if err != nil {
+		t.Fatalf("reload acknowledgements after prune: %v", err)
+	}
+	if len(acks) != 0 {
+		t.Fatalf("acks len after prune = %d, want 0: %+v", len(acks), acks)
+	}
+}
+
 func TestExecuteNamespacedSnapshotUsesPersistedFallbackOnLiveFailure(t *testing.T) {
 	store, err := openBoltSnapshotPersistence(t.TempDir() + "/cache.bbolt")
 	if err != nil {

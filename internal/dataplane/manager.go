@@ -217,6 +217,10 @@ type DataPlaneManager interface {
 	// scope must be one of ResourceSignalsScopeNamespace / ResourceSignalsScopeCluster.
 	// kind is the canonical Kubernetes kind (e.g. "Pod", "Deployment", "Node").
 	ResourceSignals(ctx context.Context, clusterName, scope, namespace, kind, name string) (ResourceSignalsResult, error)
+	// AcknowledgeSignal records local operator acknowledgement metadata for a stable signal history key.
+	AcknowledgeSignal(clusterName string, req SignalAcknowledgementRequest) (SignalAcknowledgementRecord, error)
+	// UnacknowledgeSignal removes local acknowledgement metadata for a stable signal history key.
+	UnacknowledgeSignal(clusterName, historyKey string) error
 
 	// Policy returns the current dataplane behavior policy.
 	Policy() DataplanePolicy
@@ -311,6 +315,8 @@ type manager struct {
 
 	signalHistoryMu sync.RWMutex
 	signalHistory   map[string]map[string]signalHistoryRecord
+	signalAckMu     sync.RWMutex
+	signalAck       map[string]map[string]SignalAcknowledgementRecord
 
 	nsEnrich *nsEnrichmentCoordinator
 
@@ -364,6 +370,7 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		policy:               policy,
 		bundle:               bundle,
 		signalHistory:        map[string]map[string]signalHistoryRecord{},
+		signalAck:            map[string]map[string]SignalAcknowledgementRecord{},
 		nsEnrich:             newNsEnrichmentCoordinator(),
 		observerEnsureLast:   map[string]time.Time{},
 		nsSweepLast:          map[string]map[string]time.Time{},
@@ -491,6 +498,7 @@ func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {
 	maxAge := policy.PersistenceMaxAge()
 	_ = sp.PruneOlderThan("", maxAge)
 	_ = sp.PruneSignalHistoryOlderThan("", maxAge)
+	_ = sp.PruneSignalAcknowledgementsOlderThan("", maxAge)
 	m.mu.RLock()
 	planes := make([]*clusterPlane, 0, len(m.planes))
 	for _, plane := range m.planes {

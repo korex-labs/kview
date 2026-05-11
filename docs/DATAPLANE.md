@@ -75,6 +75,8 @@ Rule of thumb: derived projections can support correlation and triage, but the U
 
 `GET /api/namespaces/{name}/insights` uses the same signal store for namespace-scoped views. It returns the sorted flat `signals` list plus grouped `resourceSignals`, allowing drawer sections to attach the exact signals for a ResourceQuota, HPA, PVC, Service, or other resource by identity.
 
+Signal responses include a stable `historyKey`, first/last seen timestamps, and optional local acknowledgement fields. Signal acknowledgements are local operator metadata stored in the dataplane persistence database, keyed by cluster/context plus `historyKey`. They do not write Kubernetes annotations or require cluster mutation permissions. `POST /api/dataplane/signals/ack` records an acknowledgement with an optional comment; `DELETE /api/dataplane/signals/ack` clears it. Acknowledgements are pruned with dataplane cache retention.
+
 ---
 
 ## Signal detector registry

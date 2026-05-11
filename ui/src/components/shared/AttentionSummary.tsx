@@ -4,6 +4,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import type { DashboardSignalItem } from "../../types/api";
 import type { ChipColor } from "../../utils/k8sUi";
 import SignalHintIcons from "./SignalHintIcons";
+import SignalAckButton from "./SignalAckButton";
 import StatusChip from "./StatusChip";
 import { signalCalculatedText, signalMetaText, signalSeverityColor } from "./signalFormat";
 
@@ -26,6 +27,8 @@ export type AttentionSummaryProps = {
   reasons?: AttentionReason[];
   /** Per-resource signals from the dataplane signal engine. */
   signals?: DashboardSignalItem[];
+  token?: string;
+  onSignalAckChanged?: () => void;
   /** Deprecated. Kept for backward-compatible callsites; ignored by this component. */
   onJumpToEvents?: () => void;
   /** Deprecated. Kept for backward-compatible callsites; ignored by this component. */
@@ -53,9 +56,16 @@ function isEmpty(props: AttentionSummaryProps): boolean {
  * Drawer Content".
  */
 export default function AttentionSummary(props: AttentionSummaryProps) {
+  const { signals = [], token, onSignalAckChanged } = props;
+  const [localAcknowledged, setLocalAcknowledged] = React.useState<Set<string>>(() => new Set());
   if (isEmpty(props)) return null;
 
-  const { signals = [] } = props;
+  const openSignals = signals.filter((signal) => {
+    const key = signal.historyKey || "";
+    return !signal.acknowledged && !(key && localAcknowledged.has(key));
+  });
+  if (openSignals.length === 0) return null;
+  const previewSignals = openSignals;
 
   return (
     <Box>
@@ -79,7 +89,7 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
 
         {signals.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-            {signals.slice(0, 3).map((signal, idx) => {
+            {previewSignals.slice(0, 3).map((signal, idx) => {
               const calculated = signalCalculatedText(signal);
               const meta = signalMetaText(signal, true);
               return (
@@ -99,6 +109,24 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                       </Typography>
                     ) : null}
                     <SignalHintIcons likelyCause={signal.likelyCause} suggestedAction={signal.suggestedAction} />
+                    {token ? (
+                      <SignalAckButton
+                        token={token}
+                        signal={signal}
+                        onChanged={(acknowledged) => {
+                          const key = signal.historyKey || "";
+                          if (key) {
+                            setLocalAcknowledged((current) => {
+                              const next = new Set(current);
+                              if (acknowledged) next.add(key);
+                              else next.delete(key);
+                              return next;
+                            });
+                          }
+                          onSignalAckChanged?.();
+                        }}
+                      />
+                    ) : null}
                   </Box>
                   {meta ? (
                     <Typography variant="caption" color="text.secondary">
@@ -108,9 +136,9 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                 </Box>
               );
             })}
-            {signals.length > 3 ? (
+            {previewSignals.length > 3 ? (
               <Typography variant="caption" color="text.secondary">
-                +{signals.length - 3} more signal{signals.length - 3 === 1 ? "" : "s"}
+                +{previewSignals.length - 3} more signal{previewSignals.length - 3 === 1 ? "" : "s"}
               </Typography>
             ) : null}
           </Box>

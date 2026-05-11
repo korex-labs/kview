@@ -29,6 +29,7 @@ import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
+import SignalAckButton from "../../shared/SignalAckButton";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -219,6 +220,7 @@ export default function NamespaceSignalsTab({
       </DrawerActionStrip>
 
       <AttentionSummary
+        token={token}
         signals={signals}
         onJumpToEvents={onJumpToEvents}
         onJumpToConditions={onJumpToConditions}
@@ -386,7 +388,10 @@ export default function NamespaceSignalsTab({
                     {signalTarget(signal)}
                   </TableCell>
                   <TableCell>
-                    <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
+                      <SignalAckButton token={token} signal={signal} />
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
                     <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>

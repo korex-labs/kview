@@ -316,6 +316,7 @@ export default function ReplicaSetDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={replicaSetSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}

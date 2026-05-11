@@ -23,6 +23,7 @@ var (
 	dataplaneSearchBucket    = []byte("search_name_v1")
 	dataplaneCellIndexBucket = []byte("search_cell_v1")
 	dataplaneSignalBucket    = []byte("signals_v1")
+	dataplaneSignalAckBucket = []byte("signal_ack_v1")
 	dataplaneMetaBucket      = []byte("meta")
 	dataplaneSchemaKey       = []byte("schemaVersion")
 )
@@ -49,6 +50,10 @@ type snapshotPersistence interface {
 	LoadSignalHistory(cluster string) (map[string]signalHistoryRecord, error)
 	UpsertSignalHistory(cluster string, updates map[string]signalHistoryRecord) error
 	PruneSignalHistoryOlderThan(cluster string, maxAge time.Duration) error
+	LoadSignalAcknowledgements(cluster string) (map[string]SignalAcknowledgementRecord, error)
+	UpsertSignalAcknowledgement(cluster, key string, rec SignalAcknowledgementRecord) error
+	DeleteSignalAcknowledgement(cluster, key string) error
+	PruneSignalAcknowledgementsOlderThan(cluster string, maxAge time.Duration) error
 	Close() error
 }
 
@@ -186,7 +191,7 @@ func writeDataplaneSchemaVersion(tx *bolt.Tx, version int) error {
 }
 
 func ensureDataplaneBuckets(tx *bolt.Tx) error {
-	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket} {
+	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket, dataplaneSignalAckBucket} {
 		if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 			return err
 		}
@@ -467,6 +472,114 @@ func (p *boltSnapshotPersistence) PruneSignalHistoryOlderThan(cluster string, ma
 				}
 				if rec.LastSeenAt > 0 && rec.LastSeenAt < cutoff {
 					deleteKeys = append(deleteKeys, append([]byte(nil), key...))
+				}
+			}
+		}
+		for _, key := range deleteKeys {
+			if err := b.Delete(key); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (p *boltSnapshotPersistence) LoadSignalAcknowledgements(cluster string) (map[string]SignalAcknowledgementRecord, error) {
+	if p == nil || p.db == nil {
+		return nil, nil
+	}
+	out := map[string]SignalAcknowledgementRecord{}
+	prefix := signalHistoryKey(cluster, "")
+	err := p.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalAckBucket)
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
+			signalKey := strings.TrimPrefix(string(key), string(prefix))
+			if signalKey == "" {
+				continue
+			}
+			var rec SignalAcknowledgementRecord
+			if err := json.Unmarshal(value, &rec); err != nil {
+				return err
+			}
+			out[signalKey] = rec
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (p *boltSnapshotPersistence) UpsertSignalAcknowledgement(cluster, key string, rec SignalAcknowledgementRecord) error {
+	if p == nil || p.db == nil || cluster == "" || key == "" {
+		return nil
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(dataplaneSignalAckBucket)
+		if err != nil {
+			return err
+		}
+		payload, err := json.Marshal(rec)
+		if err != nil {
+			return err
+		}
+		return b.Put(signalHistoryKey(cluster, key), payload)
+	})
+}
+
+func (p *boltSnapshotPersistence) DeleteSignalAcknowledgement(cluster, key string) error {
+	if p == nil || p.db == nil || cluster == "" || key == "" {
+		return nil
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalAckBucket)
+		if b == nil {
+			return nil
+		}
+		return b.Delete(signalHistoryKey(cluster, key))
+	})
+}
+
+func (p *boltSnapshotPersistence) PruneSignalAcknowledgementsOlderThan(cluster string, maxAge time.Duration) error {
+	if p == nil || p.db == nil || maxAge <= 0 {
+		return nil
+	}
+	cutoff := time.Now().UTC().Add(-maxAge).Unix()
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalAckBucket)
+		if b == nil {
+			return nil
+		}
+		var deleteKeys [][]byte
+		visit := func(key, value []byte) error {
+			var rec SignalAcknowledgementRecord
+			if err := json.Unmarshal(value, &rec); err != nil {
+				return err
+			}
+			last := rec.UpdatedAt
+			if last <= 0 {
+				last = rec.AcknowledgedAt
+			}
+			if last > 0 && last < cutoff {
+				deleteKeys = append(deleteKeys, append([]byte(nil), key...))
+			}
+			return nil
+		}
+		if cluster == "" {
+			if err := b.ForEach(visit); err != nil {
+				return err
+			}
+		} else {
+			prefix := signalHistoryKey(cluster, "")
+			c := b.Cursor()
+			for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
+				if err := visit(key, value); err != nil {
+					return err
 				}
 			}
 		}

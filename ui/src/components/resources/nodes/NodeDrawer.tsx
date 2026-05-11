@@ -230,6 +230,7 @@ export default function NodeDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={nodeSignals}
                     onJumpToConditions={() => setTab(2)}
                   />

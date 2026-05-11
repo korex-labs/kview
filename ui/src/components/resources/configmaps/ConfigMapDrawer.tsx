@@ -256,6 +256,7 @@ export default function ConfigMapDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={configMapSignals}
                     onJumpToEvents={() => setTab(2)}
                   />

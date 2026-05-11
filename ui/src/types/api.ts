@@ -199,6 +199,10 @@ export type DashboardSignalItem = {
   calculatedData?: string;
   firstSeenAt?: number;
   lastSeenAt?: number;
+  historyKey?: string;
+  acknowledged?: boolean;
+  acknowledgedAt?: number;
+  acknowledgementComment?: string;
 };
 
 export type SignalOverride = {

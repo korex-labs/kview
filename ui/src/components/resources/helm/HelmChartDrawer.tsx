@@ -112,7 +112,7 @@ export default function HelmChartDrawer(props: {
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
 
-                  <AttentionSummary signals={chartSignals} />
+                  <AttentionSummary token={props.token} signals={chartSignals} />
 
                   {chart.derived ? (
                     <Section title="Derived Projection">

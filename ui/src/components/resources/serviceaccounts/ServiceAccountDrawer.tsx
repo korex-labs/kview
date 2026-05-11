@@ -239,6 +239,7 @@ export default function ServiceAccountDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={serviceAccountSignals}
                     onJumpToEvents={() => setTab(2)}
                   />

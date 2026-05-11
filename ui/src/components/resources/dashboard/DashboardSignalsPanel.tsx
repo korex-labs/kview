@@ -26,6 +26,7 @@ import InfoHint from "../../shared/InfoHint";
 import ScopedCountChip, { activeChipSx } from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import OverflowTooltip from "../../shared/OverflowTooltip";
+import SignalAckButton from "../../shared/SignalAckButton";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -110,6 +111,8 @@ export function inspectTargetFromSignal(f: DashboardSignalItem): InspectTarget |
 function signalFilterLabel(filter: string): string {
   switch (filter) {
     case "top": return "Top priority";
+    case "open": return "Open";
+    case "acknowledged": return "Acknowledged";
     case "high": return "High severity";
     case "medium": return "Medium severity";
     case "low": return "Low severity";
@@ -135,6 +138,7 @@ function signalFilterLabel(filter: string): string {
 function signalFilterGroupLabel(category?: string): string {
   switch (category) {
     case "severity": return "By Severity";
+    case "acknowledgement": return "By Acknowledgement";
     case "kind": return "By Kind";
     case "signal_type": return "By Signal Reason";
     case "namespace": return "Top 5 Namespaces With Problems";
@@ -150,13 +154,14 @@ function signalFilterGroupOrder(category?: string): number {
   switch (category) {
     case "priority": return 0;
     case "severity": return 1;
-    case "kind": return 2;
-    case "signal_type": return 3;
-    case "namespace": return 4;
-    case "namespace_favourite": return 5;
-    case "namespace_recent": return 6;
-    case "derived": return 7;
-    default: return 8;
+    case "acknowledgement": return 2;
+    case "kind": return 3;
+    case "signal_type": return 4;
+    case "namespace": return 5;
+    case "namespace_favourite": return 6;
+    case "namespace_recent": return 7;
+    case "derived": return 8;
+    default: return 9;
   }
 }
 
@@ -206,6 +211,8 @@ function hideSignalFilterWhenZero(filter: DashboardSignalFilter): boolean {
 function fallbackSignalFilters(panel: DashboardSignalsPanelData | undefined, topCount: number): DashboardSignalFilter[] {
   return [
     { id: "top", label: "Top priority", count: topCount, category: "priority" },
+    { id: "open", label: "Open", count: panel?.items?.filter((signal) => !signal.acknowledged).length ?? 0, category: "acknowledgement" },
+    { id: "acknowledged", label: "Acknowledged", count: panel?.items?.filter((signal) => signal.acknowledged).length ?? 0, category: "acknowledgement" },
     { id: "high", label: "High severity", count: panel?.high ?? 0, category: "severity", severity: "high" },
     { id: "medium", label: "Medium severity", count: panel?.medium ?? 0, category: "severity", severity: "medium" },
     { id: "low", label: "Low severity", count: panel?.low ?? 0, category: "severity", severity: "low" },
@@ -286,7 +293,7 @@ const filterChipSx = {
   maxWidth: { xs: "100%", sm: "none" },
 } satisfies SxProps<Theme>;
 
-const statusCellSx = { pl: 0, width: { xs: 92, lg: 104 } };
+const statusCellSx = { pl: 0, width: { xs: 112, lg: 124 } };
 const kindCellSx = { width: { xs: 116, lg: 132, xl: 148 } };
 const resourceCellSx = { width: { xs: 220, md: "30%", xl: "34%" }, minWidth: 0 };
 const detailCellSx = { width: "auto", minWidth: 0 };
@@ -453,6 +460,7 @@ function SignalFilterGroup({
 // ---- exported component --------------------------------------------------
 
 type Props = {
+  token: string;
   signalPanel: DashboardSignalsPanelData | undefined;
   signalFilter: string;
   onSignalFilterChange: (filter: string) => void;
@@ -471,6 +479,7 @@ type Props = {
 };
 
 export default function DashboardSignalsPanel({
+  token,
   signalPanel,
   signalFilter,
   onSignalFilterChange,
@@ -761,7 +770,10 @@ export default function DashboardSignalsPanel({
                     sx={target ? { cursor: "pointer" } : undefined}
                   >
                     <TableCell sx={statusCellSx}>
-                      <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
+                        <SignalAckButton token={token} signal={f} />
+                      </Box>
                     </TableCell>
                     <TableCell sx={kindCellSx}>
                       <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} sx={{ maxWidth: "100%" }} />

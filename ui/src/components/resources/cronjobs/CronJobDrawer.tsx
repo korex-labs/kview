@@ -296,6 +296,7 @@ export default function CronJobDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={cronJobSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}

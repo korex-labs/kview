@@ -316,6 +316,7 @@ export default function JobDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={jobSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}

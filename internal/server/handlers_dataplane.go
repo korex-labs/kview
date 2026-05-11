@@ -102,6 +102,59 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Post("/dataplane/signals/ack", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req dataplane.SignalAcknowledgementRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal acknowledgement"})
+			return
+		}
+		req.HistoryKey = strings.TrimSpace(req.HistoryKey)
+		if req.HistoryKey == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing historyKey"})
+			return
+		}
+		active := s.readContextName(r)
+		rec, err := s.dp.AcknowledgeSignal(active, req)
+		if err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to acknowledge signal")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   rec,
+		})
+	})
+
+	api.Delete("/dataplane/signals/ack", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req dataplane.SignalAcknowledgementRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal acknowledgement"})
+			return
+		}
+		req.HistoryKey = strings.TrimSpace(req.HistoryKey)
+		if req.HistoryKey == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing historyKey"})
+			return
+		}
+		active := s.readContextName(r)
+		if err := s.dp.UnacknowledgeSignal(active, req.HistoryKey); err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to clear signal acknowledgement")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"ok":     true,
+		})
+	})
+
 	api.Post("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})

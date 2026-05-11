@@ -351,6 +351,7 @@ export default function DeploymentDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={deploymentSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}

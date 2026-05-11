@@ -137,6 +137,12 @@ All sources funnel into `AttentionSummary` + the Signals section; no drawer
 invents its own layout for signal display, and no drawer invents its own
 warnings.
 
+Signal acknowledgement is a local operator workflow. Dashboard and namespace
+signal tables expose acknowledgement actions with optional comments; acknowledged
+signals remain visible with quieter status treatment so users can distinguish
+"known" from "resolved". Resource attention summaries should prefer open signals
+and may show acknowledged signals only when no open signals remain.
+
 ---
 
 # UI Tokens

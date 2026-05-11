@@ -176,11 +176,12 @@ type stubDataplane struct {
 	policy    dataplane.DataplanePolicy
 	bundle    dataplane.DataplanePolicyBundle
 	effective map[string]dataplane.DataplanePolicy
+	acks      map[string]dataplane.SignalAcknowledgementRecord
 }
 
 func newStubDataplane() *stubDataplane {
 	bundle := dataplane.DefaultDataplanePolicyBundle()
-	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}}
+	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}}
 }
 
 func (s *stubDataplane) NoteUserActivity()                                       {}
@@ -216,6 +217,15 @@ func (s *stubDataplane) SchedulerRunStats() dataplane.SchedulerRunStatsSnapshot 
 }
 func (s *stubDataplane) MetricsCapability(_ context.Context, _ string) dataplane.MetricsCapability {
 	return dataplane.MetricsCapability{}
+}
+func (s *stubDataplane) AcknowledgeSignal(clusterName string, req dataplane.SignalAcknowledgementRequest) (dataplane.SignalAcknowledgementRecord, error) {
+	rec := dataplane.SignalAcknowledgementRecord{AcknowledgedAt: time.Now().UTC().Unix(), Comment: strings.TrimSpace(req.Comment), UpdatedAt: time.Now().UTC().Unix()}
+	s.acks[clusterName+"\x00"+req.HistoryKey] = rec
+	return rec, nil
+}
+func (s *stubDataplane) UnacknowledgeSignal(clusterName, historyKey string) error {
+	delete(s.acks, clusterName+"\x00"+historyKey)
+	return nil
 }
 func (s *stubDataplane) NodeMetricsCachedSnapshot(_ string) (dataplane.NodeMetricsSnapshot, bool) {
 	return dataplane.NodeMetricsSnapshot{}, false
@@ -1371,6 +1381,32 @@ func TestGetDataplaneSignalsCatalog(t *testing.T) {
 		if _, ok := body[key]; !ok {
 			t.Errorf("missing key %q: %v", key, body)
 		}
+	}
+}
+
+func TestPostDataplaneSignalAcknowledgement(t *testing.T) {
+	s, h := newTestServer(t)
+	body := []byte(`{"historyKey":"pod_restarts|namespace|default|Pod|api-0","comment":"known rollout"}`)
+	rec := doReq(t, h, http.MethodPost, "/api/dataplane/signals/ack", testToken, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if _, ok := s.dp.(*stubDataplane).acks["test-context\x00pod_restarts|namespace|default|Pod|api-0"]; !ok {
+		t.Fatalf("acknowledgement was not stored: %+v", s.dp.(*stubDataplane).acks)
+	}
+}
+
+func TestDeleteDataplaneSignalAcknowledgement(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	dp.acks["test-context\x00pod_restarts|namespace|default|Pod|api-0"] = dataplane.SignalAcknowledgementRecord{AcknowledgedAt: time.Now().UTC().Unix()}
+	body := []byte(`{"historyKey":"pod_restarts|namespace|default|Pod|api-0"}`)
+	rec := doReq(t, h, http.MethodDelete, "/api/dataplane/signals/ack", testToken, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if _, ok := dp.acks["test-context\x00pod_restarts|namespace|default|Pod|api-0"]; ok {
+		t.Fatalf("acknowledgement was not deleted: %+v", dp.acks)
 	}
 }
 

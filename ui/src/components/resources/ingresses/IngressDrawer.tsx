@@ -247,6 +247,7 @@ export default function IngressDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={ingressSignals}
                     onJumpToEvents={() => setTab(3)}
                   />

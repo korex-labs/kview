@@ -172,6 +172,7 @@ export default function ClusterRoleDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={clusterRoleSignals}
                     onJumpToEvents={() => setTab(2)}
                   />

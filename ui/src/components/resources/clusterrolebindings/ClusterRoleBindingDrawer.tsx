@@ -180,6 +180,7 @@ export default function ClusterRoleBindingDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={clusterRoleBindingSignals}
                     onJumpToEvents={() => setTab(3)}
                   />

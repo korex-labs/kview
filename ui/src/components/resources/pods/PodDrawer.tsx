@@ -1556,6 +1556,7 @@ export default function PodDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={podSignals}
                     onJumpToEvents={() => setTab(4)}
                   />

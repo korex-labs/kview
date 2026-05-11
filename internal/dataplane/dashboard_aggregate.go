@@ -533,8 +533,19 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 }
 
 func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel, opts ClusterDashboardListOptions) []ClusterDashboardSignalFilter {
+	openCount := 0
+	ackCount := 0
+	for _, signal := range signals {
+		if signal.Acknowledged {
+			ackCount++
+		} else {
+			openCount++
+		}
+	}
 	filters := []ClusterDashboardSignalFilter{
 		{ID: "top", Label: "Top priority", Count: topCount, Category: "priority"},
+		{ID: "open", Label: "Open", Count: openCount, Category: "acknowledgement"},
+		{ID: "acknowledged", Label: "Acknowledged", Count: ackCount, Category: "acknowledgement"},
 		{ID: "high", Label: "High severity", Count: summary.High, Category: "severity", Severity: "high"},
 		{ID: "medium", Label: "Medium severity", Count: summary.Medium, Category: "severity", Severity: "medium"},
 		{ID: "low", Label: "Low severity", Count: summary.Low, Category: "severity", Severity: "low"},
@@ -742,6 +753,14 @@ func filterDashboardSignals(signals []ClusterDashboardSignal, filter, query stri
 		if filter != "" && filter != "top" {
 			if filter == "high" || filter == "medium" || filter == "low" {
 				if f.Severity != filter {
+					continue
+				}
+			} else if filter == "open" {
+				if f.Acknowledged {
+					continue
+				}
+			} else if filter == "acknowledged" {
+				if !f.Acknowledged {
 					continue
 				}
 			} else if strings.HasPrefix(filter, "kind:") {

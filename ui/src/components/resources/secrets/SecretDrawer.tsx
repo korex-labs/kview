@@ -213,6 +213,7 @@ export default function SecretDrawer(props: {
                   )}
 
                   <AttentionSummary
+                    token={props.token}
                     signals={secretSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
