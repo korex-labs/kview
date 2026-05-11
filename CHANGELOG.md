@@ -3,6 +3,11 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.7.1 - 2026-05-11
+
+- Fixed dataplane scheduler resource kind formatting so scheduler-related
+  resources display with clearer, more consistent names across the interface.
+
 ## v5.7.0 - 2026-05-11
 
 - Added resource tags in the UI so teams can identify and scan important
