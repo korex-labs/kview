@@ -206,6 +206,10 @@ function AppInner() {
     saveState(appState);
   }, [appState]);
 
+  useEffect(() => {
+    setFavourites((appState.favouriteNamespacesByContext[activeContext] || []).slice());
+  }, [activeContext, appState.favouriteNamespacesByContext]);
+
   const handleActivityPanelOpenChange = useCallback((activityPanelOpen: boolean) => {
     setAppState((s) => (s.activityPanelOpen === activityPanelOpen ? s : { ...s, activityPanelOpen }));
   }, []);
@@ -668,6 +672,8 @@ function AppInner() {
                     namespaces={namespaces}
                     activeContext={activeContext}
                     activeNamespace={namespace}
+                    appState={appState}
+                    setAppState={setAppState}
                     onClose={() => setSettingsOpen(false)}
                   />
                 </React.Suspense>

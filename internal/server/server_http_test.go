@@ -227,6 +227,38 @@ func (s *stubDataplane) UnacknowledgeSignal(clusterName, historyKey string) erro
 	delete(s.acks, clusterName+"\x00"+historyKey)
 	return nil
 }
+func (s *stubDataplane) ExportSignalAcknowledgements(clusterName string) map[string]dataplane.SignalAcknowledgementRecord {
+	out := map[string]dataplane.SignalAcknowledgementRecord{}
+	prefix := clusterName + "\x00"
+	for key, rec := range s.acks {
+		if strings.HasPrefix(key, prefix) {
+			out[strings.TrimPrefix(key, prefix)] = rec
+		}
+	}
+	return out
+}
+func (s *stubDataplane) ImportSignalAcknowledgements(clusterName string, incoming map[string]dataplane.SignalAcknowledgementRecord, strategy string) (dataplane.SignalAcknowledgementImportResult, error) {
+	result := dataplane.SignalAcknowledgementImportResult{}
+	prefix := clusterName + "\x00"
+	if strategy == "replaceSections" {
+		for key := range s.acks {
+			if strings.HasPrefix(key, prefix) {
+				delete(s.acks, key)
+				result.Replaced++
+			}
+		}
+	}
+	for historyKey, rec := range incoming {
+		key := prefix + historyKey
+		if _, ok := s.acks[key]; ok && strategy == "keepMine" {
+			result.Skipped++
+			continue
+		}
+		s.acks[key] = rec
+		result.Imported++
+	}
+	return result, nil
+}
 func (s *stubDataplane) NodeMetricsCachedSnapshot(_ string) (dataplane.NodeMetricsSnapshot, bool) {
 	return dataplane.NodeMetricsSnapshot{}, false
 }

@@ -15,6 +15,8 @@ function renderSettings(onClose = vi.fn()) {
         namespaces={["default"]}
         activeContext="kind-test"
         activeNamespace="default"
+        appState={{ v: 1, favouriteNamespacesByContext: {} }}
+        setAppState={vi.fn()}
         onClose={onClose}
       />
     </UserSettingsProvider>,

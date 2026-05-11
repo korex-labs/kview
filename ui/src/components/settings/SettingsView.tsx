@@ -1,10 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Chip,
   Checkbox,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   InputLabel,
   List,
@@ -23,7 +27,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
-import type { Theme } from "@mui/material/styles";
+import { useTheme, type Theme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -32,6 +36,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   applyDataplaneProfile,
   customActionResourceKeys,
@@ -39,13 +45,16 @@ import {
   dataplaneNamespaceWarmResourceKeys,
   dataplaneTTLResourceKeys,
   exportUserSettingsJSON,
+  exportSettingsTransferJSON,
   newCustomActionDefinition,
   newCustomCommandDefinition,
   newSmartFilterRule,
+  parseSettingsTransferJSON,
   parseUserSettingsJSON,
   sanitizeRegexFlags,
   smartFilterResourceKeysForScope,
   dataplaneSettingsForContext,
+  applySettingsTransferBundle,
   type CustomActionDefinition,
   type CustomActionKind,
   type CustomActionPatchType,
@@ -62,9 +71,16 @@ import {
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
+  type SettingsTransferMergeStrategy,
+  type SettingsTransferSection,
+  type SettingsTransferBundleV1,
   type SmartFilterRule,
+  settingsTransferMergeStrategies,
+  settingsTransferSectionIds,
+  settingsTransferSections,
 } from "../../settings";
 import { useUserSettings } from "../../settingsContext";
+import type { AppStateV1 } from "../../state";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
 import { formatChipLabel } from "../../utils/k8sUi";
 import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
@@ -73,7 +89,7 @@ import ScopedCountChip from "../shared/ScopedCountChip";
 import ResourceTagChip from "../shared/ResourceTagChip";
 import { AppButton, AppIconButton } from "../shared/AppActions";
 import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
-import { apiGet, apiGetWithContext } from "../../api";
+import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
@@ -87,6 +103,8 @@ type Props = {
   namespaces: string[];
   activeContext: string;
   activeNamespace: string;
+  appState: AppStateV1;
+  setAppState: React.Dispatch<React.SetStateAction<AppStateV1>>;
   onClose: () => void;
 };
 
@@ -487,12 +505,188 @@ function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
   }
 }
 
-export default function SettingsView({ token, contexts, namespaces, activeContext, activeNamespace, onClose }: Props) {
+function transferSectionLabel(sectionID: SettingsTransferSection): string {
+  return settingsTransferSections.find((section) => section.id === sectionID)?.label || sectionID;
+}
+
+function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: SettingsTransferSection): string {
+  const section = bundle.sections[sectionID];
+  switch (sectionID) {
+    case "resourceTags": {
+      const tags = bundle.sections.resourceTags;
+      if (!tags) return "No resource tags";
+      const assignments = Object.keys(tags.assignments).length;
+      return `${tags.definitions.length} tag${tags.definitions.length === 1 ? "" : "s"}, ${assignments} assignment${assignments === 1 ? "" : "s"}`;
+    }
+    case "favourites": {
+      const favourites = bundle.sections.favourites?.favouriteNamespacesByContext || {};
+      const contexts = Object.keys(favourites).length;
+      const namespaces = Object.values(favourites).reduce((sum, items) => sum + items.length, 0);
+      return `${namespaces} namespace${namespaces === 1 ? "" : "s"} across ${contexts} context${contexts === 1 ? "" : "s"}`;
+    }
+    case "smartFilters": {
+      const count = bundle.sections.smartFilters?.rules.length || 0;
+      return `${count} rule${count === 1 ? "" : "s"}`;
+    }
+    case "customCommands": {
+      const count = bundle.sections.customCommands?.commands.length || 0;
+      return `${count} command${count === 1 ? "" : "s"}`;
+    }
+    case "customActions": {
+      const count = bundle.sections.customActions?.actions.length || 0;
+      return `${count} action${count === 1 ? "" : "s"}`;
+    }
+    case "signalSettings": {
+      const signalSettings = bundle.sections.signalSettings;
+      if (!signalSettings) return "No signal settings";
+      const globalOverrides = Object.keys(signalSettings.global.overrides || {}).length;
+      const contextOverrides = Object.keys(signalSettings.contextOverrides || {}).length;
+      return `${globalOverrides} global override${globalOverrides === 1 ? "" : "s"}, ${contextOverrides} context override${contextOverrides === 1 ? "" : "s"}`;
+    }
+    case "signalAcknowledgements": {
+      const contexts = bundle.sections.signalAcknowledgements || {};
+      const contextCount = Object.keys(contexts).length;
+      const ackCount = Object.values(contexts).reduce((sum, records) => sum + Object.keys(records).length, 0);
+      return `${ackCount} acknowledgement${ackCount === 1 ? "" : "s"} across ${contextCount} context${contextCount === 1 ? "" : "s"}`;
+    }
+    default:
+      return section ? "Included" : "Not included";
+  }
+}
+
+function HighlightedJsonTextArea({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const theme = useTheme();
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
+  const code = value || " ";
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Typography variant="subtitle2">Paste JSON</Typography>
+      <Box
+        sx={{
+          position: "relative",
+          height: 220,
+          minHeight: 140,
+          maxHeight: 520,
+          resize: "vertical",
+          overflow: "hidden",
+          border: "1px solid var(--code-border)",
+          borderRadius: 1,
+          backgroundColor: "var(--code-bg)",
+          "&:focus-within": {
+            borderColor: "primary.main",
+            boxShadow: (activeTheme) => `0 0 0 1px ${activeTheme.palette.primary.main}`,
+          },
+        }}
+      >
+        <Box
+          ref={highlightRef}
+          aria-hidden="true"
+          sx={{
+            position: "absolute",
+            inset: 0,
+            overflow: "auto",
+            pointerEvents: "none",
+            "& pre, & code, & .token": {
+              textShadow: "none !important",
+            },
+            "& pre": {
+              minHeight: "100%",
+            },
+          }}
+        >
+          <SyntaxHighlighter
+            language="json"
+            style={prismTheme}
+            customStyle={{
+              margin: 0,
+              minHeight: "100%",
+              background: "transparent",
+              color: "var(--code-text)",
+              textShadow: "none",
+              fontSize: "0.82rem",
+              lineHeight: 1.5,
+              padding: "12px",
+            }}
+            codeTagProps={{
+              style: { color: "var(--code-text)", textShadow: "none" },
+            }}
+          >
+            {code}
+          </SyntaxHighlighter>
+        </Box>
+        <Box
+          component="textarea"
+          aria-label="Paste JSON"
+          spellCheck={false}
+          value={value}
+          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)}
+          onScroll={(event: React.UIEvent<HTMLTextAreaElement>) => {
+            if (!highlightRef.current) return;
+            highlightRef.current.scrollTop = event.currentTarget.scrollTop;
+            highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+          }}
+          sx={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            m: 0,
+            p: "12px",
+            border: 0,
+            outline: 0,
+            resize: "none",
+            overflow: "auto",
+            boxSizing: "border-box",
+            backgroundColor: "transparent",
+            color: "transparent",
+            caretColor: "var(--text-primary)",
+            fontFamily: "monospace",
+            fontSize: "0.82rem",
+            lineHeight: 1.5,
+            whiteSpace: "pre",
+            tabSize: 2,
+            "&::selection": {
+              backgroundColor: "rgba(25, 118, 210, 0.28)",
+              color: "transparent",
+            },
+          }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+export default function SettingsView({
+  token,
+  contexts,
+  namespaces,
+  activeContext,
+  activeNamespace,
+  appState,
+  setAppState,
+  onClose,
+}: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
+  const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
+  const [transferImportSections, setTransferImportSections] = useState<SettingsTransferSection[]>([]);
+  const [transferStrategy, setTransferStrategy] = useState<SettingsTransferMergeStrategy>("useImported");
+  const [transferReviewOpen, setTransferReviewOpen] = useState(false);
+  const [pendingTransferBundle, setPendingTransferBundle] = useState<SettingsTransferBundleV1 | null>(null);
+  const [pendingTransferText, setPendingTransferText] = useState("");
+  const [transferDialogMessage, setTransferDialogMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
+  const [transferImportBusy, setTransferImportBusy] = useState(false);
   const [performanceSnapshot, setPerformanceSnapshot] = useState("");
   const [performanceSnapshotError, setPerformanceSnapshotError] = useState("");
   const [performanceSnapshotLoading, setPerformanceSnapshotLoading] = useState(false);
@@ -752,7 +946,131 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     });
   };
 
+  const transferBundle = useMemo(() => {
+    if (!importText.trim()) return null;
+    try {
+      return parseSettingsTransferJSON(importText);
+    } catch {
+      return null;
+    }
+  }, [importText]);
+
+  useEffect(() => {
+    if (!transferBundle) return;
+    setTransferImportSections(settingsTransferSectionIds(transferBundle));
+  }, [transferBundle]);
+
+  const toggleTransferSection = (
+    sectionID: SettingsTransferSection,
+    value: boolean,
+    setter: React.Dispatch<React.SetStateAction<SettingsTransferSection[]>>,
+  ) => {
+    setter((prev) => {
+      const exists = prev.includes(sectionID);
+      if (value && !exists) return [...prev, sectionID];
+      if (!value && exists) return prev.filter((id) => id !== sectionID);
+      return prev;
+    });
+  };
+
+  const openTransferReview = (text: string, bundle: SettingsTransferBundleV1) => {
+    const available = settingsTransferSectionIds(bundle);
+    setImportText(text);
+    setPendingTransferText(text);
+    setPendingTransferBundle(bundle);
+    setTransferImportSections(available);
+    setTransferDialogMessage(null);
+    setTransferReviewOpen(true);
+    setImportMessage(null);
+  };
+
+  const exportTransferSettings = async () => {
+    if (transferSections.length === 0) {
+      setImportMessage({ severity: "error", text: "Select at least one section to export." });
+      return;
+    }
+    try {
+      let signalAcknowledgements: Record<string, Record<string, {
+        acknowledgedAt: number;
+        acknowledgedBy?: string;
+        comment?: string;
+        updatedAt: number;
+      }>> | undefined;
+      if (transferSections.includes("signalAcknowledgements") && activeContext) {
+        const res = await apiGet<{ active: string; items: Record<string, {
+          acknowledgedAt: number;
+          acknowledgedBy?: string;
+          comment?: string;
+          updatedAt: number;
+        }> }>("/api/dataplane/signals/ack/export", token);
+        signalAcknowledgements = res.active ? { [res.active]: res.items || {} } : {};
+      }
+      const blob = new Blob([
+        exportSettingsTransferJSON({ settings, appState, sections: transferSections, signalAcknowledgements }),
+      ], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kview-settings-transfer.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      setImportMessage({ severity: "success", text: "Transfer bundle exported." });
+    } catch (err) {
+      setImportMessage({ severity: "error", text: (err as Error).message || "Export failed." });
+    }
+  };
+
+  const applyTransferImport = async (bundle: SettingsTransferBundleV1, text: string) => {
+    const available = settingsTransferSectionIds(bundle);
+    const selected = transferImportSections.filter((id) => available.includes(id));
+    if (selected.length === 0) {
+      setTransferDialogMessage({ severity: "error", text: "Select at least one transfer section to import." });
+      return;
+    }
+    setTransferImportBusy(true);
+    setTransferDialogMessage(null);
+    try {
+      const applied = applySettingsTransferBundle({
+        settings,
+        appState,
+        bundle,
+        sections: selected,
+        strategy: transferStrategy,
+      });
+      if (selected.includes("signalAcknowledgements") && bundle.sections.signalAcknowledgements) {
+        await apiPost("/api/dataplane/signals/ack/import", token, {
+          strategy: transferStrategy,
+          contexts: bundle.sections.signalAcknowledgements,
+        });
+      }
+      replaceSettings(applied.settings);
+      setAppState(applied.appState);
+      setImportText(text);
+      setTransferDialogMessage({
+        severity: "success",
+        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".`,
+      });
+      setImportMessage({ severity: "success", text: "Transfer bundle imported." });
+    } catch (err) {
+      const message = (err as Error).message || "Import failed.";
+      setTransferDialogMessage({ severity: "error", text: message });
+      setImportMessage({ severity: "error", text: message });
+    } finally {
+      setTransferImportBusy(false);
+    }
+  };
+
   const importSettingsText = (text: string) => {
+    let transfer: ReturnType<typeof parseSettingsTransferJSON> | null = null;
+    try {
+      transfer = parseSettingsTransferJSON(text);
+    } catch {
+      // Not a transfer bundle; try the legacy full-profile importer below.
+    }
+    if (transfer) {
+      openTransferReview(text, transfer);
+      return;
+    }
     try {
       const imported = parseUserSettingsJSON(text);
       if (!window.confirm("Import settings and overwrite the current settings profile?")) return;
@@ -2481,15 +2799,121 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
     );
   };
 
+  const renderTransferImportDialog = () => {
+    const bundle = pendingTransferBundle;
+    const available = bundle ? settingsTransferSectionIds(bundle) : [];
+    return (
+      <Dialog open={transferReviewOpen && !!bundle} onClose={() => setTransferReviewOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Import Transfer Bundle</DialogTitle>
+        <DialogContent>
+          {bundle ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: 0.5 }}>
+              <Alert severity="info">
+                Review the bundle contents and choose how conflicts should be handled before importing.
+              </Alert>
+              {transferDialogMessage ? (
+                <Alert severity={transferDialogMessage.severity}>{transferDialogMessage.text}</Alert>
+              ) : null}
+              <FormControl size="small" fullWidth>
+                <InputLabel id="settings-transfer-dialog-strategy-label">Merge strategy</InputLabel>
+                <Select
+                  labelId="settings-transfer-dialog-strategy-label"
+                  label="Merge strategy"
+                  value={transferStrategy}
+                  onChange={(event: SelectChangeEvent) => setTransferStrategy(event.target.value as SettingsTransferMergeStrategy)}
+                >
+                  {settingsTransferMergeStrategies.map((item) => (
+                    <MenuItem key={item.id} value={item.id}>{item.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <List dense disablePadding>
+                {available.map((sectionID) => (
+                  <ListItemButton
+                    key={sectionID}
+                    dense
+                    onClick={() => toggleTransferSection(sectionID, !transferImportSections.includes(sectionID), setTransferImportSections)}
+                    sx={{ borderRadius: 1 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <Checkbox
+                        edge="start"
+                        size="small"
+                        checked={transferImportSections.includes(sectionID)}
+                        tabIndex={-1}
+                        disableRipple
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={transferSectionLabel(sectionID)}
+                      secondary={transferSectionSummary(bundle, sectionID)}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <AppButton variant="text" onClick={() => setTransferReviewOpen(false)}>
+            {transferDialogMessage?.severity === "success" ? "Done" : "Cancel"}
+          </AppButton>
+          <AppButton
+            intent="primary"
+            disabled={!bundle || transferImportSections.length === 0 || transferImportBusy}
+            onClick={() => {
+              if (bundle) void applyTransferImport(bundle, pendingTransferText || importText);
+            }}
+          >
+            {transferImportBusy ? "Importing..." : "Import Selected Sections"}
+          </AppButton>
+        </DialogActions>
+      </Dialog>
+    );
+  };
+
   const renderImportExport = () => (
+    <>
     <SettingSection
       title="Import / Export"
       icon={<SettingsIcon name="importExport" />}
-      hint="This exports user settings only. Active context, namespace history, favourites, and theme are not included."
+      hint="Full profile export is for backup. Transfer bundles are section-based and safer for sharing with a team."
     >
+      <Typography variant="subtitle2">Transfer bundle</Typography>
+      <Typography variant="body2" color="text.secondary">
+        Export only the sections another operator should import.
+      </Typography>
+      <List dense disablePadding sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.25 }}>
+        {settingsTransferSections.map((item) => (
+          <ListItemButton
+            key={item.id}
+            dense
+            onClick={() => toggleTransferSection(item.id, !transferSections.includes(item.id), setTransferSections)}
+            sx={{ borderRadius: 1 }}
+          >
+            <ListItemIcon sx={{ minWidth: 32 }}>
+              <Checkbox
+                edge="start"
+                size="small"
+                checked={transferSections.includes(item.id)}
+                tabIndex={-1}
+                disableRipple
+              />
+            </ListItemIcon>
+            <ListItemText primary={item.label} />
+          </ListItemButton>
+        ))}
+      </List>
+      <Box sx={actionRowSx}>
+        <AppButton intent="primary" onClick={() => void exportTransferSettings()}>
+          Export transfer bundle
+        </AppButton>
+      </Box>
+      <Divider />
+      <Typography variant="subtitle2">Full profile backup</Typography>
       <Box sx={actionRowSx}>
         <AppButton
-          intent="primary"
+          intent="secondary"
           onClick={() => {
             const blob = new Blob([exportUserSettingsJSON(settings)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
@@ -2500,7 +2924,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
             URL.revokeObjectURL(url);
           }}
         >
-          Export JSON
+          Export full profile
         </AppButton>
         <AppButton
           intent="warning"
@@ -2513,6 +2937,7 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
         </AppButton>
       </Box>
       <Divider />
+      <Typography variant="subtitle2">Import</Typography>
       <AppButton component="label" sx={{ alignSelf: "flex-start" }}>
         Upload JSON file
         <input
@@ -2526,17 +2951,30 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           }}
         />
       </AppButton>
-      <SettingField
-        label="Import settings JSON"
-        value={importText}
-        onChange={(v) => setImportText(v)}
-        multiline
-        minRows={10}
-      />
+      <HighlightedJsonTextArea value={importText} onChange={setImportText} />
+      {transferBundle ? (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <Alert severity="info">
+            Transfer bundle detected. Review the sections before importing.
+          </Alert>
+          <List dense disablePadding sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.25 }}>
+            {settingsTransferSections
+              .filter((item) => settingsTransferSectionIds(transferBundle).includes(item.id))
+              .map((item) => (
+                <Box key={item.id} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, px: 1, py: 0.75 }}>
+                  <Typography variant="body2">{item.label}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {transferSectionSummary(transferBundle, item.id)}
+                  </Typography>
+                </Box>
+              ))}
+          </List>
+        </Box>
+      ) : null}
       <Box sx={actionRowSx}>
         <AppButton
           intent="primary"
-          onClick={() => importSettingsText(importText)}
+          onClick={() => void importSettingsText(importText)}
           disabled={!importText.trim()}
         >
           Import JSON
@@ -2545,6 +2983,8 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
       </Box>
       {importMessage ? <Alert severity={importMessage.severity}>{importMessage.text}</Alert> : null}
     </SettingSection>
+    {renderTransferImportDialog()}
+    </>
   );
 
   return (

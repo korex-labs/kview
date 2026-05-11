@@ -1,4 +1,5 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
+import type { AppStateV1 } from "./state";
 
 export type SettingsScopeMode = "all" | "cluster" | "namespace";
 export type SettingsResourceScopeMode = "any" | "selected";
@@ -9,6 +10,15 @@ export type CustomActionTarget = "env" | "image";
 export type CustomActionPatchType = "json" | "merge";
 export type DataplaneProfile = "manual" | "focused" | "balanced" | "wide" | "diagnostic";
 export type SignalSeverityOverride = "low" | "medium" | "high";
+export type SettingsTransferMergeStrategy = "keepMine" | "useImported" | "replaceSections";
+export type SettingsTransferSection =
+  | "smartFilters"
+  | "resourceTags"
+  | "customCommands"
+  | "customActions"
+  | "favourites"
+  | "signalSettings"
+  | "signalAcknowledgements";
 
 export type SignalOverride = {
   enabled?: boolean;
@@ -117,6 +127,31 @@ export type KviewUserSettingsV2 = {
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
   dataplane: DataplaneSettingsV2;
+};
+
+export type SignalAcknowledgementTransferRecord = {
+  acknowledgedAt: number;
+  acknowledgedBy?: string;
+  comment?: string;
+  updatedAt: number;
+};
+
+export type SettingsTransferBundleV1 = {
+  kind: "kview.settingsTransfer";
+  v: 1;
+  exportedAt: string;
+  sections: Partial<{
+    smartFilters: KviewUserSettingsV2["smartFilters"];
+    resourceTags: KviewUserSettingsV2["resourceTags"];
+    customCommands: KviewUserSettingsV2["customCommands"];
+    customActions: KviewUserSettingsV2["customActions"];
+    favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
+    signalSettings: {
+      global: DataplaneSettings["signals"];
+      contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>>;
+    };
+    signalAcknowledgements: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+  }>;
 };
 
 export type DataplaneSettings = {
@@ -1611,6 +1646,390 @@ export function parseUserSettingsJSON(text: string): KviewUserSettingsV2 {
 
 export function exportUserSettingsJSON(settings: KviewUserSettingsV2): string {
   return `${JSON.stringify(serializeUserSettingsV2(settings), null, 2)}\n`;
+}
+
+export const settingsTransferSections: Array<{ id: SettingsTransferSection; label: string }> = [
+  { id: "resourceTags", label: "Resource tags" },
+  { id: "favourites", label: "Favourite namespaces" },
+  { id: "smartFilters", label: "Smart filters" },
+  { id: "customCommands", label: "Custom commands" },
+  { id: "customActions", label: "Custom actions" },
+  { id: "signalSettings", label: "Signal settings" },
+  { id: "signalAcknowledgements", label: "Signal acknowledgements" },
+];
+
+export const settingsTransferMergeStrategies: Array<{ id: SettingsTransferMergeStrategy; label: string }> = [
+  { id: "keepMine", label: "Keep mine on conflict" },
+  { id: "useImported", label: "Use imported on conflict" },
+  { id: "replaceSections", label: "Replace selected sections" },
+];
+
+export function exportSettingsTransferJSON(input: {
+  settings: KviewUserSettingsV2;
+  appState: AppStateV1;
+  sections: SettingsTransferSection[];
+  signalAcknowledgements?: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+}): string {
+  const selected = new Set(input.sections);
+  const serialized = serializeUserSettingsV2(input.settings);
+  const bundle: SettingsTransferBundleV1 = {
+    kind: "kview.settingsTransfer",
+    v: 1,
+    exportedAt: new Date().toISOString(),
+    sections: {},
+  };
+  if (selected.has("smartFilters")) bundle.sections.smartFilters = serialized.smartFilters;
+  if (selected.has("resourceTags")) bundle.sections.resourceTags = serialized.resourceTags;
+  if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
+  if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
+  if (selected.has("favourites")) {
+    bundle.sections.favourites = {
+      favouriteNamespacesByContext: normalizeStringArrayRecord(input.appState.favouriteNamespacesByContext),
+    };
+  }
+  if (selected.has("signalSettings")) {
+    const contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>> = {};
+    for (const [contextName, override] of Object.entries(serialized.dataplane.contextOverrides)) {
+      if (override.signals) contextOverrides[contextName] = override.signals;
+    }
+    bundle.sections.signalSettings = {
+      global: serialized.dataplane.global.signals,
+      contextOverrides,
+    };
+  }
+  if (selected.has("signalAcknowledgements")) {
+    bundle.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(input.signalAcknowledgements);
+  }
+  return `${JSON.stringify(bundle, null, 2)}\n`;
+}
+
+export function parseSettingsTransferJSON(text: string): SettingsTransferBundleV1 {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Transfer JSON is not valid.");
+  }
+  const bundle = validateSettingsTransferBundle(parsed);
+  if (!bundle) {
+    throw new Error("Transfer JSON must be a valid kview settings transfer bundle.");
+  }
+  return bundle;
+}
+
+export function validateSettingsTransferBundle(input: unknown): SettingsTransferBundleV1 | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<SettingsTransferBundleV1>;
+  if (raw.kind !== "kview.settingsTransfer" || raw.v !== 1 || !raw.sections || typeof raw.sections !== "object") {
+    return null;
+  }
+  const defaults = defaultUserSettings();
+  const sections = raw.sections as Record<string, unknown>;
+  const out: SettingsTransferBundleV1 = {
+    kind: "kview.settingsTransfer",
+    v: 1,
+    exportedAt: typeof raw.exportedAt === "string" && raw.exportedAt.trim() ? raw.exportedAt : new Date(0).toISOString(),
+    sections: {},
+  };
+  if ("smartFilters" in sections) {
+    out.sections.smartFilters = validateUserSettings({ ...defaults, smartFilters: sections.smartFilters })?.smartFilters;
+  }
+  if ("resourceTags" in sections) {
+    out.sections.resourceTags = validateUserSettings({ ...defaults, resourceTags: sections.resourceTags })?.resourceTags;
+  }
+  if ("customCommands" in sections) {
+    out.sections.customCommands = validateUserSettings({ ...defaults, customCommands: sections.customCommands })?.customCommands;
+  }
+  if ("customActions" in sections) {
+    out.sections.customActions = validateUserSettings({ ...defaults, customActions: sections.customActions })?.customActions;
+  }
+  if ("favourites" in sections) {
+    out.sections.favourites = {
+      favouriteNamespacesByContext: normalizeStringArrayRecord(
+        (sections.favourites as { favouriteNamespacesByContext?: unknown } | undefined)?.favouriteNamespacesByContext,
+      ),
+    };
+  }
+  if ("signalSettings" in sections) {
+    out.sections.signalSettings = normalizeSignalSettingsTransfer(sections.signalSettings);
+  }
+  if ("signalAcknowledgements" in sections) {
+    out.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(sections.signalAcknowledgements);
+  }
+  if (Object.keys(out.sections).length === 0) return null;
+  return out;
+}
+
+export function settingsTransferSectionIds(bundle: SettingsTransferBundleV1): SettingsTransferSection[] {
+  return settingsTransferSections
+    .map((section) => section.id)
+    .filter((section) => Object.prototype.hasOwnProperty.call(bundle.sections, section));
+}
+
+export function applySettingsTransferBundle(input: {
+  settings: KviewUserSettingsV2;
+  appState: AppStateV1;
+  bundle: SettingsTransferBundleV1;
+  sections: SettingsTransferSection[];
+  strategy: SettingsTransferMergeStrategy;
+}): { settings: KviewUserSettingsV2; appState: AppStateV1 } {
+  const selected = new Set(input.sections);
+  let nextSettings = input.settings;
+  let nextAppState = input.appState;
+  if (selected.has("smartFilters") && input.bundle.sections.smartFilters) {
+    nextSettings = mergeSettingsSection(nextSettings, "smartFilters", input.bundle.sections.smartFilters, input.strategy);
+  }
+  if (selected.has("resourceTags") && input.bundle.sections.resourceTags) {
+    nextSettings = mergeSettingsSection(nextSettings, "resourceTags", input.bundle.sections.resourceTags, input.strategy);
+  }
+  if (selected.has("customCommands") && input.bundle.sections.customCommands) {
+    nextSettings = mergeSettingsSection(nextSettings, "customCommands", input.bundle.sections.customCommands, input.strategy);
+  }
+  if (selected.has("customActions") && input.bundle.sections.customActions) {
+    nextSettings = mergeSettingsSection(nextSettings, "customActions", input.bundle.sections.customActions, input.strategy);
+  }
+  if (selected.has("favourites") && input.bundle.sections.favourites) {
+    nextAppState = mergeFavouriteNamespaces(nextAppState, input.bundle.sections.favourites, input.strategy);
+  }
+  if (selected.has("signalSettings") && input.bundle.sections.signalSettings) {
+    nextSettings = mergeSignalSettings(nextSettings, input.bundle.sections.signalSettings, input.strategy);
+  }
+  return { settings: nextSettings, appState: nextAppState };
+}
+
+function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "customCommands" | "customActions">(
+  settings: KviewUserSettingsV2,
+  section: K,
+  incoming: KviewUserSettingsV2[K],
+  strategy: SettingsTransferMergeStrategy,
+): KviewUserSettingsV2 {
+  if (strategy === "replaceSections") return { ...settings, [section]: incoming };
+  if (section === "resourceTags") {
+    return {
+      ...settings,
+      resourceTags: mergeResourceTags(settings.resourceTags, incoming as ResourceTagsSettings, strategy),
+    };
+  }
+  if (section === "smartFilters") {
+    return {
+      ...settings,
+      smartFilters: {
+        minCount: strategy === "useImported" ? (incoming as KviewUserSettingsV2["smartFilters"]).minCount : settings.smartFilters.minCount,
+        rules: mergeById(settings.smartFilters.rules, (incoming as KviewUserSettingsV2["smartFilters"]).rules, strategy),
+      },
+    };
+  }
+  if (section === "customCommands") {
+    return {
+      ...settings,
+      customCommands: {
+        commands: mergeById(settings.customCommands.commands, (incoming as KviewUserSettingsV2["customCommands"]).commands, strategy),
+      },
+    };
+  }
+  return {
+    ...settings,
+    customActions: {
+      actions: mergeById(settings.customActions.actions, (incoming as KviewUserSettingsV2["customActions"]).actions, strategy),
+    },
+  };
+}
+
+function mergeById<T extends { id: string }>(
+  current: T[],
+  incoming: T[],
+  strategy: SettingsTransferMergeStrategy,
+): T[] {
+  const byID = new Map(current.map((item) => [item.id, item]));
+  for (const item of incoming) {
+    if (!byID.has(item.id) || strategy === "useImported") byID.set(item.id, item);
+  }
+  const importedIDs = new Set(incoming.map((item) => item.id));
+  const ordered = current
+    .filter((item) => byID.has(item.id))
+    .map((item) => byID.get(item.id) || item);
+  for (const item of incoming) {
+    if (!current.some((existing) => existing.id === item.id) && importedIDs.has(item.id)) ordered.push(item);
+  }
+  return ordered;
+}
+
+function mergeResourceTags(
+  current: ResourceTagsSettings,
+  incoming: ResourceTagsSettings,
+  strategy: SettingsTransferMergeStrategy,
+): ResourceTagsSettings {
+  if (strategy === "replaceSections") return incoming;
+  const assignments = { ...current.assignments };
+  for (const [key, value] of Object.entries(incoming.assignments)) {
+    if (!assignments[key] || strategy === "useImported") assignments[key] = value;
+  }
+  return {
+    enabled: strategy === "useImported" ? incoming.enabled : current.enabled,
+    inheritNamespaceTags: strategy === "useImported" ? incoming.inheritNamespaceTags : current.inheritNamespaceTags,
+    cleanupMissingAssignments: strategy === "useImported" ? incoming.cleanupMissingAssignments : current.cleanupMissingAssignments,
+    definitions: mergeById(current.definitions, incoming.definitions, strategy),
+    assignments,
+  };
+}
+
+function mergeFavouriteNamespaces(
+  current: AppStateV1,
+  incoming: Pick<AppStateV1, "favouriteNamespacesByContext">,
+  strategy: SettingsTransferMergeStrategy,
+): AppStateV1 {
+  if (strategy === "replaceSections") {
+    return { ...current, favouriteNamespacesByContext: incoming.favouriteNamespacesByContext };
+  }
+  const next = { ...current.favouriteNamespacesByContext };
+  for (const [contextName, namespaces] of Object.entries(incoming.favouriteNamespacesByContext)) {
+    if (!next[contextName]) {
+      next[contextName] = namespaces;
+    } else if (strategy === "useImported") {
+      next[contextName] = namespaces;
+    } else {
+      next[contextName] = Array.from(new Set([...next[contextName], ...namespaces])).sort((a, b) => a.localeCompare(b));
+    }
+  }
+  return { ...current, favouriteNamespacesByContext: next };
+}
+
+function mergeSignalSettings(
+  settings: KviewUserSettingsV2,
+  incoming: NonNullable<SettingsTransferBundleV1["sections"]["signalSettings"]>,
+  strategy: SettingsTransferMergeStrategy,
+): KviewUserSettingsV2 {
+  const contextOverrides = { ...settings.dataplane.contextOverrides };
+  if (strategy === "replaceSections") {
+    for (const contextName of Object.keys(contextOverrides)) {
+      if (contextOverrides[contextName]?.signals) {
+        const nextOverride = { ...contextOverrides[contextName] };
+        delete nextOverride.signals;
+        contextOverrides[contextName] = nextOverride;
+      }
+    }
+  }
+  for (const [contextName, signals] of Object.entries(incoming.contextOverrides)) {
+    contextOverrides[contextName] = {
+      ...(contextOverrides[contextName] || {}),
+      signals: strategy === "keepMine"
+        ? mergeContextSignals(contextOverrides[contextName]?.signals, signals)
+        : signals,
+    };
+  }
+  return {
+    ...settings,
+    dataplane: {
+      ...settings.dataplane,
+      global: {
+        ...settings.dataplane.global,
+        signals: strategy === "keepMine" ? mergeGlobalSignals(settings.dataplane.global.signals, incoming.global) : incoming.global,
+      },
+      contextOverrides,
+    },
+  };
+}
+
+function mergeGlobalSignals(current: DataplaneSettings["signals"], incoming: DataplaneSettings["signals"]): DataplaneSettings["signals"] {
+  return {
+    ...current,
+    overrides: mergeRecord(current.overrides, incoming.overrides, "keepMine"),
+    contextOverrides: mergeRecord(current.contextOverrides, incoming.contextOverrides, "keepMine"),
+  };
+}
+
+function mergeContextSignals(
+  current: DataplaneContextOverrideSettings["signals"] | undefined,
+  incoming: NonNullable<DataplaneContextOverrideSettings["signals"]>,
+): NonNullable<DataplaneContextOverrideSettings["signals"]> {
+  if (!current) return incoming;
+  return {
+    ...current,
+    overrides: mergeRecord(current.overrides || {}, incoming.overrides || {}, "keepMine"),
+  };
+}
+
+function mergeRecord<T>(
+  current: Record<string, T>,
+  incoming: Record<string, T>,
+  strategy: SettingsTransferMergeStrategy,
+): Record<string, T> {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!Object.prototype.hasOwnProperty.call(next, key) || strategy === "useImported") next[key] = value;
+  }
+  return next;
+}
+
+function normalizeStringArrayRecord(input: unknown): Record<string, string[]> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(input)) {
+    const contextName = key.trim();
+    if (!contextName || !Array.isArray(value)) continue;
+    const items = Array.from(new Set(value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim())))
+      .sort((a, b) => a.localeCompare(b));
+    if (items.length > 0) out[contextName] = items;
+  }
+  return out;
+}
+
+function normalizeSignalSettingsTransfer(input: unknown): NonNullable<SettingsTransferBundleV1["sections"]["signalSettings"]> {
+  const raw = input && typeof input === "object" && !Array.isArray(input)
+    ? input as { global?: unknown; contextOverrides?: unknown }
+    : {};
+  const defaults = defaultUserSettings();
+  const contextOverrides: Record<string, DataplaneContextOverrideSettings> = {};
+  if (raw.contextOverrides && typeof raw.contextOverrides === "object" && !Array.isArray(raw.contextOverrides)) {
+    for (const [contextName, signals] of Object.entries(raw.contextOverrides)) {
+      if (contextName.trim()) contextOverrides[contextName.trim()] = { signals: signals as DataplaneContextOverrideSettings["signals"] };
+    }
+  }
+  const parsed = validateUserSettings({
+    ...defaults,
+    dataplane: {
+      ...defaults.dataplane,
+      global: {
+        ...defaults.dataplane.global,
+        signals: raw.global,
+      },
+      contextOverrides,
+    },
+  }) || defaults;
+  const normalizedContextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>> = {};
+  for (const [contextName, override] of Object.entries(parsed.dataplane.contextOverrides)) {
+    if (override.signals) normalizedContextOverrides[contextName] = override.signals;
+  }
+  return {
+    global: parsed.dataplane.global.signals,
+    contextOverrides: normalizedContextOverrides,
+  };
+}
+
+function normalizeSignalAcknowledgementTransfer(input: unknown): Record<string, Record<string, SignalAcknowledgementTransferRecord>> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, Record<string, SignalAcknowledgementTransferRecord>> = {};
+  for (const [contextName, records] of Object.entries(input)) {
+    const contextKey = contextName.trim();
+    if (!contextKey || !records || typeof records !== "object" || Array.isArray(records)) continue;
+    const contextRecords: Record<string, SignalAcknowledgementTransferRecord> = {};
+    for (const [historyKey, rawRecord] of Object.entries(records)) {
+      const key = historyKey.trim();
+      if (!key || !rawRecord || typeof rawRecord !== "object" || Array.isArray(rawRecord)) continue;
+      const record = rawRecord as Partial<SignalAcknowledgementTransferRecord>;
+      if (typeof record.acknowledgedAt !== "number" || record.acknowledgedAt <= 0) continue;
+      contextRecords[key] = {
+        acknowledgedAt: Math.floor(record.acknowledgedAt),
+        acknowledgedBy: typeof record.acknowledgedBy === "string" ? record.acknowledgedBy.trim() : undefined,
+        comment: typeof record.comment === "string" ? record.comment.trim() : undefined,
+        updatedAt: typeof record.updatedAt === "number" && record.updatedAt > 0
+          ? Math.floor(record.updatedAt)
+          : Math.floor(record.acknowledgedAt),
+      };
+    }
+    if (Object.keys(contextRecords).length > 0) out[contextKey] = contextRecords;
+  }
+  return out;
 }
 
 function serializeUserSettingsV2(settings: KviewUserSettingsV2): KviewUserSettingsV2 {

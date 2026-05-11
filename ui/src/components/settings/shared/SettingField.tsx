@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 import { Box, InputAdornment, TextField, Typography } from "@mui/material";
+import type { TextFieldProps } from "@mui/material/TextField";
 import InfoHint from "../../shared/InfoHint";
 import ScopeTag from "./ScopeTag";
 
@@ -42,8 +43,10 @@ type ManagedProps = SettingFieldBase & {
   max?: number;
   multiline?: boolean;
   minRows?: number;
+  maxRows?: number;
   disabled?: boolean;
   placeholder?: string;
+  sx?: TextFieldProps["sx"];
   children?: never;
 };
 
@@ -57,8 +60,10 @@ type WrapperProps = SettingFieldBase & {
   max?: never;
   multiline?: never;
   minRows?: never;
+  maxRows?: never;
   disabled?: never;
   placeholder?: never;
+  sx?: never;
 };
 
 type SettingFieldProps = ManagedProps | WrapperProps;
@@ -137,8 +142,10 @@ export default function SettingField(props: SettingFieldProps) {
         placeholder={props.placeholder}
         multiline={props.multiline}
         minRows={props.minRows}
+        maxRows={props.maxRows}
         disabled={props.disabled}
         error={Boolean(error)}
+        sx={props.sx}
         slotProps={{
           inputLabel: { shrink: true },
           htmlInput: {

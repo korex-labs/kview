@@ -3,15 +3,19 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   applyDataplaneProfile,
+  applySettingsTransferBundle,
   defaultDataplaneSettings,
   defaultUserSettings,
+  exportSettingsTransferJSON,
   exportUserSettingsJSON,
   customCommandsForContainer,
   customActionsForResource,
   dataplaneSettingsForContext,
   labelForSmartFilterRules,
   loadUserSettings,
+  parseSettingsTransferJSON,
   parseUserSettingsJSON,
+  settingsTransferSectionIds,
   smartFilterResourceKeysForScope,
   validateUserSettings,
   USER_SETTINGS_KEY,
@@ -214,6 +218,82 @@ describe("user settings", () => {
     expect(exported.dataplane.global.dashboard.restartElevatedThreshold).toBeUndefined();
     expect(exported.dataplane.global.metrics.containerNearLimitPct).toBeUndefined();
     expect(exported.dataplane.global.metrics.nodePressurePct).toBeUndefined();
+  });
+
+  it("exports and parses selected transfer sections", () => {
+    const settings = defaultUserSettings();
+    settings.resourceTags = {
+      enabled: true,
+      inheritNamespaceTags: true,
+      cleanupMissingAssignments: true,
+      definitions: [{ id: "handoff", name: "Handoff", color: "#1e88e5" }],
+      assignments: { "ctx/pods/apps/api": ["handoff"] },
+    };
+    const exported = exportSettingsTransferJSON({
+      settings,
+      appState: { v: 1, favouriteNamespacesByContext: { ctx: ["apps"] } },
+      sections: ["resourceTags", "favourites"],
+    });
+
+    const parsed = parseSettingsTransferJSON(exported);
+    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "favourites"]);
+    expect(parsed.sections.resourceTags?.definitions[0].id).toBe("handoff");
+    expect(parsed.sections.favourites?.favouriteNamespacesByContext.ctx).toEqual(["apps"]);
+  });
+
+  it("merges transfer sections while keeping local conflicts", () => {
+    const current = defaultUserSettings();
+    current.customCommands.commands = [
+      { ...current.customCommands.commands[0], id: "shared", name: "Local", command: "local" },
+    ];
+    const incoming = defaultUserSettings();
+    incoming.customCommands.commands = [
+      { ...incoming.customCommands.commands[0], id: "shared", name: "Imported", command: "imported" },
+      { ...incoming.customCommands.commands[0], id: "new", name: "New", command: "new" },
+    ];
+    const bundle = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: incoming,
+      appState: { v: 1, favouriteNamespacesByContext: { prod: ["apps"] } },
+      sections: ["customCommands", "favourites"],
+    }));
+
+    const applied = applySettingsTransferBundle({
+      settings: current,
+      appState: { v: 1, favouriteNamespacesByContext: { prod: ["default"] } },
+      bundle,
+      sections: ["customCommands", "favourites"],
+      strategy: "keepMine",
+    });
+
+    expect(applied.settings.customCommands.commands.map((cmd) => [cmd.id, cmd.command])).toEqual([
+      ["shared", "local"],
+      ["new", "new"],
+    ]);
+    expect(applied.appState.favouriteNamespacesByContext.prod).toEqual(["apps", "default"]);
+  });
+
+  it("can replace selected transfer sections", () => {
+    const current = defaultUserSettings();
+    current.resourceTags.definitions = [{ id: "local", name: "Local", color: "#1e88e5" }];
+    const incoming = defaultUserSettings();
+    incoming.resourceTags.definitions = [{ id: "imported", name: "Imported", color: "#43a047" }];
+    const bundle = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: incoming,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      sections: ["resourceTags"],
+    }));
+
+    const applied = applySettingsTransferBundle({
+      settings: current,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      bundle,
+      sections: ["resourceTags"],
+      strategy: "replaceSections",
+    });
+
+    expect(applied.settings.resourceTags.definitions).toEqual([
+      { id: "imported", name: "Imported", color: "#43a047" },
+    ]);
   });
 
   it("migrates v1 context overrides to v2 dataplane context overrides", () => {

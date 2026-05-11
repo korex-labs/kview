@@ -221,6 +221,10 @@ type DataPlaneManager interface {
 	AcknowledgeSignal(clusterName string, req SignalAcknowledgementRequest) (SignalAcknowledgementRecord, error)
 	// UnacknowledgeSignal removes local acknowledgement metadata for a stable signal history key.
 	UnacknowledgeSignal(clusterName, historyKey string) error
+	// ExportSignalAcknowledgements returns local signal acknowledgement metadata for a context.
+	ExportSignalAcknowledgements(clusterName string) map[string]SignalAcknowledgementRecord
+	// ImportSignalAcknowledgements merges local signal acknowledgement metadata for a context.
+	ImportSignalAcknowledgements(clusterName string, incoming map[string]SignalAcknowledgementRecord, strategy string) (SignalAcknowledgementImportResult, error)
 
 	// Policy returns the current dataplane behavior policy.
 	Policy() DataplanePolicy

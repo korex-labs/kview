@@ -24,6 +24,12 @@ type SignalAcknowledgementRequest struct {
 	Comment    string `json:"comment,omitempty"`
 }
 
+type SignalAcknowledgementImportResult struct {
+	Imported int `json:"imported"`
+	Skipped  int `json:"skipped"`
+	Replaced int `json:"replaced"`
+}
+
 func (m *manager) ensureSignalHistory(clusterName string) {
 	if clusterName == "" {
 		return
@@ -164,6 +170,89 @@ func (m *manager) UnacknowledgeSignal(clusterName, historyKey string) error {
 		return sp.DeleteSignalAcknowledgement(clusterName, key)
 	}
 	return nil
+}
+
+func (m *manager) ExportSignalAcknowledgements(clusterName string) map[string]SignalAcknowledgementRecord {
+	if clusterName == "" {
+		return map[string]SignalAcknowledgementRecord{}
+	}
+	m.ensureSignalAcknowledgements(clusterName)
+	m.signalAckMu.RLock()
+	defer m.signalAckMu.RUnlock()
+	out := map[string]SignalAcknowledgementRecord{}
+	for key, rec := range m.signalAck[clusterName] {
+		if strings.TrimSpace(key) == "" || rec.AcknowledgedAt <= 0 {
+			continue
+		}
+		out[key] = rec
+	}
+	return out
+}
+
+func (m *manager) ImportSignalAcknowledgements(clusterName string, incoming map[string]SignalAcknowledgementRecord, strategy string) (SignalAcknowledgementImportResult, error) {
+	var result SignalAcknowledgementImportResult
+	if clusterName == "" {
+		return result, nil
+	}
+	m.ensureSignalAcknowledgements(clusterName)
+	cleaned := map[string]SignalAcknowledgementRecord{}
+	for key, rec := range incoming {
+		key = strings.TrimSpace(key)
+		if key == "" || rec.AcknowledgedAt <= 0 {
+			continue
+		}
+		rec.Comment = strings.TrimSpace(rec.Comment)
+		rec.AcknowledgedBy = strings.TrimSpace(rec.AcknowledgedBy)
+		if rec.UpdatedAt <= 0 {
+			rec.UpdatedAt = rec.AcknowledgedAt
+		}
+		cleaned[key] = rec
+	}
+
+	m.signalAckMu.Lock()
+	if m.signalAck[clusterName] == nil {
+		m.signalAck[clusterName] = map[string]SignalAcknowledgementRecord{}
+	}
+	current := m.signalAck[clusterName]
+	deleteKeys := []string{}
+	if strategy == "replaceSections" {
+		for key := range current {
+			if _, ok := cleaned[key]; !ok {
+				delete(current, key)
+				deleteKeys = append(deleteKeys, key)
+				result.Replaced++
+			}
+		}
+	}
+	upserts := map[string]SignalAcknowledgementRecord{}
+	for key, rec := range cleaned {
+		_, exists := current[key]
+		if exists && strategy == "keepMine" {
+			result.Skipped++
+			continue
+		}
+		if exists {
+			result.Replaced++
+		}
+		current[key] = rec
+		upserts[key] = rec
+		result.Imported++
+	}
+	m.signalAckMu.Unlock()
+
+	if sp := m.currentPersistence(); sp != nil {
+		for _, key := range deleteKeys {
+			if err := sp.DeleteSignalAcknowledgement(clusterName, key); err != nil {
+				return result, err
+			}
+		}
+		for key, rec := range upserts {
+			if err := sp.UpsertSignalAcknowledgement(clusterName, key, rec); err != nil {
+				return result, err
+			}
+		}
+	}
+	return result, nil
 }
 
 func signalHistoryIdentity(item ClusterDashboardSignal) string {

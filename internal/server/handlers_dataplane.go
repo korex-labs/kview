@@ -102,6 +102,54 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Get("/dataplane/signals/ack/export", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		active := s.readContextName(r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"items":  s.dp.ExportSignalAcknowledgements(active),
+		})
+	})
+
+	api.Post("/dataplane/signals/ack/import", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req struct {
+			Strategy string                                                      `json:"strategy"`
+			Contexts map[string]map[string]dataplane.SignalAcknowledgementRecord `json:"contexts"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal acknowledgement import"})
+			return
+		}
+		strategy := strings.TrimSpace(req.Strategy)
+		if strategy != "keepMine" && strategy != "useImported" && strategy != "replaceSections" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid merge strategy"})
+			return
+		}
+		results := map[string]dataplane.SignalAcknowledgementImportResult{}
+		for contextName, records := range req.Contexts {
+			contextName = strings.TrimSpace(contextName)
+			if contextName == "" {
+				continue
+			}
+			result, err := s.dp.ImportSignalAcknowledgements(contextName, records, strategy)
+			if err != nil {
+				writeErrorResponse(w, http.StatusInternalServerError, "failed to import signal acknowledgements")
+				return
+			}
+			results[contextName] = result
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"items": results,
+		})
+	})
+
 	api.Post("/dataplane/signals/ack", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
