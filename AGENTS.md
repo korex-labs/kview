@@ -165,8 +165,21 @@ Update documentation when changing:
 - APIs
 - workflows
 - setup or tooling
+- user-facing views, controls, actions, settings, or troubleshooting behavior
 
 Keep documentation aligned with current behavior.
+
+End-user documentation lives in `docs/user/` and is consumed by in-app Help.
+When adding or changing a user-facing feature:
+
+- follow the documentation structure and formatting rules in `docs/user/CONTRACT.md`
+- update the relevant `docs/user/*.md` page in the same change
+- update `docs/user/manifest.json` when adding, renaming, or removing a help page
+- update `docs/user/whats-new.md` for notable user-facing changes, especially before releases
+- keep engineering-only docs such as architecture, dataplane, and API ownership outside in-app Help unless the content is useful to end users
+
+The release-note helper updates both `CHANGELOG.md` and the curated
+`docs/user/whats-new.md` highlights.
 
 ---
 

@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "title": "kview Help",
+  "externalLinks": {
+    "github": "https://github.com/korex-labs/kview",
+    "website": "https://korex-labs.com",
+    "patreon": "https://www.patreon.com/cw/KorexLabs"
+  },
+  "pages": [
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "category": "Basics",
+      "source": "getting-started.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "navigation",
+      "title": "Navigation",
+      "category": "Basics",
+      "source": "navigation.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "views-and-resources",
+      "title": "Views And Resources",
+      "category": "Resources",
+      "source": "views-and-resources.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "resource-lists",
+      "title": "Resource Lists",
+      "category": "Resources",
+      "source": "resource-lists.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "resource-drawers",
+      "title": "Resource Drawers",
+      "category": "Resources",
+      "source": "resource-drawers.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "dashboard-and-signals",
+      "title": "Dashboard And Signals",
+      "category": "Resources",
+      "source": "dashboard-and-signals.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "actions-and-safety",
+      "title": "Actions And Safety",
+      "category": "Workflows",
+      "source": "actions-and-safety.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "workflows",
+      "title": "Common Workflows",
+      "category": "Workflows",
+      "source": "workflows.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "activity-panel",
+      "title": "Activity Panel",
+      "category": "Workflows",
+      "source": "activity-panel.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "pods-workloads",
+      "title": "Pods And Workloads",
+      "category": "Resources",
+      "source": "pods-workloads.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "networking",
+      "title": "Networking",
+      "category": "Resources",
+      "source": "networking.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "namespaces",
+      "title": "Namespaces",
+      "category": "Resources",
+      "source": "namespaces.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "helm",
+      "title": "Helm",
+      "category": "Resources",
+      "source": "helm.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "rbac",
+      "title": "RBAC",
+      "category": "Resources",
+      "source": "rbac.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "storage",
+      "title": "Storage",
+      "category": "Resources",
+      "source": "storage.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "custom-resources",
+      "title": "Custom Resources",
+      "category": "Resources",
+      "source": "custom-resources.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "category": "Configuration",
+      "source": "settings.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "smart-filters",
+      "title": "Smart Filters",
+      "category": "Configuration",
+      "source": "smart-filters.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "resource-tags",
+      "title": "Resource Tags",
+      "category": "Configuration",
+      "source": "resource-tags.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "custom-commands-actions",
+      "title": "Custom Commands And Actions",
+      "category": "Configuration",
+      "source": "custom-commands-actions.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "dataplane-settings",
+      "title": "Dataplane Settings",
+      "category": "Configuration",
+      "source": "dataplane-settings.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "import-export",
+      "title": "Import / Export",
+      "category": "Configuration",
+      "source": "import-export.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "troubleshooting",
+      "title": "Troubleshooting",
+      "category": "Support",
+      "source": "troubleshooting.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
+      "id": "whats-new",
+      "title": "What's New",
+      "category": "Updates",
+      "source": "whats-new.md",
+      "surfaces": ["app", "repo", "website"]
+    }
+  ],
+  "featuredPages": ["getting-started", "dashboard-and-signals", "workflows", "actions-and-safety", "whats-new"]
+}
