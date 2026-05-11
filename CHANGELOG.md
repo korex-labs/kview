@@ -3,6 +3,20 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.7.0 - 2026-05-11
+
+- Added resource tags in the UI so teams can identify and scan important
+  objects more quickly across views.
+- Expanded signal workflows with combined dashboard filters and local signal
+  acknowledgements, making it easier to narrow noisy result sets and track work
+  in progress without leaving the cluster view.
+- Improved settings portability with section-level import and export, and
+  unified action controls across the interface for a more consistent workflow.
+- Accelerated custom resource browsing by caching custom resources in the
+  dataplane and improved navigation to problem resources within namespaces.
+- Fixed log streaming to surface websocket errors directly, reducing silent
+  failures during live investigation.
+
 ## v5.6.0 - 2026-05-07
 
 - Improved settings and key-value presentation to make configuration details and
