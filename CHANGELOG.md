@@ -3,6 +3,11 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.7.2 - 2026-05-11
+
+- Fixed resource tag table column resizing so width adjustments persist more
+  reliably while browsing tagged resources in the UI.
+
 ## v5.7.1 - 2026-05-11
 
 - Fixed dataplane scheduler resource kind formatting so scheduler-related
