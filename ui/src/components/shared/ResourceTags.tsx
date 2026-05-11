@@ -10,6 +10,7 @@ import {
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import type { ResourceTagTarget, ResolvedResourceTag } from "../../resourceTags";
+import type { SxProps, Theme } from "@mui/material/styles";
 import {
   assignmentTagIdsForTarget,
   buildResourceTagsIndex,
@@ -25,15 +26,17 @@ import { AppButton, AppIconButton } from "./AppActions";
 export function ResourceTagsRow({
   tags,
   empty = null,
+  chipSx,
 }: {
   tags: ResolvedResourceTag[];
   empty?: React.ReactNode;
+  chipSx?: SxProps<Theme>;
 }) {
   if (tags.length === 0) return empty;
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
       {tags.map((tag) => (
-        <ResourceTagChip key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}`} tag={tag} />
+        <ResourceTagChip key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}`} tag={tag} sx={chipSx} />
       ))}
     </Box>
   );
@@ -43,7 +46,7 @@ export function ResourceTagsCell({ target }: { target: ResourceTagTarget }) {
   const { settings } = useUserSettings();
   const index = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
   const tags = useMemo(() => resourceTagsForTarget(settings.resourceTags, index, target), [index, settings.resourceTags, target]);
-  return <ResourceTagsRow tags={tags} empty={<Typography variant="body2" color="text.secondary">-</Typography>} />;
+  return <ResourceTagsRow tags={tags} chipSx={{ maxWidth: 112 }} empty={<Typography variant="body2" color="text.secondary">-</Typography>} />;
 }
 
 export function ResourceTagsHeader({ target }: { target: ResourceTagTarget | null }) {

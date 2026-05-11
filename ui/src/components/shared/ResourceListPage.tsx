@@ -177,7 +177,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const tagColumn: GridColDef<TRow> = {
       field: "resourceTags",
       headerName: "Tags",
-      width: 180,
+      width: 320,
+      minWidth: 220,
       sortable: false,
       filterable: false,
       renderCell: (p) => {
@@ -210,6 +211,19 @@ export default function ResourceListPage<TRow extends { id: string }>({
       return 0;
     });
   }, [columnsWithTags]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const gridColumns = useMemo(
+    () => orderedColumns.map((col) => {
+      const width = columnWidths[String(col.field)];
+      if (!width) return col;
+      return {
+        ...col,
+        flex: undefined,
+        width,
+      };
+    }),
+    [columnWidths, orderedColumns],
+  );
 
   const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(emptyRowSelectionModel);
   const selectedId = useMemo<string | null>(() => {
@@ -351,13 +365,13 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const handleFocusGrid = useCallback((preferredId?: string | null) => {
     keepFilterFocusRef.current = false;
-    const field = orderedColumns[0]?.field;
+    const field = gridColumns[0]?.field;
     if (!field) return false;
     const rowIds = apiRef.current?.getAllRowIds?.() || [];
     const focusedId = apiRef.current?.state?.focus?.cell?.id;
     const targetId = preferredId || (focusedId != null ? String(focusedId) : "") || selectedId || String(rowIds[0] ?? filteredRows[0]?.id ?? "");
     return focusGridCell(targetId, field);
-  }, [apiRef, filteredRows, focusGridCell, orderedColumns, selectedId]);
+  }, [apiRef, filteredRows, focusGridCell, gridColumns, selectedId]);
 
   const handleMoveGridFocus = useCallback((key: string, rowId: string, field: string) => {
     const normalizedKey = key.toLowerCase();
@@ -366,14 +380,14 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const move = tableNavigationKeys[normalizedKey];
     if (!move) return false;
     const rowIds = apiRef.current?.getAllRowIds?.().map(String) || filteredRows.map((row) => row.id);
-    const fields = orderedColumns.map((col) => String(col.field));
+    const fields = gridColumns.map((col) => String(col.field));
     const rowIndex = rowIds.indexOf(rowId);
     const colIndex = fields.indexOf(field);
     if (rowIndex < 0 || colIndex < 0) return false;
     const nextRowIndex = Math.max(0, Math.min(rowIds.length - 1, rowIndex + move.rowDelta));
     const nextColIndex = Math.max(0, Math.min(fields.length - 1, colIndex + move.colDelta));
     return focusGridCell(rowIds[nextRowIndex], fields[nextColIndex]);
-  }, [apiRef, filteredRows, focusGridCell, keyboardSettings.homeRowTableNavigation, keyboardSettings.vimTableNavigation, orderedColumns]);
+  }, [apiRef, filteredRows, focusGridCell, keyboardSettings.homeRowTableNavigation, keyboardSettings.vimTableNavigation, gridColumns]);
 
   const handleCloseDrawer = useCallback(() => {
     const returnId = drawerSelectedId;
@@ -457,7 +471,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
       >
         <DataGrid<TRow>
           rows={filteredRows}
-          columns={orderedColumns}
+          columns={gridColumns}
           apiRef={apiRef}
           density="compact"
           loading={loading}
@@ -467,6 +481,14 @@ export default function ResourceListPage<TRow extends { id: string }>({
           showToolbar
           rowSelectionModel={selectionModel}
           onRowSelectionModelChange={(m) => setSelectionModel(m)}
+          onColumnWidthChange={(params) => {
+            setColumnWidths((prev) => {
+              const field = String(params.colDef.field);
+              const width = Math.round(params.width);
+              if (prev[field] === width) return prev;
+              return { ...prev, [field]: width };
+            });
+          }}
           onCellKeyDown={(params, event) => {
             if (event.key === "Enter") {
               event.preventDefault();
