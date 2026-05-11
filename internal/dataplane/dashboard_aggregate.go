@@ -473,8 +473,8 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 		out.Top = append(out.Top, signals...)
 	}
 	out.Filters = buildDashboardSignalFilters(signals, len(out.Top), out, opts)
-	pageSource := filterDashboardSignals(signals, opts.SignalsFilter, opts.SignalsQuery)
-	if opts.SignalsFilter == "" || opts.SignalsFilter == "top" {
+	pageSource := filterDashboardSignals(signals, opts.SignalsFilters, opts.SignalsQuery)
+	if len(opts.SignalsFilters) == 0 || (len(opts.SignalsFilters) == 1 && opts.SignalsFilters[0] == "top") {
 		if len(pageSource) > limit {
 			pageSource = pageSource[:limit]
 		}
@@ -533,9 +533,17 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 }
 
 func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel, opts ClusterDashboardListOptions) []ClusterDashboardSignalFilter {
+	countSource := signals
+	if opts.SignalsCombined && len(opts.SignalsFilters) > 0 {
+		countSource = filterDashboardSignals(signals, opts.SignalsFilters, "")
+		summary = summarizeDashboardSignalCounts(countSource)
+		if len(countSource) < topCount {
+			topCount = len(countSource)
+		}
+	}
 	openCount := 0
 	ackCount := 0
-	for _, signal := range signals {
+	for _, signal := range countSource {
 		if signal.Acknowledged {
 			ackCount++
 		} else {
@@ -560,7 +568,7 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 		priority int
 	}
 	byType := map[string]signalTypeCount{}
-	for _, signal := range signals {
+	for _, signal := range countSource {
 		if signal.Kind != "" {
 			id := "kind:" + signal.Kind
 			current := kindFilters[id]
@@ -662,6 +670,22 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 	return filters
 }
 
+func summarizeDashboardSignalCounts(signals []ClusterDashboardSignal) ClusterDashboardSignalsPanel {
+	out := ClusterDashboardSignalsPanel{Total: len(signals)}
+	for _, f := range signals {
+		switch f.Severity {
+		case "high":
+			out.High++
+		case "medium":
+			out.Medium++
+		default:
+			out.Low++
+		}
+		out.incrementSignalCounter(dashboardSignalDefinitionForType(f.SignalType).SummaryCounter)
+	}
+	return out
+}
+
 func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, category string, namespaces []string, counted map[string]dashboardCountedFilter) []ClusterDashboardSignalFilter {
 	seen := map[string]struct{}{}
 	for _, namespace := range namespaces {
@@ -720,11 +744,44 @@ func dashboardSignalTypeLabel(signalType string) string {
 
 func normalizeClusterDashboardListOptions(opts ClusterDashboardListOptions) ClusterDashboardListOptions {
 	opts.SignalsFilter = strings.TrimSpace(opts.SignalsFilter)
+	opts.SignalsFilters = normalizeDashboardSignalFilters(opts.SignalsFilter)
+	if !opts.SignalsCombined && len(opts.SignalsFilters) > 1 {
+		opts.SignalsFilters = opts.SignalsFilters[:1]
+		opts.SignalsFilter = opts.SignalsFilters[0]
+	}
+	if len(opts.SignalsFilters) == 0 {
+		opts.SignalsFilter = ""
+	} else {
+		opts.SignalsFilter = strings.Join(opts.SignalsFilters, ",")
+	}
 	opts.SignalsQuery = strings.TrimSpace(opts.SignalsQuery)
 	opts.SignalsSort = strings.TrimSpace(opts.SignalsSort)
 	opts.SignalsOffset = normalizeDashboardOffset(opts.SignalsOffset)
 	opts.SignalsLimit = normalizeDashboardLimit(opts.SignalsLimit)
 	return opts
+}
+
+func normalizeDashboardSignalFilters(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		filter := strings.TrimSpace(part)
+		if filter == "" {
+			continue
+		}
+		if filter == "top" && len(out) > 0 {
+			continue
+		}
+		if _, ok := seen[filter]; ok {
+			continue
+		}
+		seen[filter] = struct{}{}
+		out = append(out, filter)
+	}
+	return out
 }
 
 func normalizeDashboardOffset(offset int) int {
@@ -745,41 +802,12 @@ func normalizeDashboardLimit(limit int) int {
 	}
 }
 
-func filterDashboardSignals(signals []ClusterDashboardSignal, filter, query string) []ClusterDashboardSignal {
-	filter = strings.TrimSpace(filter)
+func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, query string) []ClusterDashboardSignal {
 	query = strings.ToLower(strings.TrimSpace(query))
 	out := make([]ClusterDashboardSignal, 0, len(signals))
 	for _, f := range signals {
-		if filter != "" && filter != "top" {
-			if filter == "high" || filter == "medium" || filter == "low" {
-				if f.Severity != filter {
-					continue
-				}
-			} else if filter == "open" {
-				if f.Acknowledged {
-					continue
-				}
-			} else if filter == "acknowledged" {
-				if !f.Acknowledged {
-					continue
-				}
-			} else if strings.HasPrefix(filter, "kind:") {
-				if f.Kind != strings.TrimPrefix(filter, "kind:") {
-					continue
-				}
-			} else if strings.HasPrefix(filter, "signal:") {
-				if f.SignalType != strings.TrimPrefix(filter, "signal:") {
-					continue
-				}
-			} else if strings.HasPrefix(filter, "namespace:") {
-				if f.Namespace != strings.TrimPrefix(filter, "namespace:") {
-					continue
-				}
-			} else if f.SignalType == filter {
-				// keep
-			} else if f.Kind != filter {
-				continue
-			}
+		if !dashboardSignalMatchesFilters(f, filters) {
+			continue
 		}
 		if query != "" && !dashboardSignalMatchesQuery(f, query) {
 			continue
@@ -787,6 +815,43 @@ func filterDashboardSignals(signals []ClusterDashboardSignal, filter, query stri
 		out = append(out, f)
 	}
 	return out
+}
+
+func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string) bool {
+	for _, filter := range filters {
+		filter = strings.TrimSpace(filter)
+		if filter == "" || filter == "top" {
+			continue
+		}
+		if filter == "high" || filter == "medium" || filter == "low" {
+			if f.Severity != filter {
+				return false
+			}
+		} else if filter == "open" {
+			if f.Acknowledged {
+				return false
+			}
+		} else if filter == "acknowledged" {
+			if !f.Acknowledged {
+				return false
+			}
+		} else if strings.HasPrefix(filter, "kind:") {
+			if f.Kind != strings.TrimPrefix(filter, "kind:") {
+				return false
+			}
+		} else if strings.HasPrefix(filter, "signal:") {
+			if f.SignalType != strings.TrimPrefix(filter, "signal:") {
+				return false
+			}
+		} else if strings.HasPrefix(filter, "namespace:") {
+			if f.Namespace != strings.TrimPrefix(filter, "namespace:") {
+				return false
+			}
+		} else if f.SignalType != filter && f.Kind != filter {
+			return false
+		}
+	}
+	return true
 }
 
 func dashboardSignalMatchesQuery(f ClusterDashboardSignal, query string) bool {

@@ -135,12 +135,22 @@ func parseClusterDashboardListOptions(r *http.Request) dataplane.ClusterDashboar
 	q := r.URL.Query()
 	return dataplane.ClusterDashboardListOptions{
 		SignalsFilter:              q.Get("signalsFilter"),
+		SignalsCombined:            parseBoolQuery(q.Get("signalsCombined")),
 		SignalsQuery:               q.Get("signalsQ"),
 		SignalsSort:                q.Get("signalsSort"),
 		SignalsOffset:              parseNonNegativeQueryInt(q.Get("signalsOffset")),
 		SignalsLimit:               parseNonNegativeQueryInt(q.Get("signalsLimit")),
 		SignalsFavouriteNamespaces: parseCommaListQuery(q.Get("signalsFavouriteNamespaces")),
 		SignalsRecentNamespaces:    parseCommaListQuery(q.Get("signalsRecentNamespaces")),
+	}
+}
+
+func parseBoolQuery(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }
 

@@ -823,6 +823,12 @@ export default function SettingsView({ token, contexts, namespaces, activeContex
           onChange={(v) => setSettings((prev) => updateAppearance(prev, { smartNamespaceSorting: v }))}
         />
         <SettingRow
+          label="Combined dashboard signal filters"
+          hint="Allows multiple cluster dashboard signal chips to be selected at once and narrows the remaining chip choices to matching signals."
+          checked={settings.appearance.dashboardCombinedSignalFilters}
+          onChange={(v) => setSettings((prev) => updateAppearance(prev, { dashboardCombinedSignalFilters: v }))}
+        />
+        <SettingRow
           label="Dashboard favourite namespace filters"
           hint="Shows cluster dashboard signal filter chips for favourited namespaces in the active context."
           checked={settings.appearance.dashboardFavouriteNamespaceFilters}

@@ -203,6 +203,8 @@ type ClusterDashboardSignal struct {
 
 type ClusterDashboardListOptions struct {
 	SignalsFilter              string
+	SignalsFilters             []string
+	SignalsCombined            bool
 	SignalsQuery               string
 	SignalsSort                string
 	SignalsOffset              int

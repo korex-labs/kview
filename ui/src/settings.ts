@@ -59,6 +59,7 @@ export type KviewUserSettingsV1 = {
     resourceDrawerWidthPx: number;
     yamlSmartCollapse: boolean;
     smartNamespaceSorting: boolean;
+    dashboardCombinedSignalFilters: boolean;
     dashboardFavouriteNamespaceFilters: boolean;
     dashboardRecentNamespaceFilters: boolean;
     recentMenuEnabled: boolean;
@@ -326,6 +327,7 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
       resourceDrawerWidthPx: 820,
       yamlSmartCollapse: true,
       smartNamespaceSorting: false,
+      dashboardCombinedSignalFilters: false,
       dashboardFavouriteNamespaceFilters: false,
       dashboardRecentNamespaceFilters: false,
       recentMenuEnabled: false,
@@ -1339,6 +1341,10 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
         typeof rawAppearance.smartNamespaceSorting === "boolean"
           ? rawAppearance.smartNamespaceSorting
           : defaults.appearance.smartNamespaceSorting,
+      dashboardCombinedSignalFilters:
+        typeof rawAppearance.dashboardCombinedSignalFilters === "boolean"
+          ? rawAppearance.dashboardCombinedSignalFilters
+          : defaults.appearance.dashboardCombinedSignalFilters,
       dashboardFavouriteNamespaceFilters:
         typeof rawAppearance.dashboardFavouriteNamespaceFilters === "boolean"
           ? rawAppearance.dashboardFavouriteNamespaceFilters

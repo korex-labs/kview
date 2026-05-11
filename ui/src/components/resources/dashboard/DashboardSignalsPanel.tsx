@@ -387,13 +387,15 @@ function SignalFilterGroup({
   category,
   label,
   filters,
-  selectedFilter,
+  selectedFilters,
+  combinedMode,
   onSelect,
 }: {
   category: string;
   label: string;
   filters: DashboardSignalFilter[];
-  selectedFilter: string;
+  selectedFilters: string[];
+  combinedMode: boolean;
   onSelect: (filter: string) => void;
 }) {
   const measureRef = useRef<HTMLDivElement | null>(null);
@@ -417,20 +419,23 @@ function SignalFilterGroup({
     const resizeObserver = new ResizeObserver(updateSplit);
     resizeObserver.observe(node);
     return () => resizeObserver.disconnect();
-  }, [filters, selectedFilter]);
+  }, [filters, selectedFilters]);
 
-  const renderFilter = (filter: DashboardSignalFilter) => (
-    <FilterChip
-      key={filter.id}
-      filter={filter.id}
-      label={filter.label}
-      count={filter.count}
-      color={signalFilterColor(filter)}
-      hideWhenZero={hideSignalFilterWhenZero(filter)}
-      selected={selectedFilter === filter.id}
-      onSelect={onSelect}
-    />
-  );
+  const renderFilter = (filter: DashboardSignalFilter) => {
+    const selected = selectedFilters.includes(filter.id);
+    return (
+      <FilterChip
+        key={filter.id}
+        filter={filter.id}
+        label={filter.label}
+        count={filter.count}
+        color={signalFilterColor(filter)}
+        hideWhenZero={hideSignalFilterWhenZero(filter) || (combinedMode && filter.count <= 0)}
+        selected={selected}
+        onSelect={onSelect}
+      />
+    );
+  };
 
   return (
     <Box sx={{ position: "relative" }}>
@@ -463,6 +468,8 @@ type Props = {
   token: string;
   signalPanel: DashboardSignalsPanelData | undefined;
   signalFilter: string;
+  signalFilters?: string[];
+  combinedSignalFilters?: boolean;
   onSignalFilterChange: (filter: string) => void;
   signalsQuery: string;
   onSignalsQueryChange: (q: string) => void;
@@ -482,6 +489,8 @@ export default function DashboardSignalsPanel({
   token,
   signalPanel,
   signalFilter,
+  signalFilters,
+  combinedSignalFilters = false,
   onSignalFilterChange,
   signalsQuery,
   onSignalsQueryChange,
@@ -497,6 +506,7 @@ export default function DashboardSignalsPanel({
 }: Props) {
   const topSignals = signalPanel?.top || [];
   const visibleSignals = signalPanel?.items || [];
+  const selectedSignalFilters = signalFilters && signalFilters.length > 0 ? signalFilters : [signalFilter].filter(Boolean);
   const derivedRows = useMemo<DerivedSignalRow[]>(() => {
     if (!derived) return [];
     const nodeRows = (derived.nodes.nodes || []).map((node) => ({
@@ -553,14 +563,17 @@ export default function DashboardSignalsPanel({
     });
     return [...nodeRows, ...chartRows];
   }, [derived]);
-  const derivedFilter = signalFilter.startsWith("derived");
+  const derivedFilter = selectedSignalFilters.length === 1 && selectedSignalFilters[0].startsWith("derived");
+  const activeDirectSignalFilters = derivedFilter
+    ? []
+    : selectedSignalFilters.filter((filter) => filter !== "top");
   const visibleDerivedRows = useMemo(() => {
     if (!derivedFilter) return [];
     const q = signalsQuery.trim().toLowerCase();
     return derivedRows
-      .filter((row) => derivedFilterMatches(row, signalFilter))
+      .filter((row) => derivedFilterMatches(row, selectedSignalFilters[0] || signalFilter))
       .filter((row) => derivedMatchesQuery(row, q));
-  }, [derivedFilter, derivedRows, signalFilter, signalsQuery]);
+  }, [derivedFilter, derivedRows, selectedSignalFilters, signalFilter, signalsQuery]);
   const pagedDerivedRows = visibleDerivedRows.slice(
     signalsPage * signalsRowsPerPage,
     signalsPage * signalsRowsPerPage + signalsRowsPerPage,
@@ -582,7 +595,11 @@ export default function DashboardSignalsPanel({
   ];
   const filterGroups = groupedSignalFilters(quickFilters);
   const selectedFilterLabel =
-    quickFilters.find((f) => f.id === signalFilter)?.label || signalFilterLabel(signalFilter);
+    activeDirectSignalFilters.length > 0
+      ? activeDirectSignalFilters
+          .map((filter) => quickFilters.find((f) => f.id === filter)?.label || signalFilterLabel(filter))
+          .join(" + ")
+      : quickFilters.find((f) => f.id === signalFilter)?.label || signalFilterLabel(signalFilter);
 
   return (
     <Paper variant="outlined" sx={panelSx}>
@@ -609,7 +626,8 @@ export default function DashboardSignalsPanel({
               category={group.category}
               label={group.label}
               filters={group.filters}
-              selectedFilter={signalFilter}
+              selectedFilters={selectedSignalFilters}
+              combinedMode={combinedSignalFilters && !derivedFilter}
               onSelect={onSignalFilterChange}
             />
           ))}

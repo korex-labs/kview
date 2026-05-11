@@ -147,6 +147,7 @@ describe("user settings", () => {
     expect(parsed?.appearance.dashboardRefreshSec).toBe(0);
     expect(parsed?.appearance.smartFiltersEnabled).toBe(false);
     expect(parsed?.appearance.smartNamespaceSorting).toBe(true);
+    expect(parsed?.appearance.dashboardCombinedSignalFilters).toBe(false);
     expect(parsed?.appearance.dashboardFavouriteNamespaceFilters).toBe(false);
     expect(parsed?.appearance.dashboardRecentNamespaceFilters).toBe(false);
     expect(parsed?.appearance.activityPanelInitiallyOpen).toBe(true);

@@ -229,6 +229,7 @@ export default function DashboardView(props: Props) {
   const [signalsLoading, setSignalsLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
   const [signalFilter, setSignalFilter] = useState("top");
+  const [signalFilters, setSignalFilters] = useState<string[]>(["top"]);
   const [signalsQuery, setSignalsQuery] = useState("");
   const [signalsSort, setSignalsSort] = useState("priority");
   const [signalsPage, setSignalsPage] = useState(0);
@@ -244,6 +245,7 @@ export default function DashboardView(props: Props) {
   const recentNamespaceFilterParam = (props.recentNamespaces || []).filter(Boolean).join(",");
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
   const dashboardProfile = settings.dataplane.global.profile;
+  const combinedSignalFilters = settings.appearance.dashboardCombinedSignalFilters;
   const effectiveDashboardRefreshSec =
     dashboardRefreshSec > 0 && (dashboardProfile === "wide" || dashboardProfile === "diagnostic")
       ? Math.max(dashboardRefreshSec, DASHBOARD_PROFILE_REFRESH_FLOOR_SEC)
@@ -266,13 +268,17 @@ export default function DashboardView(props: Props) {
         setData(null);
       }
       try {
+        const requestedSignalFilters = combinedSignalFilters ? signalFilters : [signalFilter];
         const params = new URLSearchParams({
-          signalsFilter: signalFilter,
+          signalsFilter: requestedSignalFilters.join(","),
           signalsQ: deferredSignalsQuery,
           signalsSort,
           signalsOffset: String(signalsPage * signalsRowsPerPage),
           signalsLimit: String(signalsRowsPerPage),
         });
+        if (combinedSignalFilters) {
+          params.set("signalsCombined", "true");
+        }
         if (favouriteNamespaceFilterParam) {
           params.set("signalsFavouriteNamespaces", favouriteNamespaceFilterParam);
         }
@@ -337,6 +343,8 @@ export default function DashboardView(props: Props) {
     health,
     pageVisible,
     signalFilter,
+    signalFilters,
+    combinedSignalFilters,
     signalsSort,
     signalsPage,
     signalsRowsPerPage,
@@ -346,10 +354,30 @@ export default function DashboardView(props: Props) {
   ]);
 
   const selectSignalFilter = (filter: string) => {
-    if (filter !== signalFilter) setSignalsLoading(true);
-    setSignalFilter(filter);
+    const isDerived = filter.startsWith("derived");
+    const nextFilters = combinedSignalFilters && !isDerived
+      ? signalFilters.includes(filter)
+        ? signalFilters.filter((item) => item !== filter)
+        : [...signalFilters.filter((item) => item !== "top" && !item.startsWith("derived")), filter]
+      : [filter];
+    const normalizedFilters = nextFilters.length > 0 ? nextFilters : ["top"];
+    const nextFilter = normalizedFilters.join(",");
+    if (nextFilter !== signalFilter) setSignalsLoading(true);
+    setSignalFilters(normalizedFilters);
+    setSignalFilter(combinedSignalFilters && !isDerived ? nextFilter : filter);
     setSignalsPage(0);
   };
+
+  useEffect(() => {
+    if (combinedSignalFilters) return;
+    const firstFilter = signalFilters[0] || signalFilter || "top";
+    if (signalFilter !== firstFilter) {
+      setSignalFilter(firstFilter);
+    }
+    if (signalFilters.length !== 1 || signalFilters[0] !== firstFilter) {
+      setSignalFilters([firstFilter]);
+    }
+  }, [combinedSignalFilters, signalFilter, signalFilters]);
 
   return (
     <Paper
@@ -464,6 +492,8 @@ export default function DashboardView(props: Props) {
                     token={props.token}
                     signalPanel={signalPanel}
                     signalFilter={signalFilter}
+                    signalFilters={signalFilters}
+                    combinedSignalFilters={combinedSignalFilters}
                     onSignalFilterChange={selectSignalFilter}
                     signalsQuery={signalsQuery}
                     onSignalsQueryChange={setSignalsQuery}

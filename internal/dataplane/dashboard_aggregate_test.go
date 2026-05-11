@@ -297,6 +297,32 @@ func TestSummarizeDashboardSignalsFiltersAndPaginatesItems(t *testing.T) {
 	}
 }
 
+func TestSummarizeDashboardSignalsCombinesFiltersAndNarrowsChips(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("abnormal_job", "Job", "team-a", "api-migrate", "high", 95, "Job failed recently.", "high", "jobs"),
+		dashboardSignalItem("empty_secret", "Secret", "team-a", "empty-secret", "low", 35, "Secret has no data keys.", "high", "secrets"),
+		dashboardSignalItem("abnormal_job", "Job", "team-b", "worker-migrate", "medium", 70, "Job is running long.", "medium", "jobs"),
+		dashboardSignalItem("service_no_ready_endpoints", "Service", "team-a", "api", "medium", 60, "Service has no ready endpoints.", "medium", "services"),
+	}, 10, ClusterDashboardListOptions{
+		SignalsFilter:   "high,kind:Job",
+		SignalsCombined: true,
+		SignalsLimit:    10,
+	})
+
+	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].Name != "api-migrate" {
+		t.Fatalf("expected only the high Job signal, got %+v", summary)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "high", "High severity", 1) {
+		t.Fatalf("expected high severity count to narrow to the combined match: %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "kind:Job", "Job", 1) {
+		t.Fatalf("expected Job kind count to narrow to the combined match: %+v", summary.Filters)
+	}
+	if dashboardSignalFilterExists(summary.Filters, "kind:Service", "Service", 1) {
+		t.Fatalf("did not expect nonmatching Service filter in narrowed filters: %+v", summary.Filters)
+	}
+}
+
 func TestSummarizeDashboardSignalsSortsItemsByDiscoveryAndFreshness(t *testing.T) {
 	signals := []ClusterDashboardSignal{
 		{
