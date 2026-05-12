@@ -139,6 +139,8 @@ make build-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64
 
 `make`, `make check`, `make build`, `make build-webview`, and `make build-release` all run through the pinned Docker toolchain by default and keep Go/npm build caches under `.cache/`, so local rebuilds reuse dependency artifacts without requiring a host Go or Node.js installation.
 
+`make build`, `make build-webview`, and `make build-release` build a fresh frontend bundle for the binary, but they restore the tracked `internal/server/ui_dist` files afterward so build verification does not leave generated asset churn in the worktree. Run `make ui` when you intentionally want to refresh the embedded UI assets that are checked into the repository.
+
 The `local-*` Makefile targets are implementation details for the Docker container or explicit maintainer debugging. AI coding agents must not call host `go`, `npm`, `node`, or `local-*` targets unless the project owner explicitly asks for a host-toolchain exception.
 
 ### Go linting

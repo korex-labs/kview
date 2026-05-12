@@ -184,17 +184,17 @@ local-e2e: install-git-hooks
 local-e2e-screenshots: install-git-hooks
 	cd $(UI_DIR) && npm ci && npm run e2e:screenshots
 
-local-build: install-git-hooks local-ui
-	go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview
+local-build: install-git-hooks
+	sh scripts/build-with-ui-dist.sh go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview
 	@echo "Built $(OUTPUT) (browser/server modes; default: browser)"
 
-local-build-webview: install-git-hooks local-ui
-	go build -tags webview -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview
+local-build-webview: install-git-hooks
+	sh scripts/build-with-ui-dist.sh go build -tags webview -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview
 	@echo "Built $(OUTPUT) with webview support (default: webview)"
 
-local-build-release: install-git-hooks local-ui
+local-build-release: install-git-hooks
 	mkdir -p $(dir $(OUTPUT))
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "$(GO_LDFLAGS) -s -w" -o $(OUTPUT) ./cmd/kview
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) sh scripts/build-with-ui-dist.sh go build -trimpath -ldflags "$(GO_LDFLAGS) -s -w" -o $(OUTPUT) ./cmd/kview
 	@echo "Built $(OUTPUT) ($(GOOS)/$(GOARCH); browser/server modes; default: browser)"
 
 docker-image: install-git-hooks
