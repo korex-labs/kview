@@ -82,6 +82,8 @@ const dashboardPanelSectionSx = {
 
 const DASHBOARD_PROFILE_REFRESH_FLOOR_SEC = 30;
 const DASHBOARD_LOAD_DEDUPE_MS = 10_000;
+const DASHBOARD_WARMUP_RETRY_MS = 1_500;
+const DASHBOARD_WARMUP_RETRY_ATTEMPTS = 6;
 
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -90,6 +92,20 @@ function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
       <TableCell sx={{ border: 0, py: 0.5, fontWeight: 600 }}>{value}</TableCell>
     </TableRow>
   );
+}
+
+function dashboardNeedsWarmupRetry(res: ApiDashboardClusterResponse): boolean {
+  const item = res.item;
+  if (!item) return false;
+  const visibleNamespaces = item.coverage?.visibleNamespaces ?? item.visibility?.namespaces?.total ?? 0;
+  const namespacesInTotals = item.coverage?.namespacesInResourceTotals ?? 0;
+  const totalsCompleteness = item.coverage?.resourceTotalsCompleteness || "";
+  if (visibleNamespaces > 0 && namespacesInTotals === 0 && totalsCompleteness === "unknown") {
+    return true;
+  }
+  const namespaceState = item.visibility?.namespaces?.state || "";
+  const namespaceObserverState = item.visibility?.namespaces?.observerState || "";
+  return namespaceState === "empty" && ["starting", "not_loaded", ""].includes(namespaceObserverState);
 }
 
 
@@ -253,16 +269,31 @@ export default function DashboardView(props: Props) {
   const deferredSignalsQuery = useDeferredValue(signalsQuery);
   const lastLoadScopeRef = useRef("");
   const lastSignalsParamsRef = useRef("");
-  const loadInFlightRef = useRef(false);
+  const loadInFlightKeyRef = useRef<string | null>(null);
+  const warmupRetryAttemptsRef = useRef<Record<string, number>>({});
+  const warmupRetryTimerRef = useRef<number | null>(null);
   const responseCacheRef = useRef<{ key: string; at: number; data: ApiDashboardClusterResponse } | null>(null);
 
   useEffect(() => {
     if (health === "unhealthy" || !pageVisible) return;
     let cancelled = false;
     const loadScope = `${activeContext || ""}:${props.token}`;
-    const load = async (initial: boolean) => {
+    const scheduleWarmupRetry = (cacheKey: string) => {
+      const attempts = warmupRetryAttemptsRef.current[cacheKey] ?? 0;
+      if (attempts >= DASHBOARD_WARMUP_RETRY_ATTEMPTS) return;
+      warmupRetryAttemptsRef.current[cacheKey] = attempts + 1;
+      if (warmupRetryTimerRef.current != null) {
+        window.clearTimeout(warmupRetryTimerRef.current);
+      }
+      warmupRetryTimerRef.current = window.setTimeout(() => {
+        warmupRetryTimerRef.current = null;
+        if (!cancelled) void load(false, true);
+      }, DASHBOARD_WARMUP_RETRY_MS);
+    };
+    const load = async (initial: boolean, force = false) => {
       const resetView = initial && lastLoadScopeRef.current !== loadScope;
       let acquiredLoad = false;
+      let requestKey = "";
       if (resetView) {
         setLoading(true);
         setData(null);
@@ -287,8 +318,9 @@ export default function DashboardView(props: Props) {
         }
         const signalsParamsKey = params.toString();
         const cacheKey = `${loadScope}:${signalsParamsKey}`;
+        requestKey = cacheKey;
         const cached = responseCacheRef.current;
-        if (cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
+        if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
           if (!cancelled) {
             lastLoadScopeRef.current = loadScope;
             lastSignalsParamsRef.current = signalsParamsKey;
@@ -296,8 +328,8 @@ export default function DashboardView(props: Props) {
           }
           return;
         }
-        if (loadInFlightRef.current) return;
-        loadInFlightRef.current = true;
+        if (loadInFlightKeyRef.current === cacheKey) return;
+        loadInFlightKeyRef.current = cacheKey;
         acquiredLoad = true;
         const showSignalsLoading =
           initial &&
@@ -314,11 +346,18 @@ export default function DashboardView(props: Props) {
           lastLoadScopeRef.current = loadScope;
           lastSignalsParamsRef.current = signalsParamsKey;
           setData(res);
+          if (dashboardNeedsWarmupRetry(res)) {
+            scheduleWarmupRetry(cacheKey);
+          } else {
+            delete warmupRetryAttemptsRef.current[cacheKey];
+          }
         }
       } catch {
         // Keep stale dashboard data visible while retries continue.
       } finally {
-        if (acquiredLoad) loadInFlightRef.current = false;
+        if (acquiredLoad && loadInFlightKeyRef.current === requestKey) {
+          loadInFlightKeyRef.current = null;
+        }
         if (!cancelled) {
           if (resetView) setLoading(false);
           setSignalsLoading(false);
@@ -329,12 +368,20 @@ export default function DashboardView(props: Props) {
     if (effectiveDashboardRefreshSec <= 0) {
       return () => {
         cancelled = true;
+        if (warmupRetryTimerRef.current != null) {
+          window.clearTimeout(warmupRetryTimerRef.current);
+          warmupRetryTimerRef.current = null;
+        }
       };
     }
     const id = window.setInterval(() => void load(false), effectiveDashboardRefreshSec * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      if (warmupRetryTimerRef.current != null) {
+        window.clearTimeout(warmupRetryTimerRef.current);
+        warmupRetryTimerRef.current = null;
+      }
     };
   }, [
     activeContext,

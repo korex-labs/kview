@@ -105,6 +105,17 @@ function pickNamespace({
   return items[0] || "";
 }
 
+function optimisticNamespaceForContext(
+  state: AppStateV1,
+  contextName: string,
+  kubeconfigNamespace?: string,
+  fallback?: string,
+): string {
+  const recent = state.recentNamespacesByContext?.[contextName]?.find(Boolean);
+  const favourite = state.favouriteNamespacesByContext?.[contextName]?.find(Boolean);
+  return recent || kubeconfigNamespace || favourite || fallback || "default";
+}
+
 function startupSteps(phase: BootstrapPhase, detail: Partial<Record<BootstrapPhase, string>>): StartupStep[] {
   const order: Array<{ id: BootstrapPhase; label: string }> = [
     { id: "contexts", label: "Reading kube contexts" },
@@ -143,6 +154,7 @@ function AppInner() {
   const [bootstrapError, setBootstrapError] = useState<string>("");
   const [kubeconfigInfo, setKubeconfigInfo] = useState<StartupKubeconfigInfo | null>(null);
   const [bootstrapNonce, setBootstrapNonce] = useState(0);
+  const [contextSwitching, setContextSwitching] = useState(false);
 
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [nsLimited, setNsLimited] = useState<boolean>(false);
@@ -330,7 +342,10 @@ function AppInner() {
         ? ctxs.find((c) => c.name === stateCtx)
         : ctxs.find((c) => c.name === activeFromBackend) || ctxs[0];
       const chosenCtx = chosen?.name || ctxRes.active || "";
-      const optimisticNamespace = appState.activeNamespace || chosen?.namespace || "default";
+      const optimisticNamespace =
+        chosenCtx === appState.activeContext
+          ? optimisticNamespaceForContext(appState, chosenCtx, chosen?.namespace, appState.activeNamespace)
+          : optimisticNamespaceForContext(appState, chosenCtx, chosen?.namespace);
 
       if (chosenCtx) {
         setBootstrapPhase("context");
@@ -448,36 +463,45 @@ function AppInner() {
   }
 
   async function onSelectContext(name: string) {
+    if (!name || name === activeContext || contextSwitching) return;
     const selected = contexts.find((c) => c.name === name);
-    const optimisticNamespace = selected?.namespace || appState.activeNamespace || "default";
-    setBootstrapPhase("context");
+    const optimisticNamespace = optimisticNamespaceForContext(appState, name, selected?.namespace);
+    const showStartupDialog = bootstrapPhase !== "ready";
+    setContextSwitching(true);
     setBootstrapError("");
-    setBootstrapDetail({
-      context: `Selecting ${name}`,
-      migration: "Checking local cache schema",
-      namespaces: "Waiting for namespace snapshot",
-    });
+    if (showStartupDialog) {
+      setBootstrapPhase("context");
+      setBootstrapDetail({
+        context: `Selecting ${name}`,
+        migration: "Checking local cache schema",
+        namespaces: "Waiting for namespace snapshot",
+      });
+    }
     try {
       await apiPost("/api/context/select", token, { name });
       setActiveContext(name);
       if (optimisticNamespace) setNamespace(optimisticNamespace);
 
-      setBootstrapPhase("migration");
-      const refreshedContexts = await apiGet<ApiContextsResponse>("/api/contexts", token);
-      const migrationPhase = refreshedContexts.cacheMigration?.phase || "idle";
-      const migrationDetail =
-        migrationPhase === "running"
-          ? "Checking local cache state"
-          : migrationPhase === "failed"
-            ? "Local cache migration failed, cache persistence disabled"
-            : refreshedContexts.cacheMigration?.applied
-              ? `Upgraded local cache schema to v${refreshedContexts.cacheMigration?.toVersion || "?"}`
-              : "Local cache schema is up to date";
-      setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
+      if (showStartupDialog) {
+        setBootstrapPhase("migration");
+        const refreshedContexts = await apiGet<ApiContextsResponse>("/api/contexts", token);
+        const migrationPhase = refreshedContexts.cacheMigration?.phase || "idle";
+        const migrationDetail =
+          migrationPhase === "running"
+            ? "Checking local cache state"
+            : migrationPhase === "failed"
+              ? "Local cache migration failed, cache persistence disabled"
+              : refreshedContexts.cacheMigration?.applied
+                ? `Upgraded local cache schema to v${refreshedContexts.cacheMigration?.toVersion || "?"}`
+                : "Local cache schema is up to date";
+        setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
+        setBootstrapPhase("namespaces");
+      }
 
-      setBootstrapPhase("namespaces");
-      const nsPath = namespacesListApiPath(appState, name, appState.activeNamespace || "");
-      const { limited, items: nsItems } = await fetchNamespacesWithWarmup(token, nsPath, name);
+      const nsPath = namespacesListApiPath(appState, name, optimisticNamespace || "");
+      const { limited, items: nsItems } = showStartupDialog
+        ? await fetchNamespacesWithWarmup(token, nsPath, name)
+        : await fetchNamespaces(token, nsPath, name);
       setNsLimited(limited);
       setNamespaces(nsItems);
 
@@ -504,6 +528,8 @@ function AppInner() {
       const message = String((err as Error | undefined)?.message || err || "Context switch failed");
       setBootstrapError(message);
       setBootstrapPhase("error");
+    } finally {
+      setContextSwitching(false);
     }
   }
 
