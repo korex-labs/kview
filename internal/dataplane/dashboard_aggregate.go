@@ -473,7 +473,7 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 		out.Top = append(out.Top, signals...)
 	}
 	out.Filters = buildDashboardSignalFilters(signals, len(out.Top), out, opts)
-	pageSource := filterDashboardSignals(signals, opts.SignalsFilters, opts.SignalsQuery)
+	pageSource := filterDashboardSignals(signals, opts.SignalsFilters, opts.SignalsQuery, opts)
 	if len(opts.SignalsFilters) == 0 || (len(opts.SignalsFilters) == 1 && opts.SignalsFilters[0] == "top") {
 		if len(pageSource) > limit {
 			pageSource = pageSource[:limit]
@@ -535,7 +535,7 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int, summary ClusterDashboardSignalsPanel, opts ClusterDashboardListOptions) []ClusterDashboardSignalFilter {
 	countSource := signals
 	if opts.SignalsCombined && len(opts.SignalsFilters) > 0 {
-		countSource = filterDashboardSignals(signals, opts.SignalsFilters, "")
+		countSource = filterDashboardSignals(signals, opts.SignalsFilters, "", opts)
 		summary = summarizeDashboardSignalCounts(countSource)
 		if len(countSource) < topCount {
 			topCount = len(countSource)
@@ -665,8 +665,8 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 			Severity: item.severity,
 		})
 	}
-	filters = appendRequestedNamespaceFilters(filters, "namespace_favourite", opts.SignalsFavouriteNamespaces, namespaceFilters)
-	filters = appendRequestedNamespaceFilters(filters, "namespace_recent", opts.SignalsRecentNamespaces, namespaceFilters)
+	filters = appendRequestedNamespaceFilters(filters, "namespace_favourite", "namespace_favourite:all", "All", opts.SignalsFavouriteNamespaces, namespaceFilters)
+	filters = appendRequestedNamespaceFilters(filters, "namespace_recent", "namespace_recent:all", "All", opts.SignalsRecentNamespaces, namespaceFilters)
 	return filters
 }
 
@@ -686,8 +686,10 @@ func summarizeDashboardSignalCounts(signals []ClusterDashboardSignal) ClusterDas
 	return out
 }
 
-func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, category string, namespaces []string, counted map[string]dashboardCountedFilter) []ClusterDashboardSignalFilter {
+func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, category, allID, allLabel string, namespaces []string, counted map[string]dashboardCountedFilter) []ClusterDashboardSignalFilter {
 	seen := map[string]struct{}{}
+	all := dashboardCountedFilter{id: allID, label: allLabel}
+	group := make([]ClusterDashboardSignalFilter, 0, len(namespaces)+1)
 	for _, namespace := range namespaces {
 		namespace = strings.TrimSpace(namespace)
 		if namespace == "" {
@@ -699,13 +701,25 @@ func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, cat
 		}
 		seen[id] = struct{}{}
 		item := counted[id]
-		filters = append(filters, ClusterDashboardSignalFilter{
+		all.count += item.count
+		all.severity = worstSignalSeverity(all.severity, item.severity)
+		group = append(group, ClusterDashboardSignalFilter{
 			ID:       id,
 			Label:    namespace,
 			Count:    item.count,
 			Category: category,
 			Severity: item.severity,
 		})
+	}
+	if len(seen) > 0 {
+		filters = append(filters, ClusterDashboardSignalFilter{
+			ID:       all.id,
+			Label:    all.label,
+			Count:    all.count,
+			Category: category,
+			Severity: all.severity,
+		})
+		filters = append(filters, group...)
 	}
 	return filters
 }
@@ -802,11 +816,11 @@ func normalizeDashboardLimit(limit int) int {
 	}
 }
 
-func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, query string) []ClusterDashboardSignal {
+func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, query string, opts ClusterDashboardListOptions) []ClusterDashboardSignal {
 	query = strings.ToLower(strings.TrimSpace(query))
 	out := make([]ClusterDashboardSignal, 0, len(signals))
 	for _, f := range signals {
-		if !dashboardSignalMatchesFilters(f, filters) {
+		if !dashboardSignalMatchesFilters(f, filters, opts) {
 			continue
 		}
 		if query != "" && !dashboardSignalMatchesQuery(f, query) {
@@ -817,7 +831,9 @@ func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, 
 	return out
 }
 
-func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string) bool {
+func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string, opts ClusterDashboardListOptions) bool {
+	favouriteNamespaces := dashboardNamespaceSet(opts.SignalsFavouriteNamespaces)
+	recentNamespaces := dashboardNamespaceSet(opts.SignalsRecentNamespaces)
 	for _, filter := range filters {
 		filter = strings.TrimSpace(filter)
 		if filter == "" || filter == "top" {
@@ -847,11 +863,30 @@ func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string) b
 			if f.Namespace != strings.TrimPrefix(filter, "namespace:") {
 				return false
 			}
+		} else if filter == "namespace_favourite:all" {
+			if _, ok := favouriteNamespaces[f.Namespace]; !ok {
+				return false
+			}
+		} else if filter == "namespace_recent:all" {
+			if _, ok := recentNamespaces[f.Namespace]; !ok {
+				return false
+			}
 		} else if f.SignalType != filter && f.Kind != filter {
 			return false
 		}
 	}
 	return true
+}
+
+func dashboardNamespaceSet(namespaces []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(namespaces))
+	for _, namespace := range namespaces {
+		namespace = strings.TrimSpace(namespace)
+		if namespace != "" {
+			out[namespace] = struct{}{}
+		}
+	}
+	return out
 }
 
 func dashboardSignalMatchesQuery(f ClusterDashboardSignal, query string) bool {

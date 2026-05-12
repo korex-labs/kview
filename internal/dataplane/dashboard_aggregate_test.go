@@ -488,17 +488,56 @@ func TestDashboardSignalFiltersIncludeRequestedNamespaceGroups(t *testing.T) {
 		SignalsRecentNamespaces:    []string{"team-a"},
 	})
 
-	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_favourite"); !dashboardStringSliceEqual(got, []string{"namespace:team-b", "namespace:team-z"}) {
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_favourite"); !dashboardStringSliceEqual(got, []string{"namespace_favourite:all", "namespace:team-b", "namespace:team-z"}) {
 		t.Fatalf("favourite namespace filters should follow requested order: %v", got)
 	}
-	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_recent"); !dashboardStringSliceEqual(got, []string{"namespace:team-a"}) {
+	if got := dashboardSignalFilterIDsByCategory(summary.Filters, "namespace_recent"); !dashboardStringSliceEqual(got, []string{"namespace_recent:all", "namespace:team-a"}) {
 		t.Fatalf("recent namespace filters should follow requested order: %v", got)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "namespace_favourite:all", "All", 1) {
+		t.Fatalf("expected all-favourites namespace filter in %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "namespace_recent:all", "All", 1) {
+		t.Fatalf("expected all-recent namespace filter in %+v", summary.Filters)
 	}
 	if !dashboardSignalFilterExists(summary.Filters, "namespace:team-b", "team-b", 1) {
 		t.Fatalf("expected counted favourite namespace filter in %+v", summary.Filters)
 	}
 	if !dashboardSignalFilterExists(summary.Filters, "namespace:team-z", "team-z", 0) {
 		t.Fatalf("expected zero-count favourite namespace filter in %+v", summary.Filters)
+	}
+}
+
+func TestSummarizeDashboardSignalsFiltersByNamespaceGroups(t *testing.T) {
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("abnormal_job", "Job", "team-a", "migrate", "high", 95, "Job failed recently.", "high", "jobs"),
+		dashboardSignalItem("service_no_ready_endpoints", "Service", "team-b", "api", "medium", 70, "Service has no ready endpoints.", "medium", "services"),
+		dashboardSignalItem("empty_configmap", "ConfigMap", "team-c", "empty-cm", "low", 35, "ConfigMap has no data keys.", "high", "configmaps"),
+	}, 10, ClusterDashboardListOptions{
+		SignalsFilter:              "high,namespace_favourite:all",
+		SignalsCombined:            true,
+		SignalsLimit:               10,
+		SignalsFavouriteNamespaces: []string{"team-a", "team-b"},
+		SignalsRecentNamespaces:    []string{"team-c"},
+	})
+
+	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].Namespace != "team-a" {
+		t.Fatalf("expected high favourite namespace signals only, got %+v", summary.Items)
+	}
+
+	recent := summarizeDashboardSignals([]ClusterDashboardSignal{
+		dashboardSignalItem("abnormal_job", "Job", "team-a", "migrate", "high", 95, "Job failed recently.", "high", "jobs"),
+		dashboardSignalItem("service_no_ready_endpoints", "Service", "team-b", "api", "medium", 70, "Service has no ready endpoints.", "medium", "services"),
+		dashboardSignalItem("empty_configmap", "ConfigMap", "team-c", "empty-cm", "low", 35, "ConfigMap has no data keys.", "high", "configmaps"),
+	}, 10, ClusterDashboardListOptions{
+		SignalsFilter:              "namespace_recent:all",
+		SignalsCombined:            true,
+		SignalsLimit:               10,
+		SignalsFavouriteNamespaces: []string{"team-a", "team-b"},
+		SignalsRecentNamespaces:    []string{"team-c"},
+	})
+	if recent.ItemsTotal != 1 || len(recent.Items) != 1 || recent.Items[0].Namespace != "team-c" {
+		t.Fatalf("expected recent namespace signals only, got %+v", recent.Items)
 	}
 }
 
