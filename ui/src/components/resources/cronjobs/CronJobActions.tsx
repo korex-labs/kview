@@ -1,9 +1,15 @@
 import React, { useState } from "react";
 import { Box } from "@mui/material";
+import PauseCircleOutlinedIcon from "@mui/icons-material/PauseCircleOutlined";
+import PlayCircleOutlinedIcon from "@mui/icons-material/PlayCircleOutlined";
 import { DeleteOnlyActions } from "../../mutations/ResourceActions";
 import ActionButton from "../../mutations/ActionButton";
 import { useActiveContext } from "../../../activeContext";
-import { useResourceCapabilities, RBAC_DISABLED_REASON } from "../../mutations/useResourceCapabilities";
+import {
+  useResourceCapabilities,
+  canPatchOrUpdate,
+  RBAC_DISABLED_REASON,
+} from "../../mutations/useResourceCapabilities";
 import type { ExecuteActionResult, MutationActionDescriptor } from "../../../lib/actions/types";
 import JobRunDebugDialog, { type DebugSession } from "../jobs/JobRunDebugDialog";
 import { useMutationDialog } from "../../mutations/useMutationDialog";
@@ -14,14 +20,30 @@ type Props = {
   token: string;
   namespace: string;
   cronJobName: string;
+  currentSuspend: boolean;
+  onRefresh: () => void;
   onDeleted: () => void;
 };
 
-export default function CronJobActions({ token, namespace, cronJobName, onDeleted }: Props) {
+export default function CronJobActions({
+  token,
+  namespace,
+  cronJobName,
+  currentSuspend,
+  onRefresh,
+  onDeleted,
+}: Props) {
   const activeContext = useActiveContext();
   const { open } = useMutationDialog();
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugSession, setDebugSession] = useState<DebugSession | null>(null);
+  const cronJobCaps = useResourceCapabilities({
+    token,
+    group: "batch",
+    resource: "cronjobs",
+    namespace,
+    name: cronJobName,
+  });
   const jobCaps = useResourceCapabilities({
     token,
     group: "batch",
@@ -35,6 +57,19 @@ export default function CronJobActions({ token, namespace, cronJobName, onDelete
     kind: "CronJob",
     name: cronJobName,
     namespace,
+    apiVersion: "batch/v1",
+  };
+  const desiredSuspend = !currentSuspend;
+  const suspendDescriptor: MutationActionDescriptor = {
+    id: "cronjob.suspend",
+    title: desiredSuspend ? "Suspend CronJob" : "Resume CronJob",
+    description: desiredSuspend
+      ? "Temporarily pauses new scheduled Jobs by setting spec.suspend=true. Helm or another reconciler may overwrite this change."
+      : "Temporarily resumes scheduled Jobs by setting spec.suspend=false. Helm or another reconciler may overwrite this change.",
+    risk: "medium",
+    confirmSpec: { mode: "simple" },
+    group: "batch",
+    resource: "cronjobs",
     apiVersion: "batch/v1",
   };
   const runDescriptor: MutationActionDescriptor = {
@@ -80,6 +115,16 @@ export default function CronJobActions({ token, namespace, cronJobName, onDelete
     });
   }
 
+  function openSuspendDialog() {
+    open({
+      token,
+      targetRef,
+      descriptor: suspendDescriptor,
+      params: { suspend: desiredSuspend },
+      onSuccess: onRefresh,
+    });
+  }
+
   function openRunDialog() {
     open({
       token,
@@ -97,9 +142,22 @@ export default function CronJobActions({ token, namespace, cronJobName, onDelete
     });
   }
 
+  const canPatchCronJob = canPatchOrUpdate(cronJobCaps);
+
   return (
     <>
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <ActionButton
+          label={desiredSuspend ? "Suspend" : "Resume"}
+          color={desiredSuspend ? "warning" : "success"}
+          startIcon={desiredSuspend ? <PauseCircleOutlinedIcon /> : <PlayCircleOutlinedIcon />}
+          descriptor={suspendDescriptor}
+          targetRef={targetRef}
+          token={token}
+          disabled={!canPatchCronJob}
+          disabledReason={!canPatchCronJob && cronJobCaps ? RBAC_DISABLED_REASON : ""}
+          onClickOverride={openSuspendDialog}
+        />
         <ActionButton
           label="Run now"
           descriptor={runDescriptor}

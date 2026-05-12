@@ -94,7 +94,18 @@ func TestEnrichWorkloadListItemsForAPI(t *testing.T) {
 		t.Fatalf("job progressing: %+v", jobs[1])
 	}
 
-	cjs := EnrichCronJobListItemsForAPI([]dto.CronJobDTO{{Active: 9}, {Suspend: true}, {Active: 1}})
+	cjs := EnrichCronJobListItemsForAPI([]dto.CronJobDTO{
+		{Active: 9},
+		{Suspend: true, AgeSec: int64(signalCronJobNoSuccessDuration.Seconds()) + 1},
+		{Active: 1},
+		{AgeSec: int64(signalCronJobNoSuccessDuration.Seconds()) + 1},
+		{LastEvent: &dto.EventBriefDTO{Type: "Warning", Reason: "TooManyMissedTimes"}},
+		{
+			Active:    9,
+			LastEvent: &dto.EventBriefDTO{Type: "Warning", Reason: "TooManyMissedTimes"},
+			AgeSec:    int64(signalCronJobNoSuccessDuration.Seconds()) + 1,
+		},
+	})
 	if cjs[0].HealthBucket != deployBucketDegraded || !cjs[0].NeedsAttention {
 		t.Fatalf("cronjob degraded: %+v", cjs[0])
 	}
@@ -106,6 +117,15 @@ func TestEnrichWorkloadListItemsForAPI(t *testing.T) {
 	}
 	if cjs[2].ListSignalSeverity != listSignalOK || cjs[2].ListSignalCount != 0 {
 		t.Fatalf("cronjob progressing should not emit attention signal: %+v", cjs[2])
+	}
+	if cjs[3].HealthBucket != deployBucketDegraded || !cjs[3].NeedsAttention || cjs[3].ListSignalSeverity != "medium" {
+		t.Fatalf("cronjob missing recent success should emit medium attention: %+v", cjs[3])
+	}
+	if cjs[4].HealthBucket != deployBucketDegraded || !cjs[4].NeedsAttention || cjs[4].ListSignalSeverity != "medium" {
+		t.Fatalf("cronjob warning event should emit medium attention: %+v", cjs[4])
+	}
+	if cjs[5].ListSignalSeverity != "high" || cjs[5].ListSignalCount != 3 {
+		t.Fatalf("cronjob should count multiple signals and keep max severity: %+v", cjs[5])
 	}
 }
 

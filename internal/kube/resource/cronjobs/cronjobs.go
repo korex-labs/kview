@@ -8,6 +8,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 	jobs "github.com/korex-labs/kview/v5/internal/kube/resource/jobs"
 )
 
@@ -17,9 +18,17 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		return nil, err
 	}
 
+	latestEvents, _ := kubeevents.LatestEventsByObject(ctx, c, namespace, "CronJob")
+
 	now := time.Now()
 	out := make([]dto.CronJobDTO, 0, len(cronJobs.Items))
 	for _, cj := range cronJobs.Items {
+		var lastEvent *dto.EventBriefDTO
+		if ev, ok := latestEvents[cj.Name]; ok {
+			evCopy := ev
+			lastEvent = &evCopy
+		}
+
 		age := int64(0)
 		if !cj.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(cj.CreationTimestamp.Time).Seconds())
@@ -40,6 +49,7 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 			LastScheduleTime:   jobs.TimeFrom(cj.Status.LastScheduleTime),
 			LastSuccessfulTime: jobs.TimeFrom(cj.Status.LastSuccessfulTime),
 			AgeSec:             age,
+			LastEvent:          lastEvent,
 		})
 	}
 

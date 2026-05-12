@@ -106,7 +106,7 @@ func detectAbnormalCronJobSignals(_ time.Time, ns string, s dashboardSnapshotSet
 	}
 	var out []ClusterDashboardSignal
 	for _, cj := range EnrichCronJobListItemsForAPI(s.cjs.Items) {
-		if cj.NeedsAttention {
+		if cj.Active >= 8 {
 			f := dashboardSignalItem("abnormal_cronjob", "CronJob", ns, cj.Name, "high", 88, "CronJob has an unusually large number of active jobs.", "high", "cronjobs")
 			f.ActualData = fmt.Sprintf("active jobs %d, schedule %s", cj.Active, cj.Schedule)
 			f.CalculatedData = "active job count is above the normal list-health range"
@@ -126,7 +126,7 @@ func detectCronJobNoRecentSuccessSignals(_ time.Time, ns string, s dashboardSnap
 	}
 	var out []ClusterDashboardSignal
 	for _, cj := range EnrichCronJobListItemsForAPI(s.cjs.Items) {
-		if !cj.NeedsAttention && !cj.Suspend && cj.AgeSec >= int64(duration.Seconds()) && cj.LastSuccessfulTime == 0 {
+		if !cj.Suspend && cj.AgeSec >= int64(duration.Seconds()) && cj.LastSuccessfulTime == 0 {
 			f := dashboardSignalItem("cronjob_no_recent_success", "CronJob", ns, cj.Name, "medium", 60, fmt.Sprintf("CronJob has no successful run recorded after more than %s.", humanizeSignalDuration(duration)), "medium", "cronjobs")
 			f.ActualData = fmt.Sprintf("last successful run missing, age %s, schedule %s", humanizeSignalDuration(time.Duration(cj.AgeSec)*time.Second), cj.Schedule)
 			f.CalculatedData = fmt.Sprintf("successful run absent past %s threshold", humanizeSignalDuration(duration))

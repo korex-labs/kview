@@ -302,12 +302,13 @@ func EnrichCronJobListItemsForAPI(items []dto.CronJobDTO) []dto.CronJobDTO {
 	out := make([]dto.CronJobDTO, len(items))
 	for i := range items {
 		cj := items[i]
-		cj.HealthBucket, cj.NeedsAttention = cronJobListSignals(cj)
+		var signalCount int
+		cj.HealthBucket, cj.NeedsAttention, cj.ListSignalSeverity, signalCount = cronJobListSignals(cj)
 		cj.ListStatus = cj.HealthBucket
 		// CronJob "progressing" (active jobs) is a status signal, not attention by itself.
 		// Keep list Signal as OK unless a real attention condition is present.
 		if cj.NeedsAttention {
-			cj.ListSignalSeverity, cj.ListSignalCount = listSignalFromBucket(cj.HealthBucket, cj.NeedsAttention)
+			cj.ListSignalCount = signalCount
 		} else {
 			cj.ListSignalSeverity, cj.ListSignalCount = listSignalOK, 0
 		}
@@ -316,16 +317,38 @@ func EnrichCronJobListItemsForAPI(items []dto.CronJobDTO) []dto.CronJobDTO {
 	return out
 }
 
-func cronJobListSignals(cj dto.CronJobDTO) (bucket string, needsAttention bool) {
+func cronJobListSignals(cj dto.CronJobDTO) (bucket string, needsAttention bool, signalSeverity string, signalCount int) {
 	switch {
 	case cj.Suspend:
-		return deployBucketHealthy, false
-	case cj.Active >= 8:
-		return deployBucketDegraded, true
+		return deployBucketHealthy, false, listSignalOK, 0
+	}
+
+	maxSeverity := listSignalOK
+	addSignal := func(severity string) {
+		signalCount++
+		if signalSeverityRank(severity) > signalSeverityRank(maxSeverity) {
+			maxSeverity = severity
+		}
+	}
+
+	if cj.Active >= 8 {
+		addSignal("high")
+	}
+	if cj.LastEvent != nil && cj.LastEvent.Type == "Warning" {
+		addSignal("medium")
+	}
+	if cj.AgeSec >= int64(signalCronJobNoSuccessDuration.Seconds()) && cj.LastSuccessfulTime == 0 {
+		addSignal("medium")
+	}
+	if signalCount > 0 {
+		return deployBucketDegraded, true, maxSeverity, signalCount
+	}
+
+	switch {
 	case cj.Active > 0:
-		return deployBucketProgressing, false
+		return deployBucketProgressing, false, listSignalOK, 0
 	default:
-		return deployBucketHealthy, false
+		return deployBucketHealthy, false, listSignalOK, 0
 	}
 }
 

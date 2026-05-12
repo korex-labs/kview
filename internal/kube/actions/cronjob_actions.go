@@ -2,9 +2,11 @@ package actions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 )
@@ -41,6 +43,45 @@ func HandleCronJobRun(ctx context.Context, c *cluster.Clients, req ActionRequest
 			"namespace": created.Namespace,
 			"jobName":   created.Name,
 			"source":    req.Name,
+		},
+	}, nil
+}
+
+// HandleCronJobSuspend patches spec.suspend for a CronJob.
+func HandleCronJobSuspend(ctx context.Context, c *cluster.Clients, req ActionRequest) (*ActionResult, error) {
+	if err := validateNamespacedTarget(req, "batch", "cronjobs"); err != nil {
+		return &ActionResult{Status: "error", Message: err.Error()}, nil
+	}
+
+	suspend, result := boolParam(req.Params, "suspend")
+	if result != nil {
+		return result, nil
+	}
+	if _, ok := req.Params["suspend"]; !ok {
+		return &ActionResult{Status: "error", Message: "params.suspend is required"}, nil
+	}
+
+	patch, _ := json.Marshal(map[string]any{
+		"spec": map[string]any{
+			"suspend": suspend,
+		},
+	})
+
+	if _, err := c.Clientset.BatchV1().CronJobs(req.Namespace).Patch(ctx, req.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return nil, err
+	}
+
+	verb := "Resumed"
+	if suspend {
+		verb = "Suspended"
+	}
+	return &ActionResult{
+		Status:  "ok",
+		Message: fmt.Sprintf("%s cronjob %s/%s", verb, req.Namespace, req.Name),
+		Details: map[string]any{
+			"namespace": req.Namespace,
+			"name":      req.Name,
+			"suspend":   suspend,
 		},
 	}, nil
 }

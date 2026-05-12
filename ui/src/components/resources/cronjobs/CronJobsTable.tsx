@@ -22,6 +22,11 @@ type CronJob = {
   lastScheduleTime?: number;
   lastSuccessfulTime?: number;
   ageSec: number;
+  lastEvent?: {
+    type: string;
+    reason: string;
+    lastSeen: number;
+  };
   listStatus?: string;
   listSignalSeverity?: string;
   listSignalCount?: number;

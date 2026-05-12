@@ -72,6 +72,7 @@ func main() {
 
 	srv.Actions().Register("cronjob.delete", kubeactions.HandleCronJobDelete)
 	srv.Actions().Register("cronjob.run", kubeactions.HandleCronJobRun)
+	srv.Actions().Register("cronjob.suspend", kubeactions.HandleCronJobSuspend)
 
 	srv.Actions().Register("service.delete", kubeactions.HandleServiceDelete)
 

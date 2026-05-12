@@ -43,7 +43,10 @@ container logs; it does not expose previous-container logs as a separate toggle.
 
 Job drawers include **Rerun**. This creates a fresh Job from the selected Job's
 pod template. CronJob drawers include **Run now**. This creates a one-off Job
-from the selected CronJob's job template.
+from the selected CronJob's job template. CronJob drawers also include
+**Suspend** or **Resume** based on the current `spec.suspend` state. This is a
+temporary live change to the Kubernetes object; Helm or another reconciler may
+overwrite it on the next sync or upgrade.
 
 Both actions include the optional **Open debug run** checkbox. When enabled,
 kview starts the Job and opens a debug dialog that streams:
@@ -77,7 +80,8 @@ CronJob action succeeded without checking the final Job state.
 Workload actions depend on RBAC. Logs, terminal sessions, and port forwards may
 require permissions beyond list/read access. Job rerun, CronJob run, and debug
 run actions require permission to create Jobs in the namespace. Stopping a
-debug run requires permission to stop or delete the generated Job. Metrics
+debug run requires permission to stop or delete the generated Job. CronJob
+suspend and resume require patch or update permission on CronJobs. Metrics
 appear only when metrics.k8s.io is available and allowed.
 
 ## Related Settings

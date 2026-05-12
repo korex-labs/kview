@@ -170,6 +170,7 @@ export default function CronJobDrawer(props: {
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
   const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const ns = props.namespace;
   const name = props.cronJobName;
@@ -201,7 +202,7 @@ export default function CronJobDrawer(props: {
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce]);
+  }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);
 
   const summary = details?.summary;
   const policy = details?.policy;
@@ -290,6 +291,8 @@ export default function CronJobDrawer(props: {
                         token={props.token}
                         namespace={ns}
                         cronJobName={name}
+                        currentSuspend={Boolean(summary?.suspend)}
+                        onRefresh={() => setRefreshNonce((v) => v + 1)}
                         onDeleted={props.onClose}
                       />
                     </DrawerActionStrip>

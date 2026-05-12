@@ -6,6 +6,8 @@ release history.
 
 ## Recent Highlights
 
+- CronJob drawers can temporarily suspend or resume schedules in real time,
+  with the Helm or reconciler override caveat shown in the action flow.
 - Help and user documentation now have a canonical repo source under
   `docs/user`, with an in-app Help surface planned around the same content.
 - Dashboard, namespace summaries, and resource drawers use signals-first
