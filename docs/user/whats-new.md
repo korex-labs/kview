@@ -1,15 +1,18 @@
 # What's New
 
 This page is a curated summary of recent user-facing changes. It is meant for
-the in-app Help view and website, while `CHANGELOG.md` remains the complete
-release history.
+the in-app Help view and website, while the full changelog remains in the
+repository.
 
 ## Recent Highlights
 
+- The new Help view brings bundled end-user documentation into kview, covering
+  navigation, signals, settings, workflows, safety, and troubleshooting
+  without leaving the app.
 - CronJob drawers can temporarily suspend or resume schedules in real time,
   with the Helm or reconciler override caveat shown in the action flow.
-- Help and user documentation now have a canonical repo source under
-  `docs/user`, with an in-app Help surface planned around the same content.
+- CronJob lists now surface missing recent successes and latest warning events
+  earlier, making it easier to spot schedules that need attention.
 - Dashboard, namespace summaries, and resource drawers use signals-first
   workflows so users can move from cluster-level attention to the exact
   resource that needs inspection.

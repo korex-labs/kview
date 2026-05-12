@@ -3,6 +3,20 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.8.0 - 2026-05-12
+
+- Added an in-app Help view with bundled end-user documentation, so guidance
+  for navigation, signals, settings, workflows, and safety is available
+  directly inside kview.
+- Added a guarded CronJob suspend/resume action in workload drawers, with clear
+  messaging that Helm or other reconcilers may overwrite the temporary change.
+- Improved CronJob attention signals in resource lists by surfacing missing
+  recent successes and latest warning events earlier in the browsing flow.
+- Refreshed embedded web assets and documentation packaging so shipped builds
+  include the new Help experience and current help content.
+- Expanded help coverage and release-note support in the docs workflow, with
+  verification for Help content, state wiring, and CronJob action behavior.
+
 ## v5.7.2 - 2026-05-11
 
 - Fixed resource tag table column resizing so width adjustments persist more
