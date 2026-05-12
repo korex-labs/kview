@@ -220,6 +220,7 @@ export type DataplaneSettings = {
     useCachedTotalsOnly: boolean;
     restartElevatedThreshold: number;
     signalLimit: number;
+    newestSignalLimit: number;
   };
   /**
    * Metrics integrates real-time pod and node usage from metrics.k8s.io.
@@ -597,6 +598,7 @@ export function defaultDataplaneSettings(): DataplaneSettings {
       useCachedTotalsOnly: true,
       restartElevatedThreshold: 3,
       signalLimit: 10,
+      newestSignalLimit: 10,
     },
     metrics: {
       enabled: true,
@@ -1221,6 +1223,7 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
         defaults.dashboard.restartElevatedThreshold,
       ),
       signalLimit: validNumber(rawDashboard.signalLimit, 1, 100, defaults.dashboard.signalLimit),
+      newestSignalLimit: validNumber(rawDashboard.newestSignalLimit, 1, 100, defaults.dashboard.newestSignalLimit),
     },
     metrics: {
       enabled: typeof rawMetrics.enabled === "boolean" ? rawMetrics.enabled : defaults.metrics.enabled,

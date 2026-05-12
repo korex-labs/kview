@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -171,6 +172,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 		signalPanel.AggregateDegradation = wd
 	}
 	signalNote := signalPanel.Note
+	opts.NewestSignalLimit = policy.NewestSignalLimit
 	signalPanel = signals.Summary(policy.SignalLimit, opts)
 	signalPanel.Note = signalNote
 	signalPanel.AggregateFreshness = res.AggregateFreshness
@@ -484,8 +486,12 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 	out.ItemsLimit = opts.SignalsLimit
 	out.ItemsFilter = opts.SignalsFilter
 	out.ItemsQuery = opts.SignalsQuery
-	out.ItemsSort = opts.SignalsSort
-	sortDashboardSignalsForItems(pageSource, opts.SignalsSort)
+	itemSort := opts.SignalsSort
+	if dashboardSignalHasFilter(opts.SignalsFilters, "newest") && (itemSort == "" || itemSort == "priority") {
+		itemSort = "discovered_desc"
+	}
+	out.ItemsSort = itemSort
+	sortDashboardSignalsForItems(pageSource, itemSort)
 	out.Items = append(out.Items, paginateDashboardSignals(pageSource, opts.SignalsOffset, opts.SignalsLimit)...)
 	out.ItemsHasMore = out.ItemsOffset+len(out.Items) < out.ItemsTotal
 	return out
@@ -552,12 +558,14 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 	}
 	filters := []ClusterDashboardSignalFilter{
 		{ID: "top", Label: "Top priority", Count: topCount, Category: "priority"},
+		{ID: "newest", Label: "Newest", Count: minInt(len(countSource), opts.NewestSignalLimit), Category: "priority"},
 		{ID: "open", Label: "Open", Count: openCount, Category: "acknowledgement"},
 		{ID: "acknowledged", Label: "Acknowledged", Count: ackCount, Category: "acknowledgement"},
 		{ID: "high", Label: "High severity", Count: summary.High, Category: "severity", Severity: "high"},
 		{ID: "medium", Label: "Medium severity", Count: summary.Medium, Category: "severity", Severity: "medium"},
 		{ID: "low", Label: "Low severity", Count: summary.Low, Category: "severity", Severity: "low"},
 	}
+	filters = append(filters, dashboardSignalTagFilters(countSource, opts)...)
 
 	kindFilters := map[string]dashboardCountedFilter{}
 	namespaceFilters := map[string]dashboardCountedFilter{}
@@ -724,6 +732,192 @@ func appendRequestedNamespaceFilters(filters []ClusterDashboardSignalFilter, cat
 	return filters
 }
 
+func dashboardSignalTagFilters(signals []ClusterDashboardSignal, opts ClusterDashboardListOptions) []ClusterDashboardSignalFilter {
+	if !opts.ResourceTags.Enabled || len(opts.ResourceTags.Definitions) == 0 {
+		return nil
+	}
+	counts := map[string]int{}
+	for _, signal := range signals {
+		for _, tagID := range dashboardSignalTagIDs(signal, opts.ResourceTags) {
+			counts[tagID]++
+		}
+	}
+	out := make([]ClusterDashboardSignalFilter, 0, len(opts.ResourceTags.Definitions))
+	for _, tag := range opts.ResourceTags.Definitions {
+		id := strings.TrimSpace(tag.ID)
+		if id == "" {
+			continue
+		}
+		label := strings.TrimSpace(tag.Name)
+		if label == "" {
+			label = id
+		}
+		out = append(out, ClusterDashboardSignalFilter{
+			ID:       "tag:" + id,
+			Label:    label,
+			Count:    counts[id],
+			Category: "tag",
+			Color:    strings.TrimSpace(tag.Color),
+		})
+	}
+	return out
+}
+
+func dashboardSignalTagIDs(signal ClusterDashboardSignal, tags ClusterDashboardResourceTagsOptions) []string {
+	if !tags.Enabled || len(tags.Assignments) == 0 {
+		return nil
+	}
+	target, ok := dashboardSignalResourceTagTarget(signal)
+	if !ok {
+		return nil
+	}
+	directIDs := tags.Assignments[dashboardResourceTagTargetKey(target, tags.Context)]
+	inheritedIDs := []string(nil)
+	if tags.InheritNamespaceTags && target.resource != "namespaces" && target.namespace != "" {
+		inheritedIDs = tags.Assignments[dashboardResourceTagTargetKey(dashboardResourceTagTarget{
+			resource: "namespaces",
+			name:     target.namespace,
+		}, tags.Context)]
+	}
+	if len(directIDs) == 0 && len(inheritedIDs) == 0 {
+		return nil
+	}
+	allowed := map[string]struct{}{}
+	for _, tag := range tags.Definitions {
+		id := strings.TrimSpace(tag.ID)
+		if id != "" {
+			allowed[id] = struct{}{}
+		}
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, id := range append(append([]string{}, directIDs...), inheritedIDs...) {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := allowed[id]; !ok {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+type dashboardResourceTagTarget struct {
+	resource  string
+	namespace string
+	name      string
+}
+
+func dashboardSignalResourceTagTarget(signal ClusterDashboardSignal) (dashboardResourceTagTarget, bool) {
+	kind := signal.ResourceKind
+	if kind == "" {
+		kind = signal.Kind
+	}
+	resource, ok := dashboardSignalKindResourceKey(kind)
+	if !ok {
+		return dashboardResourceTagTarget{}, false
+	}
+	name := signal.ResourceName
+	if name == "" {
+		name = signal.Name
+	}
+	if kind == "Namespace" && name == "" {
+		name = signal.Namespace
+	}
+	if name == "" {
+		return dashboardResourceTagTarget{}, false
+	}
+	namespace := ""
+	if !dashboardResourceTagClusterScoped(resource) {
+		namespace = signal.Namespace
+		if namespace == "" {
+			return dashboardResourceTagTarget{}, false
+		}
+	}
+	return dashboardResourceTagTarget{resource: resource, namespace: namespace, name: name}, true
+}
+
+func dashboardSignalKindResourceKey(kind string) (string, bool) {
+	switch kind {
+	case "Namespace":
+		return "namespaces", true
+	case "Pod":
+		return "pods", true
+	case "Deployment":
+		return "deployments", true
+	case "DaemonSet":
+		return "daemonsets", true
+	case "StatefulSet":
+		return "statefulsets", true
+	case "ReplicaSet":
+		return "replicasets", true
+	case "Service":
+		return "services", true
+	case "Ingress":
+		return "ingresses", true
+	case "Job":
+		return "jobs", true
+	case "CronJob":
+		return "cronjobs", true
+	case "HorizontalPodAutoscaler":
+		return "horizontalpodautoscalers", true
+	case "ConfigMap":
+		return "configmaps", true
+	case "Secret":
+		return "secrets", true
+	case "ServiceAccount":
+		return "serviceaccounts", true
+	case "Role":
+		return "roles", true
+	case "RoleBinding":
+		return "rolebindings", true
+	case "ClusterRole":
+		return "clusterroles", true
+	case "ClusterRoleBinding":
+		return "clusterrolebindings", true
+	case "PersistentVolumeClaim":
+		return "persistentvolumeclaims", true
+	case "PersistentVolume":
+		return "persistentvolumes", true
+	case "Node":
+		return "nodes", true
+	case "HelmRelease":
+		return "helm", true
+	case "ResourceQuota":
+		return "resourcequotas", true
+	case "LimitRange":
+		return "limitranges", true
+	default:
+		return "", false
+	}
+}
+
+func dashboardResourceTagClusterScoped(resource string) bool {
+	switch resource {
+	case "clusterroles", "clusterrolebindings", "persistentvolumes", "nodes", "namespaces", "customresourcedefinitions", "clusterresources", "helmcharts":
+		return true
+	default:
+		return false
+	}
+}
+
+func dashboardResourceTagTargetKey(target dashboardResourceTagTarget, context string) string {
+	return dashboardResourceTagKeyPart(context) + "/" +
+		dashboardResourceTagKeyPart(target.resource) + "/" +
+		dashboardResourceTagKeyPart(target.namespace) + "/" +
+		dashboardResourceTagKeyPart(target.name)
+}
+
+func dashboardResourceTagKeyPart(value string) string {
+	return url.PathEscape(strings.TrimSpace(value))
+}
+
 type dashboardCountedFilter struct {
 	id       string
 	label    string
@@ -772,6 +966,7 @@ func normalizeClusterDashboardListOptions(opts ClusterDashboardListOptions) Clus
 	opts.SignalsSort = strings.TrimSpace(opts.SignalsSort)
 	opts.SignalsOffset = normalizeDashboardOffset(opts.SignalsOffset)
 	opts.SignalsLimit = normalizeDashboardLimit(opts.SignalsLimit)
+	opts.NewestSignalLimit = normalizeDashboardNewestLimit(opts.NewestSignalLimit)
 	return opts
 }
 
@@ -816,6 +1011,24 @@ func normalizeDashboardLimit(limit int) int {
 	}
 }
 
+func normalizeDashboardNewestLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return 10
+	case limit > 100:
+		return 100
+	default:
+		return limit
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, query string, opts ClusterDashboardListOptions) []ClusterDashboardSignal {
 	query = strings.ToLower(strings.TrimSpace(query))
 	out := make([]ClusterDashboardSignal, 0, len(signals))
@@ -828,7 +1041,27 @@ func filterDashboardSignals(signals []ClusterDashboardSignal, filters []string, 
 		}
 		out = append(out, f)
 	}
+	if dashboardSignalHasFilter(filters, "newest") && len(out) > 1 {
+		sort.Slice(out, func(i, j int) bool {
+			if out[i].FirstSeenAt != out[j].FirstSeenAt {
+				return out[i].FirstSeenAt > out[j].FirstSeenAt
+			}
+			return dashboardSignalLess(out[i], out[j])
+		})
+		if len(out) > opts.NewestSignalLimit {
+			out = out[:opts.NewestSignalLimit]
+		}
+	}
 	return out
+}
+
+func dashboardSignalHasFilter(filters []string, target string) bool {
+	for _, filter := range filters {
+		if strings.TrimSpace(filter) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string, opts ClusterDashboardListOptions) bool {
@@ -837,6 +1070,9 @@ func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string, o
 	for _, filter := range filters {
 		filter = strings.TrimSpace(filter)
 		if filter == "" || filter == "top" {
+			continue
+		}
+		if filter == "newest" {
 			continue
 		}
 		if filter == "high" || filter == "medium" || filter == "low" {
@@ -871,11 +1107,28 @@ func dashboardSignalMatchesFilters(f ClusterDashboardSignal, filters []string, o
 			if _, ok := recentNamespaces[f.Namespace]; !ok {
 				return false
 			}
+		} else if strings.HasPrefix(filter, "tag:") {
+			if !dashboardSignalHasTag(f, strings.TrimPrefix(filter, "tag:"), opts.ResourceTags) {
+				return false
+			}
 		} else if f.SignalType != filter && f.Kind != filter {
 			return false
 		}
 	}
 	return true
+}
+
+func dashboardSignalHasTag(signal ClusterDashboardSignal, tagID string, tags ClusterDashboardResourceTagsOptions) bool {
+	tagID = strings.TrimSpace(tagID)
+	if tagID == "" {
+		return false
+	}
+	for _, id := range dashboardSignalTagIDs(signal, tags) {
+		if id == tagID {
+			return true
+		}
+	}
+	return false
 }
 
 func dashboardNamespaceSet(namespaces []string) map[string]struct{} {

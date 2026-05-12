@@ -240,6 +240,7 @@ export type DashboardSignalFilter = {
   count: number;
   category?: string;
   severity?: string;
+  color?: string;
 };
 
 export type DashboardSignalsPanel = {

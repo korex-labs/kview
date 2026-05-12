@@ -26,6 +26,9 @@ Resource Tags are disabled by default. When disabled, tag columns and drawer
 tag controls are hidden. When enabled, supported lists show a **Tags** column
 and list filtering can match tags with `tag:<name>`.
 
+When enabled, the cluster dashboard can also show tag chips in the signal
+filters for tagged resources that have signals in the loaded signal set.
+
 Namespace inheritance is enabled by default once Resource Tags are enabled. An
 inherited tag appears on a namespaced resource because its namespace has that
 tag. Removing the tag from the resource does not remove the namespace tag.

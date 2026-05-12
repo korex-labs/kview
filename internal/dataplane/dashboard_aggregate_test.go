@@ -297,6 +297,41 @@ func TestSummarizeDashboardSignalsFiltersAndPaginatesItems(t *testing.T) {
 	}
 }
 
+func TestSummarizeDashboardSignalsFiltersByResourceTags(t *testing.T) {
+	tagOptions := ClusterDashboardResourceTagsOptions{
+		Enabled:              true,
+		InheritNamespaceTags: true,
+		Context:              "kind",
+		Definitions: []ClusterDashboardResourceTagDefinition{
+			{ID: "team", Name: "Team", Color: "#1e88e5"},
+			{ID: "incident", Name: "Incident", Color: "#d81b60"},
+		},
+		Assignments: map[string][]string{
+			"kind/namespaces//team-a":         {"team"},
+			"kind/jobs/team-b/worker-migrate": {"incident"},
+		},
+	}
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		{Kind: "Job", ResourceKind: "Job", ResourceName: "api-migrate", Severity: "high", Score: 95, Namespace: "team-a", Name: "api-migrate"},
+		{Kind: "Job", ResourceKind: "Job", ResourceName: "worker-migrate", Severity: "high", Score: 90, Namespace: "team-b", Name: "worker-migrate"},
+		{Kind: "Secret", ResourceKind: "Secret", ResourceName: "empty-secret", Severity: "low", Score: 30, Namespace: "team-c", Name: "empty-secret"},
+	}, 10, ClusterDashboardListOptions{
+		SignalsFilter: "tag:team",
+		SignalsLimit:  10,
+		ResourceTags:  tagOptions,
+	})
+
+	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].Name != "api-migrate" {
+		t.Fatalf("expected inherited namespace tag to match team-a job, got %+v", summary.Items)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "tag:team", "Team", 1) {
+		t.Fatalf("expected team tag filter count, got %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "tag:incident", "Incident", 1) {
+		t.Fatalf("expected incident tag filter count, got %+v", summary.Filters)
+	}
+}
+
 func TestSummarizeDashboardSignalsCombinesFiltersAndNarrowsChips(t *testing.T) {
 	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
 		dashboardSignalItem("abnormal_job", "Job", "team-a", "api-migrate", "high", 95, "Job failed recently.", "high", "jobs"),
@@ -371,6 +406,36 @@ func TestSummarizeDashboardSignalsSortsItemsByDiscoveryAndFreshness(t *testing.T
 	}
 	if freshness.Top[0].Kind != "Job" {
 		t.Fatalf("top priority ordering should stay severity/priority based, got %+v", freshness.Top)
+	}
+}
+
+func TestSummarizeDashboardSignalsFiltersNewest(t *testing.T) {
+	signals := []ClusterDashboardSignal{
+		{Kind: "Job", Severity: "high", Score: 95, Namespace: "team-a", Name: "old-job", FirstSeenAt: 100},
+		{Kind: "Job", Severity: "high", Score: 90, Namespace: "team-a", Name: "new-job", FirstSeenAt: 300},
+		{Kind: "Service", Severity: "medium", Score: 70, Namespace: "team-a", Name: "middle-service", FirstSeenAt: 200},
+	}
+
+	summary := summarizeDashboardSignals(signals, 10, ClusterDashboardListOptions{
+		SignalsFilter:     "newest",
+		SignalsLimit:      10,
+		NewestSignalLimit: 2,
+	})
+	if summary.ItemsTotal != 2 || len(summary.Items) != 2 || summary.Items[0].Name != "new-job" || summary.Items[1].Name != "middle-service" {
+		t.Fatalf("expected newest capped by first-seen timestamp, got %+v", summary.Items)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "newest", "Newest", 2) {
+		t.Fatalf("expected newest priority filter count, got %+v", summary.Filters)
+	}
+
+	combined := summarizeDashboardSignals(signals, 10, ClusterDashboardListOptions{
+		SignalsFilter:     "newest,high",
+		SignalsCombined:   true,
+		SignalsLimit:      10,
+		NewestSignalLimit: 1,
+	})
+	if combined.ItemsTotal != 1 || len(combined.Items) != 1 || combined.Items[0].Name != "new-job" {
+		t.Fatalf("expected newest high signal only, got %+v", combined.Items)
 	}
 }
 

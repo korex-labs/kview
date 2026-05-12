@@ -26,6 +26,8 @@ metrics availability, and background enrichment.
   allowed.
 - **Signals**: controls thresholds and overrides for dataplane-generated
   attention signals.
+- **Dashboard signal limits**: control how many top-priority and newest
+  dashboard signals are shown by the matching dashboard filters.
 
 ## Scope, Defaults, And Resets
 
@@ -61,6 +63,10 @@ Profiles are the safest starting point:
 Persistence, sweep, all-context enrichment, metrics, and signal overrides are
 optional. Enable them when the workflow needs them; leave them conservative
 when working against large or rate-limited clusters.
+
+Dashboard signal limits are optional triage controls. **Signal limit** caps the
+top-priority dashboard set, while **Newest signal limit** caps the newest
+detected signal set.
 
 Namespace enrichment is optional and profile-driven. **Current namespace**,
 **Recent**, and **Favourites** decide which namespaces are prioritized.

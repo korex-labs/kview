@@ -14,9 +14,9 @@ Use the dashboard to answer:
 
 ## Main Controls
 
-- **Signal chips**: filter the signals table by priority, severity,
-  acknowledgement state, kind, signal reason, namespace, or derived signal
-  source.
+- **Signal chips**: filter the signals table by priority, newest detections,
+  severity, acknowledgement state, tags, kind, signal reason, namespace, or
+  derived signal source.
 - **Signal search**: narrows visible signals by text.
 - **Signal sorting**: changes signal order by priority, severity, resource, or
   seen timestamps.
@@ -33,11 +33,19 @@ When **Combined dashboard signal filters** is enabled, non-derived signal chips
 can be selected together. kview sends the selected filters as one combined
 signal query and narrows the remaining chip choices to the matching signal set.
 
+The **Top priority** chip follows the dashboard signal limit. The **Newest**
+chip follows the newest signal limit and shows the most recently detected
+signals first unless another signal sort is selected.
+
 When **Dashboard favourite namespace filters** is enabled, the dashboard
 includes signal chips for namespaces marked as favourites in the active context.
 
 When **Dashboard recent namespace filters** is enabled, the dashboard includes
 signal chips for recently visited namespaces in the active context.
+
+When **Resource Tags** are enabled, the dashboard can include tag chips for
+tagged resources that have signals in the loaded signal set. Tag filtering is
+local to kview settings and never writes tags to Kubernetes resources.
 
 Dashboard refresh cadence is configured under **Dataplane**. Wide and
 diagnostic dataplane profiles apply a minimum refresh floor so broad dashboard
@@ -97,5 +105,8 @@ degradation details where available.
 - **Combined dashboard signal filters**
 - **Dashboard favourite namespace filters**
 - **Dashboard recent namespace filters**
+- **Dashboard signal limit**
+- **Newest signal limit**
 - **Dataplane**
+- **Resource Tags**
 - **Signal thresholds**

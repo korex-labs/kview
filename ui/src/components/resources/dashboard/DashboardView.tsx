@@ -10,7 +10,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { apiGet, apiGetWithContext } from "../../../api";
+import { apiGet, apiGetWithContext, apiPost } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
 import { fmtAgeShort, fmtBytes, fmtByteRate, fmtPercent, fmtRate } from "../../../utils/format";
@@ -262,6 +262,7 @@ export default function DashboardView(props: Props) {
   const dashboardRefreshSec = settings.dataplane.global.dashboard.refreshSec;
   const dashboardProfile = settings.dataplane.global.profile;
   const combinedSignalFilters = settings.appearance.dashboardCombinedSignalFilters;
+  const resourceTagsSignature = settings.resourceTags.enabled ? JSON.stringify(settings.resourceTags) : "";
   const effectiveDashboardRefreshSec =
     dashboardRefreshSec > 0 && (dashboardProfile === "wide" || dashboardProfile === "diagnostic")
       ? Math.max(dashboardRefreshSec, DASHBOARD_PROFILE_REFRESH_FLOOR_SEC)
@@ -317,7 +318,7 @@ export default function DashboardView(props: Props) {
           params.set("signalsRecentNamespaces", recentNamespaceFilterParam);
         }
         const signalsParamsKey = params.toString();
-        const cacheKey = `${loadScope}:${signalsParamsKey}`;
+        const cacheKey = `${loadScope}:${signalsParamsKey}:${resourceTagsSignature}`;
         requestKey = cacheKey;
         const cached = responseCacheRef.current;
         if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
@@ -338,9 +339,13 @@ export default function DashboardView(props: Props) {
           lastSignalsParamsRef.current !== signalsParamsKey;
         if (showSignalsLoading) setSignalsLoading(true);
         const path = `/api/dashboard/cluster?${params.toString()}`;
-        const res = activeContext
-          ? await apiGetWithContext<ApiDashboardClusterResponse>(path, props.token, activeContext)
-          : await apiGet<ApiDashboardClusterResponse>(path, props.token);
+        const res = settings.resourceTags.enabled
+          ? await apiPost<ApiDashboardClusterResponse>(`/api/dashboard/cluster/query?${params.toString()}`, props.token, {
+              resourceTags: settings.resourceTags,
+            }, { headers: activeContext ? { "X-Kview-Context": activeContext } : undefined })
+          : activeContext
+            ? await apiGetWithContext<ApiDashboardClusterResponse>(path, props.token, activeContext)
+            : await apiGet<ApiDashboardClusterResponse>(path, props.token);
         if (!cancelled) {
           responseCacheRef.current = { key: cacheKey, at: Date.now(), data: res };
           lastLoadScopeRef.current = loadScope;
@@ -395,6 +400,8 @@ export default function DashboardView(props: Props) {
     signalsSort,
     signalsPage,
     signalsRowsPerPage,
+    resourceTagsSignature,
+    settings.resourceTags,
     favouriteNamespaceFilterParam,
     recentNamespaceFilterParam,
     props.token,

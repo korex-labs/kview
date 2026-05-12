@@ -288,6 +288,32 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Post("/dashboard/cluster/query", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		active := s.readContextName(r)
+		opts := parseClusterDashboardListOptions(r)
+		var body struct {
+			ResourceTags dataplane.ClusterDashboardResourceTagsOptions `json:"resourceTags"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid dashboard query payload"})
+			return
+		}
+		opts.ResourceTags = body.ResourceTags
+		opts.ResourceTags.Context = active
+
+		s.dp.EnsureObservers(ctx, active)
+		warmNodeMetricsAsync(s, active)
+
+		summary := s.dp.DashboardSummary(ctx, active, opts)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   summary,
+		})
+	})
+
 	api.Get("/dataplane/revision", func(w http.ResponseWriter, r *http.Request) {
 		kindStr := strings.TrimSpace(r.URL.Query().Get("kind"))
 		kind, ok := dataplane.ParseListRevisionResourceKind(kindStr)

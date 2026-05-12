@@ -297,6 +297,7 @@ type DashboardPolicy struct {
 	UseCachedTotalsOnly      bool `json:"useCachedTotalsOnly"`
 	RestartElevatedThreshold int  `json:"restartElevatedThreshold"`
 	SignalLimit              int  `json:"signalLimit"`
+	NewestSignalLimit        int  `json:"newestSignalLimit"`
 }
 
 func DefaultDataplanePolicy() DataplanePolicy {
@@ -396,6 +397,7 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			UseCachedTotalsOnly:      true,
 			RestartElevatedThreshold: 3,
 			SignalLimit:              10,
+			NewestSignalLimit:        10,
 		},
 		Metrics: MetricsPolicy{
 			Enabled:               true,
@@ -491,6 +493,7 @@ func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out.Dashboard.RefreshSec = clampInt(out.Dashboard.RefreshSec, 0, 3600, def.Dashboard.RefreshSec)
 	out.Dashboard.RestartElevatedThreshold = clampInt(out.Dashboard.RestartElevatedThreshold, 1, 1000, def.Dashboard.RestartElevatedThreshold)
 	out.Dashboard.SignalLimit = clampInt(out.Dashboard.SignalLimit, 1, 100, def.Dashboard.SignalLimit)
+	out.Dashboard.NewestSignalLimit = clampInt(out.Dashboard.NewestSignalLimit, 1, 100, def.Dashboard.NewestSignalLimit)
 
 	out.Metrics.PodMetricsTTLSeconds = clampInt(out.Metrics.PodMetricsTTLSeconds, 5, 300, def.Metrics.PodMetricsTTLSeconds)
 	out.Metrics.NodeMetricsTTLSeconds = clampInt(out.Metrics.NodeMetricsTTLSeconds, 5, 300, def.Metrics.NodeMetricsTTLSeconds)

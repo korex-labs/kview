@@ -16,6 +16,10 @@ repository.
 - Dashboard, namespace summaries, and resource drawers use signals-first
   workflows so users can move from cluster-level attention to the exact
   resource that needs inspection.
+- Dashboard signals can now be filtered by newest detections, with a tunable
+  newest signal limit for recent signal triage.
+- When Resource Tags are enabled, dashboard signal filters can include tag
+  chips for tagged resources with matching signals.
 - Settings support import/export, smart filters, resource tags, custom
   commands, custom workload actions, and dataplane policy tuning.
 - Keyboard navigation includes shortcuts and command mode for faster resource,

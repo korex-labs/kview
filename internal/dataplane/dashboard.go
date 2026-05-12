@@ -172,6 +172,7 @@ type ClusterDashboardSignalFilter struct {
 	Count    int    `json:"count"`
 	Category string `json:"category,omitempty"`
 	Severity string `json:"severity,omitempty"`
+	Color    string `json:"color,omitempty"`
 }
 
 type ClusterDashboardSignal struct {
@@ -211,6 +212,22 @@ type ClusterDashboardListOptions struct {
 	SignalsLimit               int
 	SignalsFavouriteNamespaces []string
 	SignalsRecentNamespaces    []string
+	NewestSignalLimit          int
+	ResourceTags               ClusterDashboardResourceTagsOptions
+}
+
+type ClusterDashboardResourceTagDefinition struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color,omitempty"`
+}
+
+type ClusterDashboardResourceTagsOptions struct {
+	Enabled              bool                                    `json:"enabled"`
+	InheritNamespaceTags bool                                    `json:"inheritNamespaceTags"`
+	Definitions          []ClusterDashboardResourceTagDefinition `json:"definitions,omitempty"`
+	Assignments          map[string][]string                     `json:"assignments,omitempty"`
+	Context              string                                  `json:"-"`
 }
 
 type ClusterDashboardDataplaneStats struct {

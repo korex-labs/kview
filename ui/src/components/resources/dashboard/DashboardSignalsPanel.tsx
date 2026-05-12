@@ -70,6 +70,10 @@ function signalResourceName(f: DashboardSignalItem): string {
   return f.resourceName || f.name || f.namespace || f.kind;
 }
 
+function isTagSignalFilter(filter: string): boolean {
+  return filter.startsWith("tag:");
+}
+
 function signalSortDirection(sort: string, descValue: string, ascValue: string): "asc" | "desc" | undefined {
   if (sort === descValue) return "desc";
   if (sort === ascValue) return "asc";
@@ -109,8 +113,10 @@ export function inspectTargetFromSignal(f: DashboardSignalItem): InspectTarget |
 }
 
 function signalFilterLabel(filter: string): string {
+  if (isTagSignalFilter(filter)) return filter.slice(4);
   switch (filter) {
     case "top": return "Top priority";
+    case "newest": return "Newest";
     case "open": return "Open";
     case "acknowledged": return "Acknowledged";
     case "high": return "High severity";
@@ -139,6 +145,7 @@ function signalFilterGroupLabel(category?: string): string {
   switch (category) {
     case "severity": return "By Severity";
     case "acknowledgement": return "By Acknowledgement";
+    case "tag": return "By Tags";
     case "kind": return "By Kind";
     case "signal_type": return "By Signal Reason";
     case "namespace": return "Top 5 Namespaces With Problems";
@@ -155,13 +162,14 @@ function signalFilterGroupOrder(category?: string): number {
     case "priority": return 0;
     case "severity": return 1;
     case "acknowledgement": return 2;
-    case "kind": return 3;
-    case "signal_type": return 4;
-    case "namespace": return 5;
-    case "namespace_favourite": return 6;
-    case "namespace_recent": return 7;
-    case "derived": return 8;
-    default: return 9;
+    case "tag": return 3;
+    case "kind": return 4;
+    case "signal_type": return 5;
+    case "namespace": return 6;
+    case "namespace_favourite": return 7;
+    case "namespace_recent": return 8;
+    case "derived": return 9;
+    default: return 10;
   }
 }
 
@@ -211,6 +219,7 @@ function hideSignalFilterWhenZero(filter: DashboardSignalFilter): boolean {
 function fallbackSignalFilters(panel: DashboardSignalsPanelData | undefined, topCount: number): DashboardSignalFilter[] {
   return [
     { id: "top", label: "Top priority", count: topCount, category: "priority" },
+    { id: "newest", label: "Newest", count: topCount, category: "priority" },
     { id: "open", label: "Open", count: panel?.items?.filter((signal) => !signal.acknowledged).length ?? 0, category: "acknowledgement" },
     { id: "acknowledged", label: "Acknowledged", count: panel?.items?.filter((signal) => signal.acknowledged).length ?? 0, category: "acknowledgement" },
     { id: "high", label: "High severity", count: panel?.high ?? 0, category: "severity", severity: "high" },
@@ -288,6 +297,23 @@ const filterRowSx = {
   maxWidth: "100%",
 };
 
+const compactFilterCategories = new Set(["priority", "severity", "acknowledgement", "tag"]);
+
+const compactFilterGridSx = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), max-content))",
+  alignItems: "start",
+  columnGap: 2,
+  rowGap: 1,
+  maxWidth: "100%",
+};
+
+const filterGroupsSx = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 1,
+};
+
 const filterChipSx = {
   flexShrink: 0,
   maxWidth: { xs: "100%", sm: "none" },
@@ -356,6 +382,7 @@ function FilterChip({
   label,
   count,
   color = "default",
+  customColor,
   hideWhenZero = false,
   selected,
   onSelect,
@@ -364,12 +391,21 @@ function FilterChip({
   label?: string;
   count: number;
   color?: "error" | "warning" | "info" | "default";
+  customColor?: string;
   hideWhenZero?: boolean;
   selected: boolean;
   onSelect: (filter: string) => void;
 }) {
   if (hideWhenZero && count <= 0 && !selected) return null;
-  const sx = selected ? { ...filterChipSx, ...activeChipSx(color) } : filterChipSx;
+  const customSx = /^#[0-9a-fA-F]{6}$/.test(customColor || "")
+    ? {
+        "--scoped-chip-bg": `${customColor}22`,
+        "--scoped-chip-fg": customColor,
+        "--scoped-chip-border": `${customColor}99`,
+        ...(selected ? { border: `2px solid ${customColor}` } : {}),
+      }
+    : {};
+  const sx = selected ? { ...filterChipSx, ...activeChipSx(color), ...customSx } : { ...filterChipSx, ...customSx };
   return (
     <ScopedCountChip
       size="small"
@@ -430,7 +466,8 @@ function SignalFilterGroup({
         label={filter.label}
         count={filter.count}
         color={signalFilterColor(filter)}
-        hideWhenZero={hideSignalFilterWhenZero(filter) || (combinedMode && filter.count <= 0)}
+        customColor={filter.color}
+        hideWhenZero={hideSignalFilterWhenZero(filter) || (combinedMode && filter.category !== "tag" && filter.count <= 0)}
         selected={selected}
         onSelect={onSelect}
       />
@@ -504,9 +541,12 @@ export default function DashboardSignalsPanel({
   derived,
   loading = false,
 }: Props) {
-  const topSignals = signalPanel?.top || [];
-  const visibleSignals = signalPanel?.items || [];
-  const selectedSignalFilters = signalFilters && signalFilters.length > 0 ? signalFilters : [signalFilter].filter(Boolean);
+  const topSignals = useMemo(() => signalPanel?.top || [], [signalPanel?.top]);
+  const visibleSignals = useMemo(() => signalPanel?.items || [], [signalPanel?.items]);
+  const selectedSignalFilters = useMemo(
+    () => (signalFilters && signalFilters.length > 0 ? signalFilters : [signalFilter].filter(Boolean)),
+    [signalFilter, signalFilters],
+  );
   const derivedRows = useMemo<DerivedSignalRow[]>(() => {
     if (!derived) return [];
     const nodeRows = (derived.nodes.nodes || []).map((node) => ({
@@ -578,7 +618,9 @@ export default function DashboardSignalsPanel({
     signalsPage * signalsRowsPerPage,
     signalsPage * signalsRowsPerPage + signalsRowsPerPage,
   );
-  const visibleSignalsTotal = derivedFilter ? visibleDerivedRows.length : signalPanel?.itemsTotal ?? visibleSignals.length;
+  const visibleSignalsTotal = derivedFilter
+    ? visibleDerivedRows.length
+    : signalPanel?.itemsTotal ?? visibleSignals.length;
   const derivedProblemRows = derivedRows.filter((row) => row.signals > 0).length;
   const quickFilters: DashboardSignalFilter[] = [
     ...(signalPanel?.filters && signalPanel.filters.length > 0
@@ -594,6 +636,8 @@ export default function DashboardSignalsPanel({
       : []),
   ];
   const filterGroups = groupedSignalFilters(quickFilters);
+  const compactFilterGroups = filterGroups.filter((group) => compactFilterCategories.has(group.category));
+  const stackedFilterGroups = filterGroups.filter((group) => !compactFilterCategories.has(group.category));
   const selectedFilterLabel =
     activeDirectSignalFilters.length > 0
       ? activeDirectSignalFilters
@@ -619,8 +663,23 @@ export default function DashboardSignalsPanel({
         <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 1  }}>
           Filter direct and derived cached-scope signals by severity, kind, signal reason, namespace, or derived source.
         </Typography>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {filterGroups.map((group) => (
+        <Box sx={filterGroupsSx}>
+          {compactFilterGroups.length > 0 ? (
+            <Box sx={compactFilterGridSx}>
+              {compactFilterGroups.map((group) => (
+                <SignalFilterGroup
+                  key={group.category}
+                  category={group.category}
+                  label={group.label}
+                  filters={group.filters}
+                  selectedFilters={selectedSignalFilters}
+                  combinedMode={combinedSignalFilters && !derivedFilter}
+                  onSelect={onSignalFilterChange}
+                />
+              ))}
+            </Box>
+          ) : null}
+          {stackedFilterGroups.map((group) => (
             <SignalFilterGroup
               key={group.category}
               category={group.category}
