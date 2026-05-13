@@ -13,7 +13,10 @@ test("loads real cluster views through sanitized API responses", async ({ saniti
   await openKview(page, kview.token);
 
   await page.getByTestId("nav-dashboard").click();
-  await expect(page.getByTestId("cluster-dashboard")).toBeVisible({ timeout: 60_000 });
+  const dashboard = page.getByTestId("cluster-dashboard");
+  await expect(dashboard).toBeVisible({ timeout: 60_000 });
+  await expect(dashboard.getByText("Loading...")).toBeHidden({ timeout: 15_000 });
+  await expect(dashboard.getByText("Known Resources")).toBeVisible({ timeout: 15_000 });
 
   const namespace = await chooseInterestingNamespace(page, kview.token);
 

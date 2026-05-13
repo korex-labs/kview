@@ -84,6 +84,7 @@ const DASHBOARD_PROFILE_REFRESH_FLOOR_SEC = 30;
 const DASHBOARD_LOAD_DEDUPE_MS = 10_000;
 const DASHBOARD_WARMUP_RETRY_MS = 1_500;
 const DASHBOARD_WARMUP_RETRY_ATTEMPTS = 6;
+const DASHBOARD_WARMUP_RENDER_DEFER_ATTEMPTS = 2;
 
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -279,6 +280,10 @@ export default function DashboardView(props: Props) {
     if (health === "unhealthy" || !pageVisible) return;
     let cancelled = false;
     const loadScope = `${activeContext || ""}:${props.token}`;
+    const canScheduleWarmupRetry = (cacheKey: string) =>
+      (warmupRetryAttemptsRef.current[cacheKey] ?? 0) < DASHBOARD_WARMUP_RETRY_ATTEMPTS;
+    const canDeferWarmupRender = (cacheKey: string) =>
+      (warmupRetryAttemptsRef.current[cacheKey] ?? 0) < DASHBOARD_WARMUP_RENDER_DEFER_ATTEMPTS;
     const scheduleWarmupRetry = (cacheKey: string) => {
       const attempts = warmupRetryAttemptsRef.current[cacheKey] ?? 0;
       if (attempts >= DASHBOARD_WARMUP_RETRY_ATTEMPTS) return;
@@ -294,6 +299,7 @@ export default function DashboardView(props: Props) {
     const load = async (initial: boolean, force = false) => {
       const resetView = initial && lastLoadScopeRef.current !== loadScope;
       let acquiredLoad = false;
+      let deferredWarmupRender = false;
       let requestKey = "";
       if (resetView) {
         setLoading(true);
@@ -347,11 +353,17 @@ export default function DashboardView(props: Props) {
             ? await apiGetWithContext<ApiDashboardClusterResponse>(path, props.token, activeContext)
             : await apiGet<ApiDashboardClusterResponse>(path, props.token);
         if (!cancelled) {
+          const needsWarmupRetry = dashboardNeedsWarmupRetry(res);
+          if (needsWarmupRetry && canDeferWarmupRender(cacheKey)) {
+            deferredWarmupRender = true;
+            scheduleWarmupRetry(cacheKey);
+            return;
+          }
           responseCacheRef.current = { key: cacheKey, at: Date.now(), data: res };
           lastLoadScopeRef.current = loadScope;
           lastSignalsParamsRef.current = signalsParamsKey;
           setData(res);
-          if (dashboardNeedsWarmupRetry(res)) {
+          if (needsWarmupRetry && canScheduleWarmupRetry(cacheKey)) {
             scheduleWarmupRetry(cacheKey);
           } else {
             delete warmupRetryAttemptsRef.current[cacheKey];
@@ -364,7 +376,7 @@ export default function DashboardView(props: Props) {
           loadInFlightKeyRef.current = null;
         }
         if (!cancelled) {
-          if (resetView) setLoading(false);
+          if (!deferredWarmupRender) setLoading(false);
           setSignalsLoading(false);
         }
       }
