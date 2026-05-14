@@ -48,7 +48,7 @@ function usageToneForPct(pct: number | undefined): GaugeTone {
   }
 }
 
-function renderUsageCell(
+export function renderUsageCell(
   usage: number | undefined,
   pct: number | undefined,
   usageLabel: string,
@@ -56,7 +56,7 @@ function renderUsageCell(
   if (usage == null) return "—";
   // Gauge only rendered when we have a valid percent (needs request/limit
   // anchor); otherwise fall back to the raw usage so rows still show data.
-  if (pct == null || pct <= 0) return usageLabel;
+  if (pct == null) return usageLabel;
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
       <Box sx={{ flex: 1, minWidth: 60 }}>
