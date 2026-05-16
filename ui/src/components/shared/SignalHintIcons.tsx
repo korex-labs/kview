@@ -7,7 +7,7 @@ import { AppIconButton } from "./AppActions";
 export default function SignalHintIcons({ likelyCause, suggestedAction }: { likelyCause?: string; suggestedAction?: string }) {
   if (!likelyCause && !suggestedAction) return null;
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: 0.5, verticalAlign: "middle" }}>
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: 0.5, verticalAlign: "middle" }}>
       {likelyCause ? (
         <AppIconButton tooltip={`Likely cause: ${likelyCause}`} label="Likely cause" sx={{ p: 0.2 }}>
           <HelpOutlineOutlinedIcon fontSize="inherit" />
