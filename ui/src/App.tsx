@@ -7,32 +7,6 @@ import ConstructionIcon from "@mui/icons-material/Construction";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
 import logoUrl from "./assets/logo.svg";
 import Sidebar from "./components/Sidebar";
-import NodesTable from "./components/resources/nodes/NodesTable";
-import NamespacesTable from "./components/resources/namespaces/NamespacesTable";
-import PodsTable from "./components/resources/pods/PodsTable";
-import DeploymentsTable from "./components/resources/deployments/DeploymentsTable";
-import DaemonSetsTable from "./components/resources/daemonsets/DaemonSetsTable";
-import StatefulSetsTable from "./components/resources/statefulsets/StatefulSetsTable";
-import ReplicaSetsTable from "./components/resources/replicasets/ReplicaSetsTable";
-import ServicesTable from "./components/resources/services/ServicesTable";
-import IngressesTable from "./components/resources/ingresses/IngressesTable";
-import JobsTable from "./components/resources/jobs/JobsTable";
-import CronJobsTable from "./components/resources/cronjobs/CronJobsTable";
-import HorizontalPodAutoscalersTable from "./components/resources/horizontalpodautoscalers/HorizontalPodAutoscalersTable";
-import ConfigMapsTable from "./components/resources/configmaps/ConfigMapsTable";
-import SecretsTable from "./components/resources/secrets/SecretsTable";
-import ServiceAccountsTable from "./components/resources/serviceaccounts/ServiceAccountsTable";
-import RolesTable from "./components/resources/roles/RolesTable";
-import RoleBindingsTable from "./components/resources/rolebindings/RoleBindingsTable";
-import ClusterRolesTable from "./components/resources/clusterroles/ClusterRolesTable";
-import ClusterRoleBindingsTable from "./components/resources/clusterrolebindings/ClusterRoleBindingsTable";
-import PersistentVolumesTable from "./components/resources/persistentvolumes/PersistentVolumesTable";
-import PersistentVolumeClaimsTable from "./components/resources/persistentvolumeclaims/PersistentVolumeClaimsTable";
-import HelmReleasesTable from "./components/resources/helm/HelmReleasesTable";
-import HelmChartsTable from "./components/resources/helm/HelmChartsTable";
-import CustomResourceDefinitionsTable from "./components/resources/customresourcedefinitions/CustomResourceDefinitionsTable";
-import CustomResourcesTable from "./components/resources/customresources/CustomResourcesTable";
-import ClusterCustomResourcesTable from "./components/resources/customresources/ClusterCustomResourcesTable";
 import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext, toApiError } from "./api";
 import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api";
 import {
@@ -49,7 +23,6 @@ import {
 import { notifyApiFailure, notifyStatus, useConnectionState, type AppStatus } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
 import { AppIconButton } from "./components/shared/AppActions";
-import DashboardView from "./components/resources/dashboard/DashboardView";
 import ActivityPanel from "./components/activity/ActivityPanel";
 import { ActiveContextProvider, useActiveContext } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
@@ -75,6 +48,39 @@ import "./styles/theme.css";
 
 const SettingsView = React.lazy(() => import("./components/settings/SettingsView"));
 const HelpView = React.lazy(() => import("./components/help/HelpView"));
+const DashboardView = React.lazy(() => import("./components/resources/dashboard/DashboardView"));
+const NodesTable = React.lazy(() => import("./components/resources/nodes/NodesTable"));
+const NamespacesTable = React.lazy(() => import("./components/resources/namespaces/NamespacesTable"));
+const PodsTable = React.lazy(() => import("./components/resources/pods/PodsTable"));
+const DeploymentsTable = React.lazy(() => import("./components/resources/deployments/DeploymentsTable"));
+const DaemonSetsTable = React.lazy(() => import("./components/resources/daemonsets/DaemonSetsTable"));
+const StatefulSetsTable = React.lazy(() => import("./components/resources/statefulsets/StatefulSetsTable"));
+const ReplicaSetsTable = React.lazy(() => import("./components/resources/replicasets/ReplicaSetsTable"));
+const ServicesTable = React.lazy(() => import("./components/resources/services/ServicesTable"));
+const IngressesTable = React.lazy(() => import("./components/resources/ingresses/IngressesTable"));
+const JobsTable = React.lazy(() => import("./components/resources/jobs/JobsTable"));
+const CronJobsTable = React.lazy(() => import("./components/resources/cronjobs/CronJobsTable"));
+const HorizontalPodAutoscalersTable = React.lazy(
+  () => import("./components/resources/horizontalpodautoscalers/HorizontalPodAutoscalersTable"),
+);
+const ConfigMapsTable = React.lazy(() => import("./components/resources/configmaps/ConfigMapsTable"));
+const SecretsTable = React.lazy(() => import("./components/resources/secrets/SecretsTable"));
+const ServiceAccountsTable = React.lazy(() => import("./components/resources/serviceaccounts/ServiceAccountsTable"));
+const RolesTable = React.lazy(() => import("./components/resources/roles/RolesTable"));
+const RoleBindingsTable = React.lazy(() => import("./components/resources/rolebindings/RoleBindingsTable"));
+const ClusterRolesTable = React.lazy(() => import("./components/resources/clusterroles/ClusterRolesTable"));
+const ClusterRoleBindingsTable = React.lazy(() => import("./components/resources/clusterrolebindings/ClusterRoleBindingsTable"));
+const PersistentVolumesTable = React.lazy(() => import("./components/resources/persistentvolumes/PersistentVolumesTable"));
+const PersistentVolumeClaimsTable = React.lazy(
+  () => import("./components/resources/persistentvolumeclaims/PersistentVolumeClaimsTable"),
+);
+const HelmReleasesTable = React.lazy(() => import("./components/resources/helm/HelmReleasesTable"));
+const HelmChartsTable = React.lazy(() => import("./components/resources/helm/HelmChartsTable"));
+const CustomResourceDefinitionsTable = React.lazy(
+  () => import("./components/resources/customresourcedefinitions/CustomResourceDefinitionsTable"),
+);
+const CustomResourcesTable = React.lazy(() => import("./components/resources/customresources/CustomResourcesTable"));
+const ClusterCustomResourcesTable = React.lazy(() => import("./components/resources/customresources/ClusterCustomResourcesTable"));
 
 function getToken(): string {
   const u = new URL(window.location.href);
@@ -735,92 +741,96 @@ function AppInner() {
                   />
                 </React.Suspense>
               ) : null}
-              {resourcesOpen && section === "dashboard" ? (
-                <DashboardView
-                  token={token}
-                  favouriteNamespaces={
-                    settings.appearance.dashboardFavouriteNamespaceFilters ? favourites : []
-                  }
-                  recentNamespaces={
-                    settings.appearance.dashboardRecentNamespaceFilters ? recentNamespaces : []
-                  }
-                  onNavigate={(sec, ns) => {
-                    onSelectNamespace(ns);
-                    onSelectSection(sec as Section);
-                  }}
-                />
+              {resourcesOpen ? (
+                <React.Suspense fallback={<Box sx={{ flex: 1, minHeight: 0 }} />}>
+                  {section === "dashboard" ? (
+                    <DashboardView
+                      token={token}
+                      favouriteNamespaces={
+                        settings.appearance.dashboardFavouriteNamespaceFilters ? favourites : []
+                      }
+                      recentNamespaces={
+                        settings.appearance.dashboardRecentNamespaceFilters ? recentNamespaces : []
+                      }
+                      onNavigate={(sec, ns) => {
+                        onSelectNamespace(ns);
+                        onSelectSection(sec as Section);
+                      }}
+                    />
+                  ) : null}
+                  {section === "nodes" ? <NodesTable token={token} /> : null}
+                  {section === "namespaces" ? (
+                    <NamespacesTable
+                      token={token}
+                      listApiPath={namespacesListPath}
+                      favourites={favourites}
+                      recentNamespaces={recentNamespaces}
+                      smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
+                      onToggleFavourite={onToggleFavourite}
+                      onNavigate={(sec, ns, filter) => {
+                        onSelectNamespace(ns);
+                        if (sec === "customresources" && filter) {
+                          setCustomResourcesFilterIntent((prev) => ({ value: filter, nonce: (prev?.nonce || 0) + 1 }));
+                        }
+                        onSelectSection(sec as Section);
+                      }}
+                    />
+                  ) : null}
+                  {section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
+                  {section === "deployments" && namespace ? (
+                    <DeploymentsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "daemonsets" && namespace ? (
+                    <DaemonSetsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "statefulsets" && namespace ? (
+                    <StatefulSetsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "replicasets" && namespace ? (
+                    <ReplicaSetsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
+                  {section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
+                  {section === "horizontalpodautoscalers" && namespace ? (
+                    <HorizontalPodAutoscalersTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
+                  {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
+                  {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
+                  {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
+                  {section === "serviceaccounts" && namespace ? (
+                    <ServiceAccountsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
+                  {section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
+                  {section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
+                  {section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
+                  {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
+                  {section === "persistentvolumeclaims" && namespace ? (
+                    <PersistentVolumeClaimsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "customresourcedefinitions" ? (
+                    <CustomResourceDefinitionsTable token={token} />
+                  ) : null}
+                  {section === "customresources" && namespace ? (
+                    <CustomResourcesTable
+                      token={token}
+                      namespace={namespace}
+                      filterIntent={customResourcesFilterIntent}
+                      onFilterIntentApplied={(nonce) => {
+                        setCustomResourcesFilterIntent((prev) => (prev?.nonce === nonce ? null : prev));
+                      }}
+                    />
+                  ) : null}
+                  {section === "clusterresources" ? (
+                    <ClusterCustomResourcesTable token={token} />
+                  ) : null}
+                  {section === "helm" && namespace ? (
+                    <HelmReleasesTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
+                </React.Suspense>
               ) : null}
-              {resourcesOpen && section === "nodes" ? <NodesTable token={token} /> : null}
-              {resourcesOpen && section === "namespaces" ? (
-                <NamespacesTable
-                  token={token}
-                  listApiPath={namespacesListPath}
-                  favourites={favourites}
-                  recentNamespaces={recentNamespaces}
-                  smartNamespaceSorting={settings.appearance.smartNamespaceSorting}
-                  onToggleFavourite={onToggleFavourite}
-                  onNavigate={(sec, ns, filter) => {
-                    onSelectNamespace(ns);
-                    if (sec === "customresources" && filter) {
-                      setCustomResourcesFilterIntent((prev) => ({ value: filter, nonce: (prev?.nonce || 0) + 1 }));
-                    }
-                    onSelectSection(sec as Section);
-                  }}
-                />
-              ) : null}
-              {resourcesOpen && section === "pods" && namespace ? <PodsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "deployments" && namespace ? (
-                <DeploymentsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "daemonsets" && namespace ? (
-                <DaemonSetsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "statefulsets" && namespace ? (
-                <StatefulSetsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "replicasets" && namespace ? (
-                <ReplicaSetsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "jobs" && namespace ? <JobsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "cronjobs" && namespace ? <CronJobsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "horizontalpodautoscalers" && namespace ? (
-                <HorizontalPodAutoscalersTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "serviceaccounts" && namespace ? (
-                <ServiceAccountsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "roles" && namespace ? <RolesTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "rolebindings" && namespace ? <RoleBindingsTable token={token} namespace={namespace} /> : null}
-              {resourcesOpen && section === "clusterroles" ? <ClusterRolesTable token={token} /> : null}
-              {resourcesOpen && section === "clusterrolebindings" ? <ClusterRoleBindingsTable token={token} /> : null}
-              {resourcesOpen && section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
-              {resourcesOpen && section === "persistentvolumeclaims" && namespace ? (
-                <PersistentVolumeClaimsTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "customresourcedefinitions" ? (
-                <CustomResourceDefinitionsTable token={token} />
-              ) : null}
-              {resourcesOpen && section === "customresources" && namespace ? (
-                <CustomResourcesTable
-                  token={token}
-                  namespace={namespace}
-                  filterIntent={customResourcesFilterIntent}
-                  onFilterIntentApplied={(nonce) => {
-                    setCustomResourcesFilterIntent((prev) => (prev?.nonce === nonce ? null : prev));
-                  }}
-                />
-              ) : null}
-              {resourcesOpen && section === "clusterresources" ? (
-                <ClusterCustomResourcesTable token={token} />
-              ) : null}
-              {resourcesOpen && section === "helm" && namespace ? (
-                <HelmReleasesTable token={token} namespace={namespace} />
-              ) : null}
-              {resourcesOpen && section === "helmcharts" ? <HelmChartsTable token={token} /> : null}
             </Box>
           </Box>
           <Snackbar
