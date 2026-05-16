@@ -770,18 +770,23 @@ func (p *clusterPlane) hydratePersistedSnapshots(maxAge time.Duration) error {
 	if err != nil {
 		return err
 	}
+	var firstErr error
 	for _, cell := range cells {
 		if cell.Namespace == "" {
 			if err := p.hydratePersistedClusterSnapshot(cell.Kind, cell.Payload, maxAge); err != nil {
-				return err
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 			continue
 		}
 		if err := p.hydratePersistedNamespacedSnapshot(cell.Kind, cell.Namespace, cell.Payload, maxAge); err != nil {
-			return err
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func (p *clusterPlane) hydratePersistedClusterSnapshot(kind ResourceKind, payload []byte, maxAge time.Duration) error {

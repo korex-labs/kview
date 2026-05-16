@@ -65,7 +65,7 @@ Screenshots are written to:
 .artifacts/screenshots/
 ```
 
-The screenshot project uses a `1920x1200` viewport, collapses the activity panel before capture, pauses briefly before each screenshot so tab/page transitions settle, and emits full-page screenshots. Current captures include:
+The screenshot project uses a `1920x1200` viewport, collapses the activity panel before capture, pauses briefly before each screenshot so tab/page transitions settle, and writes viewport screenshots. Current captures include:
 
 - cluster dashboard
 - namespace list and namespace detail
@@ -73,6 +73,28 @@ The screenshot project uses a `1920x1200` viewport, collapses the activity panel
 - deployments list and, when a live detail endpoint resolves, deployment detail
 - nodes list and node detail
 - Dataplane settings overview, enrichment, and signals tabs
+
+The suite can be run as one pass, or targeted by screenshot family:
+
+```bash
+make local-e2e-screenshots SCREENSHOT_GREP='@screenshots-overview'
+make local-e2e-screenshots SCREENSHOT_GREP='@screenshots-pod'
+make local-e2e-screenshots SCREENSHOT_GREP='@screenshots-node'
+make local-e2e-screenshots SCREENSHOT_GREP='@screenshots-namespace'
+make local-e2e-screenshots SCREENSHOT_GREP='@screenshots-deployment'
+```
+
+From `ui/`, the equivalent npm scripts are:
+
+```bash
+npm run e2e:screenshots:overview
+npm run e2e:screenshots:pod
+npm run e2e:screenshots:node
+npm run e2e:screenshots:namespace
+npm run e2e:screenshots:deployment
+```
+
+E2E backends use an isolated dataplane cache under `.artifacts/e2e-cache` so screenshot runs can start while a normal kview process has the main cache open. On the first run, the local cache is copied there when available. Later runs reuse the isolated copy for stable targeted regeneration; set `KVIEW_E2E_REFRESH_DATAPLANE_CACHE=1` to refresh it from the current local cache.
 
 ## Sanitization
 

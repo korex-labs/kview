@@ -16,6 +16,22 @@ export async function apiGet(page: Page, token: string, path: string): Promise<A
   );
 }
 
+export async function apiGetForContext(page: Page, token: string, path: string, contextName: string): Promise<ApiRecord> {
+  return page.evaluate(
+    async ({ token: requestToken, path: requestPath, context }) => {
+      const response = await fetch(requestPath, {
+        headers: {
+          Authorization: `Bearer ${requestToken}`,
+          "X-Kview-Context": context,
+        },
+      });
+      if (!response.ok) throw new Error(`GET ${requestPath} for ${context} failed with ${response.status}`);
+      return response.json();
+    },
+    { token, path, context: contextName },
+  );
+}
+
 function asRecord(value: unknown): ApiRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as ApiRecord : {};
 }
@@ -34,6 +50,10 @@ function asNumber(value: unknown): number {
 
 function uniqueNames(items: Array<string | null | undefined>): string[] {
   return [...new Set(items.filter((item): item is string => !!item))];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function containerIsRunning(container: ApiRecord): boolean {
@@ -125,6 +145,14 @@ export async function chooseAnyDeployment(page: Page, token: string, namespace: 
   return asString(asArray(deployments.items)[0]?.name) || null;
 }
 
+export async function listContexts(page: Page, token: string): Promise<{ active: string; names: string[] }> {
+  const contexts = await apiGet(page, token, "/api/contexts");
+  return {
+    active: asString(contexts.active),
+    names: asArray(contexts.contexts).map((item) => asString(item.name)).filter(Boolean),
+  };
+}
+
 export async function listDeployments(page: Page, token: string, namespace: string, limit = 5): Promise<string[]> {
   const deployments = await apiGet(page, token, `/api/namespaces/${encodeURIComponent(namespace)}/deployments`);
   return asArray(deployments.items)
@@ -133,10 +161,24 @@ export async function listDeployments(page: Page, token: string, namespace: stri
     .slice(0, limit);
 }
 
+export async function selectSidebarContext(page: Page, context: string): Promise<void> {
+  const input = page.getByRole("combobox", { name: "Context" });
+  await expect(input).toBeEnabled({ timeout: 30_000 });
+  if ((await input.textContent())?.trim() === context) return;
+  await input.click();
+  const option = page.getByRole("option", { name: context }).first();
+  if (!await option.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await input.fill(context).catch(() => undefined);
+  }
+  await option.click();
+  await expect(input).toContainText(context, { timeout: 60_000 });
+  await expect(page.locator(".MuiDialog-root")).toHaveCount(0, { timeout: 180_000 });
+}
+
 export async function selectSidebarNamespace(page: Page, namespace: string): Promise<void> {
   const clusterScopedNamespaceField = page.getByText("Cluster-scoped resource");
   if (await clusterScopedNamespaceField.isVisible().catch(() => false)) {
-    await page.getByTestId("nav-pods").click();
+    await page.getByTestId("nav-pods").last().click();
     await expect(page.getByTestId("resource-list-pods")).toBeVisible({ timeout: 30_000 });
   }
   const input = page.getByRole("combobox", { name: "Namespace" });
@@ -153,15 +195,18 @@ export async function selectSidebarNamespace(page: Page, namespace: string): Pro
 }
 
 export async function openSection(page: Page, section: string): Promise<void> {
-  await page.getByTestId(`nav-${section}`).click();
+  await page.getByTestId(`nav-${section}`).last().click();
   await expect(page.getByTestId(`resource-list-${section}`)).toBeVisible({ timeout: 30_000 });
 }
 
 export async function openFirstResourceDrawer(page: Page, section: string): Promise<boolean> {
   const list = page.getByTestId(`resource-list-${section}`);
   const firstRow = list.locator(".MuiDataGrid-row[data-id]").first();
-  if (!(await firstRow.isVisible({ timeout: 20_000 }).catch(() => false))) return false;
-  await firstRow.dblclick();
+  const row = await firstRow.isVisible({ timeout: 20_000 }).catch(() => false)
+    ? firstRow
+    : list.getByRole("row").nth(1);
+  if (!(await row.isVisible({ timeout: 20_000 }).catch(() => false))) return false;
+  await row.dblclick();
   await expect(page.getByTestId(`drawer-${section}`)).toBeVisible({ timeout: 30_000 });
   return true;
 }
@@ -169,8 +214,10 @@ export async function openFirstResourceDrawer(page: Page, section: string): Prom
 export async function openResourceDrawerByName(page: Page, section: string, name: string): Promise<boolean> {
   const list = page.getByTestId(`resource-list-${section}`);
   const row = list.locator(".MuiDataGrid-row", { hasText: name }).first();
-  if (!(await row.isVisible({ timeout: 45_000 }).catch(() => false))) return false;
-  await row.dblclick();
+  const roleRow = list.getByRole("row", { name: new RegExp(escapeRegExp(name)) }).first();
+  const target = await row.isVisible({ timeout: 45_000 }).catch(() => false) ? row : roleRow;
+  if (!(await target.isVisible({ timeout: 45_000 }).catch(() => false))) return false;
+  await target.dblclick();
   await expect(page.getByTestId(`drawer-${section}`)).toBeVisible({ timeout: 30_000 });
   return true;
 }

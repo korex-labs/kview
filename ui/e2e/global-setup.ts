@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +12,33 @@ type KviewState = {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(dirname, "../..");
 const statePath = path.resolve(repoRoot, ".artifacts/playwright/state/kview.json");
+const e2eCacheHome = path.resolve(repoRoot, ".artifacts/e2e-cache");
+const hostCacheHome = defaultCacheHome();
+
+function defaultCacheHome(): string {
+  return process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache");
+}
+
+function dataplaneCachePath(cacheHome: string): string {
+  return path.join(cacheHome, "kview", "dataplane-cache.bbolt");
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  return stat(filePath).then((info) => info.isFile()).catch(() => false);
+}
+
+async function copyDataplaneCacheForE2E(): Promise<void> {
+  if (process.env.KVIEW_E2E_COPY_DATAPLANE_CACHE === "0") return;
+
+  const source = dataplaneCachePath(defaultCacheHome());
+  const target = dataplaneCachePath(e2eCacheHome);
+  const refresh = process.env.KVIEW_E2E_REFRESH_DATAPLANE_CACHE === "1";
+  if (source === target || !(await fileExists(source))) return;
+  if (!refresh && await fileExists(target)) return;
+
+  await mkdir(path.dirname(target), { recursive: true });
+  await copyFile(source, target);
+}
 
 function cleanupKview(child: ChildProcessWithoutNullStreams): void {
   if (child.exitCode !== null || child.killed) return;
@@ -56,7 +84,7 @@ function waitForKview(child: ChildProcessWithoutNullStreams): Promise<KviewState
       if (settled) return;
       settled = true;
       reject(new Error(`Timed out waiting for kview startup. Output:\n${output}`));
-    }, 60_000);
+    }, 120_000);
 
     const onData = (chunk: Buffer) => {
       output += chunk.toString();
@@ -125,10 +153,15 @@ async function globalSetup() {
   if (process.env.KVIEW_E2E_KUBECONFIG) {
     args.push("--config", process.env.KVIEW_E2E_KUBECONFIG);
   }
+  await copyDataplaneCacheForE2E();
 
   const child = spawn("go", args, {
     cwd: repoRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      XDG_CACHE_HOME: e2eCacheHome,
+      GOCACHE: process.env.GOCACHE || path.join(hostCacheHome, "go-build"),
+    },
     detached: process.platform !== "win32",
   });
 

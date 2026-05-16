@@ -447,6 +447,54 @@ func TestManagerHydratesPersistedSnapshotsWhenPlaneIsCreated(t *testing.T) {
 	}
 }
 
+func TestHydratePersistedSnapshotsContinuesAfterBadCell(t *testing.T) {
+	store, err := openBoltSnapshotPersistence(t.TempDir() + "/cache.bbolt")
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	observed := time.Now().UTC().Add(-time.Hour)
+	meta := SnapshotMetadata{
+		ObservedAt:   observed,
+		Freshness:    FreshnessClassHot,
+		Coverage:     CoverageClassFull,
+		Degradation:  DegradationClassNone,
+		Completeness: CompletenessClassComplete,
+	}
+	if err := store.Save("ctx", ResourceKindPods, "app", PodsSnapshot{
+		Items: []dto.PodListItemDTO{{Name: "api-7f", Namespace: "app"}},
+		Meta:  meta,
+	}); err != nil {
+		t.Fatalf("save pod snapshot: %v", err)
+	}
+	if err := store.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(dataplaneSnapshotBucket)
+		if err != nil {
+			return err
+		}
+		return b.Put(snapshotKey("ctx", ResourceKindCustomResources, "bad"), []byte("{"))
+	}); err != nil {
+		t.Fatalf("seed bad snapshot cell: %v", err)
+	}
+
+	policy := DefaultDataplanePolicy()
+	policy.Persistence.Enabled = true
+	plane := newClusterPlane("ctx", ProfileFocused, DiscoveryModeTargeted, ObservationScope{}, func() DataplanePolicy {
+		return policy
+	}, func() snapshotPersistence {
+		return store
+	}, nil)
+
+	if err := plane.hydratePersistedSnapshots(policy.PersistenceMaxAge()); err == nil {
+		t.Fatalf("expected bad cell hydration error")
+	}
+	podSnap, ok := peekNamespacedSnapshot(&plane.podsStore, "app")
+	if !ok || len(podSnap.Items) != 1 || podSnap.Items[0].Name != "api-7f" {
+		t.Fatalf("hydrated pods after bad cell ok=%v snap=%+v", ok, podSnap)
+	}
+}
+
 func TestManagerPersistenceEnabledByDefaultOpensCache(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 

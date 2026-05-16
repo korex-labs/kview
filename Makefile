@@ -121,7 +121,7 @@ e2e: install-git-hooks docker-image prepare-e2e-kubeconfig
 	$(DOCKER_RUN) make local-e2e
 
 e2e-screenshots: install-git-hooks docker-image prepare-e2e-kubeconfig
-	$(DOCKER_RUN) make local-e2e-screenshots
+	$(DOCKER_RUN) make local-e2e-screenshots SCREENSHOT_GREP="$(SCREENSHOT_GREP)"
 
 build: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-build OUTPUT=$(OUTPUT) VERSION=$(VERSION)
@@ -182,7 +182,7 @@ local-e2e: install-git-hooks
 	cd $(UI_DIR) && npm ci && npm run e2e
 
 local-e2e-screenshots: install-git-hooks
-	cd $(UI_DIR) && npm ci && npm run e2e:screenshots
+	cd $(UI_DIR) && npm ci && if [ -n "$(SCREENSHOT_GREP)" ]; then npm run e2e:screenshots -- -g "$(SCREENSHOT_GREP)"; else npm run e2e:screenshots; fi
 
 local-build: install-git-hooks
 	sh scripts/build-with-ui-dist.sh go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview

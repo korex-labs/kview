@@ -11,6 +11,16 @@ kview is a **local, single-binary Kubernetes UI** for fast, view-first cluster e
 
 ---
 
+## Screenshots
+
+| Cluster dashboard | Namespace signals | Pods list |
+|-------------------|-------------------|-----------|
+| [![Cluster dashboard](docs/screenshots/cluster-dashboard.png)](docs/screenshots/cluster-dashboard.png) | [![Namespace signals](docs/screenshots/namespace-detail-signals.png)](docs/screenshots/namespace-detail-signals.png) | [![Pods list](docs/screenshots/pods-list.png)](docs/screenshots/pods-list.png) |
+
+More selected screenshots are available in [docs/screenshots](docs/screenshots/).
+
+---
+
 ## Why kview
 
 - **Single binary, zero install.** Drop the binary on your machine and point it at your kubeconfig. Embed auth plugins on `PATH` if your contexts use them; nothing else is needed.

@@ -14,7 +14,12 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "e2e:screenshots": "playwright test --project=screenshots"
+    "e2e:screenshots": "playwright test --project=screenshots",
+    "e2e:screenshots:overview": "playwright test --project=screenshots -g @screenshots-overview",
+    "e2e:screenshots:pod": "playwright test --project=screenshots -g @screenshots-pod",
+    "e2e:screenshots:node": "playwright test --project=screenshots -g @screenshots-node",
+    "e2e:screenshots:namespace": "playwright test --project=screenshots -g @screenshots-namespace",
+    "e2e:screenshots:deployment": "playwright test --project=screenshots -g @screenshots-deployment"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",
