@@ -3,6 +3,21 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.9.0 - 2026-05-18
+
+- Expanded dashboard signal filtering so operators can narrow attention by
+  namespace groups, newest detections, and tagged resources directly from the
+  main cluster workflow.
+- Improved dashboard loading during warmup and context switches, avoiding empty
+  or zeroed dashboard states and clearing loading indicators more reliably
+  after retries.
+- Fixed pod metrics presentation so zero values still render as gauges, keeping
+  low-usage workloads readable instead of looking missing.
+- Polished signal and tag affordances in the UI by rendering inline hint icons
+  more cleanly and preserving namespace tag assignments more reliably.
+- Reduced release-build churn for embedded UI assets, refreshed dependencies,
+  and added targeted screenshot coverage to strengthen release verification.
+
 ## v5.8.0 - 2026-05-12
 
 - Added an in-app Help view with bundled end-user documentation, so guidance

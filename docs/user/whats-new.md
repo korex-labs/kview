@@ -6,6 +6,15 @@ repository.
 
 ## Recent Highlights
 
+- Dashboard signal filters now support namespace groups, newest detections, and
+  tagged resources, making it easier to isolate the clusters and workloads that
+  need attention.
+- Dashboard warmup and context switching are more stable, with fewer empty or
+  zero-value states while background retries finish loading signal data.
+- Pod metrics now keep zero values visible as gauges, so quiet workloads remain
+  readable instead of appearing to have missing data.
+- UI hint icons render more cleanly inline and namespace tag assignments are
+  preserved more reliably during tagging workflows.
 - The new Help view brings bundled end-user documentation into kview, covering
   navigation, signals, settings, workflows, safety, and troubleshooting
   without leaving the app.
