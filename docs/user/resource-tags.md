@@ -15,8 +15,9 @@ to the cluster.
   tag controls in supported drawer headers.
 - **Inherit namespace tags**: shows namespace tags on namespace-scoped
   resources.
-- **Cleanup missing resource assignments**: removes direct tag assignments in a
-  visible scope after a fresh list confirms the resource is gone.
+- **Cleanup missing resource assignments**: when enabled, removes direct tag
+  assignments for non-namespace resources only after an authoritative fresh
+  list confirms the resource is gone.
 - **Add tag**: creates a tag definition with name and color.
 - **Tag assignment menu**: opens from supported drawer headers.
 

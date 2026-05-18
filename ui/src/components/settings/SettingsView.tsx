@@ -1572,7 +1572,7 @@ export default function SettingsView({
       />
       <SettingRow
         label="Cleanup missing resource assignments"
-        hint="When a fresh list confirms a resource is gone, direct tag assignments in that visible scope are removed."
+        hint="When an authoritative fresh resource list confirms a non-namespace resource is gone, direct tag assignments in that visible scope are removed."
         checked={settings.resourceTags.cleanupMissingAssignments}
         onChange={(v) => setSettings((prev) => updateResourceTags(prev, { cleanupMissingAssignments: v }))}
       />

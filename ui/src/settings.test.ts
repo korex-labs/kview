@@ -72,7 +72,7 @@ describe("user settings", () => {
     expect(defaultUserSettings().resourceTags).toEqual({
       enabled: false,
       inheritNamespaceTags: true,
-      cleanupMissingAssignments: true,
+      cleanupMissingAssignments: false,
       definitions: [],
       assignments: {},
     });

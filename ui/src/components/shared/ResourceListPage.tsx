@@ -14,7 +14,7 @@ import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
 import { getResourceIcon, type AccessReviewResource } from "../../utils/k8sResources";
 import type { ListResourceKey } from "../../utils/k8sResources";
-import type { ResourceListFetchResult } from "../../types/api";
+import type { DataplaneListMeta, ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
 import ResourceTableToolbar, { type ResourceTableToolbarProps } from "./ResourceTableToolbar";
 import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
@@ -33,6 +33,16 @@ import {
 import { ResourceTagsCell } from "./ResourceTags";
 
 const defaultDataplaneRefreshSec = 0;
+
+export function shouldCleanupResourceTagAssignments(resourceKey: ListResourceKey, dataplaneMeta: DataplaneListMeta | null): boolean {
+  if (resourceKey === "namespaces") return false;
+  return (
+    (dataplaneMeta?.state === "ok" || dataplaneMeta?.state === "empty") &&
+    dataplaneMeta?.freshness === "hot" &&
+    dataplaneMeta?.coverage === "full" &&
+    dataplaneMeta?.completeness === "complete"
+  );
+}
 
 function escapeAttributeValue(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
@@ -308,13 +318,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
       .map((row) => resourceTagTargetForRow(row, activeContext))
       .filter((target): target is ResourceTagTarget => Boolean(target));
     if (targets.length === 0) return;
-    const shouldCleanup = !dataplaneMeta?.state || dataplaneMeta.state === "ok" || dataplaneMeta.state === "empty";
-    if (!shouldCleanup) return;
+    if (!shouldCleanupResourceTagAssignments(resourceKey, dataplaneMeta)) return;
     setSettings((prev) => ({
       ...prev,
       resourceTags: cleanupResourceTagAssignmentsForScope(prev.resourceTags, targets, true),
     }));
-  }, [activeContext, dataplaneMeta?.state, error, loading, resourceTagTargetForRow, rows, setSettings, settings.resourceTags.enabled]);
+  }, [activeContext, dataplaneMeta, error, loading, resourceKey, resourceTagTargetForRow, rows, setSettings, settings.resourceTags.enabled]);
 
   useEffect(() => {
     recordListSnapshot({

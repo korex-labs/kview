@@ -467,7 +467,7 @@ export function defaultResourceTagsSettings(): ResourceTagsSettings {
   return {
     enabled: false,
     inheritNamespaceTags: true,
-    cleanupMissingAssignments: true,
+    cleanupMissingAssignments: false,
     definitions: [],
     assignments: {},
   };

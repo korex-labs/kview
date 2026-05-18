@@ -35,8 +35,8 @@ chips are hidden and the text filter remains available.
 or inherited tags.
 
 **Resource tag cleanup** is optional. When enabled, kview removes direct tag
-assignments in a visible scope after a fresh list confirms that a resource no
-longer exists.
+assignments for non-namespace resources in a visible scope only after an
+authoritative fresh list confirms that a resource no longer exists.
 
 ## Status Metadata
 
