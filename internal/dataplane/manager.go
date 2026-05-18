@@ -646,6 +646,9 @@ type clusterPlane struct {
 	obsMu     sync.Mutex
 	observers *clusterObservers
 
+	persistHydrateMu sync.Mutex
+	persistHydrating atomic.Bool
+
 	policy      func() DataplanePolicy
 	persistence func() snapshotPersistence
 	stats       *dataplaneSessionStats
@@ -759,6 +762,13 @@ func (p *clusterPlane) currentPersistence() snapshotPersistence {
 }
 
 func (p *clusterPlane) hydratePersistedSnapshots(maxAge time.Duration) error {
+	p.persistHydrateMu.Lock()
+	p.persistHydrating.Store(true)
+	defer func() {
+		p.persistHydrating.Store(false)
+		p.persistHydrateMu.Unlock()
+	}()
+
 	sp := p.currentPersistence()
 	if sp == nil {
 		return nil

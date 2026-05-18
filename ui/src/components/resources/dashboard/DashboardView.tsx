@@ -83,8 +83,7 @@ const dashboardPanelSectionSx = {
 const DASHBOARD_PROFILE_REFRESH_FLOOR_SEC = 30;
 const DASHBOARD_LOAD_DEDUPE_MS = 10_000;
 const DASHBOARD_WARMUP_RETRY_MS = 1_500;
-const DASHBOARD_WARMUP_RETRY_ATTEMPTS = 6;
-const DASHBOARD_WARMUP_RENDER_DEFER_ATTEMPTS = 2;
+const DASHBOARD_WARMUP_RETRY_ATTEMPTS = 12;
 
 function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -98,6 +97,7 @@ function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
 function dashboardNeedsWarmupRetry(res: ApiDashboardClusterResponse): boolean {
   const item = res.item;
   if (!item) return false;
+  if (item.coverage?.persistenceHydrating) return true;
   const visibleNamespaces = item.coverage?.visibleNamespaces ?? item.visibility?.namespaces?.total ?? 0;
   const namespacesInTotals = item.coverage?.namespacesInResourceTotals ?? 0;
   const totalsCompleteness = item.coverage?.resourceTotalsCompleteness || "";
@@ -106,9 +106,55 @@ function dashboardNeedsWarmupRetry(res: ApiDashboardClusterResponse): boolean {
   }
   const namespaceState = item.visibility?.namespaces?.state || "";
   const namespaceObserverState = item.visibility?.namespaces?.observerState || "";
-  return namespaceState === "empty" && ["starting", "not_loaded", ""].includes(namespaceObserverState);
+  if (namespaceState === "empty" && ["starting", "not_loaded", ""].includes(namespaceObserverState)) {
+    return true;
+  }
+  const namespaceFreshness = item.visibility?.namespaces?.freshness || "";
+  const namespaceCoverage = item.visibility?.namespaces?.coverage || "";
+  const namespaceCompleteness = item.visibility?.namespaces?.completeness || "";
+  const resources = item.resources;
+  const allResourceTotalsZero = resources
+    ? [
+        resources.pods,
+        resources.deployments,
+        resources.daemonSets,
+        resources.statefulSets,
+        resources.replicaSets,
+        resources.jobs,
+        resources.cronJobs,
+        resources.horizontalPodAutoscalers,
+        resources.services,
+        resources.ingresses,
+        resources.persistentVolumeClaims,
+        resources.configMaps,
+        resources.secrets,
+        resources.serviceAccounts,
+        resources.roles,
+        resources.roleBindings,
+        resources.helmReleases,
+        resources.customResources,
+        resources.resourceQuotas,
+        resources.limitRanges,
+        resources.totalNamespaces,
+      ].every((value) => (value ?? 0) === 0)
+    : true;
+  return (
+    namespaceState === "empty" &&
+    namespaceObserverState !== "disabled" &&
+    namespaceFreshness !== "hot" &&
+    namespaceCoverage !== "full" &&
+    namespaceCompleteness !== "complete" &&
+    visibleNamespaces === 0 &&
+    namespacesInTotals === 0 &&
+    totalsCompleteness === "unknown" &&
+    allResourceTotalsZero &&
+    (item.signals?.total ?? 0) === 0
+  );
 }
 
+function dashboardWarmupRenderDeferAttempts(res: ApiDashboardClusterResponse): number {
+  return dashboardNeedsWarmupRetry(res) ? DASHBOARD_WARMUP_RETRY_ATTEMPTS : 0;
+}
 
 function DashboardInspectDrawers({
   token,
@@ -282,8 +328,8 @@ export default function DashboardView(props: Props) {
     const loadScope = `${activeContext || ""}:${props.token}`;
     const canScheduleWarmupRetry = (cacheKey: string) =>
       (warmupRetryAttemptsRef.current[cacheKey] ?? 0) < DASHBOARD_WARMUP_RETRY_ATTEMPTS;
-    const canDeferWarmupRender = (cacheKey: string) =>
-      (warmupRetryAttemptsRef.current[cacheKey] ?? 0) < DASHBOARD_WARMUP_RENDER_DEFER_ATTEMPTS;
+    const canDeferWarmupRender = (cacheKey: string, res: ApiDashboardClusterResponse) =>
+      (warmupRetryAttemptsRef.current[cacheKey] ?? 0) < dashboardWarmupRenderDeferAttempts(res);
     const scheduleWarmupRetry = (cacheKey: string) => {
       const attempts = warmupRetryAttemptsRef.current[cacheKey] ?? 0;
       if (attempts >= DASHBOARD_WARMUP_RETRY_ATTEMPTS) return;
@@ -354,7 +400,7 @@ export default function DashboardView(props: Props) {
             : await apiGet<ApiDashboardClusterResponse>(path, props.token);
         if (!cancelled) {
           const needsWarmupRetry = dashboardNeedsWarmupRetry(res);
-          if (needsWarmupRetry && canDeferWarmupRender(cacheKey)) {
+          if (needsWarmupRetry && canDeferWarmupRender(cacheKey, res)) {
             deferredWarmupRender = true;
             scheduleWarmupRetry(cacheKey);
             return;

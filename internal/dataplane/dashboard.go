@@ -92,6 +92,7 @@ type ClusterDashboardCoverage struct {
 	AwaitingRelatedRowProjection  int    `json:"awaitingRelatedRowProjection"`
 	EnrichmentTargets             int    `json:"enrichmentTargets,omitempty"`
 	HasActiveEnrichmentSession    bool   `json:"hasActiveEnrichmentSession,omitempty"`
+	PersistenceHydrating          bool   `json:"persistenceHydrating,omitempty"`
 	RowProjectionCachedNamespaces int    `json:"rowProjectionCachedNamespaces"`
 	ResourceTotalsCompleteness    string `json:"resourceTotalsCompleteness"`
 	NamespacesInResourceTotals    int    `json:"namespacesInResourceTotals"`

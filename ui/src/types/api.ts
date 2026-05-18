@@ -328,6 +328,7 @@ export type ApiDashboardClusterResponse = {
       awaitingRelatedRowProjection: number;
       enrichmentTargets?: number;
       hasActiveEnrichmentSession?: boolean;
+      persistenceHydrating?: boolean;
       rowProjectionCachedNamespaces: number;
       resourceTotalsCompleteness: string;
       namespacesInResourceTotals: number;

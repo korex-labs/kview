@@ -154,6 +154,30 @@ function dashboardResponse(): ApiDashboardClusterResponse {
   };
 }
 
+function readyDashboardResponse(): ApiDashboardClusterResponse {
+  const res = dashboardResponse();
+  if (res.item) {
+    res.item.visibility.namespaces.state = "ready";
+    res.item.visibility.namespaces.observerState = "ready";
+    res.item.coverage.resourceTotalsCompleteness = "complete";
+    res.item.coverage.namespacesInResourceTotals = 1;
+    res.item.resources.pods = 1;
+  }
+  return res;
+}
+
+function coldContextSwitchDashboardResponse(): ApiDashboardClusterResponse {
+  const res = dashboardResponse();
+  if (res.item) {
+    res.item.visibility.namespaces.total = 0;
+    res.item.visibility.namespaces.observerState = "ready";
+    res.item.coverage.visibleNamespaces = 0;
+    res.item.coverage.listOnlyNamespaces = 0;
+    res.item.resources.totalNamespaces = 0;
+  }
+  return res;
+}
+
 function renderDashboard() {
   render(
     <ActiveContextProvider value="">
@@ -180,7 +204,10 @@ afterEach(() => {
 
 describe("DashboardView warmup loading", () => {
   it("clears startup loading after deferred warmup retries commit data", async () => {
-    apiGet.mockResolvedValue(dashboardResponse());
+    apiGet
+      .mockResolvedValueOnce(dashboardResponse())
+      .mockResolvedValueOnce(dashboardResponse())
+      .mockResolvedValueOnce(readyDashboardResponse());
 
     renderDashboard();
 
@@ -191,6 +218,22 @@ describe("DashboardView warmup loading", () => {
 
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(3), { timeout: 4_000 });
 
+    await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
+    expect(screen.getByText("Signals panel")).toBeTruthy();
+  }, 10_000);
+
+  it("keeps loading for cold all-zero context switch responses", async () => {
+    apiGet
+      .mockResolvedValueOnce(coldContextSwitchDashboardResponse())
+      .mockResolvedValueOnce(readyDashboardResponse());
+
+    renderDashboard();
+
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Signals panel")).toBeNull();
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2), { timeout: 4_000 });
     await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
     expect(screen.getByText("Signals panel")).toBeTruthy();
   }, 10_000);

@@ -123,6 +123,20 @@ func TestAggregateClusterDashboard_NoCacheUnknownTotals(t *testing.T) {
 	}
 }
 
+func TestAggregateClusterDashboard_ReportsPersistenceHydration(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx-hydrating")
+	plane := planeAny.(*clusterPlane)
+	plane.persistHydrating.Store(true)
+	defer plane.persistHydrating.Store(false)
+
+	_, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"app"}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	if !cov.PersistenceHydrating {
+		t.Fatalf("expected persistence hydration coverage flag, got %+v", cov)
+	}
+}
+
 func TestAggregateClusterDashboard_PodRestartsAreSignals(t *testing.T) {
 	dm := NewManager(ManagerConfig{})
 	mm := dm.(*manager)
