@@ -28,6 +28,7 @@ documentation remains in the rest of `docs/`.
 - [Settings](settings.md)
 - [Smart Filters](smart-filters.md)
 - [Resource Tags](resource-tags.md)
+- [Resource Macros And Dynamic Links](resource-macros-dynamic-links.md)
 - [Custom Commands And Actions](custom-commands-actions.md)
 - [Dataplane Settings](dataplane-settings.md)
 - [Import / Export](import-export.md)

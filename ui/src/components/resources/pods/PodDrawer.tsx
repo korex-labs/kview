@@ -57,6 +57,7 @@ import EnvValueDisplay from "./EnvValueDisplay";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import { ResourceDrawerTags } from "../../shared/ResourceTags";
+import { ResourceDrawerMacros } from "../../shared/ResourceMacros";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type {
@@ -1462,7 +1463,27 @@ export default function PodDrawer(props: {
           </>
         }
         headerMeta={<ResourceDrawerTags resource="pods" namespace={ns} name={name} />}
-        headerActions={<ResourceDrawerTags resource="pods" namespace={ns} name={name} mode="edit" />}
+        dynamicLinks={{
+          resource: "pods",
+          namespace: ns,
+          name,
+          nodeName: summary?.node,
+          labels: details?.metadata?.labels,
+          annotations: details?.metadata?.annotations,
+        }}
+        headerActions={
+          <>
+            <ResourceDrawerMacros
+              resource="pods"
+              namespace={ns}
+              name={name}
+              nodeName={summary?.node}
+              labels={details?.metadata?.labels}
+              annotations={details?.metadata?.annotations}
+            />
+            <ResourceDrawerTags resource="pods" namespace={ns} name={name} mode="edit" />
+          </>
+        }
         onClose={props.onClose}
       >
         {loading ? (

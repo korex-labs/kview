@@ -178,6 +178,7 @@ export default function SecretDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        dynamicLinks={{ resource: "secrets", namespace: ns, name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (

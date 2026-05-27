@@ -79,6 +79,21 @@ describe("user settings", () => {
     expect(validateUserSettings({ v: 1 })?.resourceTags).toEqual(defaultUserSettings().resourceTags);
   });
 
+  it("keeps resource macros and dynamic links disabled by default", () => {
+    expect(defaultUserSettings().resourceMacros).toEqual({
+      enabled: false,
+      maxResolveDepth: 10,
+      definitions: [],
+      extractors: [],
+    });
+    expect(defaultUserSettings().dynamicLinks).toEqual({
+      enabled: false,
+      definitions: [],
+    });
+    expect(validateUserSettings({ v: 1 })?.resourceMacros).toEqual(defaultUserSettings().resourceMacros);
+    expect(validateUserSettings({ v: 1 })?.dynamicLinks).toEqual(defaultUserSettings().dynamicLinks);
+  });
+
   it("validates resource tag definitions and assignments", () => {
     const parsed = validateUserSettings({
       ...defaultUserSettings(),
@@ -229,15 +244,42 @@ describe("user settings", () => {
       definitions: [{ id: "handoff", name: "Handoff", color: "#1e88e5" }],
       assignments: { "ctx/pods/apps/api": ["handoff"] },
     };
+    settings.resourceMacros = {
+      enabled: true,
+      maxResolveDepth: 10,
+      definitions: [
+        {
+          id: "jira-url",
+          enabled: true,
+          macroName: "JIRA_URL",
+          value: "https://jira.example.com",
+          scope: { scope: "global", context: "", namespace: "", node: "", resource: "", name: "" },
+        },
+      ],
+      extractors: [],
+    };
+    settings.dynamicLinks = {
+      enabled: true,
+      definitions: [
+        {
+          id: "jira-issue",
+          enabled: true,
+          label: "Jira Issue",
+          urlTemplate: "$JIRA_URL/browse/$JIRA_ISSUE",
+        },
+      ],
+    };
     const exported = exportSettingsTransferJSON({
       settings,
       appState: { v: 1, favouriteNamespacesByContext: { ctx: ["apps"] } },
-      sections: ["resourceTags", "favourites"],
+      sections: ["resourceTags", "resourceMacros", "dynamicLinks", "favourites"],
     });
 
     const parsed = parseSettingsTransferJSON(exported);
-    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "favourites"]);
+    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "resourceMacros", "dynamicLinks", "favourites"]);
     expect(parsed.sections.resourceTags?.definitions[0].id).toBe("handoff");
+    expect(parsed.sections.resourceMacros?.definitions[0].macroName).toBe("JIRA_URL");
+    expect(parsed.sections.dynamicLinks?.definitions[0].label).toBe("Jira Issue");
     expect(parsed.sections.favourites?.favouriteNamespacesByContext.ctx).toEqual(["apps"]);
   });
 

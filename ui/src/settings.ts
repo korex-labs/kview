@@ -14,6 +14,8 @@ export type SettingsTransferMergeStrategy = "keepMine" | "useImported" | "replac
 export type SettingsTransferSection =
   | "smartFilters"
   | "resourceTags"
+  | "resourceMacros"
+  | "dynamicLinks"
   | "customCommands"
   | "customActions"
   | "favourites"
@@ -38,6 +40,59 @@ export type ResourceTagsSettings = {
   cleanupMissingAssignments: boolean;
   definitions: ResourceTagDefinition[];
   assignments: Record<string, string[]>;
+};
+
+export type ResourceMacroScope = "global" | "context" | "namespace" | "node" | "resource";
+export type ResourceMacroExtractorSource = "name" | "label" | "annotation";
+export type ResourceMacroExtractorTransform = "none" | "uppercase" | "lowercase" | "ucfirst";
+
+export type ResourceMacroScopeRef = {
+  scope: ResourceMacroScope;
+  context: string;
+  namespace: string;
+  node: string;
+  resource: ListResourceKey | "";
+  name: string;
+};
+
+export type ResourceMacroDefinition = {
+  id: string;
+  enabled: boolean;
+  macroName: string;
+  value: string;
+  scope: ResourceMacroScopeRef;
+};
+
+export type ResourceMacroExtractorDefinition = {
+  id: string;
+  enabled: boolean;
+  macroName: string;
+  resources: ListResourceKey[];
+  source: ResourceMacroExtractorSource;
+  key: string;
+  pattern: string;
+  flags: string;
+  valueTemplate: string;
+  transform: ResourceMacroExtractorTransform;
+};
+
+export type ResourceMacrosSettings = {
+  enabled: boolean;
+  maxResolveDepth: number;
+  definitions: ResourceMacroDefinition[];
+  extractors: ResourceMacroExtractorDefinition[];
+};
+
+export type DynamicLinkDefinition = {
+  id: string;
+  enabled: boolean;
+  label: string;
+  urlTemplate: string;
+};
+
+export type DynamicLinksSettings = {
+  enabled: boolean;
+  definitions: DynamicLinkDefinition[];
 };
 
 export type KeyboardSettings = {
@@ -123,6 +178,8 @@ export type KviewUserSettingsV2 = {
   appearance: KviewUserSettingsV1["appearance"];
   smartFilters: KviewUserSettingsV1["smartFilters"];
   resourceTags: ResourceTagsSettings;
+  resourceMacros: ResourceMacrosSettings;
+  dynamicLinks: DynamicLinksSettings;
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
@@ -143,6 +200,8 @@ export type SettingsTransferBundleV1 = {
   sections: Partial<{
     smartFilters: KviewUserSettingsV2["smartFilters"];
     resourceTags: KviewUserSettingsV2["resourceTags"];
+    resourceMacros: KviewUserSettingsV2["resourceMacros"];
+    dynamicLinks: KviewUserSettingsV2["dynamicLinks"];
     customCommands: KviewUserSettingsV2["customCommands"];
     customActions: KviewUserSettingsV2["customActions"];
     favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
@@ -321,8 +380,12 @@ const allowedActionTargets = new Set<CustomActionTarget>(["env", "image"]);
 const allowedActionPatchTypes = new Set<CustomActionPatchType>(["json", "merge"]);
 const allowedDataplaneProfiles = new Set<DataplaneProfile>(["manual", "focused", "balanced", "wide", "diagnostic"]);
 const allowedSignalSeverityOverrides = new Set<SignalSeverityOverride>(["low", "medium", "high"]);
+const allowedMacroScopes = new Set<ResourceMacroScope>(["global", "context", "namespace", "node", "resource"]);
+const allowedMacroExtractorSources = new Set<ResourceMacroExtractorSource>(["name", "label", "annotation"]);
+const allowedMacroExtractorTransforms = new Set<ResourceMacroExtractorTransform>(["none", "uppercase", "lowercase", "ucfirst"]);
 const resourceTagIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const resourceTagColorPattern = /^#[0-9a-fA-F]{6}$/;
+const resourceMacroNamePattern = /^[A-Z][A-Z0-9_]{0,63}$/;
 const customActionResourceKeys: ListResourceKey[] = ["deployments", "daemonsets", "statefulsets", "replicasets"];
 export const dataplaneTTLResourceKeys = [
   "namespaces",
@@ -473,6 +536,22 @@ export function defaultResourceTagsSettings(): ResourceTagsSettings {
   };
 }
 
+export function defaultResourceMacrosSettings(): ResourceMacrosSettings {
+  return {
+    enabled: false,
+    maxResolveDepth: 10,
+    definitions: [],
+    extractors: [],
+  };
+}
+
+export function defaultDynamicLinksSettings(): DynamicLinksSettings {
+  return {
+    enabled: false,
+    definitions: [],
+  };
+}
+
 function dataplaneContextOverridesFromLegacy(
   input: Record<string, Record<string, SignalOverride>> | undefined,
 ): Record<string, DataplaneContextOverrideSettings> {
@@ -495,6 +574,8 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     appearance: v1.appearance,
     smartFilters: v1.smartFilters,
     resourceTags: defaultResourceTagsSettings(),
+    resourceMacros: defaultResourceMacrosSettings(),
+    dynamicLinks: defaultDynamicLinksSettings(),
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
@@ -876,6 +957,143 @@ function normalizeResourceTagsSettings(input: unknown): ResourceTagsSettings {
         : defaults.cleanupMissingAssignments,
     definitions,
     assignments,
+  };
+}
+
+function normalizeResourceMacroName(input: unknown): string {
+  if (typeof input !== "string") return "";
+  const name = input.trim().replace(/^\$/, "").toUpperCase();
+  return resourceMacroNamePattern.test(name) ? name : "";
+}
+
+function normalizeResourceMacroScopeRef(input: unknown): ResourceMacroScopeRef {
+  const raw = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Partial<ResourceMacroScopeRef>
+    : {};
+  const scope = allowedMacroScopes.has(raw.scope as ResourceMacroScope) ? raw.scope as ResourceMacroScope : "global";
+  return {
+    scope,
+    context: typeof raw.context === "string" ? raw.context.trim().slice(0, 128) : "",
+    namespace: typeof raw.namespace === "string" ? raw.namespace.trim().slice(0, 128) : "",
+    node: typeof raw.node === "string" ? raw.node.trim().slice(0, 128) : "",
+    resource: isListResourceKey(raw.resource) ? raw.resource : "",
+    name: typeof raw.name === "string" ? raw.name.trim().slice(0, 256) : "",
+  };
+}
+
+function normalizeResourceMacroDefinition(input: unknown, fallbackId: string): ResourceMacroDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<ResourceMacroDefinition>;
+  const id = normalizeResourceTagId(raw.id) || fallbackId;
+  const macroName = normalizeResourceMacroName(raw.macroName);
+  const value = typeof raw.value === "string" ? raw.value.trim().slice(0, 2048) : "";
+  if (!macroName || !value) return null;
+  return {
+    id,
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : true,
+    macroName,
+    value,
+    scope: normalizeResourceMacroScopeRef(raw.scope),
+  };
+}
+
+function normalizeResourceMacroExtractor(input: unknown, fallbackId: string): ResourceMacroExtractorDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<ResourceMacroExtractorDefinition>;
+  const id = normalizeResourceTagId(raw.id) || fallbackId;
+  const macroName = normalizeResourceMacroName(raw.macroName);
+  const source = allowedMacroExtractorSources.has(raw.source as ResourceMacroExtractorSource)
+    ? raw.source as ResourceMacroExtractorSource
+    : "name";
+  const pattern = typeof raw.pattern === "string" ? raw.pattern.trim() : "";
+  const flags = sanitizeRegexFlags(typeof raw.flags === "string" ? raw.flags : "");
+  const valueTemplate = typeof raw.valueTemplate === "string" && raw.valueTemplate.trim()
+    ? raw.valueTemplate.trim().slice(0, 512)
+    : "$1";
+  const transform = allowedMacroExtractorTransforms.has(raw.transform as ResourceMacroExtractorTransform)
+    ? raw.transform as ResourceMacroExtractorTransform
+    : "none";
+  if (!macroName || !pattern) return null;
+  try {
+    new RegExp(pattern, flags);
+  } catch {
+    return null;
+  }
+  const resources = Array.isArray(raw.resources)
+    ? Array.from(new Set(raw.resources.filter(isListResourceKey)))
+    : [];
+  return {
+    id,
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : true,
+    macroName,
+    resources,
+    source,
+    key: typeof raw.key === "string" ? raw.key.trim().slice(0, 256) : "",
+    pattern,
+    flags,
+    valueTemplate,
+    transform,
+  };
+}
+
+function normalizeResourceMacrosSettings(input: unknown): ResourceMacrosSettings {
+  const defaults = defaultResourceMacrosSettings();
+  if (!input || typeof input !== "object") return defaults;
+  const raw = input as Partial<ResourceMacrosSettings>;
+  const definitions: ResourceMacroDefinition[] = [];
+  const definitionIds = new Set<string>();
+  (Array.isArray(raw.definitions) ? raw.definitions : []).forEach((definition, index) => {
+    const normalized = normalizeResourceMacroDefinition(definition, `macro-${index + 1}`);
+    if (!normalized || definitionIds.has(normalized.id)) return;
+    definitionIds.add(normalized.id);
+    definitions.push(normalized);
+  });
+  const extractors: ResourceMacroExtractorDefinition[] = [];
+  const extractorIds = new Set<string>();
+  (Array.isArray(raw.extractors) ? raw.extractors : []).forEach((extractor, index) => {
+    const normalized = normalizeResourceMacroExtractor(extractor, `extractor-${index + 1}`);
+    if (!normalized || extractorIds.has(normalized.id)) return;
+    extractorIds.add(normalized.id);
+    extractors.push(normalized);
+  });
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
+    maxResolveDepth: validNumber(raw.maxResolveDepth, 3, 20, defaults.maxResolveDepth),
+    definitions,
+    extractors,
+  };
+}
+
+function normalizeDynamicLinkDefinition(input: unknown, fallbackId: string): DynamicLinkDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<DynamicLinkDefinition>;
+  const id = normalizeResourceTagId(raw.id) || fallbackId;
+  const label = typeof raw.label === "string" ? raw.label.trim().replace(/\s+/g, " ").slice(0, 64) : "";
+  const urlTemplate = typeof raw.urlTemplate === "string" ? raw.urlTemplate.trim().slice(0, 2048) : "";
+  if (!label || !urlTemplate) return null;
+  return {
+    id,
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : true,
+    label,
+    urlTemplate,
+  };
+}
+
+function normalizeDynamicLinksSettings(input: unknown): DynamicLinksSettings {
+  const defaults = defaultDynamicLinksSettings();
+  if (!input || typeof input !== "object") return defaults;
+  const raw = input as Partial<DynamicLinksSettings>;
+  const definitions: DynamicLinkDefinition[] = [];
+  const seenIds = new Set<string>();
+  (Array.isArray(raw.definitions) ? raw.definitions : []).forEach((definition, index) => {
+    const normalized = normalizeDynamicLinkDefinition(definition, `link-${index + 1}`);
+    if (!normalized || seenIds.has(normalized.id)) return;
+    seenIds.add(normalized.id);
+    definitions.push(normalized);
+  });
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
+    definitions,
   };
 }
 
@@ -1608,6 +1826,8 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     appearance: fallbackAsV1.appearance,
     smartFilters: fallbackAsV1.smartFilters,
     resourceTags: normalizeResourceTagsSettings(root.resourceTags),
+    resourceMacros: normalizeResourceMacrosSettings(root.resourceMacros),
+    dynamicLinks: normalizeDynamicLinksSettings(root.dynamicLinks),
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,
@@ -1653,6 +1873,8 @@ export function exportUserSettingsJSON(settings: KviewUserSettingsV2): string {
 
 export const settingsTransferSections: Array<{ id: SettingsTransferSection; label: string }> = [
   { id: "resourceTags", label: "Resource tags" },
+  { id: "resourceMacros", label: "Resource macros" },
+  { id: "dynamicLinks", label: "Dynamic links" },
   { id: "favourites", label: "Favourite namespaces" },
   { id: "smartFilters", label: "Smart filters" },
   { id: "customCommands", label: "Custom commands" },
@@ -1683,6 +1905,8 @@ export function exportSettingsTransferJSON(input: {
   };
   if (selected.has("smartFilters")) bundle.sections.smartFilters = serialized.smartFilters;
   if (selected.has("resourceTags")) bundle.sections.resourceTags = serialized.resourceTags;
+  if (selected.has("resourceMacros")) bundle.sections.resourceMacros = serialized.resourceMacros;
+  if (selected.has("dynamicLinks")) bundle.sections.dynamicLinks = serialized.dynamicLinks;
   if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
   if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
   if (selected.has("favourites")) {
@@ -1740,6 +1964,12 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   if ("resourceTags" in sections) {
     out.sections.resourceTags = validateUserSettings({ ...defaults, resourceTags: sections.resourceTags })?.resourceTags;
   }
+  if ("resourceMacros" in sections) {
+    out.sections.resourceMacros = validateUserSettings({ ...defaults, resourceMacros: sections.resourceMacros })?.resourceMacros;
+  }
+  if ("dynamicLinks" in sections) {
+    out.sections.dynamicLinks = validateUserSettings({ ...defaults, dynamicLinks: sections.dynamicLinks })?.dynamicLinks;
+  }
   if ("customCommands" in sections) {
     out.sections.customCommands = validateUserSettings({ ...defaults, customCommands: sections.customCommands })?.customCommands;
   }
@@ -1785,6 +2015,12 @@ export function applySettingsTransferBundle(input: {
   if (selected.has("resourceTags") && input.bundle.sections.resourceTags) {
     nextSettings = mergeSettingsSection(nextSettings, "resourceTags", input.bundle.sections.resourceTags, input.strategy);
   }
+  if (selected.has("resourceMacros") && input.bundle.sections.resourceMacros) {
+    nextSettings = mergeSettingsSection(nextSettings, "resourceMacros", input.bundle.sections.resourceMacros, input.strategy);
+  }
+  if (selected.has("dynamicLinks") && input.bundle.sections.dynamicLinks) {
+    nextSettings = mergeSettingsSection(nextSettings, "dynamicLinks", input.bundle.sections.dynamicLinks, input.strategy);
+  }
   if (selected.has("customCommands") && input.bundle.sections.customCommands) {
     nextSettings = mergeSettingsSection(nextSettings, "customCommands", input.bundle.sections.customCommands, input.strategy);
   }
@@ -1800,7 +2036,7 @@ export function applySettingsTransferBundle(input: {
   return { settings: nextSettings, appState: nextAppState };
 }
 
-function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "customCommands" | "customActions">(
+function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resourceMacros" | "dynamicLinks" | "customCommands" | "customActions">(
   settings: KviewUserSettingsV2,
   section: K,
   incoming: KviewUserSettingsV2[K],
@@ -1811,6 +2047,18 @@ function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "custo
     return {
       ...settings,
       resourceTags: mergeResourceTags(settings.resourceTags, incoming as ResourceTagsSettings, strategy),
+    };
+  }
+  if (section === "resourceMacros") {
+    return {
+      ...settings,
+      resourceMacros: mergeResourceMacros(settings.resourceMacros, incoming as ResourceMacrosSettings, strategy),
+    };
+  }
+  if (section === "dynamicLinks") {
+    return {
+      ...settings,
+      dynamicLinks: mergeDynamicLinks(settings.dynamicLinks, incoming as DynamicLinksSettings, strategy),
     };
   }
   if (section === "smartFilters") {
@@ -1835,6 +2083,32 @@ function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "custo
     customActions: {
       actions: mergeById(settings.customActions.actions, (incoming as KviewUserSettingsV2["customActions"]).actions, strategy),
     },
+  };
+}
+
+function mergeResourceMacros(
+  current: ResourceMacrosSettings,
+  incoming: ResourceMacrosSettings,
+  strategy: SettingsTransferMergeStrategy,
+): ResourceMacrosSettings {
+  if (strategy === "replaceSections") return incoming;
+  return {
+    enabled: strategy === "useImported" ? incoming.enabled : current.enabled,
+    maxResolveDepth: strategy === "useImported" ? incoming.maxResolveDepth : current.maxResolveDepth,
+    definitions: mergeById(current.definitions, incoming.definitions, strategy),
+    extractors: mergeById(current.extractors, incoming.extractors, strategy),
+  };
+}
+
+function mergeDynamicLinks(
+  current: DynamicLinksSettings,
+  incoming: DynamicLinksSettings,
+  strategy: SettingsTransferMergeStrategy,
+): DynamicLinksSettings {
+  if (strategy === "replaceSections") return incoming;
+  return {
+    enabled: strategy === "useImported" ? incoming.enabled : current.enabled,
+    definitions: mergeById(current.definitions, incoming.definitions, strategy),
   };
 }
 

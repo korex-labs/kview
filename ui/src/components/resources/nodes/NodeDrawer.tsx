@@ -182,7 +182,12 @@ export default function NodeDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="nodes" title={<>Node: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="nodes"
+        title={<>Node: {name || "-"}</>}
+        dynamicLinks={{ resource: "nodes", name, nodeName: name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
+        onClose={props.onClose}
+      >
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   Box,
   Checkbox,
+  Divider,
   ListItemText,
   Menu,
   MenuItem,
@@ -92,14 +93,31 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
       <AppIconButton tooltip="Edit resource tags" label="Edit resource tags" disabled={!enabled} onClick={(event) => setAnchorEl(event.currentTarget)}>
         <LocalOfferOutlinedIcon fontSize="small" />
       </AppIconButton>
-      <Menu anchorEl={anchorEl} open={open} onClose={() => setAnchorEl(null)} keepMounted>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={() => setAnchorEl(null)}
+        keepMounted
+        slotProps={{ paper: { sx: { width: 320, maxWidth: "calc(100vw - 32px)" } } }}
+      >
+        <MenuItem disabled sx={{ opacity: 1 }}>
+          <ListItemText
+            primary="Resource tags"
+            secondary="Select direct tags for this drawer scope."
+            slotProps={{
+              primary: { variant: "body2", sx: { fontWeight: 600 } },
+              secondary: { variant: "caption" },
+            }}
+          />
+        </MenuItem>
+        <Divider />
         {settings.resourceTags.definitions.length === 0 ? (
           <MenuItem disabled>
             <ListItemText primary="No tags defined" secondary="Create tags in Settings" />
           </MenuItem>
         ) : (
           settings.resourceTags.definitions.map((tag) => (
-            <MenuItem key={tag.id} onClick={() => toggleTag(tag.id)} dense>
+            <MenuItem key={tag.id} onClick={() => toggleTag(tag.id)} dense sx={{ minHeight: 34 }}>
               <Checkbox size="small" checked={directSet.has(tag.id)} />
               <Box
                 aria-hidden
@@ -113,19 +131,33 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
                   mr: 1,
                 }}
               />
-              <ListItemText primary={tag.name} />
+              <ListItemText
+                primary={tag.name}
+                slotProps={{ primary: { variant: "body2", noWrap: true } }}
+              />
             </MenuItem>
           ))
         )}
         {inherited.length > 0 ? (
-          <MenuItem disabled>
-            <ListItemText
-              primary="Inherited"
-              secondary={inherited.map((tag) => tag.name).join(", ")}
-            />
-          </MenuItem>
+          <>
+            <Divider />
+            <MenuItem disabled>
+              <ListItemText
+                primary="Inherited"
+                secondary={inherited.map((tag) => tag.name).join(", ")}
+                slotProps={{
+                  primary: { variant: "body2", sx: { fontWeight: 600 } },
+                  secondary: { variant: "caption", sx: { whiteSpace: "normal", overflowWrap: "anywhere" } },
+                }}
+              />
+            </MenuItem>
+          </>
         ) : null}
-        <Box sx={{ px: 1, py: 0.75 }}>
+        <Divider />
+        <Box sx={{ px: 1, py: 0.75, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            {directTagIds.length} assigned
+          </Typography>
           <AppButton
             startIcon={<AddIcon />}
             onClick={() => setAnchorEl(null)}

@@ -262,6 +262,7 @@ export default function CronJobDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        dynamicLinks={{ resource: "cronjobs", namespace: ns, name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (

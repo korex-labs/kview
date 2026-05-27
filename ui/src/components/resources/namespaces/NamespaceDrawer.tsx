@@ -64,6 +64,7 @@ import Section from "../../shared/Section";
 import EventsPanel from "../../shared/EventsPanel";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import { ResourceDrawerTags } from "../../shared/ResourceTags";
+import { ResourceDrawerMacros } from "../../shared/ResourceMacros";
 import NamespaceSignalsTab from "./NamespaceSignalsTab";
 import PodDrawer from "../pods/PodDrawer";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
@@ -355,7 +356,18 @@ export default function NamespaceDrawer(props: {
         resourceIcon="namespaces"
         title={<>Namespace: {name || "-"}</>}
         headerMeta={<ResourceDrawerTags resource="namespaces" name={name} />}
-        headerActions={<ResourceDrawerTags resource="namespaces" name={name} mode="edit" />}
+        dynamicLinks={{ resource: "namespaces", name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
+        headerActions={
+          <>
+            <ResourceDrawerMacros
+              resource="namespaces"
+              name={name}
+              labels={details?.metadata?.labels}
+              annotations={details?.metadata?.annotations}
+            />
+            <ResourceDrawerTags resource="namespaces" name={name} mode="edit" />
+          </>
+        }
         onClose={props.onClose}
       >
         {insightsLoading ? (

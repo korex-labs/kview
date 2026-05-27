@@ -66,6 +66,9 @@ import {
   type DataplaneSettings,
   type KeyboardSettings,
   type KviewUserSettingsV2,
+  type DynamicLinkDefinition,
+  type ResourceMacroDefinition,
+  type ResourceMacroExtractorDefinition,
   type ResourceTagDefinition,
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
@@ -94,7 +97,7 @@ import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 
-type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "commands" | "actions" | "dataplane" | "importExport";
+type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 
 type Props = {
@@ -150,6 +153,7 @@ const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconNa
   { id: "keyboard", label: "Keyboard", icon: "keyboard" },
   { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
   { id: "resourceTags", label: "Resource Tags", icon: "resourceTags" },
+  { id: "linksMacros", label: "Links & Macros", icon: "resourceTags" },
   { id: "commands", label: "Custom Commands", icon: "commands" },
   { id: "actions", label: "Custom Actions", icon: "actions" },
   { id: "dataplane", label: "Dataplane", icon: "dataplane" },
@@ -326,6 +330,26 @@ function updateResourceTags(
   };
 }
 
+function updateResourceMacros(
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["resourceMacros"]>,
+): KviewUserSettingsV2 {
+  return {
+    ...settings,
+    resourceMacros: { ...settings.resourceMacros, ...patch },
+  };
+}
+
+function updateDynamicLinks(
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["dynamicLinks"]>,
+): KviewUserSettingsV2 {
+  return {
+    ...settings,
+    dynamicLinks: { ...settings.dynamicLinks, ...patch },
+  };
+}
+
 function updateKeyboard(
   settings: KviewUserSettingsV2,
   patch: Partial<KeyboardSettings>,
@@ -374,6 +398,51 @@ function newResourceTagDefinition(usedColors: readonly string[]): ResourceTagDef
     name: "New tag",
     color: suggestedResourceTagColor(usedColors),
   };
+}
+
+function newResourceMacroDefinition(): ResourceMacroDefinition {
+  return {
+    id: `macro-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    enabled: true,
+    macroName: "JIRA_URL",
+    value: "https://jira.example.com",
+    scope: { scope: "global", context: "", namespace: "", node: "", resource: "", name: "" },
+  };
+}
+
+function newResourceMacroExtractor(): ResourceMacroExtractorDefinition {
+  return {
+    id: `extractor-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    enabled: true,
+    macroName: "JIRA_ISSUE",
+    resources: [],
+    source: "name",
+    key: "",
+    pattern: "([A-Z]+-[0-9]+)",
+    flags: "",
+    valueTemplate: "$1",
+    transform: "none",
+  };
+}
+
+function newDynamicLinkDefinition(): DynamicLinkDefinition {
+  return {
+    id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    enabled: true,
+    label: "External link",
+    urlTemplate: "$JIRA_URL/browse/$JIRA_ISSUE",
+  };
+}
+
+function parseResourceList(value: string): ListResourceKey[] {
+  const allowed = new Set(smartFilterResourceKeysForScope("all"));
+  return Array.from(new Set(value.split(",").map((item) => item.trim()).filter((item): item is ListResourceKey =>
+    allowed.has(item as ListResourceKey),
+  )));
+}
+
+function selectValues(primary: string, values: readonly string[]): string[] {
+  return Array.from(new Set([primary, ...values].map((value) => value.trim()).filter(Boolean)));
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -1575,13 +1644,14 @@ export default function SettingsView({
         checked={settings.resourceTags.cleanupMissingAssignments}
         onChange={(v) => setSettings((prev) => updateResourceTags(prev, { cleanupMissingAssignments: v }))}
       />
+      <FieldGroup label="Tag definitions">
       {settings.resourceTags.definitions.length === 0 ? (
         <Alert severity="info" variant="outlined">
           Define at least one tag to start tagging resources.
         </Alert>
       ) : null}
       {settings.resourceTags.definitions.map((tag, index) => (
-        <Paper key={tag.id} variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box key={tag.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
           <Box sx={headerRowSx}>
             <ResourceTagChip tag={{ ...tag, inherited: false }} />
             <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
@@ -1654,8 +1724,227 @@ export default function SettingsView({
               </Box>
             </SettingField>
           </SettingGrid>
-        </Paper>
+        </Box>
       ))}
+      </FieldGroup>
+    </SettingSection>
+  );
+
+  const setMacroDefinition = (index: number, patch: Partial<ResourceMacroDefinition>) => {
+    setSettings((prev) => {
+      const definitions = prev.resourceMacros.definitions.map((definition, i) =>
+        i === index ? { ...definition, ...patch } : definition,
+      );
+      return updateResourceMacros(prev, { definitions });
+    });
+  };
+
+  const setMacroExtractor = (index: number, patch: Partial<ResourceMacroExtractorDefinition>) => {
+    setSettings((prev) => {
+      const extractors = prev.resourceMacros.extractors.map((extractor, i) =>
+        i === index ? { ...extractor, ...patch } : extractor,
+      );
+      return updateResourceMacros(prev, { extractors });
+    });
+  };
+
+  const setDynamicLink = (index: number, patch: Partial<DynamicLinkDefinition>) => {
+    setSettings((prev) => {
+      const definitions = prev.dynamicLinks.definitions.map((definition, i) =>
+        i === index ? { ...definition, ...patch } : definition,
+      );
+      return updateDynamicLinks(prev, { definitions });
+    });
+  };
+  const macroContextOptions = useMemo(() => selectValues(activeContext, contexts.map((ctx) => ctx.name)), [activeContext, contexts]);
+  const macroNamespaceOptions = useMemo(() => selectValues(activeNamespace, namespaces), [activeNamespace, namespaces]);
+  const resourceOptions = useMemo(() => smartFilterResourceKeysForScope("all"), []);
+
+  const renderLinksMacros = () => (
+    <SettingSection
+      title="Links & Macros"
+      icon={<SettingsIcon name="resourceTags" />}
+      hint="Resource macros and dynamic links are local settings. They are resolved in resource drawers from names, labels, annotations, and scoped manual values."
+    >
+      <SettingRow
+        label="Enable resource macros"
+        hint="Allows manual and extracted macros to be resolved for resource drawers."
+        checked={settings.resourceMacros.enabled}
+        onChange={(v) => setSettings((prev) => updateResourceMacros(prev, { enabled: v }))}
+      />
+      <SettingRow
+        label="Enable dynamic links"
+        hint="Shows resolved external links in supported resource drawer headers."
+        checked={settings.dynamicLinks.enabled}
+        onChange={(v) => setSettings((prev) => updateDynamicLinks(prev, { enabled: v }))}
+      />
+      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Manual Macros</Typography>
+        <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { definitions: [...prev.resourceMacros.definitions, newResourceMacroDefinition()] }))}>
+          Add macro
+        </AppButton>
+      </Box>
+      <FieldGroup label="Manual macro definitions">
+        {settings.resourceMacros.definitions.length === 0 ? (
+          <Alert severity="info" variant="outlined">Define shared values such as JIRA_URL or GITLAB_URL.</Alert>
+        ) : null}
+        {settings.resourceMacros.definitions.map((definition, index) => (
+          <Box key={definition.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+            <Box sx={headerRowSx}>
+              <Chip size="small" label={`$${definition.macroName}`} />
+              <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+                {definition.scope.scope}
+              </Typography>
+              <ReorderButtons
+                label={`macro ${index + 1}`}
+                index={index}
+                lastIndex={settings.resourceMacros.definitions.length - 1}
+                onUp={() => setSettings((prev) => updateResourceMacros(prev, { definitions: moveItem(prev.resourceMacros.definitions, index, -1) }))}
+                onDown={() => setSettings((prev) => updateResourceMacros(prev, { definitions: moveItem(prev.resourceMacros.definitions, index, 1) }))}
+                onRemove={() => setSettings((prev) => updateResourceMacros(prev, { definitions: prev.resourceMacros.definitions.filter((_, i) => i !== index) }))}
+              />
+            </Box>
+            <SettingRow
+              label="Enabled"
+              checked={definition.enabled}
+              onChange={(v) => setMacroDefinition(index, { enabled: v })}
+            />
+            <SettingGrid variant="auto">
+              <SettingField label="Macro" value={definition.macroName} onChange={(value) => setMacroDefinition(index, { macroName: value.replace(/^\$/, "").toUpperCase() })} />
+              <SettingField label="Value" value={definition.value} onChange={(value) => setMacroDefinition(index, { value })} />
+              <SettingField label="Scope">
+                <TextField select size="small" value={definition.scope.scope} onChange={(event) => setMacroDefinition(index, { scope: { ...definition.scope, scope: event.target.value as ResourceMacroDefinition["scope"]["scope"] } })} fullWidth>
+                  {["global", "context", "namespace", "node", "resource"].map((scope) => <MenuItem key={scope} value={scope}>{scope}</MenuItem>)}
+                </TextField>
+              </SettingField>
+              {definition.scope.scope !== "global" ? (
+                <SettingField label="Context">
+                  <TextField select size="small" value={definition.scope.context} onChange={(event) => setMacroDefinition(index, { scope: { ...definition.scope, context: event.target.value } })} fullWidth>
+                    <MenuItem value="">Any context</MenuItem>
+                    {macroContextOptions.map((contextName) => <MenuItem key={contextName} value={contextName}>{contextName}</MenuItem>)}
+                  </TextField>
+                </SettingField>
+              ) : null}
+              {definition.scope.scope === "namespace" || definition.scope.scope === "resource" ? (
+                <SettingField label="Namespace">
+                  <TextField select size="small" value={definition.scope.namespace} onChange={(event) => setMacroDefinition(index, { scope: { ...definition.scope, namespace: event.target.value } })} fullWidth>
+                    <MenuItem value="">Any namespace</MenuItem>
+                    {macroNamespaceOptions.map((namespaceName) => <MenuItem key={namespaceName} value={namespaceName}>{namespaceName}</MenuItem>)}
+                  </TextField>
+                </SettingField>
+              ) : null}
+              {definition.scope.scope === "node" ? (
+                <SettingField label="Node" value={definition.scope.node} onChange={(value) => setMacroDefinition(index, { scope: { ...definition.scope, node: value } })} placeholder="Any node" />
+              ) : null}
+              {definition.scope.scope === "resource" ? (
+                <>
+                  <SettingField label="Resource">
+                    <TextField select size="small" value={definition.scope.resource} onChange={(event) => setMacroDefinition(index, { scope: { ...definition.scope, resource: event.target.value as ListResourceKey | "" } })} fullWidth>
+                      <MenuItem value="">Any resource type</MenuItem>
+                      {resourceOptions.map((resource) => <MenuItem key={resource} value={resource}>{getResourceLabel(resource)}</MenuItem>)}
+                    </TextField>
+                  </SettingField>
+                  <SettingField label="Name" value={definition.scope.name} onChange={(value) => setMacroDefinition(index, { scope: { ...definition.scope, name: value } })} placeholder="Any resource name" />
+                </>
+              ) : null}
+            </SettingGrid>
+          </Box>
+        ))}
+      </FieldGroup>
+
+      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Extracted Macros</Typography>
+        <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { extractors: [...prev.resourceMacros.extractors, newResourceMacroExtractor()] }))}>Add extractor</AppButton>
+      </Box>
+      <FieldGroup label="Extractor definitions">
+        {settings.resourceMacros.extractors.length === 0 ? (
+          <Alert severity="info" variant="outlined">Add an extractor to derive macros from names, labels, or annotations.</Alert>
+        ) : null}
+        {settings.resourceMacros.extractors.map((extractor, index) => (
+          <Box key={extractor.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+            <Box sx={headerRowSx}>
+              <Chip size="small" label={`$${extractor.macroName}`} />
+              <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+                {extractor.source}
+              </Typography>
+              <ReorderButtons
+                label={`extractor ${index + 1}`}
+                index={index}
+                lastIndex={settings.resourceMacros.extractors.length - 1}
+                onUp={() => setSettings((prev) => updateResourceMacros(prev, { extractors: moveItem(prev.resourceMacros.extractors, index, -1) }))}
+                onDown={() => setSettings((prev) => updateResourceMacros(prev, { extractors: moveItem(prev.resourceMacros.extractors, index, 1) }))}
+                onRemove={() => setSettings((prev) => updateResourceMacros(prev, { extractors: prev.resourceMacros.extractors.filter((_, i) => i !== index) }))}
+              />
+            </Box>
+            <SettingRow label="Enabled" checked={extractor.enabled} onChange={(v) => setMacroExtractor(index, { enabled: v })} />
+            <SettingGrid variant="auto">
+              <SettingField label="Macro" value={extractor.macroName} onChange={(value) => setMacroExtractor(index, { macroName: value.replace(/^\$/, "").toUpperCase() })} />
+              <SettingField label="Resources">
+                <TextField
+                  select
+                  size="small"
+                  value={extractor.resources}
+                  onChange={(event) => setMacroExtractor(index, { resources: typeof event.target.value === "string" ? parseResourceList(event.target.value) : event.target.value as ListResourceKey[] })}
+                  fullWidth
+                  slotProps={{ select: { multiple: true } }}
+                >
+                  {resourceOptions.map((resource) => <MenuItem key={resource} value={resource}>{getResourceLabel(resource)}</MenuItem>)}
+                </TextField>
+              </SettingField>
+              <SettingField label="Source">
+                <TextField select size="small" value={extractor.source} onChange={(event) => setMacroExtractor(index, { source: event.target.value as ResourceMacroExtractorDefinition["source"] })} fullWidth>
+                  {["name", "label", "annotation"].map((source) => <MenuItem key={source} value={source}>{source}</MenuItem>)}
+                </TextField>
+              </SettingField>
+              <SettingField label="Key" value={extractor.key} onChange={(value) => setMacroExtractor(index, { key: value })} disabled={extractor.source === "name"} />
+              <SettingField label="Pattern" value={extractor.pattern} onChange={(value) => setMacroExtractor(index, { pattern: value })} />
+              <SettingField label="Flags" value={extractor.flags} onChange={(value) => setMacroExtractor(index, { flags: sanitizeRegexFlags(value) })} />
+              <SettingField label="Value template" value={extractor.valueTemplate} onChange={(value) => setMacroExtractor(index, { valueTemplate: value })} />
+              <SettingField label="Transform">
+                <TextField select size="small" value={extractor.transform} onChange={(event) => setMacroExtractor(index, { transform: event.target.value as ResourceMacroExtractorDefinition["transform"] })} fullWidth>
+                  <MenuItem value="none">None</MenuItem>
+                  <MenuItem value="uppercase">Uppercase</MenuItem>
+                  <MenuItem value="lowercase">Lowercase</MenuItem>
+                  <MenuItem value="ucfirst">Uppercase first letter</MenuItem>
+                </TextField>
+              </SettingField>
+            </SettingGrid>
+          </Box>
+        ))}
+      </FieldGroup>
+
+      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Dynamic Links</Typography>
+        <AppButton intent="primary" onClick={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: [...prev.dynamicLinks.definitions, newDynamicLinkDefinition()] }))}>Add link</AppButton>
+      </Box>
+      <FieldGroup label="Link definitions">
+        {settings.dynamicLinks.definitions.length === 0 ? (
+          <Alert severity="info" variant="outlined">Add a link template such as $GITLAB_URL/$GITLAB_PROJECT.</Alert>
+        ) : null}
+        {settings.dynamicLinks.definitions.map((link, index) => (
+          <Box key={link.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+            <Box sx={headerRowSx}>
+              <Chip size="small" label={link.label || "Link"} />
+              <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                {link.urlTemplate}
+              </Typography>
+              <ReorderButtons
+                label={`dynamic link ${index + 1}`}
+                index={index}
+                lastIndex={settings.dynamicLinks.definitions.length - 1}
+                onUp={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: moveItem(prev.dynamicLinks.definitions, index, -1) }))}
+                onDown={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: moveItem(prev.dynamicLinks.definitions, index, 1) }))}
+                onRemove={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: prev.dynamicLinks.definitions.filter((_, i) => i !== index) }))}
+              />
+            </Box>
+            <SettingRow label="Enabled" checked={link.enabled} onChange={(v) => setDynamicLink(index, { enabled: v })} />
+            <SettingGrid variant="auto">
+              <SettingField label="Label" value={link.label} onChange={(value) => setDynamicLink(index, { label: value })} />
+              <SettingField label="URL template" value={link.urlTemplate} onChange={(value) => setDynamicLink(index, { urlTemplate: value })} />
+            </SettingGrid>
+          </Box>
+        ))}
+      </FieldGroup>
     </SettingSection>
   );
 
@@ -3023,6 +3312,7 @@ export default function SettingsView({
         {section === "keyboard" ? renderKeyboard() : null}
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "resourceTags" ? renderResourceTags() : null}
+        {section === "linksMacros" ? renderLinksMacros() : null}
         {section === "commands" ? renderCustomCommands() : null}
         {section === "actions" ? renderCustomActions() : null}
         {section === "dataplane" ? renderDataplane() : null}

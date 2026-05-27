@@ -15,6 +15,7 @@ import podsWorkloads from "../../../docs/user/pods-workloads.md?raw";
 import rbac from "../../../docs/user/rbac.md?raw";
 import resourceDrawers from "../../../docs/user/resource-drawers.md?raw";
 import resourceLists from "../../../docs/user/resource-lists.md?raw";
+import resourceMacrosDynamicLinks from "../../../docs/user/resource-macros-dynamic-links.md?raw";
 import resourceTags from "../../../docs/user/resource-tags.md?raw";
 import settings from "../../../docs/user/settings.md?raw";
 import smartFilters from "../../../docs/user/smart-filters.md?raw";
@@ -67,6 +68,7 @@ const pageBodies: Record<string, string> = {
   rbac,
   "resource-drawers": resourceDrawers,
   "resource-lists": resourceLists,
+  "resource-macros-dynamic-links": resourceMacrosDynamicLinks,
   "resource-tags": resourceTags,
   settings,
   "smart-filters": smartFilters,

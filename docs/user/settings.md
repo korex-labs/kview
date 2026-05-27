@@ -93,6 +93,25 @@ resource tags and do not create Kubernetes labels or annotations.
 When **Cleanup missing resource assignments** is on, a fresh list that confirms
 a resource is gone removes direct tag assignments in that visible scope.
 
+## Links And Macros
+
+Links & Macros are optional and off by default. They are stored only in kview
+settings.
+
+When **Enable resource macros** is on, kview can resolve manual macros and
+macros extracted from supported resource drawer data. Manual macros can be
+scoped globally or to a context, namespace, node, or resource. Extracted macros
+can read a resource name, label, or annotation with a regular expression.
+
+When **Enable dynamic links** is on, supported resource drawers show links
+whose URL templates resolve completely. Links with missing macros are hidden.
+Rendered links appear in the drawer header under the title, next to any tag
+summary.
+In drawer headers that support local resource tags, the macro edit control can
+assign manual macros to the current namespace, pod, or resource without typing
+the scope by hand. The same menu can show inherited and extracted macros when
+that extra context is needed.
+
 ## Custom Commands
 
 Custom commands run against matching pod containers. Define the command, output

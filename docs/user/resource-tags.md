@@ -20,6 +20,8 @@ to the cluster.
   list confirms the resource is gone.
 - **Add tag**: creates a tag definition with name and color.
 - **Tag assignment menu**: opens from supported drawer headers.
+- **Dynamic link chips**: when Links & Macros are enabled and a link resolves,
+  link chips appear next to tag chips in the drawer header.
 
 ## Optional Behavior
 

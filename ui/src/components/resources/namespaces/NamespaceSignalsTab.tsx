@@ -31,6 +31,7 @@ import StatusChip from "../../shared/StatusChip";
 import SignalAckButton from "../../shared/SignalAckButton";
 import SignalInvestigationButton from "../../shared/SignalInvestigationButton";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
   signalCalculatedText,

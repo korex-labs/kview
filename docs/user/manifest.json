@@ -141,6 +141,13 @@
       "surfaces": ["app", "repo", "website"]
     },
     {
+      "id": "resource-macros-dynamic-links",
+      "title": "Resource Macros And Dynamic Links",
+      "category": "Configuration",
+      "source": "resource-macros-dynamic-links.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
       "id": "custom-commands-actions",
       "title": "Custom Commands And Actions",
       "category": "Configuration",

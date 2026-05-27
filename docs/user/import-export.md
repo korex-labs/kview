@@ -15,9 +15,9 @@ Transfer bundles are section-based and are the preferred format for sharing
 settings with a team. A transfer bundle can include only the sections selected
 at export time.
 
-Exportable sections include Smart Filters, Resource Tags, Custom Commands,
-Custom Actions, Dataplane settings, favourite namespaces, recent namespaces,
-and signal acknowledgements when available.
+Exportable sections include Smart Filters, Resource Tags, Resource Macros,
+Dynamic Links, Custom Commands, Custom Actions, Dataplane settings, favourite
+namespaces, recent namespaces, and signal acknowledgements when available.
 
 When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
@@ -47,6 +47,8 @@ profile import replaces the current settings profile after confirmation.
   to share operator workflows without changing someone else's UI preferences.
 - Export **Resource Tags** and favourites when moving investigation context to
   another browser profile.
+- Export **Resource Macros** and **Dynamic Links** to share external-link
+  templates without changing someone else's local UI preferences.
 - Export a full profile before testing broad Dataplane or signal changes.
 - Review transfer bundle sections before importing and select only the parts
   you expect to change.
@@ -62,6 +64,7 @@ them and RBAC allows the operation.
 
 - **Smart Filters**
 - **Resource Tags**
+- **Resource Macros And Dynamic Links**
 - **Custom Commands**
 - **Custom Actions**
 - **Dataplane**

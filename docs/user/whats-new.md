@@ -6,6 +6,9 @@ repository.
 
 ## Recent Highlights
 
+- Resource drawers can now show Dynamic Links built from local Resource
+  Macros, including manually scoped values and values extracted from resource
+  names, labels, or annotations.
 - Signal rows now use a consistent action pattern across the dashboard,
   namespace drawers, and resource drawer attention banners: severity,
   acknowledgement, and **Investigate signal**.

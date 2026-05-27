@@ -38,6 +38,7 @@ import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import { ResourceDrawerTags } from "../../shared/ResourceTags";
+import { ResourceDrawerMacros } from "../../shared/ResourceMacros";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type { DashboardSignalItem } from "../../../types/api";
@@ -312,7 +313,25 @@ export default function DeploymentDrawer(props: {
           </>
         }
         headerMeta={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} />}
-        headerActions={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} mode="edit" />}
+        dynamicLinks={{
+          resource: "deployments",
+          namespace: ns,
+          name,
+          labels: details?.spec?.metadata?.labels,
+          annotations: details?.spec?.metadata?.annotations,
+        }}
+        headerActions={
+          <>
+            <ResourceDrawerMacros
+              resource="deployments"
+              namespace={ns}
+              name={name}
+              labels={details?.spec?.metadata?.labels}
+              annotations={details?.spec?.metadata?.annotations}
+            />
+            <ResourceDrawerTags resource="deployments" namespace={ns} name={name} mode="edit" />
+          </>
+        }
         onClose={props.onClose}
       >
         {loading ? (

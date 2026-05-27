@@ -280,6 +280,7 @@ export default function JobDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        dynamicLinks={{ resource: "jobs", namespace: ns, name, labels: details?.spec?.metadata?.labels, annotations: details?.spec?.metadata?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (

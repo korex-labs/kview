@@ -279,6 +279,7 @@ export default function ReplicaSetDrawer(props: {
             <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} />
           </>
         }
+        dynamicLinks={{ resource: "replicasets", namespace: ns, name, labels: details?.spec?.metadata?.labels, annotations: details?.spec?.metadata?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (

@@ -13,12 +13,22 @@ import { useKeyboardControls, type ContextualKeyboardAction } from "../../keyboa
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import type { ResourceIconName } from "../icons/resources/types";
 import { AppIconButton } from "./AppActions";
+import ResourceDynamicLinks from "./ResourceDynamicLinks";
+import type { ListResourceKey } from "../../utils/k8sResources";
 
 export type ResourceDrawerShellProps = {
   /** Header title (e.g. "Pod: my-pod" or a fragment with chips). */
   title: React.ReactNode;
   resourceIcon?: ResourceIconName;
   headerMeta?: React.ReactNode;
+  dynamicLinks?: {
+    resource: ListResourceKey;
+    namespace?: string | null;
+    name?: string | null;
+    nodeName?: string | null;
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
   headerActions?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
@@ -71,6 +81,7 @@ export default function ResourceDrawerShell({
   title,
   resourceIcon,
   headerMeta,
+  dynamicLinks,
   headerActions,
   onClose,
   children,
@@ -283,7 +294,12 @@ export default function ResourceDrawerShell({
           <Typography variant="h6" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
             {title}
           </Typography>
-          {headerMeta ? <Box sx={{ mt: 0.75, minWidth: 0 }}>{headerMeta}</Box> : null}
+          {headerMeta || dynamicLinks ? (
+            <Box sx={{ mt: 0.75, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+              {headerMeta ? <Box sx={{ display: "contents" }}>{headerMeta}</Box> : null}
+              {dynamicLinks ? <ResourceDynamicLinks {...dynamicLinks} /> : null}
+            </Box>
+          ) : null}
         </Box>
         {headerActions ? (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, flexShrink: 0, mt: 0.25 }}>

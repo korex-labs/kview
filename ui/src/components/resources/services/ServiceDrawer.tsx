@@ -379,6 +379,7 @@ export default function ServiceDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        dynamicLinks={{ resource: "services", namespace: ns, name, labels: details?.summary?.labels, annotations: details?.summary?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (

@@ -221,6 +221,7 @@ export default function ConfigMapDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        dynamicLinks={{ resource: "configmaps", namespace: ns, name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
         onClose={props.onClose}
       >
         {loading ? (
