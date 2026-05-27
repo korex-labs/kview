@@ -102,6 +102,74 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Post("/dataplane/signals/investigate", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req dataplane.SignalInvestigationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal investigation request"})
+			return
+		}
+		if strings.TrimSpace(req.Signal.Kind) == "" && strings.TrimSpace(req.Signal.ResourceKind) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing signal resource kind"})
+			return
+		}
+
+		active := s.readContextName(r)
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
+		defer cancel()
+
+		scope := strings.TrimSpace(req.Signal.Scope)
+		namespace := firstNonEmptyServerString(req.Signal.Namespace, req.Signal.ScopeLocation)
+		if scope == "" {
+			if namespace != "" {
+				scope = dataplane.ResourceSignalsScopeNamespace
+			} else {
+				scope = dataplane.ResourceSignalsScopeCluster
+			}
+		}
+		kind := firstNonEmptyServerString(req.Signal.ResourceKind, req.Signal.Kind)
+		name := firstNonEmptyServerString(req.Signal.ResourceName, req.Signal.Name, req.Signal.Namespace)
+		if strings.EqualFold(kind, "Namespace") {
+			scope = dataplane.ResourceSignalsScopeCluster
+			namespace = ""
+			name = firstNonEmptyServerString(req.Signal.ResourceName, req.Signal.Name, req.Signal.Namespace, req.Signal.ScopeLocation)
+		}
+
+		resourceResult, resourceErr := s.dp.ResourceSignals(ctx, active, scope, namespace, kind, name)
+		if resourceErr != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to load resource signals")
+			return
+		}
+		namespaceSignals := resourceResult.Signals
+		if scope == dataplane.ResourceSignalsScopeNamespace && namespace != "" {
+			nsResult, err := s.dp.NamespaceInsightsProjection(ctx, active, namespace)
+			if err == nil {
+				namespaceSignals = append(namespaceSignals, nsResult.Insights.Signals...)
+			}
+		}
+		item := dataplane.BuildSignalInvestigation(req.Signal, resourceResult.Signals, namespaceSignals, resourceResult.Meta)
+		if clients, _, err := s.clientsForRequest(ctx, r); err == nil {
+			helpers := runSignalInvestigationHelpers(ctx, clients, item.PrimaryResource)
+			dataplane.ApplySignalInvestigationHelpers(&item, helpers)
+		} else {
+			dataplane.ApplySignalInvestigationHelpers(&item, []dataplane.SignalInvestigationHelperRun{{
+				Name:   "resource helpers",
+				Status: "unavailable",
+				Unknowns: []dataplane.SignalInvestigationItem{{
+					Label: "Cluster client",
+					Value: err.Error(),
+				}},
+			}})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   item,
+		})
+	})
+
 	api.Get("/dataplane/signals/ack/export", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
@@ -373,4 +441,13 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"active": active})
 	})
+}
+
+func firstNonEmptyServerString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

@@ -205,6 +205,61 @@ export type DashboardSignalItem = {
   acknowledgementComment?: string;
 };
 
+export type SignalInvestigationResourceRef = {
+  kind: string;
+  namespace?: string;
+  name: string;
+  relation: string;
+  confidence?: string;
+  evidence?: string;
+};
+
+export type SignalInvestigationItem = {
+  label: string;
+  value: string;
+};
+
+export type SignalInvestigationSection = {
+  title: string;
+  items: SignalInvestigationItem[];
+};
+
+export type SignalInvestigationDiagnosis = {
+  summary: string;
+  confidence: string;
+  evidence?: SignalInvestigationItem[];
+  nextSteps?: SignalInvestigationItem[];
+  unknowns?: SignalInvestigationItem[];
+};
+
+export type SignalInvestigationHelperRun = {
+  name: string;
+  status: string;
+  summary?: string;
+  evidence?: SignalInvestigationItem[];
+  nextSteps?: SignalInvestigationItem[];
+  unknowns?: SignalInvestigationItem[];
+};
+
+export type SignalInvestigationResult = {
+  signal: DashboardSignalItem;
+  diagnosis: SignalInvestigationDiagnosis;
+  helpers?: SignalInvestigationHelperRun[];
+  primaryResource: SignalInvestigationResourceRef;
+  relatedResources?: SignalInvestigationResourceRef[];
+  relatedSignals?: DashboardSignalItem[];
+  contextSignals?: DashboardSignalItem[];
+  evidenceSections?: SignalInvestigationSection[];
+  exportMarkdown: string;
+  generatedAt: number;
+  meta?: {
+    freshness?: string;
+    coverage?: string;
+    degradation?: string;
+    observedAt?: string;
+  };
+};
+
 export type SignalOverride = {
   enabled?: boolean;
   severity?: "low" | "medium" | "high";

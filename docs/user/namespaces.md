@@ -29,6 +29,12 @@ events, metadata, and YAML. Namespace insights can link from a namespace-level
 signal to the exact resource that contributed to it when that identity is
 available.
 
+The namespace **Signals** section uses the same signal action pattern as the
+dashboard: severity, acknowledgement, and investigation. When a namespace list
+row reports a signal because a contained resource needs attention, the drawer
+also includes a fallback signal for that problematic resource so the list badge
+and drawer signal table stay aligned.
+
 The **Capacity** tab shows:
 
 - namespace resource usage from cached pod metrics when metrics.k8s.io is

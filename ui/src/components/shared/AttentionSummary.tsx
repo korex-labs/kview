@@ -3,9 +3,11 @@ import { Box, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import type { DashboardSignalItem } from "../../types/api";
 import type { ChipColor } from "../../utils/k8sUi";
-import SignalHintIcons from "./SignalHintIcons";
 import SignalAckButton from "./SignalAckButton";
+import SignalInvestigationButton from "./SignalInvestigationButton";
+import SignalInvestigationDialog from "./SignalInvestigationDialog";
 import StatusChip from "./StatusChip";
+import { signalHistoryKey, signalWithHistoryKey } from "./signalIdentity";
 import { signalCalculatedText, signalMetaText, signalSeverityColor } from "./signalFormat";
 
 export type AttentionHealth = {
@@ -58,16 +60,18 @@ function isEmpty(props: AttentionSummaryProps): boolean {
 export default function AttentionSummary(props: AttentionSummaryProps) {
   const { signals = [], token, onSignalAckChanged } = props;
   const [localAcknowledged, setLocalAcknowledged] = React.useState<Set<string>>(() => new Set());
+  const [investigationSignal, setInvestigationSignal] = React.useState<DashboardSignalItem | null>(null);
   if (isEmpty(props)) return null;
 
   const openSignals = signals.filter((signal) => {
-    const key = signal.historyKey || "";
+    const key = signalHistoryKey(signal);
     return !signal.acknowledged && !(key && localAcknowledged.has(key));
   });
   if (openSignals.length === 0) return null;
   const previewSignals = openSignals;
 
   return (
+    <>
     <Box>
       <Box
         sx={{
@@ -90,6 +94,7 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
         {signals.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
             {previewSignals.slice(0, 3).map((signal, idx) => {
+              const actionableSignal = signalWithHistoryKey(signal);
               const calculated = signalCalculatedText(signal);
               const meta = signalMetaText(signal, true);
               return (
@@ -108,24 +113,26 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                         {calculated}
                       </Typography>
                     ) : null}
-                    <SignalHintIcons likelyCause={signal.likelyCause} suggestedAction={signal.suggestedAction} />
                     {token ? (
-                      <SignalAckButton
-                        token={token}
-                        signal={signal}
-                        onChanged={(acknowledged) => {
-                          const key = signal.historyKey || "";
-                          if (key) {
-                            setLocalAcknowledged((current) => {
-                              const next = new Set(current);
-                              if (acknowledged) next.add(key);
-                              else next.delete(key);
-                              return next;
-                            });
-                          }
-                          onSignalAckChanged?.();
-                        }}
-                      />
+                      <>
+                        <SignalAckButton
+                          token={token}
+                          signal={actionableSignal}
+                          onChanged={(acknowledged) => {
+                            const key = signalHistoryKey(actionableSignal);
+                            if (key) {
+                              setLocalAcknowledged((current) => {
+                                const next = new Set(current);
+                                if (acknowledged) next.add(key);
+                                else next.delete(key);
+                                return next;
+                              });
+                            }
+                            onSignalAckChanged?.();
+                          }}
+                        />
+                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                      </>
                     ) : null}
                   </Box>
                   {meta ? (
@@ -145,5 +152,13 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
         ) : null}
       </Box>
     </Box>
+    {token ? (
+      <SignalInvestigationDialog
+        token={token}
+        signal={investigationSignal}
+        onClose={() => setInvestigationSignal(null)}
+      />
+    ) : null}
+    </>
   );
 }

@@ -13,6 +13,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { apiDelete, apiPost } from "../../api";
 import type { DashboardSignalItem } from "../../types/api";
 import { AppIconButton, DialogActionButton } from "./AppActions";
+import { signalHistoryKey } from "./signalIdentity";
 
 type Props = {
   token: string;
@@ -26,7 +27,7 @@ export default function SignalAckButton({ token, signal, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(!!signal.acknowledged);
 
-  const historyKey = signal.historyKey || "";
+  const historyKey = signalHistoryKey(signal);
   if (!historyKey) return null;
 
   const title = acknowledged

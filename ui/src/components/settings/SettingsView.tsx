@@ -31,7 +31,6 @@ import { useTheme, type Theme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
@@ -2726,11 +2725,6 @@ export default function SettingsView({
                         <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
                           <Typography variant="subtitle2">{item.label}</Typography>
                           <InfoHint title={`Signal type: ${item.type}. Reason: ${item.likelyCause || item.calculatedData || "Backend-defined dataplane signal."}`} />
-                          {item.suggestedAction ? (
-                            <AppIconButton tooltip={`Next step: ${item.suggestedAction}`} label={`${item.label} suggested action`} sx={{ p: 0.25 }}>
-                              <BuildOutlinedIcon fontSize="inherit" />
-                            </AppIconButton>
-                          ) : null}
                           {changed ? <ScopeTag state="overridden" onReset={() => resetSignalCard(item.type)} tooltip={customTooltip} /> : null}
                         </Box>
                         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>

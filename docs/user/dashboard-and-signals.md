@@ -21,7 +21,14 @@ Use the dashboard to answer:
 - **Signal sorting**: changes signal order by priority, severity, resource, or
   seen timestamps.
 - **Signal acknowledgement**: marks a signal as known without treating it as
-  resolved.
+  resolved. kview shows this action beside signal severity in the dashboard,
+  namespace signal tables, and resource drawer attention banners when signal
+  actions are available.
+- **Investigate signal**: opens a read-only investigation dialog for the
+  selected signal. The dialog groups the selected signal, primary resource,
+  related cached signals, related resources, and a copyable Markdown debug
+  bundle for manual analysis. kview shows this action next to acknowledgement
+  so the same signal can be either parked as known or investigated further.
 - **Inspect actions**: open the relevant resource drawer or navigate to a
   related list when kview can map the signal to a target.
 
@@ -67,6 +74,48 @@ Signals are backend-produced and designed for triage. A signal can include:
 Signals are heuristics over visible data. They are useful for prioritization,
 but should be confirmed from resource details, events, logs, and YAML before
 making risky changes.
+
+## Signal Investigation
+
+Use **Investigate signal** when you want more context before deciding what
+changed or what to check next.
+
+The investigation dialog is read-only. It uses cached dataplane signal evidence
+to show:
+
+- the selected signal and its current advisory text
+- the primary resource the signal points to
+- a short diagnosis, most relevant evidence, next steps, and unknowns
+- read-only helper findings from targeted Events, supported YAML checks, and
+  Pod log snippets when they produce useful evidence
+- other cached signals on the same resource as strong evidence
+- namespace or same-type matches as weak context, not direct relations
+- a Markdown debug bundle that can be copied into notes or an external LLM
+
+The first investigation helpers can read object-scoped Events, fetch supported
+resource YAML, check selector/template consistency, verify referenced Secrets,
+ConfigMaps, PVCs, and service accounts, and inspect a small current/previous
+Pod log tail for common failure patterns. Helpers that do not find useful
+evidence stay quiet so the dialog focuses on findings instead of empty checks.
+They do not run hidden repairs and do not mutate the cluster. For full logs,
+complete event history, and full YAML, use the resource drawer tabs after
+reviewing the bundle's targeted checks.
+
+## Signal Actions In Drawers
+
+Resource drawer attention banners use the same action order as dashboard
+signals:
+
+- severity chip
+- signal reason and calculated detail
+- **Acknowledge signal**
+- **Investigate signal**
+
+Some detail signals are created from drawer-only or list-level evidence. When
+the backend has not assigned a stored signal history key yet, kview derives a
+stable local key so acknowledgement and investigation still appear together.
+Acknowledgement remains a triage marker only; it does not change Kubernetes
+state and does not mark the resource healthy.
 
 ## Signal Customization
 

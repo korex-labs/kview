@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
@@ -133,8 +134,28 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	}), policy, clusterName)...)...)
 	sorted := signals.Summary(signals.Len(), ClusterDashboardListOptions{SignalsLimit: signals.Len()})
 	out.Insights.Signals = namespaceInsightSignalsFromDashboard(sorted.Items)
-	out.Insights.ResourceSignals = namespaceInsightResourceSignalsFromDashboard(signals.ResourceSignals())
+	fallbackSignals := namespaceFallbackSignalsForProblematic(now, namespace, out.Insights.Summary.Problematic, plane, policy, clusterName)
+	if len(fallbackSignals) > 0 {
+		out.Insights.Signals = dedupeNamespaceSignals(append(out.Insights.Signals, fallbackSignals...))
+	}
+	out.Insights.ResourceSignals = namespaceInsightResourceSignalsFromSignals(out.Insights.Signals)
 	return out, nil
+}
+
+func namespaceFallbackSignalsForProblematic(now time.Time, namespace string, problematic []dto.ProblematicResource, plane *clusterPlane, policy DataplanePolicy, clusterName string) []dto.NamespaceInsightSignalDTO {
+	if len(problematic) == 0 || plane == nil || namespace == "" {
+		return nil
+	}
+	out := make([]dto.NamespaceInsightSignalDTO, 0, len(problematic))
+	for _, resource := range problematic {
+		if resource.Kind == "" || resource.Name == "" {
+			continue
+		}
+		out = append(out, fallbackSignalsForResource(now, ResourceSignalsScopeNamespace, namespace, resource.Kind, resource.Name, plane, 0)...)
+	}
+	out = applyNamespaceSignalPolicy(out, policy, clusterName)
+	out = dedupeNamespaceSignals(out)
+	return out
 }
 
 // NamespaceInsightSignalsFromDashboard converts dashboard signal items into
@@ -187,15 +208,64 @@ func namespaceInsightSignalsFromDashboard(items []ClusterDashboardSignal) []dto.
 	return out
 }
 
-func namespaceInsightResourceSignalsFromDashboard(items []dashboardSignalResourceSignals) []dto.NamespaceResourceSignalsDTO {
-	out := make([]dto.NamespaceResourceSignalsDTO, 0, len(items))
+func namespaceInsightResourceSignalsFromSignals(items []dto.NamespaceInsightSignalDTO) []dto.NamespaceResourceSignalsDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	type key struct {
+		kind          string
+		name          string
+		scope         string
+		scopeLocation string
+	}
+	grouped := make(map[key][]dto.NamespaceInsightSignalDTO)
+	keys := make([]key, 0)
 	for _, item := range items {
+		kind := item.ResourceKind
+		if kind == "" {
+			kind = item.Kind
+		}
+		name := item.ResourceName
+		if name == "" {
+			name = item.Name
+		}
+		if kind == "" || name == "" {
+			continue
+		}
+		scope := item.Scope
+		if scope == "" {
+			scope = ResourceSignalsScopeNamespace
+		}
+		scopeLocation := item.ScopeLocation
+		if scopeLocation == "" && scope == ResourceSignalsScopeNamespace {
+			scopeLocation = item.Namespace
+		}
+		k := key{kind: kind, name: name, scope: scope, scopeLocation: scopeLocation}
+		if _, ok := grouped[k]; !ok {
+			keys = append(keys, k)
+		}
+		grouped[k] = append(grouped[k], item)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].scope != keys[j].scope {
+			return keys[i].scope < keys[j].scope
+		}
+		if keys[i].scopeLocation != keys[j].scopeLocation {
+			return keys[i].scopeLocation < keys[j].scopeLocation
+		}
+		if keys[i].kind != keys[j].kind {
+			return keys[i].kind < keys[j].kind
+		}
+		return keys[i].name < keys[j].name
+	})
+	out := make([]dto.NamespaceResourceSignalsDTO, 0, len(keys))
+	for _, k := range keys {
 		out = append(out, dto.NamespaceResourceSignalsDTO{
-			ResourceKind:  item.ResourceKind,
-			ResourceName:  item.ResourceName,
-			Scope:         item.Scope,
-			ScopeLocation: item.ScopeLocation,
-			Signals:       namespaceInsightSignalsFromDashboard(item.Signals),
+			ResourceKind:  k.kind,
+			ResourceName:  k.name,
+			Scope:         k.scope,
+			ScopeLocation: k.scopeLocation,
+			Signals:       grouped[k],
 		})
 	}
 	return out

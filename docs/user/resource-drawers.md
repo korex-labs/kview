@@ -12,6 +12,9 @@ objects, events, metadata, YAML, and supported actions.
 
 - **Overview tab**: starts with actions and attention-worthy state, then shows
   key operational details.
+- **Attention banner**: shows resource signals in a consistent order: severity,
+  reason, optional calculated detail, **Acknowledge signal**, and
+  **Investigate signal**.
 - **Relation tabs**: show resource-specific relationships such as pods,
   endpoints, owners, subjects, rules, volumes, or Helm objects.
 - **Events tab**: shows Kubernetes events related to the resource when
@@ -40,6 +43,10 @@ later drawers. It is not edited from the Settings form.
 - Open a row with <kbd>Enter</kbd> or double-click.
 - Start from **Overview** to understand attention reasons, conditions, warning
   events, and current state.
+- Use **Acknowledge signal** when a signal is known but not fixed yet.
+- Use **Investigate signal** to open a read-only evidence dialog with related
+  events, YAML checks, log snippets when available, related signals, and a
+  copyable Markdown debug bundle.
 - Use relation tabs to jump from one resource to another without returning to
   the list first.
 - Use **Events** before mutating when a resource is failing or recently changed.

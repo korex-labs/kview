@@ -21,12 +21,14 @@ import type {
   DashboardSignalItem,
   DashboardSignalsPanel as DashboardSignalsPanelData,
 } from "../../../types/api";
-import SignalHintIcons from "../../shared/SignalHintIcons";
 import InfoHint from "../../shared/InfoHint";
 import ScopedCountChip, { activeChipSx } from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import OverflowTooltip from "../../shared/OverflowTooltip";
 import SignalAckButton from "../../shared/SignalAckButton";
+import SignalInvestigationButton from "../../shared/SignalInvestigationButton";
+import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -541,6 +543,7 @@ export default function DashboardSignalsPanel({
   derived,
   loading = false,
 }: Props) {
+  const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
   const topSignals = useMemo(() => signalPanel?.top || [], [signalPanel?.top]);
   const visibleSignals = useMemo(() => signalPanel?.items || [], [signalPanel?.items]);
   const selectedSignalFilters = useMemo(
@@ -837,6 +840,7 @@ export default function DashboardSignalsPanel({
               <TableBody>
               {visibleSignals.map((f) => {
                 const target = inspectTargetFromSignal(f);
+                const actionableSignal = signalWithHistoryKey(f);
                 return (
                   <TableRow
                     key={`${f.kind}/${f.namespace || ""}/${f.name || ""}/${f.reason}`}
@@ -849,7 +853,8 @@ export default function DashboardSignalsPanel({
                     <TableCell sx={statusCellSx}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                         <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
-                        <SignalAckButton token={token} signal={f} />
+                        <SignalAckButton token={token} signal={actionableSignal} />
+                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
                       </Box>
                     </TableCell>
                     <TableCell sx={kindCellSx}>
@@ -866,7 +871,6 @@ export default function DashboardSignalsPanel({
                     <TableCell sx={detailCellSx}>
                       <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                         {f.reason}
-                        <SignalHintIcons likelyCause={f.likelyCause} suggestedAction={f.suggestedAction} />
                       </Typography>
                       {signalCalculatedText(f) ? (
                         <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
@@ -908,6 +912,11 @@ export default function DashboardSignalsPanel({
           />
         ) : null}
       </Box>
+      <SignalInvestigationDialog
+        token={token}
+        signal={investigationSignal}
+        onClose={() => setInvestigationSignal(null)}
+      />
     </Paper>
   );
 }

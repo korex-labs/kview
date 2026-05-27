@@ -12,7 +12,6 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import { AppIconButton } from "../../shared/AppActions";
 import type {
   DashboardSignalItem,
   NamespacePodHealth,
@@ -30,6 +29,9 @@ import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import SignalAckButton from "../../shared/SignalAckButton";
+import SignalInvestigationButton from "../../shared/SignalInvestigationButton";
+import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -128,6 +130,7 @@ export default function NamespaceSignalsTab({
 }: Props) {
   const [seenSortMode, setSeenSortMode] = useState<SeenSortMode>("priority");
   const [seenSortAnchor, setSeenSortAnchor] = useState<null | HTMLElement>(null);
+  const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
 
   function handleProblematic(resource: NamespaceProblematicResource) {
     switch (resource.kind) {
@@ -373,46 +376,50 @@ export default function NamespaceSignalsTab({
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedSignals.map((signal, index) => (
-                <TableRow
-                  key={`${signal.kind}-${signal.name || signal.namespace || index}`}
-                  hover
-                  sx={{ cursor: "pointer" }}
-                  onClick={() => handleSignal(signal)}
-                  title={signalTooltipText(signal)}
-                >
-                  <TableCell>
-                    <Chip size="small" label={signal.kind} />
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {signalTarget(signal)}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
-                      <SignalAckButton token={token} signal={signal} />
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
-                    <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        F {signalFirstSeenText(signal)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        L {signalLastSeenText(signal)}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ width: "auto" }}>
-                    <Typography variant="body2">{signal.reason}</Typography>
-                    {signalCalculatedText(signal) ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        {signalCalculatedText(signal)}
-                      </Typography>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sortedSignals.map((signal, index) => {
+                const actionableSignal = signalWithHistoryKey(signal);
+                return (
+                  <TableRow
+                    key={`${signal.kind}-${signal.name || signal.namespace || index}`}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => handleSignal(signal)}
+                    title={signalTooltipText(signal)}
+                  >
+                    <TableCell>
+                      <Chip size="small" label={signal.kind} />
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {signalTarget(signal)}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
+                        <SignalAckButton token={token} signal={actionableSignal} />
+                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
+                      <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          F {signalFirstSeenText(signal)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          L {signalLastSeenText(signal)}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ width: "auto" }}>
+                      <Typography variant="body2">{signal.reason}</Typography>
+                      {signalCalculatedText(signal) ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                          {signalCalculatedText(signal)}
+                        </Typography>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -450,6 +457,11 @@ export default function NamespaceSignalsTab({
           </Box>
         </Section>
       )}
+      <SignalInvestigationDialog
+        token={token}
+        signal={investigationSignal}
+        onClose={() => setInvestigationSignal(null)}
+      />
     </Box>
   );
 }

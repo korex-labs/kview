@@ -6,6 +6,14 @@ repository.
 
 ## Recent Highlights
 
+- Signal rows now use a consistent action pattern across the dashboard,
+  namespace drawers, and resource drawer attention banners: severity,
+  acknowledgement, and **Investigate signal**.
+- **Investigate signal** opens a read-only evidence dialog with targeted
+  Events, YAML, and Pod log helpers when those helpers find useful information,
+  plus related signals and a copyable Markdown debug bundle.
+- Namespace drawers now keep list signal badges and drawer signal tables
+  aligned by adding fallback signals for problematic resources when needed.
 - Dashboard signal filters now support namespace groups, newest detections, and
   tagged resources, making it easier to isolate the clusters and workloads that
   need attention.
