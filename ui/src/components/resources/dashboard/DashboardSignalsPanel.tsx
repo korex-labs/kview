@@ -25,8 +25,7 @@ import InfoHint from "../../shared/InfoHint";
 import ScopedCountChip, { activeChipSx } from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import OverflowTooltip from "../../shared/OverflowTooltip";
-import SignalAckButton from "../../shared/SignalAckButton";
-import SignalInvestigationButton from "../../shared/SignalInvestigationButton";
+import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
@@ -321,7 +320,7 @@ const filterChipSx = {
   maxWidth: { xs: "100%", sm: "none" },
 } satisfies SxProps<Theme>;
 
-const statusCellSx = { pl: 0, width: { xs: 112, lg: 124 } };
+const statusCellSx = { pl: 0, width: { xs: 124, lg: 132 } };
 const kindCellSx = { width: { xs: 116, lg: 132, xl: 148 } };
 const resourceCellSx = { width: { xs: 220, md: "30%", xl: "34%" }, minWidth: 0 };
 const detailCellSx = { width: "auto", minWidth: 0 };
@@ -851,10 +850,9 @@ export default function DashboardSignalsPanel({
                     sx={target ? { cursor: "pointer" } : undefined}
                   >
                     <TableCell sx={statusCellSx}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap", whiteSpace: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
-                        <SignalAckButton token={token} signal={actionableSignal} />
-                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                        <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
                       </Box>
                     </TableCell>
                     <TableCell sx={kindCellSx}>

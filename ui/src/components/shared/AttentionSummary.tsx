@@ -3,8 +3,7 @@ import { Box, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import type { DashboardSignalItem } from "../../types/api";
 import type { ChipColor } from "../../utils/k8sUi";
-import SignalAckButton from "./SignalAckButton";
-import SignalInvestigationButton from "./SignalInvestigationButton";
+import SignalActions from "./SignalActions";
 import SignalInvestigationDialog from "./SignalInvestigationDialog";
 import StatusChip from "./StatusChip";
 import { signalHistoryKey, signalWithHistoryKey } from "./signalIdentity";
@@ -114,11 +113,11 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                       </Typography>
                     ) : null}
                     {token ? (
-                      <>
-                        <SignalAckButton
+                      <SignalActions
                           token={token}
                           signal={actionableSignal}
-                          onChanged={(acknowledged) => {
+                          onInvestigate={setInvestigationSignal}
+                          onAckChanged={(acknowledged) => {
                             const key = signalHistoryKey(actionableSignal);
                             if (key) {
                               setLocalAcknowledged((current) => {
@@ -131,8 +130,6 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                             onSignalAckChanged?.();
                           }}
                         />
-                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
-                      </>
                     ) : null}
                   </Box>
                   {meta ? (

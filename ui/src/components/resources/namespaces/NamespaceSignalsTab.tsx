@@ -28,8 +28,7 @@ import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
-import SignalAckButton from "../../shared/SignalAckButton";
-import SignalInvestigationButton from "../../shared/SignalInvestigationButton";
+import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
 import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
@@ -359,7 +358,7 @@ export default function NamespaceSignalsTab({
               <TableRow>
                 <TableCell sx={{ width: 96 }}>Kind</TableCell>
                 <TableCell sx={{ width: 168 }}>Target</TableCell>
-                <TableCell sx={{ width: 96 }}>Signal</TableCell>
+                <TableCell sx={{ width: 124 }}>Signal</TableCell>
                 <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
                     <span>Seen</span>
@@ -393,11 +392,10 @@ export default function NamespaceSignalsTab({
                     <TableCell sx={{ fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {signalTarget(signal)}
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <TableCell sx={{ width: 124, whiteSpace: "nowrap" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
-                        <SignalAckButton token={token} signal={actionableSignal} />
-                        <SignalInvestigationButton signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                        <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
                       </Box>
                     </TableCell>
                     <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
