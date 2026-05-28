@@ -3,7 +3,7 @@ module github.com/korex-labs/kview/v5
 go 1.26.0
 
 require (
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
