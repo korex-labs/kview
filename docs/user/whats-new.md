@@ -6,15 +6,17 @@ repository.
 
 ## Recent Highlights
 
-- Resource drawers can now show Dynamic Links built from local Resource
+- Signal workflows now include **Investigate signal**, which opens a read-only
+  evidence dialog with targeted Events, YAML, Pod log helpers, related
+  signals, and a copyable Markdown debug bundle for faster triage.
+- Resource drawers can now show Dynamic Links built from reusable Resource
   Macros, including manually scoped values and values extracted from resource
-  names, labels, or annotations.
-- Signal rows now use a consistent action pattern across the dashboard,
-  namespace drawers, and resource drawer attention banners: severity,
-  acknowledgement, and **Investigate signal**.
-- **Investigate signal** opens a read-only evidence dialog with targeted
-  Events, YAML, and Pod log helpers when those helpers find useful information,
-  plus related signals and a copyable Markdown debug bundle.
+  names, labels, and annotations.
+- Signal actions now stay on one row across dashboard, namespace, and resource
+  signal surfaces, keeping acknowledgement and investigation controls easier to
+  scan during triage.
+- In-app Help now includes dedicated guidance for configuring Resource Macros
+  and Dynamic Links.
 - Namespace drawers now keep list signal badges and drawer signal tables
   aligned by adding fallback signals for problematic resources when needed.
 - Dashboard signal filters now support namespace groups, newest detections, and

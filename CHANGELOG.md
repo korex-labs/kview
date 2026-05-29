@@ -3,6 +3,24 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.10.0 - 2026-05-29
+
+- Added a signal investigation workflow so operators can open **Investigate
+  signal** from dashboard, namespace, and resource signal surfaces to review
+  targeted Events, YAML, Pod log helpers, related signals, and a copyable
+  Markdown debug bundle in one place.
+- Added Resource Macros and Dynamic Links, letting teams define reusable links
+  from manually scoped values plus resource names, labels, and annotations,
+  then open those links directly from supported resource drawers.
+- Kept signal action controls on one row across signal tables and attention
+  banners, making acknowledgement and investigation actions easier to scan
+  during triage.
+- Expanded release coverage for the new investigation and macro workflows with
+  backend, dataplane, and frontend tests, and added in-app Help content for
+  Resource Macros and Dynamic Links.
+- Refreshed Go and npm dependencies and tightened backend log stream cleanup to
+  keep the release current and the investigation helpers more robust.
+
 ## v5.9.0 - 2026-05-18
 
 - Expanded dashboard signal filtering so operators can narrow attention by
