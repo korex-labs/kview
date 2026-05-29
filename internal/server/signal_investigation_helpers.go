@@ -274,7 +274,7 @@ func readAndAnalyzeContainerLogs(ctx context.Context, clients *cluster.Clients, 
 	if err != nil {
 		return nil, err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(stream, 64*1024))
 	if err != nil {
 		return nil, err
