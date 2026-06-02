@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -14,8 +14,11 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { AppButton, DialogActionButton } from "./AppActions";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { apiPostWithContext, toApiError } from "../../api";
 import { useActiveContext } from "../../activeContext";
 
@@ -25,6 +28,9 @@ type YamlActionDetails = {
   resourceVersion?: string;
   updatedResourceVersion?: string;
   namespaced?: boolean;
+  patchYaml?: string;
+  patchJson?: string;
+  emptyPatch?: boolean;
   risk?: {
     severity?: "success" | "info" | "warning" | "error";
     title?: string;
@@ -73,6 +79,8 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
     changedPaths?: string[];
   }>(null);
   const [normalizedYaml, setNormalizedYaml] = useState("");
+  const [patchYaml, setPatchYaml] = useState("");
+  const [emptyPatch, setEmptyPatch] = useState(false);
   const [validatedYaml, setValidatedYaml] = useState("");
   const [validatedVersion, setValidatedVersion] = useState("");
 
@@ -87,6 +95,8 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
     setImmutableHints([]);
     setServerRisk(null);
     setNormalizedYaml("");
+    setPatchYaml("");
+    setEmptyPatch(false);
     setValidatedYaml("");
     setValidatedVersion("");
   }, [open, initialYaml]);
@@ -104,6 +114,7 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
   const canApply =
     !!validatedYaml &&
     !dirtySinceValidation &&
+    !emptyPatch &&
     manifestLooksComplete &&
     typedName === target.name &&
     busy === null;
@@ -135,12 +146,12 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
       .join("  |  ");
   }, [activeContext, target.kind, target.name, target.namespace]);
 
-  async function runAction(action: "resource.yaml.validate" | "resource.yaml.apply") {
+  async function runAction(action: "resource.patch.validate" | "resource.patch.apply") {
     if (!activeContext) {
       setError("Missing active context.");
       return null;
     }
-    setBusy(action === "resource.yaml.validate" ? "validate" : "apply");
+    setBusy(action === "resource.patch.validate" ? "validate" : "apply");
     setError("");
     setImmutableHints([]);
     setServerRisk(null);
@@ -167,11 +178,13 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
       setWarnings(Array.isArray(details.warnings) ? details.warnings.filter(Boolean) : []);
       setServerRisk(details.risk || null);
       setNormalizedYaml(typeof details.normalizedYaml === "string" ? details.normalizedYaml : "");
+      setPatchYaml(typeof details.patchYaml === "string" ? details.patchYaml : "");
+      setEmptyPatch(details.emptyPatch === true);
       setMessage(result?.message || "");
       return details;
     } catch (err) {
       const apiErr = toApiError(err);
-      setError(apiErr.message);
+      setError(compactKubernetesError(apiErr.message));
       setImmutableHints(extractImmutableHints(apiErr.message));
       setMessage("");
       return null;
@@ -181,7 +194,7 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
   }
 
   async function handleValidate() {
-    const details = await runAction("resource.yaml.validate");
+    const details = await runAction("resource.patch.validate");
     if (!details) return;
     setValidatedYaml(yamlText);
     setValidatedVersion(details.resourceVersion || "");
@@ -189,7 +202,7 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
 
   async function handleApply() {
     if (!canApply) return;
-    const details = await runAction("resource.yaml.apply");
+    const details = await runAction("resource.patch.apply");
     if (!details) return;
     setValidatedVersion(details.updatedResourceVersion || details.resourceVersion || validatedVersion);
     onApplied?.();
@@ -198,18 +211,18 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
 
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>Edit Live YAML</DialogTitle>
+      <DialogTitle>Patch Live YAML</DialogTitle>
       <DialogContent>
         <Stack spacing={2}>
           <Alert severity="warning">
-            This updates the live cluster object directly. Reconcile the change later in Git, Helm, or your source of truth.
+            This applies a generated patch to the live cluster object. Reconcile the change later in Git, Helm, or your source of truth.
           </Alert>
           <Box>
             <Typography variant="body2" color="text.secondary">
               {targetSummary}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Validation requires a single object, matching identity, and the current `metadata.resourceVersion`.
+              Validation requires a single object, matching identity, and the loaded `metadata.resourceVersion`.
             </Typography>
           </Box>
 
@@ -278,6 +291,11 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
               YAML changed after the last validation. Validate again before applying.
             </Alert>
           )}
+          {validatedYaml && !dirtySinceValidation && emptyPatch && (
+            <Alert severity="info">
+              The validated YAML does not produce a patch from the loaded object.
+            </Alert>
+          )}
           {!manifestLooksComplete && (
             <Alert severity="info">
               The editor content does not yet look like a complete Kubernetes object. `apiVersion`, `kind`, and
@@ -285,31 +303,14 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
             </Alert>
           )}
 
-          <TextField
+          <YamlEditor
             value={yamlText}
-            onChange={(e) => {
-              setYamlText(e.target.value);
+            onChange={(value) => {
+              setYamlText(value);
               setError("");
               setMessage("");
             }}
-            multiline
-            minRows={24}
-            fullWidth
-            spellCheck={false}
             placeholder="Paste a single Kubernetes object YAML."
-            slotProps={{
-              input: {
-                sx: {
-                  fontFamily: "monospace",
-                  alignItems: "stretch",
-                  "& textarea": {
-                    fontFamily: "monospace",
-                    fontSize: "0.85rem",
-                    lineHeight: 1.5,
-                  },
-                },
-              },
-            }}
           />
 
           <Accordion disableGutters>
@@ -328,6 +329,34 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
               </AccordionSummary>
               <AccordionDetails>
                 <YamlDiffPreview lines={normalizedDiffLines} emptyLabel="Sanitized YAML matches the editor content." />
+              </AccordionDetails>
+            </Accordion>
+          )}
+
+          {patchYaml && (
+            <Accordion disableGutters>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="body2">Generated Merge Patch</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box
+                  component="pre"
+                  sx={{
+                    border: "1px solid var(--code-border)",
+                    borderRadius: 1,
+                    backgroundColor: "var(--code-bg)",
+                    color: "var(--code-text)",
+                    m: 0,
+                    p: 1.5,
+                    fontFamily: "monospace",
+                    fontSize: "0.8rem",
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    overflow: "auto",
+                  }}
+                >
+                  {patchYaml}
+                </Box>
               </AccordionDetails>
             </Accordion>
           )}
@@ -372,7 +401,7 @@ export default function YamlEditDialog({ open, onClose, token, target, initialYa
           {busy === "validate" ? "Validating..." : "Validate"}
         </DialogActionButton>
         <DialogActionButton action="warning" onClick={handleApply} disabled={!canApply}>
-          {busy === "apply" ? "Applying..." : "Apply Live Edit"}
+          {busy === "apply" ? "Applying..." : "Apply Live Patch"}
         </DialogActionButton>
       </DialogActions>
     </Dialog>
@@ -383,6 +412,162 @@ type DiffLine = {
   kind: "add" | "remove" | "same";
   text: string;
 };
+
+function YamlEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  const theme = useTheme();
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const gutterRef = useRef<HTMLDivElement | null>(null);
+  const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
+  const code = value || " ";
+  const lineCount = Math.max(1, value.split(/\r?\n/).length);
+  const lineNumbers = useMemo(
+    () => Array.from({ length: lineCount }, (_, idx) => String(idx + 1)),
+    [lineCount],
+  );
+
+  function syncScroll(event: React.UIEvent<HTMLTextAreaElement>) {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = event.currentTarget.scrollTop;
+      highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = event.currentTarget.scrollTop;
+    }
+  }
+
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        height: "min(56vh, 560px)",
+        minHeight: 280,
+        maxHeight: 720,
+        resize: "vertical",
+        overflow: "hidden",
+        border: "1px solid var(--code-border)",
+        borderRadius: 1,
+        backgroundColor: "var(--code-bg)",
+        "&:focus-within": {
+          borderColor: "primary.main",
+          boxShadow: (activeTheme) => `0 0 0 1px ${activeTheme.palette.primary.main}`,
+        },
+      }}
+    >
+      <Box
+        ref={gutterRef}
+        aria-hidden="true"
+        sx={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: 48,
+          overflow: "hidden",
+          py: "12px",
+          pr: 1,
+          boxSizing: "border-box",
+          textAlign: "right",
+          fontFamily: "monospace",
+          fontSize: "0.85rem",
+          lineHeight: 1.5,
+          color: "var(--code-line-number)",
+          backgroundColor: "var(--code-bg)",
+          borderRight: "1px solid var(--code-border)",
+          userSelect: "none",
+        }}
+      >
+        {lineNumbers.map((line) => (
+          <Box key={line} component="div" sx={{ height: "1.5em" }}>
+            {line}
+          </Box>
+        ))}
+      </Box>
+      <Box
+        ref={highlightRef}
+        aria-hidden="true"
+        sx={{
+          position: "absolute",
+          inset: 0,
+          overflow: "auto",
+          pointerEvents: "none",
+          "& pre, & code, & .token": {
+            textShadow: "none !important",
+          },
+          "& pre": {
+            minHeight: "100%",
+          },
+        }}
+      >
+        <SyntaxHighlighter
+          language="yaml"
+          style={prismTheme}
+          customStyle={{
+            margin: 0,
+            minHeight: "100%",
+            background: "transparent",
+            color: "var(--code-text)",
+            textShadow: "none",
+            fontSize: "0.85rem",
+            lineHeight: 1.5,
+            padding: "12px 12px 12px 60px",
+            boxSizing: "border-box",
+          }}
+          codeTagProps={{
+            style: { color: "var(--code-text)", textShadow: "none" },
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </Box>
+      <Box
+        component="textarea"
+        aria-label="Patch YAML"
+        spellCheck={false}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)}
+        onScroll={syncScroll}
+        sx={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          m: 0,
+          p: "12px 12px 12px 60px",
+          border: 0,
+          outline: 0,
+          resize: "none",
+          overflow: "auto",
+          boxSizing: "border-box",
+          backgroundColor: "transparent",
+          color: "transparent",
+          caretColor: "var(--text-primary)",
+          fontFamily: "monospace",
+          fontSize: "0.85rem",
+          lineHeight: 1.5,
+          whiteSpace: "pre",
+          tabSize: 2,
+          "&::placeholder": {
+            color: "text.secondary",
+            opacity: 0.65,
+          },
+          "&::selection": {
+            backgroundColor: "rgba(25, 118, 210, 0.28)",
+            color: "transparent",
+          },
+        }}
+      />
+    </Box>
+  );
+}
 
 function buildYamlDiff(before: string, after: string): DiffLine[] {
   const a = before.split(/\r?\n/);
@@ -503,6 +688,39 @@ function extractImmutableHints(message: string): string[] {
   return Array.from(hints);
 }
 
+function compactKubernetesError(message: string): string {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return message;
+
+  const noisyMarkers = [
+    "valid fields are",
+    "Valid fields are",
+    "supported fields are",
+    "Supported fields are",
+    "allowed fields are",
+    "Allowed fields are",
+    "must be one of:",
+  ];
+  let compact = normalized;
+  for (const marker of noisyMarkers) {
+    const idx = compact.indexOf(marker);
+    if (idx >= 0) {
+      compact = compact.slice(0, idx).trim().replace(/[;,:]\s*$/, "");
+      compact += ". Kubernetes also returned a long list of valid fields, which is hidden here.";
+      break;
+    }
+  }
+
+  const immutableMatch = compact.match(/(.{0,360}field is immutable.{0,220})/i);
+  if (immutableMatch?.[1]) {
+    compact = immutableMatch[1].trim();
+  }
+
+  const maxLength = 900;
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength).trim()}...`;
+}
+
 type RiskSummary = {
   severity: "success" | "info" | "warning" | "error";
   title: string;
@@ -547,10 +765,10 @@ function buildRiskSummary(opts: {
 
   const kind = opts.targetKind.toLowerCase();
   if (/deployment|statefulset|daemonset|job|ingress|service/.test(kind)) {
-    items.push("This is a controller-managed resource; a live edit is fast, but make the durable fix in source control afterward.");
+    items.push("This is a controller-managed resource; a live patch is fast, but make the durable fix in source control afterward.");
   }
   if (controllerManaged) {
-    items.push("Another controller or Helm release may overwrite this live edit after it is applied.");
+    items.push("Another controller or Helm release may overwrite this live patch after it is applied.");
   }
   if (/secret/.test(kind)) {
     items.push("Secret values apply exactly as written; malformed base64 or accidental key edits are easy to miss.");

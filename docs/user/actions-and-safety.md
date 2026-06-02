@@ -32,14 +32,16 @@ Depending on resource type and permissions, actions may include:
 Mutating operations go through a review dialog. Destructive or high-impact
 changes require explicit confirmation before kview sends the request.
 
-## YAML Editing
+## YAML Patching
 
-Supported resources can be edited from the YAML tab. The edit flow keeps the
-resource identity fixed, validates before applying, warns about risky fields,
-and uses confirmation before live apply.
+Supported resources can be patched from the YAML tab. The patch flow opens the
+loaded YAML in an editor, keeps the resource identity fixed, validates the
+generated merge patch before applying, warns about risky fields, and uses
+confirmation before live apply.
 
-If Kubernetes rejects the update because the resource changed, reload the YAML,
-review the diff, and apply again only after confirming the new state.
+If Kubernetes rejects the patch because the resource changed, reload the YAML,
+review the diff and generated patch, and apply again only after confirming the
+new state.
 
 ## Custom Commands And Actions
 

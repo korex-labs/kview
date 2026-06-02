@@ -10,11 +10,13 @@ import (
 	"sort"
 	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -50,6 +52,9 @@ type Result struct {
 	UpdatedVersion  string
 	Namespaced      bool
 	Risk            RiskAssessment
+	PatchJSON       string
+	PatchYAML       string
+	EmptyPatch      bool
 }
 
 type preparedEdit struct {
@@ -57,6 +62,17 @@ type preparedEdit struct {
 	mapping  *apimeta.RESTMapping
 	warnings []string
 	yaml     string
+}
+
+type preparedPatch struct {
+	baseObj    *unstructured.Unstructured
+	editedObj  *unstructured.Unstructured
+	mapping    *apimeta.RESTMapping
+	warnings   []string
+	yaml       string
+	patchJSON  []byte
+	patchYAML  string
+	emptyPatch bool
 }
 
 var (
@@ -123,6 +139,50 @@ func Apply(ctx context.Context, c *cluster.Clients, req Request) (*Result, error
 	}, nil
 }
 
+func ValidatePatch(ctx context.Context, c *cluster.Clients, req Request) (*Result, error) {
+	prepared, err := preparePatch(c, req)
+	if err != nil {
+		return nil, err
+	}
+	ri, err := resourceInterface(c, prepared.mapping, prepared.editedObj.GetNamespace())
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureLiveResourceVersion(ctx, ri, prepared.baseObj.GetName(), prepared.baseObj.GetResourceVersion()); err != nil {
+		return nil, err
+	}
+	if _, err := ri.Patch(ctx, prepared.editedObj.GetName(), types.MergePatchType, prepared.patchJSON, metav1.PatchOptions{
+		DryRun:          []string{metav1.DryRunAll},
+		FieldManager:    fieldManager,
+		FieldValidation: "Strict",
+	}); err != nil {
+		return nil, err
+	}
+	return patchResult(req, prepared, ""), nil
+}
+
+func ApplyPatch(ctx context.Context, c *cluster.Clients, req Request) (*Result, error) {
+	prepared, err := preparePatch(c, req)
+	if err != nil {
+		return nil, err
+	}
+	ri, err := resourceInterface(c, prepared.mapping, prepared.editedObj.GetNamespace())
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureLiveResourceVersion(ctx, ri, prepared.baseObj.GetName(), prepared.baseObj.GetResourceVersion()); err != nil {
+		return nil, err
+	}
+	updated, err := ri.Patch(ctx, prepared.editedObj.GetName(), types.MergePatchType, prepared.patchJSON, metav1.PatchOptions{
+		FieldManager:    fieldManager,
+		FieldValidation: "Strict",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return patchResult(req, prepared, updated.GetResourceVersion()), nil
+}
+
 func prepare(c *cluster.Clients, req Request) (*preparedEdit, error) {
 	obj, err := decodeSingleObject(req.Manifest)
 	if err != nil {
@@ -149,6 +209,61 @@ func prepare(c *cluster.Clients, req Request) (*preparedEdit, error) {
 		mapping:  mapping,
 		warnings: collectWarnings(original, obj),
 		yaml:     normalizedYAML,
+	}, nil
+}
+
+func preparePatch(c *cluster.Clients, req Request) (*preparedPatch, error) {
+	if strings.TrimSpace(req.BaseManifest) == "" {
+		return nil, fmt.Errorf("baseManifest is required for resource patching")
+	}
+	baseObj, err := decodeSingleObject(req.BaseManifest)
+	if err != nil {
+		return nil, fmt.Errorf("decode base YAML: %w", err)
+	}
+	editedObj, err := decodeSingleObject(req.Manifest)
+	if err != nil {
+		return nil, err
+	}
+	original := editedObj.DeepCopy()
+	sanitizeObject(baseObj)
+	sanitizeObject(editedObj)
+	if err := validateIdentity(req, baseObj); err != nil {
+		return nil, fmt.Errorf("base YAML identity: %w", err)
+	}
+	if err := validateIdentity(req, editedObj); err != nil {
+		return nil, err
+	}
+	if editedObj.GetResourceVersion() != baseObj.GetResourceVersion() {
+		return nil, fmt.Errorf("metadata.resourceVersion must stay %q from the loaded YAML", baseObj.GetResourceVersion())
+	}
+	mapping, err := resolveMapping(c, editedObj)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateMapping(req, mapping); err != nil {
+		return nil, err
+	}
+	normalizedYAML, err := marshalYAML(editedObj.Object)
+	if err != nil {
+		return nil, err
+	}
+	patchJSON, err := buildMergePatch(baseObj.Object, editedObj.Object)
+	if err != nil {
+		return nil, err
+	}
+	patchYAML, err := jsonToYAMLString(patchJSON)
+	if err != nil {
+		return nil, err
+	}
+	return &preparedPatch{
+		baseObj:    baseObj,
+		editedObj:  editedObj,
+		mapping:    mapping,
+		warnings:   collectWarnings(original, editedObj),
+		yaml:       normalizedYAML,
+		patchJSON:  patchJSON,
+		patchYAML:  patchYAML,
+		emptyPatch: isEmptyJSONPatch(patchJSON),
 	}, nil
 }
 
@@ -277,11 +392,60 @@ func marshalYAML(object map[string]any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshal object: %w", err)
 	}
+	return jsonToYAMLString(jsonBytes)
+}
+
+func jsonToYAMLString(jsonBytes []byte) (string, error) {
 	yamlBytes, err := yaml.JSONToYAML(jsonBytes)
 	if err != nil {
 		return "", fmt.Errorf("encode YAML: %w", err)
 	}
 	return string(yamlBytes), nil
+}
+
+func buildMergePatch(before, after map[string]any) ([]byte, error) {
+	beforeJSON, err := json.Marshal(before)
+	if err != nil {
+		return nil, fmt.Errorf("marshal base object: %w", err)
+	}
+	afterJSON, err := json.Marshal(after)
+	if err != nil {
+		return nil, fmt.Errorf("marshal edited object: %w", err)
+	}
+	patch, err := jsonpatch.CreateMergePatch(beforeJSON, afterJSON)
+	if err != nil {
+		return nil, fmt.Errorf("build merge patch: %w", err)
+	}
+	return patch, nil
+}
+
+func isEmptyJSONPatch(patch []byte) bool {
+	return strings.TrimSpace(string(patch)) == "{}"
+}
+
+func ensureLiveResourceVersion(ctx context.Context, ri dynamic.ResourceInterface, name, expected string) error {
+	live, err := ri.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if live.GetResourceVersion() != expected {
+		return apierrors.NewConflict(schema.GroupResource{}, name, fmt.Errorf("resourceVersion changed from %q to %q", expected, live.GetResourceVersion()))
+	}
+	return nil
+}
+
+func patchResult(req Request, prepared *preparedPatch, updatedVersion string) *Result {
+	return &Result{
+		Warnings:        prepared.warnings,
+		NormalizedYAML:  prepared.yaml,
+		ResourceVersion: prepared.baseObj.GetResourceVersion(),
+		UpdatedVersion:  updatedVersion,
+		Namespaced:      prepared.mapping.Scope.Name() == apimeta.RESTScopeNameNamespace,
+		Risk:            analyzeRisk(req, prepared.warnings, prepared.editedObj),
+		PatchJSON:       string(prepared.patchJSON),
+		PatchYAML:       prepared.patchYAML,
+		EmptyPatch:      prepared.emptyPatch,
+	}
 }
 
 func collectWarnings(original, sanitized *unstructured.Unstructured) []string {

@@ -167,3 +167,78 @@ data:
 		t.Fatalf("expected populated risk summary, got %#v", risk)
 	}
 }
+
+func TestBuildMergePatchOnlyIncludesChangedFields(t *testing.T) {
+	base, err := decodeSingleObject(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: ns
+  resourceVersion: "7"
+  uid: ignored
+data:
+  keep: same
+  old: value
+`)
+	if err != nil {
+		t.Fatalf("decode base: %v", err)
+	}
+	edited, err := decodeSingleObject(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: ns
+  resourceVersion: "7"
+  uid: ignored
+data:
+  keep: same
+  old: changed
+  added: value
+`)
+	if err != nil {
+		t.Fatalf("decode edited: %v", err)
+	}
+	sanitizeObject(base)
+	sanitizeObject(edited)
+
+	patch, err := buildMergePatch(base.Object, edited.Object)
+	if err != nil {
+		t.Fatalf("build patch: %v", err)
+	}
+	got := string(patch)
+	for _, expected := range []string{`"data"`, `"old":"changed"`, `"added":"value"`} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("expected patch to contain %s, got %s", expected, got)
+		}
+	}
+	for _, unexpected := range []string{`resourceVersion`, `uid`, `apiVersion`, `kind`} {
+		if strings.Contains(got, unexpected) {
+			t.Fatalf("expected patch not to contain %s, got %s", unexpected, got)
+		}
+	}
+}
+
+func TestBuildMergePatchDetectsEmptyPatch(t *testing.T) {
+	obj, err := decodeSingleObject(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: ns
+  resourceVersion: "7"
+data:
+  keep: same
+`)
+	if err != nil {
+		t.Fatalf("decode object: %v", err)
+	}
+	patch, err := buildMergePatch(obj.Object, obj.DeepCopy().Object)
+	if err != nil {
+		t.Fatalf("build patch: %v", err)
+	}
+	if !isEmptyJSONPatch(patch) {
+		t.Fatalf("expected empty patch, got %s", string(patch))
+	}
+}

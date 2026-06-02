@@ -6,6 +6,8 @@ repository.
 
 ## Recent Highlights
 
+- YAML tab actions now apply generated live patches after validation, diff
+  review, risk warnings, and typed confirmation.
 - Signal workflows now include **Investigate signal**, which opens a read-only
   evidence dialog with targeted Events, YAML, Pod log helpers, related
   signals, and a copyable Markdown debug bundle for faster triage.

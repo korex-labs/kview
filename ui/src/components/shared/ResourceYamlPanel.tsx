@@ -5,7 +5,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import CodeBlock from "./CodeBlock";
 import DrawerActionStrip from "./DrawerActionStrip";
 import YamlEditDialog from "./YamlEditDialog";
-import { canPatchOrUpdate, RBAC_DISABLED_REASON, useResourceCapabilities } from "../mutations/useResourceCapabilities";
+import { RBAC_DISABLED_REASON, useResourceCapabilities } from "../mutations/useResourceCapabilities";
 import { useUserSettings } from "../../settingsContext";
 import { AppButton } from "./AppActions";
 
@@ -36,7 +36,7 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
     namespace: target?.namespace || "",
     name: target?.name || "",
   });
-  const canEdit = target ? canPatchOrUpdate(caps) : false;
+  const canEdit = target ? !!caps?.patch : false;
 
   async function handleCopy() {
     await navigator.clipboard.writeText(code);
@@ -54,10 +54,10 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
           <AppButton
             startIcon={<EditIcon />}
             disabled={!canEdit}
-            tooltip={!canEdit && caps ? RBAC_DISABLED_REASON : "Edit live YAML"}
+            tooltip={!canEdit && caps ? RBAC_DISABLED_REASON : "Patch live YAML"}
             onClick={() => setEditOpen(true)}
           >
-            Edit
+            Patch
           </AppButton>
         )}
       </DrawerActionStrip>

@@ -104,6 +104,8 @@ func main() {
 	srv.Actions().Register("custom.workload", kubeactions.HandleCustomWorkloadAction)
 	srv.Actions().Register("resource.yaml.validate", kubeactions.HandleResourceYAMLValidate)
 	srv.Actions().Register("resource.yaml.apply", kubeactions.HandleResourceYAMLApply)
+	srv.Actions().Register("resource.patch.validate", kubeactions.HandleResourcePatchValidate)
+	srv.Actions().Register("resource.patch.apply", kubeactions.HandleResourcePatchApply)
 
 	url := fmt.Sprintf("http://%s/?token=%s", *addr, token)
 	log.Printf("kview listening on http://%s", *addr)

@@ -23,7 +23,7 @@ objects, events, metadata, YAML, and supported actions.
   pods own direct log streaming; workload drawers navigate to pods for logs.
 - **Metadata tab**: shows labels, annotations, and summary metadata.
 - **YAML tab**: shows the resource YAML and, for supported resources, guarded
-  live edit controls.
+  live patch controls.
 
 ## Optional Behavior
 
@@ -50,7 +50,8 @@ later drawers. It is not edited from the Settings form.
 - Use relation tabs to jump from one resource to another without returning to
   the list first.
 - Use **Events** before mutating when a resource is failing or recently changed.
-- Use **YAML** for exact Kubernetes state and guarded live edits when supported.
+- Use **YAML** for exact Kubernetes state and guarded live patches when
+  supported.
 
 ## Permission And Data Notes
 

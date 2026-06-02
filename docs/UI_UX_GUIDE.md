@@ -83,7 +83,7 @@ Logs is owned by the resource that streams logs (today: Pod). Workload drawers
 that do not stream their own logs must not add a Logs tab; they navigate to a
 Pod drawer via their Pods relation tab, and the Pod drawer is where Logs lives.
 
-Supported resources may expose a guarded live-edit action from the YAML tab.
+Supported resources may expose a guarded live-patch action from the YAML tab.
 That action must:
 
 - open a dedicated edit flow rather than editing inline in-place

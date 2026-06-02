@@ -110,3 +110,72 @@ func HandleResourceYAMLApply(ctx context.Context, c *cluster.Clients, req Action
 		},
 	}, nil
 }
+
+func HandleResourcePatchValidate(ctx context.Context, c *cluster.Clients, req ActionRequest) (*ActionResult, error) {
+	manifest, errResult := manifestParam(req)
+	if errResult != nil {
+		return errResult, nil
+	}
+	baseManifest, errResult := optionalStringParam(req.Params, "baseManifest")
+	if errResult != nil {
+		return errResult, nil
+	}
+	result, err := resourceedit.ValidatePatch(ctx, c, editRequest(req, manifest, baseManifest))
+	if err != nil {
+		if hint := resourceedit.ConflictReloadHint(err); hint != "" {
+			return nil, fmt.Errorf("%w: %s", err, hint)
+		}
+		return nil, err
+	}
+	return &ActionResult{
+		Status:  "ok",
+		Message: fmt.Sprintf("Validated YAML patch for %s", req.Name),
+		Details: map[string]any{
+			"warnings":        result.Warnings,
+			"normalizedYaml":  result.NormalizedYAML,
+			"resourceVersion": result.ResourceVersion,
+			"namespaced":      result.Namespaced,
+			"risk":            result.Risk,
+			"patchJson":       result.PatchJSON,
+			"patchYaml":       result.PatchYAML,
+			"emptyPatch":      result.EmptyPatch,
+		},
+	}, nil
+}
+
+func HandleResourcePatchApply(ctx context.Context, c *cluster.Clients, req ActionRequest) (*ActionResult, error) {
+	manifest, errResult := manifestParam(req)
+	if errResult != nil {
+		return errResult, nil
+	}
+	baseManifest, errResult := optionalStringParam(req.Params, "baseManifest")
+	if errResult != nil {
+		return errResult, nil
+	}
+	result, err := resourceedit.ApplyPatch(ctx, c, editRequest(req, manifest, baseManifest))
+	if err != nil {
+		if hint := resourceedit.ConflictReloadHint(err); hint != "" {
+			return nil, fmt.Errorf("%w: %s", err, hint)
+		}
+		return nil, err
+	}
+	target := req.Name
+	if req.Namespace != "" {
+		target = req.Namespace + "/" + req.Name
+	}
+	return &ActionResult{
+		Status:  "ok",
+		Message: fmt.Sprintf("Applied live YAML patch to %s", target),
+		Details: map[string]any{
+			"warnings":               result.Warnings,
+			"normalizedYaml":         result.NormalizedYAML,
+			"resourceVersion":        result.ResourceVersion,
+			"updatedResourceVersion": result.UpdatedVersion,
+			"namespaced":             result.Namespaced,
+			"risk":                   result.Risk,
+			"patchJson":              result.PatchJSON,
+			"patchYaml":              result.PatchYAML,
+			"emptyPatch":             result.EmptyPatch,
+		},
+	}, nil
+}

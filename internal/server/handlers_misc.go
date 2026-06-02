@@ -79,7 +79,7 @@ func (s *Server) registerCapabilitiesAndActionsRoutes(api chi.Router) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("invalid body")})
 			return
 		}
-		if s.ReadOnly() && body.Action != "resource.yaml.validate" {
+		if s.ReadOnly() && body.Action != "resource.yaml.validate" && body.Action != "resource.patch.validate" {
 			writeReadOnlyBlocked(w, r.URL.Path)
 			return
 		}
@@ -119,7 +119,7 @@ func (s *Server) registerCapabilitiesAndActionsRoutes(api chi.Router) {
 		if body.Resource == "helmreleases" && body.Namespace != "" {
 			_ = s.dp.InvalidateHelmReleasesSnapshot(ctx, ctxName, body.Namespace)
 		}
-		if body.Action == "resource.yaml.apply" && body.Namespace != "" {
+		if (body.Action == "resource.yaml.apply" || body.Action == "resource.patch.apply") && body.Namespace != "" {
 			switch body.Resource {
 			case "deployments":
 				_ = s.dp.InvalidateDeploymentsSnapshot(ctx, ctxName, body.Namespace)

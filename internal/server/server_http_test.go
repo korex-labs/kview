@@ -1344,6 +1344,58 @@ func TestReadOnlyAllowsResourceYAMLValidate(t *testing.T) {
 	}
 }
 
+func TestReadOnlyAllowsResourcePatchValidate(t *testing.T) {
+	s, h := newTestServer(t)
+	s.SetReadOnly(true)
+	s.Actions().Register("resource.patch.validate", func(_ context.Context, _ *cluster.Clients, _ kube.ActionRequest) (*kube.ActionResult, error) {
+		return &kube.ActionResult{Status: "validated"}, nil
+	})
+
+	rec := doReqWithHeader(t, h, http.MethodPost, "/api/actions", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "test-context",
+	}, toJSON(t, map[string]any{
+		"resource": "deployments",
+		"action":   "resource.patch.validate",
+		"params": map[string]any{
+			"manifest":     "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+			"baseManifest": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+		},
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), readOnlyMutationMessage) {
+		t.Fatalf("patch validate action was blocked in read-only mode: %s", rec.Body.String())
+	}
+}
+
+func TestReadOnlyBlocksResourcePatchApply(t *testing.T) {
+	s, h := newTestServer(t)
+	s.SetReadOnly(true)
+	s.Actions().Register("resource.patch.apply", func(_ context.Context, _ *cluster.Clients, _ kube.ActionRequest) (*kube.ActionResult, error) {
+		return &kube.ActionResult{Status: "applied"}, nil
+	})
+
+	rec := doReqWithHeader(t, h, http.MethodPost, "/api/actions", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "test-context",
+	}, toJSON(t, map[string]any{
+		"resource": "deployments",
+		"action":   "resource.patch.apply",
+		"params": map[string]any{
+			"manifest":     "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+			"baseManifest": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+		},
+	}))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), readOnlyMutationMessage) {
+		t.Fatalf("body does not mention read-only block: %s", rec.Body.String())
+	}
+}
+
 // ── POST /api/namespaces/{ns}/job-runs/debug ─────────────────────────────────
 
 func TestPostJobRunsDebug_Validation(t *testing.T) {
