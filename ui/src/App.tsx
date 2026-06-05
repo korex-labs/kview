@@ -28,7 +28,7 @@ import { ActiveContextProvider, useActiveContext } from "./activeContext";
 import MutationProvider from "./components/mutations/MutationProvider";
 import { ThemeProvider, useThemeMode } from "./theme/ThemeProvider";
 import { UserSettingsProvider, useUserSettings } from "./settingsContext";
-import DataplaneQuickSearch from "./components/search/DataplaneQuickSearch";
+import GlobalSearchInput, { type GlobalSearchFocusRequest } from "./components/search/GlobalSearchInput";
 import DataplaneSearchDrawer from "./components/search/DataplaneSearchDrawer";
 import type { ApiDataplaneSearchItem } from "./types/api";
 import StartupDialog, { type StartupKubeconfigInfo, type StartupStep, type StartupStepStatus } from "./components/StartupDialog";
@@ -174,7 +174,7 @@ function AppInner() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchDrawerItem, setSearchDrawerItem] = useState<ApiDataplaneSearchItem | null>(null);
-  const [searchFocusNonce, setSearchFocusNonce] = useState(0);
+  const [searchFocusRequest, setSearchFocusRequest] = useState<GlobalSearchFocusRequest>({ nonce: 0, query: "" });
 
   const [favourites, setFavourites] = useState<string[]>([]);
 
@@ -595,16 +595,12 @@ function AppInner() {
     <ActiveContextProvider value={activeContext}>
       <MutationProvider>
         <KeyboardProvider
-          namespaces={namespaces}
-          contexts={contexts.map((ctx) => ctx.name)}
           settingsOpen={settingsOpen || helpOpen}
           keyboardSettings={settings.keyboard}
-          onFocusGlobalSearch={() => setSearchFocusNonce((nonce) => nonce + 1)}
-          onSelectSection={onSelectSection}
-          onSelectNamespace={onSelectNamespace}
-          onSelectContext={(name) => {
-            void onSelectContext(name);
+          onFocusGlobalSearch={(query = "") => {
+            setSearchFocusRequest((prev) => ({ nonce: prev.nonce + 1, query }));
           }}
+          onSelectSection={onSelectSection}
           onOpenSettings={() => {
             setHelpOpen(false);
             setSettingsOpen(true);
@@ -653,12 +649,23 @@ function AppInner() {
                     zIndex: 1,
                   }}
                 >
-                  <DataplaneQuickSearch
+                  <GlobalSearchInput
                     token={token}
                     activeContext={activeContext}
-                    disabled={health === "unhealthy"}
-                    focusNonce={searchFocusNonce}
-                    onOpenResult={onOpenSearchResult}
+                    disabled={health === "unhealthy" || !activeContext}
+                    focusRequest={searchFocusRequest}
+                    namespaces={namespaces}
+                    contexts={contexts.map((ctx) => ctx.name)}
+                    onSelectSection={onSelectSection}
+                    onSelectNamespace={onSelectNamespace}
+                    onSelectContext={(name) => {
+                      void onSelectContext(name);
+                    }}
+                    onOpenResource={onOpenSearchResult}
+                    onOpenSettings={() => {
+                      setHelpOpen(false);
+                      setSettingsOpen(true);
+                    }}
                   />
                 </Box>
               ) : null}

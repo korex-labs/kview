@@ -1306,7 +1306,7 @@ export default function SettingsView({
         ],
       },
       {
-        label: "Global search",
+        label: "Header search",
         keys: [
           "Ctrl+K",
           ...(settings.keyboard.singleLetterGlobalSearch ? ["s"] : []),
@@ -1367,7 +1367,7 @@ export default function SettingsView({
         />
         <SettingRow
           label="Single-letter global search"
-          hint="Lets s focus global search when you are not typing. Ctrl+K always remains enabled."
+          hint="Lets s focus the header search and command input when you are not typing. Ctrl+K always remains enabled."
           checked={settings.keyboard.singleLetterGlobalSearch}
           onChange={(v) => setSettings((prev) => updateKeyboard(prev, { singleLetterGlobalSearch: v }))}
         />

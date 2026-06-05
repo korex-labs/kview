@@ -1,11 +1,13 @@
 import type { Section } from "../state";
+import type { ApiDataplaneSearchItem } from "../types/api";
 import { getResourceLabel, type ListResourceKey } from "../utils/k8sResources";
 
 export type KeyboardCommandAction =
   | { type: "section"; section: Section }
   | { type: "namespace"; namespace: string }
   | { type: "context"; context: string }
-  | { type: "settings" };
+  | { type: "settings" }
+  | { type: "resource"; item: ApiDataplaneSearchItem };
 
 export type CommandSuggestion = {
   value: string;
@@ -55,7 +57,7 @@ for (const [section, aliases] of Object.entries(resourceAliases) as Array<[Secti
 }
 
 function normalizeCommand(value: string): string {
-  return value.trim().replace(/^:/, "").trim().toLowerCase();
+  return value.trim().replace(/^[:>]/, "").trim().toLowerCase();
 }
 
 function compact(value: string): string {
@@ -160,7 +162,7 @@ export function buildCommandSuggestions({
 }
 
 export function parseKeyboardCommand(raw: string, namespaces: string[], contexts: string[]): KeyboardCommandAction | null {
-  const command = raw.trim().replace(/^:/, "").trim();
+  const command = raw.trim().replace(/^[:>]/, "").trim();
   if (!command) return null;
   const commandLower = command.toLowerCase();
 

@@ -110,13 +110,18 @@ through <kbd>g 5</kbd> provide command-style alternatives.
 
 ## Search And Commands
 
-Use global search to find resources from cached dataplane snapshots. Keyboard
-command mode can jump to resources, namespaces, contexts, and settings.
+Use the header **Search or command** input to find resources from cached
+dataplane snapshots or jump to resource views, namespaces, contexts, and
+settings. Press <kbd>Ctrl+K</kbd> to focus it. Type <kbd>:</kbd> to show
+command suggestions first.
+
+Use <kbd>/</kbd> to focus the current table filter. Table filters narrow the
+visible list and are separate from cached dataplane search.
 
 Press <kbd>?</kbd> in the app to show keyboard shortcuts. Some shortcuts are
 optional: Settings can disable single-letter global search (<kbd>s</kbd>) and
 the extra <kbd>h/j/k/l</kbd> or <kbd>a/s/d/f</kbd> table navigation bindings.
-Arrow-key table navigation and <kbd>Ctrl+K</kbd> global search remain
+Arrow-key table navigation and <kbd>Ctrl+K</kbd> header search access remain
 available.
 
 ## Related Settings

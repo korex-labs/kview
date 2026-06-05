@@ -1,8 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Autocomplete,
   Box,
-  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -16,7 +14,6 @@ import {
 import type { Section } from "../state";
 import type { KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
-import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "./commands";
 import { buildShortcutHelpSections } from "./help";
 import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
 import { emitFocusActivityPanelTab, emitToggleActivityPanel } from "../activityEvents";
@@ -94,12 +91,8 @@ export function useKeyboardControls() {
 
 type KeyboardProviderProps = {
   children: React.ReactNode;
-  namespaces: string[];
-  contexts: string[];
-  onFocusGlobalSearch: () => void;
+  onFocusGlobalSearch: (initialQuery?: string) => void;
   onSelectSection: (section: Section) => void;
-  onSelectNamespace: (namespace: string) => void;
-  onSelectContext: (context: string) => void;
   onOpenSettings: () => void;
   settingsOpen: boolean;
   keyboardSettings: KeyboardSettings;
@@ -109,20 +102,14 @@ const sequenceTimeoutMs = 900;
 
 export default function KeyboardProvider({
   children,
-  namespaces,
-  contexts,
   onFocusGlobalSearch,
   onSelectSection,
-  onSelectNamespace,
-  onSelectContext,
   onOpenSettings,
   settingsOpen,
   keyboardSettings,
 }: KeyboardProviderProps) {
   const tableControlsRef = useRef<TableKeyboardControls | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [commandInitialQuery, setCommandInitialQuery] = useState("");
   const [contextActionStack, setContextActionStack] = useState<ContextualKeyboardAction[][]>([]);
   const sequenceRef = useRef<string[]>([]);
   const sequenceTimerRef = useRef<number | null>(null);
@@ -132,32 +119,6 @@ export default function KeyboardProvider({
   useEffect(() => {
     contextActionStackRef.current = contextActionStack;
   }, [contextActionStack]);
-
-  const closeCommand = useCallback(() => {
-    setCommandOpen(false);
-    setCommandInitialQuery("");
-  }, []);
-
-  const openCommand = useCallback((initialQuery = "") => {
-    setCommandInitialQuery(initialQuery);
-    setCommandOpen(true);
-  }, []);
-
-  const runAction = useCallback((action: KeyboardCommandAction) => {
-    if (action.type === "section") {
-      onSelectSection(action.section);
-      return;
-    }
-    if (action.type === "namespace") {
-      onSelectNamespace(action.namespace);
-      return;
-    }
-    if (action.type === "context") {
-      onSelectContext(action.context);
-      return;
-    }
-    onOpenSettings();
-  }, [onOpenSettings, onSelectContext, onSelectNamespace, onSelectSection]);
 
   const runCommand = useCallback((command: ShortcutCommandId) => {
     const nav = activeShortcutCommands.find((item) => item.id === command);
@@ -170,7 +131,7 @@ export default function KeyboardProvider({
         setHelpOpen(true);
         return true;
       case "search.focus":
-        onFocusGlobalSearch();
+        onFocusGlobalSearch("");
         return true;
       case "table.filter.focus":
         return tableControlsRef.current?.focusFilter() ?? false;
@@ -181,7 +142,7 @@ export default function KeyboardProvider({
       case "table.page.next":
         return tableControlsRef.current?.pageNext() ?? false;
       case "command.open":
-        openCommand();
+        onFocusGlobalSearch(":");
         return true;
       case "activity.panel.toggle":
         emitToggleActivityPanel();
@@ -204,7 +165,7 @@ export default function KeyboardProvider({
       case "table.row.open":
         return tableControlsRef.current?.openSelectedRow() ?? false;
       case "nav.context":
-        openCommand("ctx ");
+        onFocusGlobalSearch("ctx ");
         return true;
       case "nav.settings":
         onOpenSettings();
@@ -212,7 +173,7 @@ export default function KeyboardProvider({
       default:
         return false;
     }
-  }, [activeShortcutCommands, onFocusGlobalSearch, onOpenSettings, onSelectSection, openCommand]);
+  }, [activeShortcutCommands, onFocusGlobalSearch, onOpenSettings, onSelectSection]);
 
   const clearSequence = useCallback(() => {
     sequenceRef.current = [];
@@ -234,7 +195,7 @@ export default function KeyboardProvider({
         }
         clearSequence();
       }
-      if (commandOpen || helpOpen || settingsOpen) return;
+      if (helpOpen || settingsOpen) return;
       const contextActions = effectiveContextActions(contextActionStackRef.current);
       if (contextActions.length && !shouldIgnoreContextShortcut(event.target)) {
         const key = eventToBinding(event);
@@ -285,7 +246,7 @@ export default function KeyboardProvider({
       window.removeEventListener("keydown", onKeyDown);
       clearSequence();
     };
-  }, [activeShortcutCommands, clearSequence, commandOpen, helpOpen, runCommand, settingsOpen]);
+  }, [activeShortcutCommands, clearSequence, helpOpen, runCommand, settingsOpen]);
 
   const registerTableControls = useCallback((controls: TableKeyboardControls) => {
     tableControlsRef.current = controls;
@@ -313,17 +274,6 @@ export default function KeyboardProvider({
   return (
     <KeyboardContext.Provider value={value}>
       {children}
-      <KeyboardCommandPalette
-        open={commandOpen}
-        initialQuery={commandInitialQuery}
-        namespaces={namespaces}
-        contexts={contexts}
-        onClose={closeCommand}
-        onRun={(action) => {
-          runAction(action);
-          closeCommand();
-        }}
-      />
       <KeyboardHelpDialog
         open={helpOpen}
         commands={activeShortcutCommands}
@@ -331,130 +281,6 @@ export default function KeyboardProvider({
         onClose={() => setHelpOpen(false)}
       />
     </KeyboardContext.Provider>
-  );
-}
-
-function KeyboardCommandPalette({
-  open,
-  initialQuery,
-  namespaces,
-  contexts,
-  onClose,
-  onRun,
-}: {
-  open: boolean;
-  initialQuery: string;
-  namespaces: string[];
-  contexts: string[];
-  onClose: () => void;
-  onRun: (action: KeyboardCommandAction) => void;
-}) {
-  const [query, setQuery] = useState(initialQuery);
-  const suggestions = useMemo(
-    () => buildCommandSuggestions({ query, namespaces, contexts }),
-    [contexts, namespaces, query],
-  );
-  const groupedSuggestions = useMemo(() => {
-    const groups: Array<{ category: CommandSuggestion["category"]; options: CommandSuggestion[] }> = [];
-    for (const suggestion of suggestions) {
-      let group = groups.find((item) => item.category === suggestion.category);
-      if (!group) {
-        group = { category: suggestion.category, options: [] };
-        groups.push(group);
-      }
-      group.options.push(suggestion);
-    }
-    return groups;
-  }, [suggestions]);
-
-  useEffect(() => {
-    if (open) setQuery(initialQuery);
-  }, [initialQuery, open]);
-
-  const runQuery = useCallback((value: string) => {
-    const action = parseKeyboardCommand(value, namespaces, contexts);
-    if (action) onRun(action);
-  }, [contexts, namespaces, onRun]);
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { sx: { mt: 10, alignSelf: "flex-start" } } }}
-    >
-      <DialogTitle sx={{ pb: 1 }}>Command</DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        <Autocomplete<CommandSuggestion, false, false, true>
-          freeSolo
-          autoHighlight
-          openOnFocus
-          options={suggestions}
-          groupBy={(option) => option.category}
-          inputValue={query}
-          getOptionLabel={(option) => typeof option === "string" ? option : option.value}
-          filterOptions={(options) => options}
-          onInputChange={(_, value) => setQuery(value)}
-          onChange={(_, value) => {
-            if (!value) return;
-            if (typeof value === "string") runQuery(value);
-            else onRun(value.action);
-          }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              autoFocus
-              placeholder=":pods, :ns kube-system, :ctx minikube"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  onClose();
-                }
-              }}
-            />
-          )}
-          renderOption={(props, option) => (
-            <li {...props} key={option.value}>
-              <Box sx={{ minWidth: 0, width: "100%" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontFamily: "monospace", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {option.value}
-                  </Typography>
-                  {option.aliases?.slice(0, 3).map((alias) => (
-                    <Chip
-                      key={alias}
-                      size="small"
-                      variant="outlined"
-                      label={alias}
-                      sx={{
-                        height: 20,
-                        borderRadius: 1,
-                        fontFamily: "monospace",
-                        fontSize: "0.68rem",
-                        "& .MuiChip-label": { px: 0.65 },
-                      }}
-                    />
-                  ))}
-                </Box>
-                <Typography variant="caption" color="text.secondary">{option.description}</Typography>
-              </Box>
-            </li>
-          )}
-          renderGroup={(params) => {
-            const group = groupedSuggestions.find((item) => item.category === params.group);
-            return (
-              <Box component="li" key={params.key}>
-                <Typography variant="overline" color="text.secondary" sx={{ display: "block", px: 2, pt: 1, lineHeight: 1.4 }}>
-                  {params.group}{group ? ` (${group.options.length})` : ""}
-                </Typography>
-                <Box component="ul" sx={{ p: 0 }}>{params.children}</Box>
-              </Box>
-            );
-          }}
-        />
-      </DialogContent>
-    </Dialog>
   );
 }
 

@@ -58,8 +58,8 @@ Keyboard settings control optional bindings:
 - **Home-row table navigation**: on by default. Adds <kbd>a/s/d/f</kbd>
   table cell movement in addition to arrow keys.
 - **Single-letter global search**: on by default. Adds <kbd>s</kbd> as a
-  shortcut for focusing global search. <kbd>Ctrl+K</kbd> remains available
-  regardless of this setting.
+  shortcut for focusing the header search and command input.
+  <kbd>Ctrl+K</kbd> remains available regardless of this setting.
 
 Press <kbd>?</kbd> in the app to see the effective shortcuts after optional
 bindings are applied.

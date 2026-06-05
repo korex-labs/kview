@@ -61,8 +61,8 @@ repository.
   chips for tagged resources with matching signals.
 - Settings support import/export, smart filters, resource tags, custom
   commands, custom workload actions, and dataplane policy tuning.
-- Keyboard navigation includes shortcuts and command mode for faster resource,
-  namespace, context, and settings navigation.
+- The header search now serves as one search and command input for cached
+  resource lookup plus resource, namespace, context, and settings navigation.
 
 ## Full History
 

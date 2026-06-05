@@ -4,6 +4,7 @@ import { aliasesForSection, buildCommandSuggestions, parseKeyboardCommand } from
 describe("keyboard commands", () => {
   it("parses resource aliases", () => {
     expect(parseKeyboardCommand(":po", [], [])).toEqual({ type: "section", section: "pods" });
+    expect(parseKeyboardCommand(">po", [], [])).toEqual({ type: "section", section: "pods" });
     expect(parseKeyboardCommand("deploy", [], [])).toEqual({ type: "section", section: "deployments" });
     expect(aliasesForSection("services")).toContain("svc");
   });

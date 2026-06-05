@@ -41,7 +41,7 @@ export type ShortcutCommand = {
 
 export const shortcutCommands: ShortcutCommand[] = [
   { id: "help.open", label: "Show keyboard shortcuts", group: "Global", bindings: [["?"]] },
-  { id: "search.focus", label: "Focus global search", group: "Global", bindings: [["ctrl+k"], ["s"]] },
+  { id: "search.focus", label: "Focus header search and command input", group: "Global", bindings: [["ctrl+k"], ["s"]] },
   { id: "activity.panel.toggle", label: "Toggle activity panel", group: "Global", bindings: [["alt+a"], ["g", "a"]] },
   { id: "activity.panel.activities", label: "Open Activities tab", group: "Global", bindings: [["alt+1"], ["g", "1"]] },
   { id: "activity.panel.work", label: "Open Work tab", group: "Global", bindings: [["alt+2"], ["g", "2"]] },
@@ -53,7 +53,7 @@ export const shortcutCommands: ShortcutCommand[] = [
   { id: "table.cell.navigate", label: "Move around the table", group: "Table", bindings: [["Arrow keys"], ["h/j/k/l"], ["a/s/d/f"]] },
   { id: "table.page.previous", label: "Previous table page", group: "Table", bindings: [["["]] },
   { id: "table.page.next", label: "Next table page", group: "Table", bindings: [["]"]] },
-  { id: "command.open", label: "Open command mode", group: "Command Mode", bindings: [[":"]] },
+  { id: "command.open", label: "Open command suggestions", group: "Command Mode", bindings: [[":"]] },
   { id: "table.row.open", label: "Open selected row", group: "Table", bindings: [["enter"]] },
   { id: "nav.pods", label: "Go to Pods", group: "Navigation", bindings: [["g", "p"]], section: "pods" },
   { id: "nav.deployments", label: "Go to Deployments", group: "Navigation", bindings: [["g", "d"]], section: "deployments" },
