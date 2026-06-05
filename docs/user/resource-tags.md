@@ -27,7 +27,9 @@ to the cluster.
 
 Resource Tags are disabled by default. When disabled, tag columns and drawer
 tag controls are hidden. When enabled, supported lists show a **Tags** column
-and list filtering can match tags with `tag:<name>`.
+and list filtering can match tags with `tag:<name>`. List cells show the first
+visible tags plus a `+N` marker when additional tags are attached; hover the
+marker to see all tags for that row.
 
 When enabled, the cluster dashboard can also show tag chips in the signal
 filters for tagged resources that have signals in the loaded signal set.

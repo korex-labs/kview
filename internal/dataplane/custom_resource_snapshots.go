@@ -7,6 +7,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	crs "github.com/korex-labs/kview/v5/internal/kube/resource/customresources"
+	helmres "github.com/korex-labs/kview/v5/internal/kube/resource/helm"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
@@ -158,12 +159,22 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 	source := workSourceOrAPI(ctx)
 	ttl := p.currentPolicy().SnapshotTTL(kind)
 	if cached, ok := p.customResourcesStore.getFresh(namespace, ttl); ok {
-		if p.stats != nil {
-			p.stats.recordRequest(source, kind, true)
+		refreshEmptyForHelm := false
+		if len(cached.Items) == 0 {
+			if helmSnap, ok := p.helmReleasesStore.getCached(namespace); ok && len(helmSnap.Items) > 0 {
+				refreshEmptyForHelm = true
+			}
 		}
-		return cached, nil
-	}
-	if p.stats != nil {
+		if !refreshEmptyForHelm {
+			if p.stats != nil {
+				p.stats.recordRequest(source, kind, true)
+			}
+			return cached, nil
+		}
+		if p.stats != nil {
+			p.stats.recordRequest(source, kind, false)
+		}
+	} else if p.stats != nil {
 		p.stats.recordRequest(source, kind, false)
 	}
 
@@ -250,6 +261,9 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 		if items == nil {
 			items = []dto.CustomResourceInstanceDTO{}
 		}
+		if manifestItems, manifestErr := helmres.ListManifestCustomResources(runCtx, c, namespace, crdSnap.Items); manifestErr == nil {
+			items = mergeCustomResourceItems(items, manifestItems)
+		}
 		out.Items = items
 		out.Aggregation = &agg
 		out.Meta = p.customResourceSnapshotMeta(now, agg)
@@ -271,4 +285,28 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 		}
 	}
 	return out, runErr
+}
+
+func mergeCustomResourceItems(live, manifest []dto.CustomResourceInstanceDTO) []dto.CustomResourceInstanceDTO {
+	if len(manifest) == 0 {
+		return live
+	}
+	seen := make(map[string]struct{}, len(live)+len(manifest))
+	for _, item := range live {
+		seen[customResourceItemKey(item)] = struct{}{}
+	}
+	out := append([]dto.CustomResourceInstanceDTO{}, live...)
+	for _, item := range manifest {
+		key := customResourceItemKey(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
+func customResourceItemKey(item dto.CustomResourceInstanceDTO) string {
+	return item.Group + "/" + item.Kind + "/" + item.Namespace + "/" + item.Name
 }

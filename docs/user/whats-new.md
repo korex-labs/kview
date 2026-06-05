@@ -6,6 +6,13 @@ repository.
 
 ## Recent Highlights
 
+- Custom resource drawers now support delete actions, drawer tags, resource
+  macros, dynamic links, and YAML editing/apply flows like built-in resources.
+- Custom Namespace Resources now fan out across CRDs more reliably on clusters
+  with many operator APIs and include Helm-manifest CR references when live CRD
+  fan-out misses them.
+- Resource list column widths are now persisted locally, and tag-heavy list
+  rows show a `+N` overflow indicator with a full tag tooltip.
 - The sidebar now has a Policy group for Network Policies, ResourceQuotas, and
   LimitRanges, so traffic and namespace capacity policy can be browsed directly.
 - Policy resource drawers now include events, metadata, YAML editing, and delete

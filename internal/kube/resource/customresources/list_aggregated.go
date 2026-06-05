@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	maxConcurrentListCalls = 5 // keep API-server request rate low
-	perKindListTimeout     = 5 * time.Second
+	maxConcurrentListCalls = 24 // CR-heavy clusters need enough fan-out to cover late-sorted operator APIs.
+	perKindListTimeout     = 3 * time.Second
 )
 
 // ListAllNamespacedCRs aggregates instances of all Namespaced CRDs in the given namespace.
@@ -63,7 +63,12 @@ func fanOut(ctx context.Context, dynClient dynamic.Interface, crds []dto.CRDList
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				results[i] = kindResult{err: true}
+				return
+			}
 			defer func() { <-sem }()
 
 			results[i] = listOneKind(ctx, dynClient, crd, namespace)

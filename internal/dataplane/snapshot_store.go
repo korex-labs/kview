@@ -47,6 +47,14 @@ func setClusterSnapshot[I any](s *snapshotStore[Snapshot[I]], snap Snapshot[I]) 
 	s.telemetry.recordCacheWrite("", snap)
 }
 
+func clearClusterSnapshot[I any](s *snapshotStore[Snapshot[I]]) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rev++
+	s.snap = Snapshot[I]{}
+	s.telemetry.recordCacheDelete("")
+}
+
 func peekClusterSnapshot[I any](s *snapshotStore[Snapshot[I]]) (snap Snapshot[I], ok bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

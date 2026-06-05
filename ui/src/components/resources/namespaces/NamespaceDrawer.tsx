@@ -301,7 +301,7 @@ export default function NamespaceDrawer(props: {
 
   useEffect(() => {
     if (!props.open || !name || offline) return;
-    if (tab < metadataTabIndex) return;
+    if (tab !== 1 && tab < metadataTabIndex) return;
     if (detailsRequested || detailsLoading || details) return;
 
     setDetailsRequested(true);

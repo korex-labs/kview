@@ -149,6 +149,10 @@ type DataPlaneManager interface {
 	DerivedHelmChartsSnapshot(ctx context.Context, clusterName string) (Snapshot[dto.HelmChartDTO], error)
 	// InvalidateHelmReleasesSnapshot drops the cached Helm release list for a namespace after a Helm mutation.
 	InvalidateHelmReleasesSnapshot(ctx context.Context, clusterName, namespace string) error
+	// InvalidateClusterCustomResourcesSnapshot drops the cached cluster-scoped custom resource list after a mutation.
+	InvalidateClusterCustomResourcesSnapshot(ctx context.Context, clusterName string) error
+	// InvalidateCustomResourcesSnapshot drops the cached namespaced custom resource list after a mutation.
+	InvalidateCustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) error
 	// InvalidateDeploymentsSnapshot drops the cached Deployment list for a namespace after a live edit or mutation.
 	InvalidateDeploymentsSnapshot(ctx context.Context, clusterName, namespace string) error
 	// InvalidateConfigMapsSnapshot drops the cached ConfigMap list for a namespace after a live edit or mutation.
@@ -1452,6 +1456,32 @@ func (m *manager) InvalidateHelmReleasesSnapshot(ctx context.Context, clusterNam
 	clearNamespacedSnapshot(&plane.helmReleasesStore, namespace)
 	if sp := plane.currentPersistence(); sp != nil {
 		_ = sp.Delete(clusterName, ResourceKindHelmReleases, namespace)
+	}
+	return nil
+}
+
+func (m *manager) InvalidateClusterCustomResourcesSnapshot(ctx context.Context, clusterName string) error {
+	planeAny, err := m.PlaneForCluster(ctx, clusterName)
+	if err != nil {
+		return err
+	}
+	plane := planeAny.(*clusterPlane)
+	clearClusterSnapshot(&plane.clusterCustomResourcesStore)
+	if sp := plane.currentPersistence(); sp != nil {
+		_ = sp.Delete(clusterName, ResourceKindClusterCustomResources, "")
+	}
+	return nil
+}
+
+func (m *manager) InvalidateCustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) error {
+	planeAny, err := m.PlaneForCluster(ctx, clusterName)
+	if err != nil {
+		return err
+	}
+	plane := planeAny.(*clusterPlane)
+	clearNamespacedSnapshot(&plane.customResourcesStore, namespace)
+	if sp := plane.currentPersistence(); sp != nil {
+		_ = sp.Delete(clusterName, ResourceKindCustomResources, namespace)
 	}
 	return nil
 }

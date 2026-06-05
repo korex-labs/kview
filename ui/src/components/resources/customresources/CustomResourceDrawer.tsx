@@ -13,9 +13,14 @@ import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
+import DrawerActionStrip from "../../shared/DrawerActionStrip";
+import { ResourceDrawerTags } from "../../shared/ResourceTags";
+import { ResourceDrawerMacros } from "../../shared/ResourceMacros";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import type { ApiItemResponse } from "../../../types/api";
+import type { ListResourceKey } from "../../../utils/k8sResources";
 import CustomResourceStatusCell from "./CustomResourceStatusCell";
+import CustomResourceActions from "./CustomResourceActions";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -75,6 +80,7 @@ export default function CustomResourceDrawer(props: {
   const [details, setDetails] = useState<CRDetails | null>(null);
   const [err, setErr] = useState("");
   const [namespaceDrawerOpen, setNamespaceDrawerOpen] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   // Resolved plural resource name — populated either directly from ref.resource
   // or via /api/customresources/resolve when resource is absent.
   const [resolvedResource, setResolvedResource] = useState<string | null>(null);
@@ -135,9 +141,13 @@ export default function CustomResourceDrawer(props: {
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, refKey, resolvedResource, resolvedVersion, props.token]);
+  }, [props.open, refKey, resolvedResource, resolvedVersion, props.token, refreshNonce]);
 
   const summary = details?.summary;
+  const drawerResourceKey: ListResourceKey = ref?.namespace ? "customresources" : "clusterresources";
+  const drawerNamespace = ref?.namespace || "";
+  const labels = summary?.labels;
+  const annotations = summary?.annotations;
 
   const summaryItems = useMemo(
     () => [
@@ -177,7 +187,33 @@ export default function CustomResourceDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="customresources" title={title} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="customresources"
+        title={title}
+        onClose={props.onClose}
+        headerMeta={
+          ref ? <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} /> : null
+        }
+        dynamicLinks={ref ? {
+          resource: drawerResourceKey,
+          namespace: drawerNamespace,
+          name: ref.name,
+          labels,
+          annotations,
+        } : undefined}
+        headerActions={ref ? (
+          <>
+            <ResourceDrawerMacros
+              resource={drawerResourceKey}
+              namespace={drawerNamespace}
+              name={ref.name}
+              labels={labels}
+              annotations={annotations}
+            />
+            <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} mode="edit" />
+          </>
+        ) : undefined}
+      >
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
@@ -196,6 +232,20 @@ export default function CustomResourceDrawer(props: {
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>
+                  {ref && resolvedResource ? (
+                    <DrawerActionStrip>
+                      <CustomResourceActions
+                        token={props.token}
+                        namespace={ref.namespace}
+                        name={ref.name}
+                        group={ref.group}
+                        version={resolvedVersion || ref.version}
+                        resource={resolvedResource}
+                        kind={ref.kind}
+                        onDeleted={props.onClose}
+                      />
+                    </DrawerActionStrip>
+                  ) : null}
                   <Section title="Summary">
                     <Box sx={panelBoxSx}>
                       <KeyValueTable rows={summaryItems} columns={2} />
@@ -230,6 +280,7 @@ export default function CustomResourceDrawer(props: {
                     name: ref.name,
                     namespace: ref.namespace || undefined,
                   }}
+                  onApplied={() => setRefreshNonce((v) => v + 1)}
                 />
               )}
             </Box>

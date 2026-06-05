@@ -33,6 +33,53 @@ import {
 import { ResourceTagsCell } from "./ResourceTags";
 
 const defaultDataplaneRefreshSec = 0;
+const columnWidthsStoragePrefix = "kview:list:columnWidths:v1";
+
+function columnWidthsStorageKey(contextName: string, resourceKey: ListResourceKey, namespace: string | null | undefined): string {
+  return [
+    columnWidthsStoragePrefix,
+    encodeURIComponent(contextName || "default"),
+    encodeURIComponent(resourceKey),
+    encodeURIComponent(namespace || ""),
+  ].join(":");
+}
+
+export function loadPersistedColumnWidths(key: string): Record<string, number> {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [field, width] of Object.entries(parsed)) {
+      if (typeof field !== "string" || !field) continue;
+      if (typeof width !== "number" || !Number.isFinite(width)) continue;
+      const normalized = Math.round(width);
+      if (normalized >= 40 && normalized <= 2000) out[field] = normalized;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function savePersistedColumnWidths(key: string, widths: Record<string, number>) {
+  try {
+    const cleaned: Record<string, number> = {};
+    for (const [field, width] of Object.entries(widths)) {
+      if (!field || typeof width !== "number" || !Number.isFinite(width)) continue;
+      const normalized = Math.round(width);
+      if (normalized >= 40 && normalized <= 2000) cleaned[field] = normalized;
+    }
+    if (Object.keys(cleaned).length === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(key, JSON.stringify(cleaned));
+  } catch {
+    // Ignore storage failures; column resizing should remain non-blocking.
+  }
+}
 
 export function shouldCleanupResourceTagAssignments(resourceKey: ListResourceKey, dataplaneMeta: DataplaneListMeta | null): boolean {
   if (resourceKey === "namespaces") return false;
@@ -221,7 +268,14 @@ export default function ResourceListPage<TRow extends { id: string }>({
       return 0;
     });
   }, [columnsWithTags]);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const columnWidthsKey = useMemo(
+    () => columnWidthsStorageKey(activeContext, resourceKey, namespace),
+    [activeContext, namespace, resourceKey],
+  );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadPersistedColumnWidths(columnWidthsKey));
+  useEffect(() => {
+    setColumnWidths(loadPersistedColumnWidths(columnWidthsKey));
+  }, [columnWidthsKey]);
   const gridColumns = useMemo(
     () => orderedColumns.map((col) => {
       const width = columnWidths[String(col.field)];
@@ -495,7 +549,9 @@ export default function ResourceListPage<TRow extends { id: string }>({
               const field = String(params.colDef.field);
               const width = Math.round(params.width);
               if (prev[field] === width) return prev;
-              return { ...prev, [field]: width };
+              const next = { ...prev, [field]: width };
+              savePersistedColumnWidths(columnWidthsKey, next);
+              return next;
             });
           }}
           onCellKeyDown={(params, event) => {

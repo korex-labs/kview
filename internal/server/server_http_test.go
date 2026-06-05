@@ -326,6 +326,14 @@ func (s *stubDataplane) PodsSnapshot(_ context.Context, _, _ string) (dataplane.
 func (s *stubDataplane) CustomResourcesSnapshot(_ context.Context, _, _ string) (dataplane.CustomResourcesSnapshot, error) {
 	panic("stubDataplane: CustomResourcesSnapshot")
 }
+
+func (s *stubDataplane) InvalidateClusterCustomResourcesSnapshot(_ context.Context, _ string) error {
+	return nil
+}
+
+func (s *stubDataplane) InvalidateCustomResourcesSnapshot(_ context.Context, _, _ string) error {
+	return nil
+}
 func (s *stubDataplane) DeploymentsSnapshot(_ context.Context, _, _ string) (dataplane.DeploymentsSnapshot, error) {
 	panic("stubDataplane: DeploymentsSnapshot")
 }

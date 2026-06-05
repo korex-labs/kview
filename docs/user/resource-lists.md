@@ -19,7 +19,7 @@ drawers for detail, and start resource-specific actions when available.
   watch a cheap revision endpoint and reload only when cached data changes.
 - **Column sorting**: sort by supported table columns.
 - **Column resizing**: drag column separators to adjust widths. Manual widths
-  stay stable while the list rerenders.
+  are saved locally per context, resource view, and namespace.
 - **Row selection**: click a row to select it, then press <kbd>Enter</kbd> or
   double-click to open its drawer.
 
@@ -32,7 +32,8 @@ chips are hidden and the text filter remains available.
 
 **Resource Tags** are disabled by default. When enabled, supported lists show a
 **Tags** column. The text filter also supports `tag:<name>` to match assigned
-or inherited tags.
+or inherited tags. When a row has more tags than the list cell shows, kview
+adds a `+N` indicator; hover it to see the full tag list.
 
 **Resource tag cleanup** is optional. When enabled, kview removes direct tag
 assignments for non-namespace resources in a visible scope only after an
@@ -50,6 +51,7 @@ degraded fallback.
 - Filter by a resource name, owner, image, status, or `tag:<name>`.
 - Use generated chips to jump to a repeated naming pattern.
 - Resize dense columns when values are clipped.
+- Hover tag overflow indicators when the Tags column has a `+N` marker.
 - Open a row drawer to inspect status, events, metadata, and YAML.
 - Use access-denied or degraded states to understand whether missing data is a
   permission issue or a partial-data issue.

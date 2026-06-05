@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
+  Chip,
   Checkbox,
   Divider,
   ListItemText,
   Menu,
   MenuItem,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
@@ -28,17 +30,139 @@ export function ResourceTagsRow({
   tags,
   empty = null,
   chipSx,
+  maxVisible,
+  fitToWidth = false,
 }: {
   tags: ResolvedResourceTag[];
   empty?: React.ReactNode;
   chipSx?: SxProps<Theme>;
+  maxVisible?: number;
+  fitToWidth?: boolean;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const measureRef = useRef<HTMLDivElement | null>(null);
+  const overflowMeasureRef = useRef<HTMLDivElement | null>(null);
+  const [measuredVisible, setMeasuredVisible] = useState(tags.length);
+
+  useEffect(() => {
+    if (!fitToWidth) {
+      setMeasuredVisible(tags.length);
+      return;
+    }
+
+    const measure = () => {
+      const container = containerRef.current;
+      const measureBox = measureRef.current;
+      if (!container || !measureBox) return;
+
+      const containerWidth = container.clientWidth || container.getBoundingClientRect().width;
+      if (containerWidth <= 0) {
+        setMeasuredVisible(tags.length);
+        return;
+      }
+
+      const chipEls = Array.from(measureBox.querySelectorAll<HTMLElement>("[data-tag-measure]"));
+      const overflowWidth = Math.ceil(
+        overflowMeasureRef.current?.getBoundingClientRect().width || overflowMeasureRef.current?.offsetWidth || 36,
+      );
+      const gap = 4;
+      let used = 0;
+      let visible = 0;
+
+      for (let index = 0; index < chipEls.length; index += 1) {
+        const chipWidth = Math.ceil(chipEls[index].getBoundingClientRect().width || chipEls[index].offsetWidth);
+        const separator = visible > 0 ? gap : 0;
+        const remainingAfterThis = tags.length - index - 1;
+        const overflowReserve = remainingAfterThis > 0 ? overflowWidth + gap : 0;
+        if (used + separator + chipWidth + overflowReserve > containerWidth) break;
+        used += separator + chipWidth;
+        visible += 1;
+      }
+
+      setMeasuredVisible((prev) => prev === visible ? prev : visible);
+    };
+
+    const frame = window.requestAnimationFrame(measure);
+    const container = containerRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && container) {
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(container);
+    } else {
+      window.addEventListener("resize", measure);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [fitToWidth, tags]);
+
   if (tags.length === 0) return empty;
+  const visibleCount = fitToWidth
+    ? Math.max(0, Math.min(tags.length, measuredVisible))
+    : maxVisible == null ? tags.length : Math.max(0, Math.min(tags.length, Math.floor(maxVisible)));
+  const visibleTags = tags.slice(0, visibleCount);
+  const hiddenTags = tags.slice(visibleCount);
+  const fullTagList = tags.map((tag) => tag.inherited ? `${tag.name} (inherited)` : tag.name).join(", ");
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
-      {tags.map((tag) => (
+    <Box
+      ref={containerRef}
+      sx={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+        flexWrap: fitToWidth ? "nowrap" : "wrap",
+        minWidth: 0,
+        width: fitToWidth ? "100%" : undefined,
+        overflow: fitToWidth ? "hidden" : undefined,
+      }}
+    >
+      {visibleTags.map((tag) => (
         <ResourceTagChip key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}`} tag={tag} sx={chipSx} />
       ))}
+      {hiddenTags.length > 0 ? (
+        <Tooltip title={fullTagList} arrow>
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`+${hiddenTags.length}`}
+            sx={{ height: 24, flex: "0 0 auto" }}
+          />
+        </Tooltip>
+      ) : null}
+      {fitToWidth ? (
+        <Box
+          ref={measureRef}
+          aria-hidden
+          sx={{
+            position: "absolute",
+            visibility: "hidden",
+            pointerEvents: "none",
+            height: 0,
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tags.map((tag) => (
+            <Box component="span" data-tag-measure key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}:measure`}>
+              <ResourceTagChip tag={tag} sx={chipSx} />
+            </Box>
+          ))}
+          <Chip
+            ref={overflowMeasureRef}
+            size="small"
+            variant="outlined"
+            label={`+${tags.length}`}
+            sx={{ height: 24, flex: "0 0 auto" }}
+          />
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -47,7 +171,7 @@ export function ResourceTagsCell({ target }: { target: ResourceTagTarget }) {
   const { settings } = useUserSettings();
   const index = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
   const tags = useMemo(() => resourceTagsForTarget(settings.resourceTags, index, target), [index, settings.resourceTags, target]);
-  return <ResourceTagsRow tags={tags} chipSx={{ maxWidth: 112 }} empty={<Typography variant="body2" color="text.secondary">-</Typography>} />;
+  return <ResourceTagsRow tags={tags} chipSx={{ maxWidth: 112 }} fitToWidth empty={<Typography variant="body2" color="text.secondary">-</Typography>} />;
 }
 
 export function ResourceTagsHeader({ target }: { target: ResourceTagTarget | null }) {

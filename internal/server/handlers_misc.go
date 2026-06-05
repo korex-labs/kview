@@ -119,6 +119,13 @@ func (s *Server) registerCapabilitiesAndActionsRoutes(api chi.Router) {
 		if body.Resource == "helmreleases" && body.Namespace != "" {
 			_ = s.dp.InvalidateHelmReleasesSnapshot(ctx, ctxName, body.Namespace)
 		}
+		if body.Action == "customresource.delete" {
+			if body.Namespace != "" {
+				_ = s.dp.InvalidateCustomResourcesSnapshot(ctx, ctxName, body.Namespace)
+			} else {
+				_ = s.dp.InvalidateClusterCustomResourcesSnapshot(ctx, ctxName)
+			}
+		}
 		if (body.Action == "resource.yaml.apply" || body.Action == "resource.patch.apply") && body.Namespace != "" {
 			switch body.Resource {
 			case "deployments":
