@@ -322,6 +322,7 @@ func DefaultDataplanePolicy() DataplanePolicy {
 				string(ResourceKindHPAs):                   45,
 				string(ResourceKindServices):               60,
 				string(ResourceKindIngresses):              60,
+				string(ResourceKindNetworkPolicies):        180,
 				string(ResourceKindPVCs):                   60,
 				string(ResourceKindConfigMaps):             120,
 				string(ResourceKindSecrets):                120,

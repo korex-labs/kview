@@ -36,6 +36,7 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 | `GET /api/namespaces/{ns}/horizontalpodautoscalers` | `HPAsSnapshot`; list rows include HPA status, current metrics, replica bounds, and attention hints from cached snapshot data. |
 | `GET /api/namespaces/{ns}/services` | `ServicesSnapshot` |
 | `GET /api/namespaces/{ns}/ingresses` | `IngressesSnapshot` |
+| `GET /api/namespaces/{ns}/networkpolicies` | `NetworkPoliciesSnapshot` |
 | `GET /api/namespaces/{ns}/persistentvolumeclaims` | `PVCsSnapshot` |
 | `GET /api/namespaces/{ns}/configmaps` | `ConfigMapsSnapshot` |
 | `GET /api/namespaces/{ns}/secrets` | `SecretsSnapshot` |
@@ -142,6 +143,16 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
   the detail response).
 - `GET /api/namespaces/{ns}/deployments/{name}` → `detailSignals` from
   `DetectDeploymentDetailSignals`.
+- `GET /api/namespaces/{ns}/daemonsets/{name}` → `detailSignals` from
+  `DetectDaemonSetDetailSignals`.
+- `GET /api/namespaces/{ns}/statefulsets/{name}` → `detailSignals` from
+  `DetectStatefulSetDetailSignals`.
+- `GET /api/namespaces/{ns}/replicasets/{name}` → `detailSignals` from
+  `DetectReplicaSetDetailSignals`.
+- `GET /api/namespaces/{ns}/jobs/{name}` → `detailSignals` from
+  `DetectJobDetailSignals`.
+- `GET /api/namespaces/{ns}/cronjobs/{name}` → `detailSignals` from
+  `DetectCronJobDetailSignals`.
 
 ### 4.5 Product and control-plane APIs
 
@@ -162,7 +173,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 
 ## 5. Design summary
 
-For the main list read surfaces used as UI anchors (workloads, services, networking, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, limit ranges, and supported cluster-scoped list families), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, and custom-resource discovery helpers).
+For the main list read surfaces used as UI anchors (workloads, services, networking, policy, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, limit ranges, and supported cluster-scoped list families), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, and custom-resource discovery helpers).
 
 Derived projections are allowed only when explicitly labeled as derived/sparse/inexact. They may infer useful views such as node workload rollups from cached pod snapshots or chart catalog rows from cached Helm release snapshots, but they must not be represented as direct Kubernetes list results. When a canonical route serves a derived fallback, it must preserve the normal resource identity and deep-link target while making the fallback source visible in the payload/UI.
 

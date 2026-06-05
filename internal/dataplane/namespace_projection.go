@@ -34,6 +34,8 @@ type namespaceProjectionSnapshots struct {
 	svcsErr            error
 	ing                IngressesSnapshot
 	ingErr             error
+	networkPolicies    NetworkPoliciesSnapshot
+	networkPoliciesErr error
 	pvcs               PVCsSnapshot
 	pvcsErr            error
 	cms                ConfigMapsSnapshot
@@ -77,7 +79,7 @@ func (m *manager) loadNamespaceProjectionSnapshots(
 	var snaps namespaceProjectionSnapshots
 	var wg sync.WaitGroup
 
-	wg.Add(19)
+	wg.Add(20)
 	go func() {
 		defer wg.Done()
 		snaps.pods, snaps.podsErr = plane.PodsSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
@@ -93,6 +95,10 @@ func (m *manager) loadNamespaceProjectionSnapshots(
 	go func() {
 		defer wg.Done()
 		snaps.ing, snaps.ingErr = plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
+	}()
+	go func() {
+		defer wg.Done()
+		snaps.networkPolicies, snaps.networkPoliciesErr = plane.NetworkPoliciesSnapshot(ctx, m.scheduler, m.clients, namespace, prio)
 	}()
 	go func() {
 		defer wg.Done()
@@ -222,6 +228,9 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	if snaps.ingErr == nil {
 		res.Counts.Ingresses = len(snaps.ing.Items)
 	}
+	if snaps.networkPoliciesErr == nil {
+		res.Counts.NetworkPolicies = len(snaps.networkPolicies.Items)
+	}
 	if snaps.pvcsErr == nil {
 		res.Counts.PVCs = len(snaps.pvcs.Items)
 	}
@@ -330,19 +339,19 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	out.Meta = meta
 
 	firstNorm := FirstNonNilNormalizedError(
-		snaps.pods.Err, snaps.deps.Err, snaps.svcs.Err, snaps.ing.Err, snaps.pvcs.Err, snaps.cms.Err, snaps.secs.Err,
+		snaps.pods.Err, snaps.deps.Err, snaps.svcs.Err, snaps.ing.Err, snaps.networkPolicies.Err, snaps.pvcs.Err, snaps.cms.Err, snaps.secs.Err,
 		snaps.ds.Err, snaps.sts.Err, snaps.rs.Err, snaps.jobs.Err, snaps.cj.Err, snaps.hpa.Err,
 		snaps.sa.Err, snaps.roles.Err, snaps.roleBindings.Err, snaps.helm.Err, snaps.customResources.Err, snaps.rq.Err, snaps.lr.Err,
 	)
 
 	meaningful := res.Counts.Pods + res.Counts.Deployments + res.Counts.Services +
-		res.Counts.Ingresses + res.Counts.PVCs + res.Counts.ConfigMaps + res.Counts.Secrets +
+		res.Counts.Ingresses + res.Counts.NetworkPolicies + res.Counts.PVCs + res.Counts.ConfigMaps + res.Counts.Secrets +
 		res.Counts.DaemonSets + res.Counts.StatefulSets + res.Counts.Jobs + res.Counts.CronJobs +
 		res.Counts.HPAs +
 		res.Counts.ServiceAccounts + res.Counts.Roles + res.Counts.RoleBindings + res.Counts.HelmReleases +
 		res.Counts.CustomResources + res.Counts.ResourceQuotas + res.Counts.LimitRanges
 	usable := namespaceSummaryHasUsableSnapshot(
-		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
+		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.networkPoliciesErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
 		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
 		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.customResourcesErr, snaps.rqErr, snaps.lrErr,
 	)

@@ -629,6 +629,15 @@ export type NamespaceResourceQuota = {
   entries: ResourceQuotaEntry[];
 };
 
+export type ResourceQuotaDetails = {
+  summary: NamespaceResourceQuota;
+  metadata?: {
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+  yaml: string;
+};
+
 export type LimitRangeItem = {
   type: string;
   min?: Record<string, string>;
@@ -643,6 +652,42 @@ export type NamespaceLimitRange = {
   namespace: string;
   ageSec: number;
   items: LimitRangeItem[];
+};
+
+export type LimitRangeDetails = {
+  summary: NamespaceLimitRange;
+  metadata?: {
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+  yaml: string;
+};
+
+export type NetworkPolicy = {
+  name: string;
+  namespace: string;
+  podSelector?: string;
+  policyTypes?: string[];
+  ingressRules: number;
+  egressRules: number;
+  selectedPods?: number;
+  ageSec: number;
+};
+
+export type NetworkPolicyRule = {
+  peers?: string[];
+  ports?: string[];
+};
+
+export type NetworkPolicyDetails = {
+  summary: NetworkPolicy;
+  ingress?: NetworkPolicyRule[];
+  egress?: NetworkPolicyRule[];
+  metadata?: {
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+  yaml: string;
 };
 
 export type NamespaceResourceSignals = {
@@ -679,6 +724,7 @@ export type NamespaceResourceCounts = {
   horizontalPodAutoscalers: number;
   services: number;
   ingresses: number;
+  networkPolicies: number;
   pvcs: number;
   configMaps: number;
   secrets: number;

@@ -12,6 +12,7 @@ export type Section =
   | "horizontalpodautoscalers"
   | "services"
   | "ingresses"
+  | "networkpolicies"
   | "configmaps"
   | "secrets"
   | "serviceaccounts"
@@ -21,6 +22,8 @@ export type Section =
   | "clusterrolebindings"
   | "persistentvolumes"
   | "persistentvolumeclaims"
+  | "resourcequotas"
+  | "limitranges"
   | "customresourcedefinitions"
   | "customresources"
   | "clusterresources"
@@ -41,6 +44,7 @@ const sections: Section[] = [
   "horizontalpodautoscalers",
   "services",
   "ingresses",
+  "networkpolicies",
   "configmaps",
   "secrets",
   "serviceaccounts",
@@ -50,6 +54,8 @@ const sections: Section[] = [
   "clusterrolebindings",
   "persistentvolumes",
   "persistentvolumeclaims",
+  "resourcequotas",
+  "limitranges",
   "customresourcedefinitions",
   "customresources",
   "clusterresources",

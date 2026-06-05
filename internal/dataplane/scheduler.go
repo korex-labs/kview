@@ -29,6 +29,7 @@ const (
 	ResourceKindClusterCustomResources ResourceKind = "clusterresources"
 	ResourceKindServices               ResourceKind = "services"
 	ResourceKindIngresses              ResourceKind = "ingresses"
+	ResourceKindNetworkPolicies        ResourceKind = "networkpolicies"
 	ResourceKindPVCs                   ResourceKind = "persistentvolumeclaims"
 	ResourceKindConfigMaps             ResourceKind = "configmaps"
 	ResourceKindSecrets                ResourceKind = "secrets"
@@ -66,6 +67,7 @@ func dataplaneNamespacedListResourceKinds() []ResourceKind {
 		ResourceKindHPAs,
 		ResourceKindServices,
 		ResourceKindIngresses,
+		ResourceKindNetworkPolicies,
 		ResourceKindPVCs,
 		ResourceKindConfigMaps,
 		ResourceKindSecrets,

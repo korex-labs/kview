@@ -11,6 +11,12 @@ type ResourceQuotaDTO struct {
 	Entries   []ResourceQuotaEntryDTO `json:"entries"`
 }
 
+type ResourceQuotaDetailsDTO struct {
+	Summary  ResourceQuotaDTO  `json:"summary"`
+	Metadata ObjectMetadataDTO `json:"metadata"`
+	YAML     string            `json:"yaml"`
+}
+
 type ResourceQuotaEntryDTO struct {
 	Key   string   `json:"key"`
 	Used  string   `json:"used"`
@@ -27,6 +33,17 @@ type LimitRangeDTO struct {
 	Namespace string              `json:"namespace"`
 	AgeSec    int64               `json:"ageSec"`
 	Items     []LimitRangeItemDTO `json:"items"`
+}
+
+type LimitRangeDetailsDTO struct {
+	Summary  LimitRangeDTO     `json:"summary"`
+	Metadata ObjectMetadataDTO `json:"metadata"`
+	YAML     string            `json:"yaml"`
+}
+
+type ObjectMetadataDTO struct {
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type LimitRangeItemDTO struct {

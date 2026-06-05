@@ -335,6 +335,9 @@ func (s *stubDataplane) ServicesSnapshot(_ context.Context, _, _ string) (datapl
 func (s *stubDataplane) IngressesSnapshot(_ context.Context, _, _ string) (dataplane.IngressesSnapshot, error) {
 	panic("stubDataplane: IngressesSnapshot")
 }
+func (s *stubDataplane) NetworkPoliciesSnapshot(_ context.Context, _, _ string) (dataplane.NetworkPoliciesSnapshot, error) {
+	panic("stubDataplane: NetworkPoliciesSnapshot")
+}
 func (s *stubDataplane) PVCsSnapshot(_ context.Context, _, _ string) (dataplane.PVCsSnapshot, error) {
 	panic("stubDataplane: PVCsSnapshot")
 }

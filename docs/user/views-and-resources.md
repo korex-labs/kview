@@ -43,6 +43,12 @@ related resources, logs where supported, and YAML.
 Networking views include Services and Ingresses. They focus on selectors,
 endpoints, backend readiness, hosts, TLS, and related pods or workloads.
 
+## Policy
+
+Policy views include Network Policies, ResourceQuotas, and LimitRanges. They
+show namespace traffic policy, resource quota usage, default/min/max limits,
+and the selectors or rules that influence workload admission and connectivity.
+
 ## Configuration
 
 Configuration views include ConfigMaps and Secrets. kview surfaces metadata,
@@ -57,9 +63,9 @@ bindings across namespaced and cluster-scoped RBAC.
 
 ## Storage
 
-Storage views include Persistent Volume Claims and Persistent Volumes. They
-show phase, capacity, storage class, binding state, related workloads, and
-attention signals for low-confidence unused resources.
+Storage views include Persistent Volume Claims and Persistent Volumes. They show
+phase, capacity, storage class, binding state, related workloads, and attention
+signals for low-confidence unused resources.
 
 ## Helm
 

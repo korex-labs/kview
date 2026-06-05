@@ -13,7 +13,9 @@ import (
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
+	limitranges "github.com/korex-labs/kview/v5/internal/kube/resource/limitranges"
 	namespaces "github.com/korex-labs/kview/v5/internal/kube/resource/namespaces"
+	rquotas "github.com/korex-labs/kview/v5/internal/kube/resource/resourcequotas"
 )
 
 func (s *Server) registerNamespaceRoutes(api chi.Router) {
@@ -334,6 +336,84 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
 	})
 
+	api.Get("/namespaces/{name}/resourcequotas/{resource}", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		det, err := rquotas.GetResourceQuotaDetails(ctx, clients, namespace, resourceName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+	})
+
+	api.Get("/namespaces/{name}/resourcequotas/{resource}/events", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		result, err := kubeevents.ListEventsForObjectPage(ctx, clients, namespace, "ResourceQuota", resourceName, readEventListOptions(r))
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeEventListResponse(w, active, result)
+	})
+
+	api.Get("/namespaces/{name}/resourcequotas/{resource}/yaml", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		y, err := rquotas.GetResourceQuotaYAML(ctx, clients, namespace, resourceName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
+	})
+
 	api.Get("/namespaces/{name}/limitranges", func(w http.ResponseWriter, r *http.Request) {
 		name := chi.URLParam(r, "name")
 		if name == "" {
@@ -356,6 +436,84 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		}
 
 		writeDataplaneListResponse(w, active, snap.Items, snap.Meta, snap.Err)
+	})
+
+	api.Get("/namespaces/{name}/limitranges/{resource}", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		det, err := limitranges.GetLimitRangeDetails(ctx, clients, namespace, resourceName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+	})
+
+	api.Get("/namespaces/{name}/limitranges/{resource}/events", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		result, err := kubeevents.ListEventsForObjectPage(ctx, clients, namespace, "LimitRange", resourceName, readEventListOptions(r))
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeEventListResponse(w, active, result)
+	})
+
+	api.Get("/namespaces/{name}/limitranges/{resource}/yaml", func(w http.ResponseWriter, r *http.Request) {
+		namespace := chi.URLParam(r, "name")
+		resourceName := chi.URLParam(r, "resource")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		y, err := limitranges.GetLimitRangeYAML(ctx, clients, namespace, resourceName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 	})
 
 	api.Post("/auth/can-i", func(w http.ResponseWriter, r *http.Request) {

@@ -72,6 +72,8 @@ import JobDrawer from "../jobs/JobDrawer";
 import HelmReleaseDrawer from "../helm/HelmReleaseDrawer";
 import HorizontalPodAutoscalerDrawer from "../horizontalpodautoscalers/HorizontalPodAutoscalerDrawer";
 import CustomResourceDrawer, { type CRRef } from "../customresources/CustomResourceDrawer";
+import ResourceQuotaDrawer from "../resourcequotas/ResourceQuotaDrawer";
+import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
 import { drawerBodySx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 
 const tabs = ["Signals", "Inventory", "Capacity", "Events", "Metadata", "YAML"] as const;
@@ -89,6 +91,7 @@ const sectionMap: Record<string, string> = {
   horizontalPodAutoscalers: "horizontalpodautoscalers",
   services: "services",
   ingresses: "ingresses",
+  networkPolicies: "networkpolicies",
   pvcs: "persistentvolumeclaims",
   configMaps: "configmaps",
   secrets: "secrets",
@@ -97,6 +100,8 @@ const sectionMap: Record<string, string> = {
   serviceAccounts: "serviceaccounts",
   roles: "roles",
   roleBindings: "rolebindings",
+  resourceQuotas: "resourcequotas",
+  limitRanges: "limitranges",
 };
 
 function namespaceConditionChipColor(status?: string): "success" | "warning" | "error" | "default" {
@@ -233,6 +238,8 @@ export default function NamespaceDrawer(props: {
   const [drawerHelmRelease, setDrawerHelmRelease] = useState<string | null>(null);
   const [drawerHPA, setDrawerHPA] = useState<string | null>(null);
   const [drawerCustomResource, setDrawerCustomResource] = useState<CRRef | null>(null);
+  const [drawerResourceQuota, setDrawerResourceQuota] = useState<string | null>(null);
+  const [drawerLimitRange, setDrawerLimitRange] = useState<string | null>(null);
   const eventTargetFor = (event: EventDTO) => {
     const kind = String(event.involvedKind || "").toLowerCase();
     const resourceName = event.involvedName || "";
@@ -243,6 +250,8 @@ export default function NamespaceDrawer(props: {
     if (kind === "deployment") return { ...target, onClick: () => setDrawerDeployment(resourceName) };
     if (kind === "job") return { ...target, onClick: () => setDrawerJob(resourceName) };
     if (kind === "horizontalpodautoscaler") return { ...target, onClick: () => setDrawerHPA(resourceName) };
+    if (kind === "resourcequota") return { ...target, onClick: () => setDrawerResourceQuota(resourceName) };
+    if (kind === "limitrange") return { ...target, onClick: () => setDrawerLimitRange(resourceName) };
     if (kind === "helmrelease" || kind === "helm release") {
       return { ...target, onClick: () => setDrawerHelmRelease(resourceName) };
     }
@@ -272,6 +281,8 @@ export default function NamespaceDrawer(props: {
     setDrawerHelmRelease(null);
     setDrawerHPA(null);
     setDrawerCustomResource(null);
+    setDrawerResourceQuota(null);
+    setDrawerLimitRange(null);
 
     const encodedName = encodeURIComponent(name);
     (async () => {
@@ -402,6 +413,7 @@ export default function NamespaceDrawer(props: {
                   onOpenHPA={setDrawerHPA}
                   onOpenCustomResource={setDrawerCustomResource}
                   onOpenHelmRelease={setDrawerHelmRelease}
+                  onOpenResourceQuota={setDrawerResourceQuota}
                   onNavigate={navigateTo}
                   onSelectCapacityTab={() => setTab(2)}
                   onJumpToEvents={() => setTab(eventsTabIndex)}
@@ -433,7 +445,8 @@ export default function NamespaceDrawer(props: {
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
                           {mapCountChip("Services", counts.services, "services", !!props.onNavigate, navigateTo)}
                           {mapCountChip("Ingresses", counts.ingresses, "ingresses", !!props.onNavigate, navigateTo)}
-                          {counts.services === 0 && counts.ingresses === 0 && (
+                          {mapCountChip("NetworkPolicies", counts.networkPolicies ?? 0, "networkPolicies", !!props.onNavigate, navigateTo)}
+                          {counts.services === 0 && counts.ingresses === 0 && (counts.networkPolicies ?? 0) === 0 && (
                             <Typography variant="body2" color="text.secondary">None</Typography>
                           )}
                         </Box>
@@ -453,6 +466,13 @@ export default function NamespaceDrawer(props: {
                           {mapCountChip("Roles", counts.roles, "roles", !!props.onNavigate, navigateTo)}
                           {mapCountChip("RoleBindings", counts.roleBindings, "rolebindings", !!props.onNavigate, navigateTo)}
                           {mapCountChip("Helm releases", counts.helmReleases, "helm", !!props.onNavigate, navigateTo)}
+                        </Box>
+                      </Section>
+
+                      <Section title="Policy">
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+                          {mapCountChip("ResourceQuotas", counts.resourceQuotas, "resourceQuotas", !!props.onNavigate, navigateTo)}
+                          {mapCountChip("LimitRanges", counts.limitRanges, "limitRanges", !!props.onNavigate, navigateTo)}
                         </Box>
                       </Section>
 
@@ -538,8 +558,22 @@ export default function NamespaceDrawer(props: {
 
                   <Section title="Capacity signals">
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
-                      <ScopedCountChip size="small" label="ResourceQuotas" count={quotas.length} color={quotas.length > 0 ? "primary" : "default"} />
-                      <ScopedCountChip size="small" label="LimitRanges" count={limitRanges.length} color={limitRanges.length > 0 ? "primary" : "default"} />
+                      <ScopedCountChip
+                        size="small"
+                        label="ResourceQuotas"
+                        count={quotas.length}
+                        color={quotas.length > 0 ? "primary" : "default"}
+                        onClick={props.onNavigate ? () => navigateTo("resourceQuotas") : undefined}
+                        clickable={!!props.onNavigate}
+                      />
+                      <ScopedCountChip
+                        size="small"
+                        label="LimitRanges"
+                        count={limitRanges.length}
+                        color={limitRanges.length > 0 ? "primary" : "default"}
+                        onClick={props.onNavigate ? () => navigateTo("limitRanges") : undefined}
+                        clickable={!!props.onNavigate}
+                      />
                       {(quotaPressure.critical > 0 || quotaPressure.warning > 0) && (
                         <>
                           <ScopedCountChip size="small" color="error" label="Critical quota entries" count={quotaPressure.critical} />
@@ -560,7 +594,10 @@ export default function NamespaceDrawer(props: {
                         >
                           <KeyValueTable
                             rows={[
-                              { label: "Name", value: quota.name, monospace: true },
+                              {
+                                label: "Name",
+                                value: <ResourceLinkChip label={quota.name} onClick={() => setDrawerResourceQuota(quota.name)} />,
+                              },
                               { label: "Age", value: fmtAge(quota.ageSec) },
                             ]}
                             columns={2}
@@ -593,7 +630,10 @@ export default function NamespaceDrawer(props: {
                           <Box key={range.name} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1.5 }}>
                             <KeyValueTable
                               rows={[
-                                { label: "Name", value: range.name, monospace: true },
+                                {
+                                  label: "Name",
+                                  value: <ResourceLinkChip label={range.name} onClick={() => setDrawerLimitRange(range.name)} />,
+                                },
                                 { label: "Age", value: fmtAge(range.ageSec) },
                               ]}
                               columns={2}
@@ -736,6 +776,20 @@ export default function NamespaceDrawer(props: {
               onClose={() => setDrawerCustomResource(null)}
               token={props.token}
               crRef={drawerCustomResource}
+            />
+            <ResourceQuotaDrawer
+              open={!!drawerResourceQuota}
+              onClose={() => setDrawerResourceQuota(null)}
+              token={props.token}
+              namespace={name || ""}
+              resourceQuotaName={drawerResourceQuota}
+            />
+            <LimitRangeDrawer
+              open={!!drawerLimitRange}
+              onClose={() => setDrawerLimitRange(null)}
+              token={props.token}
+              namespace={name || ""}
+              limitRangeName={drawerLimitRange}
             />
           </>
         )}

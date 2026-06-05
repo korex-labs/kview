@@ -82,6 +82,7 @@ func (p *clusterPlane) inMemorySearchRows() []dataplaneSearchRow {
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindDeployments, &p.depsStore)
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindServices, &p.svcsStore)
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindIngresses, &p.ingStore)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindNetworkPolicies, &p.networkPoliciesStore)
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindPVCs, &p.pvcsStore)
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindConfigMaps, &p.cmsStore)
 	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindSecrets, &p.secsStore)

@@ -24,6 +24,7 @@ import (
 	limitranges "github.com/korex-labs/kview/v5/internal/kube/resource/limitranges"
 	kubemetrics "github.com/korex-labs/kview/v5/internal/kube/resource/metrics"
 	namespaces "github.com/korex-labs/kview/v5/internal/kube/resource/namespaces"
+	networkpolicies "github.com/korex-labs/kview/v5/internal/kube/resource/networkpolicies"
 	nodes "github.com/korex-labs/kview/v5/internal/kube/resource/nodes"
 	pvcs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumeclaims"
 	pvs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumes"
@@ -128,6 +129,8 @@ type DataPlaneManager interface {
 	ServicesSnapshot(ctx context.Context, clusterName, namespace string) (ServicesSnapshot, error)
 	// IngressesSnapshot returns a raw snapshot for ingresses in the given namespace.
 	IngressesSnapshot(ctx context.Context, clusterName, namespace string) (IngressesSnapshot, error)
+	// NetworkPoliciesSnapshot returns a raw snapshot for network policies in the given namespace.
+	NetworkPoliciesSnapshot(ctx context.Context, clusterName, namespace string) (NetworkPoliciesSnapshot, error)
 	// PVCsSnapshot returns a raw snapshot for PVCs in the given namespace.
 	PVCsSnapshot(ctx context.Context, clusterName, namespace string) (PVCsSnapshot, error)
 	// ConfigMapsSnapshot returns a raw snapshot for configmaps in the given namespace.
@@ -624,6 +627,7 @@ type clusterPlane struct {
 	depsStore            namespacedSnapshotStore[DeploymentsSnapshot]
 	svcsStore            namespacedSnapshotStore[ServicesSnapshot]
 	ingStore             namespacedSnapshotStore[IngressesSnapshot]
+	networkPoliciesStore namespacedSnapshotStore[NetworkPoliciesSnapshot]
 	pvcsStore            namespacedSnapshotStore[PVCsSnapshot]
 	cmsStore             namespacedSnapshotStore[ConfigMapsSnapshot]
 	secsStore            namespacedSnapshotStore[SecretsSnapshot]
@@ -672,6 +676,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		depsStore:            newNamespacedSnapshotStore[DeploymentsSnapshot](),
 		svcsStore:            newNamespacedSnapshotStore[ServicesSnapshot](),
 		ingStore:             newNamespacedSnapshotStore[IngressesSnapshot](),
+		networkPoliciesStore: newNamespacedSnapshotStore[NetworkPoliciesSnapshot](),
 		pvcsStore:            newNamespacedSnapshotStore[PVCsSnapshot](),
 		cmsStore:             newNamespacedSnapshotStore[ConfigMapsSnapshot](),
 		secsStore:            newNamespacedSnapshotStore[SecretsSnapshot](),
@@ -704,6 +709,7 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 	p.depsStore.configureTelemetry(stats, name, ResourceKindDeployments)
 	p.svcsStore.configureTelemetry(stats, name, ResourceKindServices)
 	p.ingStore.configureTelemetry(stats, name, ResourceKindIngresses)
+	p.networkPoliciesStore.configureTelemetry(stats, name, ResourceKindNetworkPolicies)
 	p.pvcsStore.configureTelemetry(stats, name, ResourceKindPVCs)
 	p.cmsStore.configureTelemetry(stats, name, ResourceKindConfigMaps)
 	p.secsStore.configureTelemetry(stats, name, ResourceKindSecrets)
@@ -829,6 +835,8 @@ func (p *clusterPlane) hydratePersistedNamespacedSnapshot(kind ResourceKind, nam
 		return hydratePersistedNamespacedSnapshotInto(&p.svcsStore, namespace, payload, maxAge)
 	case ResourceKindIngresses:
 		return hydratePersistedNamespacedSnapshotInto(&p.ingStore, namespace, payload, maxAge)
+	case ResourceKindNetworkPolicies:
+		return hydratePersistedNamespacedSnapshotInto(&p.networkPoliciesStore, namespace, payload, maxAge)
 	case ResourceKindPVCs:
 		return hydratePersistedNamespacedSnapshotInto(&p.pvcsStore, namespace, payload, maxAge)
 	case ResourceKindConfigMaps:
@@ -921,6 +929,7 @@ type PodsSnapshot = Snapshot[dto.PodListItemDTO]
 type DeploymentsSnapshot = Snapshot[dto.DeploymentListItemDTO]
 type ServicesSnapshot = Snapshot[dto.ServiceListItemDTO]
 type IngressesSnapshot = Snapshot[dto.IngressListItemDTO]
+type NetworkPoliciesSnapshot = Snapshot[dto.NetworkPolicyDTO]
 type PVCsSnapshot = Snapshot[dto.PersistentVolumeClaimDTO]
 type ConfigMapsSnapshot = Snapshot[dto.ConfigMapDTO]
 type SecretsSnapshot = Snapshot[dto.SecretDTO]
@@ -1072,6 +1081,19 @@ func (p *clusterPlane) IngressesSnapshot(ctx context.Context, sched *workSchedul
 		fetch:       ingresses.ListIngresses,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.ingStore, desc)
+}
+
+// NetworkPoliciesSnapshot returns a raw snapshot for network policies in the given namespace plus metadata and any normalized error.
+func (p *clusterPlane) NetworkPoliciesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (NetworkPoliciesSnapshot, error) {
+	desc := namespacedSnapshotDescriptor[dto.NetworkPolicyDTO]{
+		kind:        ResourceKindNetworkPolicies,
+		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindNetworkPolicies),
+		capGroup:    "networking.k8s.io",
+		capResource: "networkpolicies",
+		capScope:    CapabilityScopeNamespace,
+		fetch:       networkpolicies.ListNetworkPolicies,
+	}
+	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.networkPoliciesStore, desc)
 }
 
 // PVCsSnapshot returns a raw snapshot for PVCs in the given namespace plus metadata and any normalized error.
@@ -1371,6 +1393,12 @@ func (m *manager) IngressesSnapshot(ctx context.Context, clusterName, namespace 
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
 	plane := planeAny.(*clusterPlane)
 	return plane.IngressesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
+}
+
+func (m *manager) NetworkPoliciesSnapshot(ctx context.Context, clusterName, namespace string) (NetworkPoliciesSnapshot, error) {
+	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
+	plane := planeAny.(*clusterPlane)
+	return plane.NetworkPoliciesSnapshot(ctx, m.scheduler, m.clients, namespace, WorkPriorityCritical)
 }
 
 func (m *manager) PVCsSnapshot(ctx context.Context, clusterName, namespace string) (PVCsSnapshot, error) {

@@ -103,11 +103,12 @@ export function inspectTargetFromSignal(f: DashboardSignalItem): InspectTarget |
     case "HelmRelease":
     case "Service":
     case "Ingress":
+    case "NetworkPolicy":
     case "Role":
     case "RoleBinding":
-      return { kind: f.kind, namespace, name };
     case "ResourceQuota":
-      return { kind: "Namespace", namespace, name: namespace };
+    case "LimitRange":
+      return { kind: f.kind, namespace, name };
     default:
       return null;
   }

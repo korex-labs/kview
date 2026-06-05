@@ -6,6 +6,14 @@ repository.
 
 ## Recent Highlights
 
+- The sidebar now has a Policy group for Network Policies, ResourceQuotas, and
+  LimitRanges, so traffic and namespace capacity policy can be browsed directly.
+- Policy resource drawers now include events, metadata, YAML editing, and delete
+  actions for NetworkPolicies, ResourceQuotas, and LimitRanges where supported.
+- Namespace and dashboard signal flows now deep-link into Policy resources, and
+  Policy drawers link back to their namespace context.
+- Detail-level missing-template-reference signals now have catalog entries for
+  DaemonSets, StatefulSets, ReplicaSets, Jobs, and CronJobs.
 - YAML tab actions now apply generated live patches after validation, diff
   review, risk warnings, and typed confirmation.
 - Signal workflows now include **Investigate signal**, which opens a read-only

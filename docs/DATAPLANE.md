@@ -25,7 +25,7 @@ Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dat
 
 **Cluster-scoped snapshot kinds:** namespaces, nodes, persistentvolumes, clusterroles, clusterrolebindings, customresourcedefinitions, **nodemetrics**.
 
-**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, horizontalpodautoscalers, services, ingresses, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges, **podmetrics**.
+**Namespaced snapshot kinds:** pods, deployments, daemonsets, statefulsets, replicasets, jobs, cronjobs, horizontalpodautoscalers, services, ingresses, networkpolicies, persistentvolumeclaims, configmaps, secrets, serviceaccounts, roles, rolebindings, helmreleases, resourcequotas, limitranges, **podmetrics**.
 
 Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values). The metrics kinds (`podmetrics`, `nodemetrics`) default to a **~30s** TTL controlled by `policy.Metrics.PodMetricsTTLSeconds` / `NodeMetricsTTLSeconds`. Metrics snapshots set the per-descriptor `skipPersistence` flag and are therefore **never written to the bbolt cache**: the data is high-churn, short-lived, and meaningless across process restarts.
 

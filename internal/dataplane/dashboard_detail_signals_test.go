@@ -459,6 +459,90 @@ func TestDetectDeploymentDetailSignals_MissingTemplateReferences(t *testing.T) {
 	}
 }
 
+func TestDetectWorkloadDetailSignals_MissingTemplateReferences(t *testing.T) {
+	missing := []dto.MissingReferenceDTO{
+		{Kind: "Secret", Name: "registry-cred", Source: "imagePullSecret"},
+	}
+	cases := []struct {
+		name       string
+		signalType string
+		kind       string
+		detect     func() []ClusterDashboardSignal
+	}{
+		{
+			name:       "daemonset",
+			signalType: "daemonset_missing_template_reference",
+			kind:       "DaemonSet",
+			detect: func() []ClusterDashboardSignal {
+				return DetectDaemonSetDetailSignals("team-a", dto.DaemonSetDetailsDTO{
+					Summary: dto.DaemonSetSummaryDTO{Name: "node-agent", Namespace: "team-a"},
+					Spec:    dto.DaemonSetSpecDTO{MissingReferences: missing},
+				})
+			},
+		},
+		{
+			name:       "statefulset",
+			signalType: "statefulset_missing_template_reference",
+			kind:       "StatefulSet",
+			detect: func() []ClusterDashboardSignal {
+				return DetectStatefulSetDetailSignals("team-a", dto.StatefulSetDetailsDTO{
+					Summary: dto.StatefulSetSummaryDTO{Name: "db", Namespace: "team-a"},
+					Spec:    dto.StatefulSetSpecDTO{MissingReferences: missing},
+				})
+			},
+		},
+		{
+			name:       "replicaset",
+			signalType: "replicaset_missing_template_reference",
+			kind:       "ReplicaSet",
+			detect: func() []ClusterDashboardSignal {
+				return DetectReplicaSetDetailSignals("team-a", dto.ReplicaSetDetailsDTO{
+					Summary: dto.ReplicaSetSummaryDTO{Name: "web-abc123", Namespace: "team-a"},
+					Spec:    dto.ReplicaSetSpecDTO{MissingReferences: missing},
+				})
+			},
+		},
+		{
+			name:       "job",
+			signalType: "job_missing_template_reference",
+			kind:       "Job",
+			detect: func() []ClusterDashboardSignal {
+				return DetectJobDetailSignals("team-a", dto.JobDetailsDTO{
+					Summary: dto.JobSummaryDTO{Name: "batch", Namespace: "team-a"},
+					Spec:    dto.JobSpecDTO{MissingReferences: missing},
+				})
+			},
+		},
+		{
+			name:       "cronjob",
+			signalType: "cronjob_missing_template_reference",
+			kind:       "CronJob",
+			detect: func() []ClusterDashboardSignal {
+				return DetectCronJobDetailSignals("team-a", dto.CronJobDetailsDTO{
+					Summary: dto.CronJobSummaryDTO{Name: "nightly", Namespace: "team-a"},
+					Spec:    dto.CronJobSpecDTO{MissingReferences: missing},
+				})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.detect()
+			if len(got) != 1 {
+				t.Fatalf("expected one signal, got %+v", got)
+			}
+			if got[0].SignalType != tc.signalType || got[0].ResourceKind != tc.kind || got[0].Namespace != "team-a" {
+				t.Fatalf("signal mismatch: %+v", got[0])
+			}
+			if !strings.Contains(got[0].ActualData, "secret/registry-cred") {
+				t.Fatalf("actual data did not include missing ref: %+v", got[0])
+			}
+		})
+	}
+}
+
 func TestDashboardSignalDefinitionRegistry_NewDetailSignalsRegistered(t *testing.T) {
 	cases := []struct {
 		signalType     string
@@ -469,6 +553,11 @@ func TestDashboardSignalDefinitionRegistry_NewDetailSignalsRegistered(t *testing
 		{"pod_succeeded_with_issues", "Pods Succeeded with recorded issues", "phase Succeeded while conditions, container states, or Warning events indicate problems"},
 		{"deployment_unavailable", "Deployments unavailable for extended time", "Available=False longer than configured threshold, or no available replicas for a mature deployment"},
 		{"deployment_missing_template_reference", "Deployments with missing template references", "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
+		{"daemonset_missing_template_reference", "DaemonSets with missing template references", "daemonset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
+		{"statefulset_missing_template_reference", "StatefulSets with missing template references", "statefulset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
+		{"replicaset_missing_template_reference", "ReplicaSets with missing template references", "replicaset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
+		{"job_missing_template_reference", "Jobs with missing template references", "job pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
+		{"cronjob_missing_template_reference", "CronJobs with missing template references", "cronjob job template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace"},
 	}
 	for _, tc := range cases {
 		tc := tc

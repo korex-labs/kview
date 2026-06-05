@@ -12,6 +12,7 @@ import (
 	configmaps "github.com/korex-labs/kview/v5/internal/kube/resource/configmaps"
 	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 	ingresses "github.com/korex-labs/kview/v5/internal/kube/resource/ingresses"
+	networkpolicies "github.com/korex-labs/kview/v5/internal/kube/resource/networkpolicies"
 	pvcs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumeclaims"
 	rolebindings "github.com/korex-labs/kview/v5/internal/kube/resource/rolebindings"
 	roles "github.com/korex-labs/kview/v5/internal/kube/resource/roles"
@@ -101,6 +102,86 @@ func (s *Server) registerNamespacedResourceRoutes(api chi.Router) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
+	})
+
+	api.Get("/namespaces/{ns}/networkpolicies", dataplaneNamespacedListHandler(s, s.dp.NetworkPoliciesSnapshot, nil))
+
+	api.Get("/namespaces/{ns}/networkpolicies/{name}", func(w http.ResponseWriter, r *http.Request) {
+		ns := chi.URLParam(r, "ns")
+		name := chi.URLParam(r, "name")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		det, err := networkpolicies.GetNetworkPolicyDetails(ctx, clients, ns, name)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det})
+	})
+
+	api.Get("/namespaces/{ns}/networkpolicies/{name}/events", func(w http.ResponseWriter, r *http.Request) {
+		ns := chi.URLParam(r, "ns")
+		name := chi.URLParam(r, "name")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		result, err := kubeevents.ListEventsForObjectPage(ctx, clients, ns, "NetworkPolicy", name, readEventListOptions(r))
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeEventListResponse(w, active, result)
+	})
+
+	api.Get("/namespaces/{ns}/networkpolicies/{name}/yaml", func(w http.ResponseWriter, r *http.Request) {
+		ns := chi.URLParam(r, "ns")
+		name := chi.URLParam(r, "name")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
+		defer cancel()
+
+		clients, active, err := s.clientsForRequest(ctx, r)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		y, err := networkpolicies.GetNetworkPolicyYAML(ctx, clients, ns, name)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 	})
 
 	api.Get("/namespaces/{ns}/configmaps", dataplaneNamespacedListHandler(s, s.dp.ConfigMapsSnapshot, func(items []dto.ConfigMapDTO) any {

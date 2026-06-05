@@ -15,6 +15,7 @@ export type ListResourceKey =
   | "replicasets"
   | "services"
   | "ingresses"
+  | "networkpolicies"
   | "jobs"
   | "cronjobs"
   | "horizontalpodautoscalers"
@@ -59,6 +60,7 @@ export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
   replicasets: { label: "Replica Sets", clusterScoped: false, icon: "replicasets" },
   services: { label: "Services", clusterScoped: false, icon: "services" },
   ingresses: { label: "Ingresses", clusterScoped: false, icon: "ingresses" },
+  networkpolicies: { label: "Network Policies", clusterScoped: false, icon: "networkpolicies" },
   jobs: { label: "Jobs", clusterScoped: false, icon: "jobs" },
   cronjobs: { label: "Cron Jobs", clusterScoped: false, icon: "cronjobs" },
   horizontalpodautoscalers: { label: "HPA", clusterScoped: false, icon: "horizontalpodautoscalers" },
@@ -94,6 +96,12 @@ export const sidebarGroups: SidebarGroup[] = [
     label: "Networking",
     icon: "networking",
     items: ["services", "ingresses"],
+  },
+  {
+    id: "policy",
+    label: "Policy",
+    icon: "policy",
+    items: ["networkpolicies", "resourcequotas", "limitranges"],
   },
   {
     id: "configuration",
@@ -161,6 +169,7 @@ export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> =
   replicasets: { group: "apps", resource: "replicasets" },
   services: { group: "", resource: "services" },
   ingresses: { group: "networking.k8s.io", resource: "ingresses" },
+  networkpolicies: { group: "networking.k8s.io", resource: "networkpolicies" },
   jobs: { group: "batch", resource: "jobs" },
   cronjobs: { group: "batch", resource: "cronjobs" },
   horizontalpodautoscalers: { group: "autoscaling", resource: "horizontalpodautoscalers" },

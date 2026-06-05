@@ -20,6 +20,7 @@ documentation remains in the rest of `docs/`.
 - [Activity Panel](activity-panel.md)
 - [Pods And Workloads](pods-workloads.md)
 - [Networking](networking.md)
+- [Policy](policy.md)
 - [Namespaces](namespaces.md)
 - [Helm](helm.md)
 - [RBAC](rbac.md)

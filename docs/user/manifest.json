@@ -85,6 +85,13 @@
       "surfaces": ["app", "repo", "website"]
     },
     {
+      "id": "policy",
+      "title": "Policy",
+      "category": "Resources",
+      "source": "policy.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
       "id": "namespaces",
       "title": "Namespaces",
       "category": "Resources",

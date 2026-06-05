@@ -35,6 +35,12 @@ const iconPaths: Record<ResourceIconName, ReactNode> = {
       <path d="m8.8 11 6.4-2.9M8.8 13l6.4 2.9" />
     </>
   ),
+  policy: (
+    <>
+      <path d="M12 4 6 7v5c0 3.8 2.5 6.2 6 8 3.5-1.8 6-4.2 6-8V7z" />
+      <path d="M9 12h6M10 15h4" />
+    </>
+  ),
   configuration: (
     <>
       <rect x="4" y="6" width="16" height="12" rx="2" />
@@ -125,6 +131,14 @@ const iconPaths: Record<ResourceIconName, ReactNode> = {
     <>
       <path d="M4 12h6l2-6 2 12 2-6h4" />
       <path d="M6 17h12" />
+    </>
+  ),
+  networkpolicies: (
+    <>
+      <path d="M12 4 5 8v8l7 4 7-4V8z" />
+      <path d="M8 12h8M12 8v8" />
+      <circle cx="8" cy="12" r="1" />
+      <circle cx="16" cy="12" r="1" />
     </>
   ),
   jobs: (

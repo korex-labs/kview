@@ -132,6 +132,7 @@ type NamespaceResourceCounts struct {
 	HPAs            int `json:"horizontalPodAutoscalers"`
 	Services        int `json:"services"`
 	Ingresses       int `json:"ingresses"`
+	NetworkPolicies int `json:"networkPolicies"`
 	PVCs            int `json:"pvcs"`
 	ConfigMaps      int `json:"configMaps"`
 	Secrets         int `json:"secrets"`

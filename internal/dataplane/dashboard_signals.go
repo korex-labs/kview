@@ -295,7 +295,7 @@ func defaultDashboardSignalSeverity(signalType string) string {
 	switch signalType {
 	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference":
 		return "high"
-	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference":
+	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference", "daemonset_missing_template_reference", "statefulset_missing_template_reference", "replicaset_missing_template_reference", "job_missing_template_reference", "cronjob_missing_template_reference":
 		return "medium"
 	default:
 		return "low"
@@ -549,6 +549,46 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		CalculatedData:  "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The Deployment template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, update the Deployment template reference, then restart the rollout if pods are stuck on the old template.",
+		Priority:        1,
+	},
+	"daemonset_missing_template_reference": {
+		Type:            "daemonset_missing_template_reference",
+		Label:           "DaemonSets with missing template references",
+		CalculatedData:  "daemonset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The DaemonSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, update the DaemonSet template reference, then restart the rollout if pods are stuck on the old template.",
+		Priority:        1,
+	},
+	"statefulset_missing_template_reference": {
+		Type:            "statefulset_missing_template_reference",
+		Label:           "StatefulSets with missing template references",
+		CalculatedData:  "statefulset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The StatefulSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, update the StatefulSet template reference, then restart or continue the rollout if pods are stuck on the old template.",
+		Priority:        1,
+	},
+	"replicaset_missing_template_reference": {
+		Type:            "replicaset_missing_template_reference",
+		Label:           "ReplicaSets with missing template references",
+		CalculatedData:  "replicaset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The ReplicaSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, then inspect the owning workload before editing or deleting the ReplicaSet directly.",
+		Priority:        1,
+	},
+	"job_missing_template_reference": {
+		Type:            "job_missing_template_reference",
+		Label:           "Jobs with missing template references",
+		CalculatedData:  "job pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The Job template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, then recreate or rerun the Job if failed pods captured the old template.",
+		Priority:        1,
+	},
+	"cronjob_missing_template_reference": {
+		Type:            "cronjob_missing_template_reference",
+		Label:           "CronJobs with missing template references",
+		CalculatedData:  "cronjob job template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
+		LikelyCause:     "The CronJob job template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
+		SuggestedAction: "Create or restore the missing object, update the CronJob template if needed, then watch the next run or start a manual run to confirm recovery.",
 		Priority:        1,
 	},
 }

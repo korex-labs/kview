@@ -15,8 +15,11 @@ export type InspectTarget = {
     | "HelmRelease"
     | "Service"
     | "Ingress"
+    | "NetworkPolicy"
     | "Role"
     | "RoleBinding"
+    | "ResourceQuota"
+    | "LimitRange"
     | "HelmChart";
   namespace: string;
   name: string;

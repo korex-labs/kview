@@ -58,6 +58,7 @@ const StatefulSetsTable = React.lazy(() => import("./components/resources/statef
 const ReplicaSetsTable = React.lazy(() => import("./components/resources/replicasets/ReplicaSetsTable"));
 const ServicesTable = React.lazy(() => import("./components/resources/services/ServicesTable"));
 const IngressesTable = React.lazy(() => import("./components/resources/ingresses/IngressesTable"));
+const NetworkPoliciesTable = React.lazy(() => import("./components/resources/networkpolicies/NetworkPoliciesTable"));
 const JobsTable = React.lazy(() => import("./components/resources/jobs/JobsTable"));
 const CronJobsTable = React.lazy(() => import("./components/resources/cronjobs/CronJobsTable"));
 const HorizontalPodAutoscalersTable = React.lazy(
@@ -74,6 +75,8 @@ const PersistentVolumesTable = React.lazy(() => import("./components/resources/p
 const PersistentVolumeClaimsTable = React.lazy(
   () => import("./components/resources/persistentvolumeclaims/PersistentVolumeClaimsTable"),
 );
+const ResourceQuotasTable = React.lazy(() => import("./components/resources/resourcequotas/ResourceQuotasTable"));
+const LimitRangesTable = React.lazy(() => import("./components/resources/limitranges/LimitRangesTable"));
 const HelmReleasesTable = React.lazy(() => import("./components/resources/helm/HelmReleasesTable"));
 const HelmChartsTable = React.lazy(() => import("./components/resources/helm/HelmChartsTable"));
 const CustomResourceDefinitionsTable = React.lazy(
@@ -796,6 +799,9 @@ function AppInner() {
                   ) : null}
                   {section === "services" && namespace ? <ServicesTable token={token} namespace={namespace} /> : null}
                   {section === "ingresses" && namespace ? <IngressesTable token={token} namespace={namespace} /> : null}
+                  {section === "networkpolicies" && namespace ? (
+                    <NetworkPoliciesTable token={token} namespace={namespace} />
+                  ) : null}
                   {section === "configmaps" && namespace ? <ConfigMapsTable token={token} namespace={namespace} /> : null}
                   {section === "secrets" && namespace ? <SecretsTable token={token} namespace={namespace} /> : null}
                   {section === "serviceaccounts" && namespace ? (
@@ -808,6 +814,12 @@ function AppInner() {
                   {section === "persistentvolumes" ? <PersistentVolumesTable token={token} /> : null}
                   {section === "persistentvolumeclaims" && namespace ? (
                     <PersistentVolumeClaimsTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "resourcequotas" && namespace ? (
+                    <ResourceQuotasTable token={token} namespace={namespace} />
+                  ) : null}
+                  {section === "limitranges" && namespace ? (
+                    <LimitRangesTable token={token} namespace={namespace} />
                   ) : null}
                   {section === "customresourcedefinitions" ? (
                     <CustomResourceDefinitionsTable token={token} />

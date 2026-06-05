@@ -11,6 +11,7 @@ import importExport from "../../../docs/user/import-export.md?raw";
 import namespaces from "../../../docs/user/namespaces.md?raw";
 import navigation from "../../../docs/user/navigation.md?raw";
 import networking from "../../../docs/user/networking.md?raw";
+import policy from "../../../docs/user/policy.md?raw";
 import podsWorkloads from "../../../docs/user/pods-workloads.md?raw";
 import rbac from "../../../docs/user/rbac.md?raw";
 import resourceDrawers from "../../../docs/user/resource-drawers.md?raw";
@@ -64,6 +65,7 @@ const pageBodies: Record<string, string> = {
   namespaces,
   navigation,
   networking,
+  policy,
   "pods-workloads": podsWorkloads,
   rbac,
   "resource-drawers": resourceDrawers,

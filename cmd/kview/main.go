@@ -78,6 +78,10 @@ func main() {
 
 	srv.Actions().Register("ingress.delete", kubeactions.HandleIngressDelete)
 
+	srv.Actions().Register("networkpolicy.delete", kubeactions.HandleNetworkPolicyDelete)
+	srv.Actions().Register("resourcequota.delete", kubeactions.HandleResourceQuotaDelete)
+	srv.Actions().Register("limitrange.delete", kubeactions.HandleLimitRangeDelete)
+
 	srv.Actions().Register("configmap.delete", kubeactions.HandleConfigMapDelete)
 
 	srv.Actions().Register("secret.delete", kubeactions.HandleSecretDelete)

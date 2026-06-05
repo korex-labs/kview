@@ -9,6 +9,9 @@ import JobDrawer from "../resources/jobs/JobDrawer";
 import CronJobDrawer from "../resources/cronjobs/CronJobDrawer";
 import ServiceDrawer from "../resources/services/ServiceDrawer";
 import IngressDrawer from "../resources/ingresses/IngressDrawer";
+import NetworkPolicyDrawer from "../resources/networkpolicies/NetworkPolicyDrawer";
+import ResourceQuotaDrawer from "../resources/resourcequotas/ResourceQuotaDrawer";
+import LimitRangeDrawer from "../resources/limitranges/LimitRangeDrawer";
 import ConfigMapDrawer from "../resources/configmaps/ConfigMapDrawer";
 import SecretDrawer from "../resources/secrets/SecretDrawer";
 import ServiceAccountDrawer from "../resources/serviceaccounts/ServiceAccountDrawer";
@@ -54,6 +57,12 @@ export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate
       return <ServiceDrawer open={open} onClose={onClose} token={token} namespace={namespace} serviceName={name} />;
     case "ingresses":
       return <IngressDrawer open={open} onClose={onClose} token={token} namespace={namespace} ingressName={name} />;
+    case "networkpolicies":
+      return <NetworkPolicyDrawer open={open} onClose={onClose} token={token} namespace={namespace} networkPolicyName={name} />;
+    case "resourcequotas":
+      return <ResourceQuotaDrawer open={open} onClose={onClose} token={token} namespace={namespace} resourceQuotaName={name} />;
+    case "limitranges":
+      return <LimitRangeDrawer open={open} onClose={onClose} token={token} namespace={namespace} limitRangeName={name} />;
     case "configmaps":
       return <ConfigMapDrawer open={open} onClose={onClose} token={token} namespace={namespace} configMapName={name} />;
     case "secrets":
@@ -68,9 +77,6 @@ export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate
       return <PersistentVolumeClaimDrawer open={open} onClose={onClose} token={token} namespace={namespace} persistentVolumeClaimName={name} />;
     case "helmreleases":
       return <HelmReleaseDrawer open={open} onClose={onClose} token={token} namespace={namespace} releaseName={name} />;
-    case "resourcequotas":
-    case "limitranges":
-      return <NamespaceDrawer open={open} onClose={onClose} token={token} namespaceName={namespace || null} onNavigate={onNavigate} />;
     default:
       return null;
   }

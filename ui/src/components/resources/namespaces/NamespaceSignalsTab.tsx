@@ -90,6 +90,7 @@ type Props = {
   onOpenHPA: (name: string) => void;
   onOpenCustomResource: (ref: CRRef) => void;
   onOpenHelmRelease: (name: string | null) => void;
+  onOpenResourceQuota: (name: string) => void;
   onNavigate: (sectionKey: string, filter?: string) => void;
   onSelectCapacityTab: () => void;
   onJumpToEvents?: () => void;
@@ -123,6 +124,7 @@ export default function NamespaceSignalsTab({
   onOpenHPA,
   onOpenCustomResource,
   onOpenHelmRelease,
+  onOpenResourceQuota,
   onNavigate,
   onSelectCapacityTab,
   onJumpToEvents,
@@ -160,9 +162,14 @@ export default function NamespaceSignalsTab({
   function handleSignal(signal: DashboardSignalItem) {
     switch (signal.kind) {
       case "Namespace":
-      case "ResourceQuota":
         onSelectCapacityTab();
         return;
+      case "ResourceQuota":
+        if (signal.name) onOpenResourceQuota(signal.name);
+        else onSelectCapacityTab();
+        return;
+      case "LimitRange": onNavigate("limitRanges"); return;
+      case "NetworkPolicy": onNavigate("networkPolicies"); return;
       case "HelmRelease": onOpenHelmRelease(signal.name || null); return;
       case "Job": onOpenJob(signal.name || ""); return;
       case "HorizontalPodAutoscaler": onOpenHPA(signal.name || ""); return;

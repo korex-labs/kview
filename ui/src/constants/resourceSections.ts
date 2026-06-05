@@ -13,6 +13,7 @@ export const dataplaneSearchSectionByKind: Record<string, Section> = {
   horizontalpodautoscalers: "horizontalpodautoscalers",
   services: "services",
   ingresses: "ingresses",
+  networkpolicies: "networkpolicies",
   configmaps: "configmaps",
   secrets: "secrets",
   serviceaccounts: "serviceaccounts",
@@ -20,6 +21,6 @@ export const dataplaneSearchSectionByKind: Record<string, Section> = {
   rolebindings: "rolebindings",
   persistentvolumeclaims: "persistentvolumeclaims",
   helmreleases: "helm",
-  resourcequotas: "namespaces",
-  limitranges: "namespaces",
+  resourcequotas: "resourcequotas",
+  limitranges: "limitranges",
 };

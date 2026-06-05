@@ -47,9 +47,12 @@ import HelmReleaseDrawer from "../helm/HelmReleaseDrawer";
 import HelmChartDrawer from "../helm/HelmChartDrawer";
 import ServiceDrawer from "../services/ServiceDrawer";
 import IngressDrawer from "../ingresses/IngressDrawer";
+import NetworkPolicyDrawer from "../networkpolicies/NetworkPolicyDrawer";
 import RoleDrawer from "../roles/RoleDrawer";
 import RoleBindingDrawer from "../rolebindings/RoleBindingDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
+import ResourceQuotaDrawer from "../resourcequotas/ResourceQuotaDrawer";
+import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
 
 type Props = {
   token: string;
@@ -269,6 +272,13 @@ function DashboardInspectDrawers({
         namespace={namespace}
         ingressName={target?.kind === "Ingress" ? name : null}
       />
+      <NetworkPolicyDrawer
+        open={open && target?.kind === "NetworkPolicy"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        networkPolicyName={target?.kind === "NetworkPolicy" ? name : null}
+      />
       <RoleDrawer
         open={open && target?.kind === "Role"}
         onClose={onClose}
@@ -282,6 +292,20 @@ function DashboardInspectDrawers({
         token={token}
         namespace={namespace}
         roleBindingName={target?.kind === "RoleBinding" ? name : null}
+      />
+      <ResourceQuotaDrawer
+        open={open && target?.kind === "ResourceQuota"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        resourceQuotaName={target?.kind === "ResourceQuota" ? name : null}
+      />
+      <LimitRangeDrawer
+        open={open && target?.kind === "LimitRange"}
+        onClose={onClose}
+        token={token}
+        namespace={namespace}
+        limitRangeName={target?.kind === "LimitRange" ? name : null}
       />
     </>
   );
