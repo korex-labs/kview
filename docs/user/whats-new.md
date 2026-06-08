@@ -63,6 +63,9 @@ repository.
   commands, custom workload actions, and dataplane policy tuning.
 - The header search now serves as one search and command input for cached
   resource lookup plus resource, namespace, context, and settings navigation.
+- Drawer attention signals now prioritize severity, freshness, signal priority,
+  and score; signal display priority is adjusted by moving signal cards in
+  Settings.
 
 ## Full History
 

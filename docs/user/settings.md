@@ -130,6 +130,10 @@ enrichment, all-context enrichment, background concurrency, metrics, and signal
 thresholds. Use profile presets first, then tune individual values only when
 the cluster size or permissions require it.
 
+Signal display priority is controlled by moving signal cards up or down in the
+Signal Catalog. Higher cards are considered earlier when signals have similar
+severity and freshness.
+
 ## Permission And Data Notes
 
 Most settings only change local UI behavior. Dataplane settings can change how

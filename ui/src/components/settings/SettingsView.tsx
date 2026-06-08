@@ -283,7 +283,7 @@ function ReorderButtons({
   lastIndex: number;
   onUp: () => void;
   onDown: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }) {
   return (
     <Box sx={{ display: "flex", gap: 0.25 }}>
@@ -293,9 +293,11 @@ function ReorderButtons({
       <AppIconButton tooltip={`Move ${label} down`} label={`Move ${label} down`} onClick={onDown} disabled={index === lastIndex}>
         <ArrowDownwardIcon fontSize="inherit" />
       </AppIconButton>
-      <AppIconButton tooltip={`Remove ${label}`} label={`Remove ${label}`} intent="destructive" onClick={onRemove}>
-        <DeleteOutlineIcon fontSize="inherit" />
-      </AppIconButton>
+      {onRemove ? (
+        <AppIconButton tooltip={`Remove ${label}`} label={`Remove ${label}`} intent="destructive" onClick={onRemove}>
+          <DeleteOutlineIcon fontSize="inherit" />
+        </AppIconButton>
+      ) : null}
     </Box>
   );
 }
@@ -2475,7 +2477,44 @@ export default function SettingsView({
           break;
       }
     };
-    const filteredSignalCatalog = signalCatalog.filter((item) => {
+    const signalPriorityFor = (item: DataplaneSignalCatalogItem): number => {
+      const globalOverride = settings.dataplane.global.signals.overrides[item.type] || {};
+      const contextOverride = activeContextSignalOverrides[item.type] || {};
+      if (dataplaneEditScope === "context") {
+        return contextOverride.priority ?? globalOverride.priority ?? item.defaultPriority;
+      }
+      return globalOverride.priority ?? item.defaultPriority;
+    };
+    const orderedSignalCatalog = [...signalCatalog].sort((a, b) => {
+      const priorityDelta = signalPriorityFor(a) - signalPriorityFor(b);
+      if (priorityDelta !== 0) return priorityDelta;
+      return a.label.localeCompare(b.label);
+    });
+    const orderedSignalIndex = new Map(orderedSignalCatalog.map((item, index) => [item.type, index]));
+    const inheritedSignalPriority = (item: DataplaneSignalCatalogItem): number => {
+      if (dataplaneEditScope === "context") {
+        return settings.dataplane.global.signals.overrides[item.type]?.priority ?? item.defaultPriority;
+      }
+      return item.defaultPriority;
+    };
+    const moveSignalPriority = (signalType: string, direction: -1 | 1) => {
+      const index = orderedSignalIndex.get(signalType);
+      if (index === undefined) return;
+      const neighbor = orderedSignalCatalog[index + direction];
+      const item = orderedSignalCatalog[index];
+      if (!item || !neighbor) return;
+      const neighborPriority = signalPriorityFor(neighbor);
+      const nextPriority = direction < 0 ? neighborPriority - 1 : neighborPriority + 1;
+      const globalOverride = settings.dataplane.global.signals.overrides[item.type] || {};
+      const inheritedEnabled = dataplaneEditScope === "context" ? (globalOverride.enabled ?? item.defaultEnabled) : item.defaultEnabled;
+      const inheritedSeverity = dataplaneEditScope === "context" ? (globalOverride.severity || item.defaultSeverity || "low") : (item.defaultSeverity || "low");
+      setSignalOverride(item.type, dataplaneEditScope, { priority: nextPriority }, {
+        enabled: inheritedEnabled,
+        severity: inheritedSeverity as SignalOverride["severity"],
+        priority: inheritedSignalPriority(item),
+      });
+    };
+    const filteredSignalCatalog = orderedSignalCatalog.filter((item) => {
       const q = signalCatalogQuery.trim().toLowerCase();
       if (!q) return true;
       return [
@@ -2897,7 +2936,6 @@ export default function SettingsView({
                   const effectiveSeverity = contextOverride.severity || globalOverride.severity || item.defaultSeverity;
                   const enabledChecked = override.enabled ?? inheritedEnabled;
                   const severityValue = override.severity || inheritedSeverity;
-                  const priorityValue = override.priority ?? inheritedPriority;
                   const changed = Object.keys(override).length > 0 || signalThresholdCustomized(item.type);
                   const inheritedSignalOverride: Partial<SignalOverride> = {
                     enabled: inheritedEnabled,
@@ -3017,6 +3055,13 @@ export default function SettingsView({
                           {changed ? <ScopeTag state="overridden" onReset={() => resetSignalCard(item.type)} tooltip={customTooltip} /> : null}
                         </Box>
                         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
+                          <ReorderButtons
+                            label={`${item.label} signal`}
+                            index={orderedSignalIndex.get(item.type) ?? 0}
+                            lastIndex={orderedSignalCatalog.length - 1}
+                            onUp={() => moveSignalPriority(item.type, -1)}
+                            onDown={() => moveSignalPriority(item.type, 1)}
+                          />
                           <ScopedCountChip size="small" color={severityColor(item.defaultSeverity)} label="Default" count={formatChipLabel(item.defaultSeverity || "dynamic")} />
                           <ScopedCountChip size="small" color={severityColor(effectiveSeverity)} label="Effective" count={formatChipLabel(effectiveSeverity || "dynamic")} />
                         </Box>
@@ -3059,15 +3104,17 @@ export default function SettingsView({
                             <MenuItem value="high">High</MenuItem>
                           </TextField>
                         </SettingField>
-                        <SettingField
-                          label="Display priority"
-                          type="number"
-                          value={priorityValue}
-                          onChange={(v) => setSignalOverride(item.type, dataplaneEditScope, {
-                            priority: Math.round(Number(v) || 0),
-                          }, inheritedSignalOverride)}
-                          hint={`Inherits ${inheritedPriority}.`}
-                        />
+                        <Box sx={{ display: "flex", alignItems: "center", minHeight: 40, gap: 0.75, flexWrap: "wrap" }}>
+                          <ScopedCountChip
+                            size="small"
+                            color="default"
+                            label="Priority"
+                            count={String(signalPriorityFor(item))}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            Move the card to change display priority. Inherits {inheritedPriority}.
+                          </Typography>
+                        </Box>
                       </SettingGrid>
                       </Box>
                       <Box sx={{ pt: 0.25 }}>

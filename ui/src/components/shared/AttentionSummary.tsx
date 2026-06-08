@@ -7,7 +7,7 @@ import SignalActions from "./SignalActions";
 import SignalInvestigationDialog from "./SignalInvestigationDialog";
 import StatusChip from "./StatusChip";
 import { signalHistoryKey, signalWithHistoryKey } from "./signalIdentity";
-import { signalCalculatedText, signalMetaText, signalSeverityColor } from "./signalFormat";
+import { rankAttentionSignals, signalCalculatedText, signalMetaText, signalSeverityColor } from "./signalFormat";
 
 export type AttentionHealth = {
   label: string;
@@ -67,7 +67,7 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
     return !signal.acknowledged && !(key && localAcknowledged.has(key));
   });
   if (openSignals.length === 0) return null;
-  const previewSignals = openSignals;
+  const previewSignals = rankAttentionSignals(openSignals);
 
   return (
     <>
@@ -99,6 +99,7 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
               return (
                 <Box
                   key={`${signal.signalType || signal.kind}-${signal.name || idx}`}
+                  data-testid="attention-signal-row"
                   data-signal-row
                   sx={{ color: "text.primary", display: "flex", flexDirection: "column", gap: 0.25 }}
                 >

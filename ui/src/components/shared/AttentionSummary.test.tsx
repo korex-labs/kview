@@ -27,20 +27,33 @@ describe("AttentionSummary", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders top 3 signals and counts overflow", () => {
+  it("renders ranked top 3 signals and counts overflow", () => {
     const signals: DashboardSignalItem[] = [
-      signal({ reason: "first" }),
-      signal({ reason: "second" }),
-      signal({ reason: "third" }),
-      signal({ reason: "fourth" }),
-      signal({ reason: "fifth" }),
+      signal({ reason: "low old", severity: "low", score: 99, lastSeenAt: 100 }),
+      signal({ reason: "high fresh", severity: "high", score: 1, lastSeenAt: 500 }),
+      signal({ reason: "medium newest", severity: "medium", score: 1, lastSeenAt: 900 }),
+      signal({ reason: "high older", severity: "high", score: 90, lastSeenAt: 200 }),
+      signal({ reason: "medium older", severity: "medium", score: 80, lastSeenAt: 300 }),
     ];
     render(<AttentionSummary signals={signals} />);
-    expect(screen.getByText(/first/)).toBeTruthy();
-    expect(screen.getByText(/second/)).toBeTruthy();
-    expect(screen.getByText(/third/)).toBeTruthy();
-    expect(screen.queryByText(/fourth/)).toBeNull();
+    expect(screen.getByText(/high fresh/)).toBeTruthy();
+    expect(screen.getByText(/high older/)).toBeTruthy();
+    expect(screen.getByText(/medium newest/)).toBeTruthy();
+    expect(screen.queryByText(/low old/)).toBeNull();
     expect(screen.getByText("+2 more signals")).toBeTruthy();
+  });
+
+  it("uses priority and score after severity and freshness", () => {
+    const signals: DashboardSignalItem[] = [
+      signal({ reason: "score", severity: "medium", score: 99, signalPriority: 5, lastSeenAt: 100 }),
+      signal({ reason: "priority", severity: "medium", score: 10, signalPriority: 1, lastSeenAt: 100 }),
+      signal({ reason: "fresh", severity: "medium", score: 1, signalPriority: 9, lastSeenAt: 200 }),
+    ];
+    const { container } = render(<AttentionSummary signals={signals} />);
+    const rows = Array.from(container.querySelectorAll("[data-testid='attention-signal-row']")).map((row) => row.textContent || "");
+    expect(rows[0]).toContain("fresh");
+    expect(rows[1]).toContain("priority");
+    expect(rows[2]).toContain("score");
   });
 
   it("does not render tab navigation chips", () => {
