@@ -567,6 +567,19 @@ export type HelmChartVersion = {
   namespaces?: string[];
   statuses?: string[];
   needsAttention?: number;
+  deployments?: HelmChartDeployment[];
+};
+
+export type HelmChartDeployment = {
+  name: string;
+  namespace: string;
+  status?: string;
+  revision?: number;
+  updated?: number;
+  chartVersion?: string;
+  appVersion?: string;
+  storageBackend?: string;
+  manifest?: string;
 };
 
 export type HelmChart = {

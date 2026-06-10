@@ -492,11 +492,12 @@ export default function CodeBlock({
   if (language && !isYamlLanguage(language)) {
     const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0, overflow: "hidden" }}>
         {showCopy && <CopyButton text={code} />}
         <Box
           sx={{
             flexGrow: 1,
+            minWidth: 0,
             overflow: "auto",
             borderRadius: 2,
             border: "1px solid var(--code-border)",
@@ -533,11 +534,12 @@ export default function CodeBlock({
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0, overflow: "hidden" }}>
       {showCopy && <CopyButton text={code} />}
       <Box
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           overflow: "auto",
           fontFamily: "monospace",
           fontSize: "0.8rem",

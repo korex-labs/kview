@@ -80,10 +80,23 @@ type HelmChartDTO struct {
 }
 
 type HelmChartVersionDTO struct {
-	ChartVersion   string   `json:"chartVersion,omitempty"`
-	AppVersion     string   `json:"appVersion,omitempty"`
-	Releases       int      `json:"releases"`
-	Namespaces     []string `json:"namespaces,omitempty"`
-	Statuses       []string `json:"statuses,omitempty"`
-	NeedsAttention int      `json:"needsAttention,omitempty"`
+	ChartVersion   string                   `json:"chartVersion,omitempty"`
+	AppVersion     string                   `json:"appVersion,omitempty"`
+	Releases       int                      `json:"releases"`
+	Namespaces     []string                 `json:"namespaces,omitempty"`
+	Statuses       []string                 `json:"statuses,omitempty"`
+	NeedsAttention int                      `json:"needsAttention,omitempty"`
+	Deployments    []HelmChartDeploymentDTO `json:"deployments,omitempty"`
+}
+
+type HelmChartDeploymentDTO struct {
+	Name           string `json:"name"`
+	Namespace      string `json:"namespace"`
+	Status         string `json:"status,omitempty"`
+	Revision       int    `json:"revision,omitempty"`
+	Updated        int64  `json:"updated,omitempty"`
+	ChartVersion   string `json:"chartVersion,omitempty"`
+	AppVersion     string `json:"appVersion,omitempty"`
+	StorageBackend string `json:"storageBackend,omitempty"`
+	Manifest       string `json:"manifest,omitempty"`
 }

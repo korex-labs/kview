@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -15,7 +16,30 @@ import (
 
 // ListHelmCharts returns logical chart groupings across all namespaces.
 // Each entry represents a unique chart name with version rollups in details.
-func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, error) {
+func ListHelmCharts(ctx context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, error) {
+	return listHelmCharts(ctx, c, "", false)
+}
+
+// GetHelmChartDetails returns one chart grouping with exact release deployments
+// and manifest text sourced from the latest deployed Helm release records.
+func GetHelmChartDetails(ctx context.Context, c *cluster.Clients, chartName string) (*dto.HelmChartDTO, error) {
+	chartName = strings.TrimSpace(chartName)
+	if chartName == "" {
+		return nil, fmt.Errorf("chart name is required")
+	}
+	items, err := listHelmCharts(ctx, c, chartName, true)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if items[i].ChartName == chartName {
+			return &items[i], nil
+		}
+	}
+	return nil, fmt.Errorf("helm chart %q not found", chartName)
+}
+
+func listHelmCharts(_ context.Context, c *cluster.Clients, onlyChartName string, includeManifests bool) ([]dto.HelmChartDTO, error) {
 	// Query Helm secrets across all namespaces.
 	d := driver.NewSecrets(c.Clientset.CoreV1().Secrets(""))
 	store := storage.Init(d)
@@ -38,6 +62,7 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 		namespaces     map[string]bool
 		statuses       map[string]bool
 		needsAttention int
+		deployments    []dto.HelmChartDeploymentDTO
 	}
 	type chartAgg struct {
 		releases       int
@@ -50,6 +75,9 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 	groups := make(map[string]*chartAgg)
 	for _, rel := range latest {
 		key := chartKeyFromRelease(rel)
+		if onlyChartName != "" && key.name != onlyChartName {
+			continue
+		}
 		agg, ok := groups[key.name]
 		if !ok {
 			agg = &chartAgg{
@@ -77,8 +105,9 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 		if rel.Chart != nil && rel.Chart.Metadata != nil && vagg.appVersion == "" {
 			vagg.appVersion = rel.Chart.Metadata.AppVersion
 		}
+		status := ""
 		if rel.Info != nil {
-			status := strings.TrimSpace(rel.Info.Status.String())
+			status = strings.TrimSpace(rel.Info.Status.String())
 			if status != "" {
 				agg.statuses[status] = true
 				vagg.statuses[status] = true
@@ -88,6 +117,20 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 				}
 			}
 		}
+		deployment := dto.HelmChartDeploymentDTO{
+			Name:           rel.Name,
+			Namespace:      ns,
+			Status:         status,
+			Revision:       rel.Version,
+			Updated:        releaseUpdated(rel),
+			ChartVersion:   key.version,
+			AppVersion:     vagg.appVersion,
+			StorageBackend: "Secret",
+		}
+		if includeManifests {
+			deployment.Manifest = rel.Manifest
+		}
+		vagg.deployments = append(vagg.deployments, deployment)
 	}
 
 	out := make([]dto.HelmChartDTO, 0, len(groups))
@@ -115,6 +158,12 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 				vstatuses = append(vstatuses, status)
 			}
 			sort.Strings(vstatuses)
+			sort.Slice(vagg.deployments, func(i, j int) bool {
+				if vagg.deployments[i].Namespace != vagg.deployments[j].Namespace {
+					return vagg.deployments[i].Namespace < vagg.deployments[j].Namespace
+				}
+				return vagg.deployments[i].Name < vagg.deployments[j].Name
+			})
 			versions = append(versions, dto.HelmChartVersionDTO{
 				ChartVersion:   key.version,
 				AppVersion:     vagg.appVersion,
@@ -122,6 +171,7 @@ func ListHelmCharts(_ context.Context, c *cluster.Clients) ([]dto.HelmChartDTO, 
 				Namespaces:     vns,
 				Statuses:       vstatuses,
 				NeedsAttention: vagg.needsAttention,
+				Deployments:    vagg.deployments,
 			})
 		}
 		sort.Slice(versions, func(i, j int) bool {

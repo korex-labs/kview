@@ -45,7 +45,7 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", minWidth: 0 }}>
       <DrawerActionStrip>
         <AppButton startIcon={<ContentCopyIcon />} onClick={handleCopy}>
           {copied ? "Copied" : "Copy"}
@@ -61,7 +61,7 @@ export default function ResourceYamlPanel({ code, token, target, onApplied }: Pr
           </AppButton>
         )}
       </DrawerActionStrip>
-      <Box sx={{ minHeight: 0, flex: 1 }}>
+      <Box sx={{ minHeight: 0, minWidth: 0, flex: 1 }}>
         <CodeBlock code={code} language="yaml" showCopy={false} smartCollapse={settings.appearance.yamlSmartCollapse} />
       </Box>
       {target && (

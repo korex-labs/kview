@@ -192,6 +192,7 @@ func buildDerivedHelmChartsProjection(plane *clusterPlane, knownNS []string) Clu
 		versions      map[string]*dto.HelmChartVersionDTO
 		versionNS     map[string]map[string]struct{}
 		versionStatus map[string]map[string]struct{}
+		versionDeploy map[string][]dto.HelmChartDeploymentDTO
 	}
 	charts := map[string]*agg{}
 	var metas []SnapshotMetadata
@@ -225,6 +226,7 @@ func buildDerivedHelmChartsProjection(plane *clusterPlane, knownNS []string) Clu
 					versions:      map[string]*dto.HelmChartVersionDTO{},
 					versionNS:     map[string]map[string]struct{}{},
 					versionStatus: map[string]map[string]struct{}{},
+					versionDeploy: map[string][]dto.HelmChartDeploymentDTO{},
 				}
 				charts[key] = a
 			}
@@ -240,6 +242,16 @@ func buildDerivedHelmChartsProjection(plane *clusterPlane, knownNS []string) Clu
 			}
 			v.Releases++
 			a.versionNS[versionKey][releaseNamespace] = struct{}{}
+			a.versionDeploy[versionKey] = append(a.versionDeploy[versionKey], dto.HelmChartDeploymentDTO{
+				Name:           rel.Name,
+				Namespace:      releaseNamespace,
+				Status:         rel.Status,
+				Revision:       rel.Revision,
+				Updated:        rel.Updated,
+				ChartVersion:   rel.ChartVersion,
+				AppVersion:     rel.AppVersion,
+				StorageBackend: rel.StorageBackend,
+			})
 			if rel.Status != "" {
 				out.Status[rel.Status]++
 				a.statuses[rel.Status] = struct{}{}
@@ -269,6 +281,13 @@ func buildDerivedHelmChartsProjection(plane *clusterPlane, knownNS []string) Clu
 			}
 			sort.Strings(version.Namespaces)
 			sort.Strings(version.Statuses)
+			sort.Slice(a.versionDeploy[versionKey], func(i, j int) bool {
+				if a.versionDeploy[versionKey][i].Namespace != a.versionDeploy[versionKey][j].Namespace {
+					return a.versionDeploy[versionKey][i].Namespace < a.versionDeploy[versionKey][j].Namespace
+				}
+				return a.versionDeploy[versionKey][i].Name < a.versionDeploy[versionKey][j].Name
+			})
+			version.Deployments = a.versionDeploy[versionKey]
 			a.item.Versions = append(a.item.Versions, *version)
 		}
 		sort.Strings(a.item.Namespaces)

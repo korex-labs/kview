@@ -82,4 +82,49 @@ func (s *Server) registerHelmRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "items": items})
 	})
 
+	api.Get("/helmcharts/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutProjection)
+		defer cancel()
+
+		active := s.readContextName(r)
+		clients, active, err := s.mgr.GetClientsForContext(ctx, active)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		item, err := kubehelm.GetHelmChartDetails(ctx, clients, name)
+		if err != nil {
+			if derived, derr := s.dp.DerivedHelmChartsSnapshot(ctx, active); derr == nil {
+				for i := range derived.Items {
+					if derived.Items[i].ChartName == name {
+						writeJSON(w, http.StatusOK, map[string]any{
+							"active":   active,
+							"item":     derived.Items[i],
+							"observed": derived.Meta.ObservedAt,
+							"meta": map[string]any{
+								"freshness":    derived.Meta.Freshness,
+								"coverage":     derived.Meta.Coverage,
+								"degradation":  derived.Meta.Degradation,
+								"completeness": derived.Meta.Completeness,
+								"state":        dataplane.CoarseState(derived.Err, len(derived.Items)),
+							},
+						})
+						return
+					}
+				}
+			}
+			status := http.StatusInternalServerError
+			if apierrors.IsForbidden(err) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": item})
+	})
+
 }

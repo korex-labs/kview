@@ -105,6 +105,7 @@ Background row enrichment is **narrow and user-aligned**:
 | Route | Reason |
 |-------|--------|
 | `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. Rows are grouped by chart name and expose version rollups. If direct catalog read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived chart rows from cached Helm release snapshots instead. |
+| `GET /api/helmcharts/{name}` | Cluster-scoped Helm chart detail; direct Helm release storage read for one chart name. Version details include exact release deployments and release-backed manifests when release storage is visible. If direct detail read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived details; the UI can still hydrate a selected release manifest through `GET /api/namespaces/{ns}/helmreleases/{name}` when that namespaced read is allowed. |
 
 ### 4.3 Cluster-scoped detail families
 
