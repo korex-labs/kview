@@ -15,11 +15,11 @@ runbooks, dashboards, or internal portals.
   macro values for resource drawers.
 - **Enable dynamic links**: shows resolved external links in supported resource
   drawer headers.
-- **Manual Macros**: define fixed values such as `$JIRA_URL` or
+- **Manual Macros tab**: define fixed values such as `$JIRA_URL` or
   `$GITLAB_URL`, optionally scoped to a context, namespace, node, or resource.
-- **Extracted Macros**: derive values from a resource name, label, or
+- **Extracted Macros tab**: derive values from a resource name, label, or
   annotation by using a regular expression and value template.
-- **Dynamic Links**: define link labels and URL templates that use macros.
+- **Dynamic Links tab**: define link labels and URL templates that use macros.
   Links are not scoped to resource types; they appear anywhere their template
   can be resolved.
 

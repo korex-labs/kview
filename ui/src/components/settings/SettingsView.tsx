@@ -17,6 +17,7 @@ import {
   ListItemText,
   MenuItem,
   Paper,
+  Popover,
   Select,
   Tab,
   Tabs,
@@ -33,6 +34,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -85,7 +87,7 @@ import { useUserSettings } from "../../settingsContext";
 import type { AppStateV1 } from "../../state";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
 import { formatChipLabel } from "../../utils/k8sUi";
-import { actionRowSx, panelBoxSx } from "../../theme/sxTokens";
+import { actionRowSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
 import ScopedCountChip from "../shared/ScopedCountChip";
 import ResourceTagChip from "../shared/ResourceTagChip";
@@ -99,6 +101,7 @@ import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
+type LinksMacrosTab = "manual" | "extractors" | "links";
 
 type Props = {
   token: string;
@@ -153,7 +156,7 @@ const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconNa
   { id: "keyboard", label: "Keyboard", icon: "keyboard" },
   { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
   { id: "resourceTags", label: "Resource Tags", icon: "resourceTags" },
-  { id: "linksMacros", label: "Links & Macros", icon: "resourceTags" },
+  { id: "linksMacros", label: "Links & Macros", icon: "linksMacros" },
   { id: "commands", label: "Custom Commands", icon: "commands" },
   { id: "actions", label: "Custom Actions", icon: "actions" },
   { id: "dataplane", label: "Dataplane", icon: "dataplane" },
@@ -166,6 +169,12 @@ const dataplaneTabs: Array<{ value: DataplaneTab; label: string; icon: SettingsI
   { value: "metrics", label: "Metrics", icon: "metrics" },
   { value: "signals", label: "Signals", icon: "signals" },
   { value: "cache", label: "Cache", icon: "cache" },
+];
+
+const linksMacrosTabs: Array<{ value: LinksMacrosTab; label: string; icon: SettingsIconName }> = [
+  { value: "manual", label: "Manual Macros", icon: "linksMacros" },
+  { value: "extractors", label: "Extracted Macros", icon: "smartFilters" },
+  { value: "links", label: "Dynamic Links", icon: "linksMacros" },
 ];
 
 const resourceTagColorPresets = [
@@ -187,9 +196,20 @@ const resourceTagColorPresets = [
   "#039be5",
 ];
 
-const headerRowSx = { display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" };
+const headerRowSx = { display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" } as const;
+const settingsStackSx = { display: "flex", flexDirection: "column", gap: 1.25 } as const;
+const settingsPanelChromeSx = {
+  border: "1px solid var(--panel-border)",
+  borderRadius: 2,
+  p: 1.5,
+} as const;
+const settingsItemCardSx = { ...settingsPanelChromeSx, display: "flex", flexDirection: "column", gap: 1 } as const;
+const settingsSubsectionHeaderSx = { ...headerRowSx, mt: 0.5, minHeight: 32 } as const;
+const settingsSummaryPanelSx = { ...settingsPanelChromeSx, display: "grid", gap: 0.75 } as const;
 const settingsTabsSx = {
   minHeight: 40,
+  borderBottom: "1px solid",
+  borderColor: "divider",
   "& .MuiTabs-flexContainer": {
     alignItems: "stretch",
   },
@@ -203,6 +223,9 @@ const settingsTabsSx = {
     lineHeight: 1.2,
     textTransform: "none",
     whiteSpace: "nowrap",
+  },
+  "& .MuiTab-root.Mui-selected": {
+    fontWeight: 600,
   },
   "& .MuiTab-root.MuiTab-labelIcon": {
     minHeight: 40,
@@ -400,6 +423,124 @@ function newResourceTagDefinition(usedColors: readonly string[]): ResourceTagDef
     name: "New tag",
     color: suggestedResourceTagColor(usedColors),
   };
+}
+
+function ResourceTagColorPicker({
+  color,
+  definitions,
+  index,
+  onChange,
+}: {
+  color: string;
+  definitions: ResourceTagDefinition[];
+  index: number;
+  onChange: (color: string) => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const normalizedColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#607d8b";
+  const open = Boolean(anchorEl);
+
+  return (
+    <>
+      <AppButton
+        startIcon={
+          <Box
+            aria-hidden
+            sx={{
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              bgcolor: normalizedColor,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          />
+        }
+        endIcon={<PaletteOutlinedIcon fontSize="small" />}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        sx={{ justifyContent: "space-between", minWidth: 132 }}
+      >
+        {color}
+      </AppButton>
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{
+          paper: {
+            sx: {
+              p: 1.25,
+              width: 276,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.25,
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: "grid", gridTemplateColumns: "72px minmax(0, 1fr)", gap: 1 }}>
+          <TextField
+            type="color"
+            size="small"
+            label="Pick"
+            value={normalizedColor}
+            onChange={(event) => onChange(event.target.value)}
+            sx={{ "& input": { cursor: "pointer" } }}
+          />
+          <TextField
+            size="small"
+            label="Hex"
+            value={color}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </Box>
+        <Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+            Suggested colors
+          </Typography>
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
+            {resourceTagColorPresets.map((presetColor) => {
+              const selected = color.toLowerCase() === presetColor.toLowerCase();
+              const usedByOther = definitions.some((other, otherIndex) =>
+                otherIndex !== index && other.color.toLowerCase() === presetColor.toLowerCase(),
+              );
+              return (
+                <AppIconButton
+                  key={presetColor}
+                  tooltip={usedByOther ? `${presetColor} already used` : presetColor}
+                  label={`Use tag color ${presetColor}`}
+                  onClick={() => {
+                    onChange(presetColor);
+                    setAnchorEl(null);
+                  }}
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    border: "1px solid",
+                    borderColor: selected ? "primary.main" : "divider",
+                    opacity: usedByOther && !selected ? 0.45 : 1,
+                  }}
+                >
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      bgcolor: presetColor,
+                      boxShadow: selected ? "0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor" : "none",
+                    }}
+                  />
+                </AppIconButton>
+              );
+            })}
+          </Box>
+        </Box>
+      </Popover>
+    </>
+  );
 }
 
 function newResourceMacroDefinition(): ResourceMacroDefinition {
@@ -748,6 +889,7 @@ export default function SettingsView({
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
+  const [linksMacrosTab, setLinksMacrosTab] = useState<LinksMacrosTab>("manual");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
@@ -1192,7 +1334,7 @@ export default function SettingsView({
   };
 
   const renderAppearance = () => (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+    <Box sx={settingsStackSx}>
       <SettingSection title="Appearance" icon={<SettingsIcon name="appearance" />}>
         <SettingRow
           label="Check for kview updates"
@@ -1321,7 +1463,7 @@ export default function SettingsView({
         icon={<SettingsIcon name="keyboard" />}
         hint="Command mode and core browser-safe shortcuts stay enabled; these options tune the extra convenience bindings."
       >
-        <Box sx={{ ...panelBoxSx, display: "grid", gap: 0.75 }}>
+        <Box sx={settingsSummaryPanelSx}>
           {summaryRows.map((row) => (
             <Box
               key={row.label}
@@ -1381,7 +1523,7 @@ export default function SettingsView({
     const error = rulePatternError(rule);
     const resourceOptions = smartFilterResourceKeysForScope(rule.scope);
     return (
-      <Paper key={rule.id} variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box key={rule.id} sx={settingsItemCardSx}>
         <Box sx={headerRowSx}>
           <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
             Rule {index + 1}
@@ -1531,7 +1673,7 @@ export default function SettingsView({
             hint="JavaScript replacement syntax, e.g. $1."
           />
         </Box>
-      </Paper>
+      </Box>
     );
   };
 
@@ -1653,7 +1795,7 @@ export default function SettingsView({
         </Alert>
       ) : null}
       {settings.resourceTags.definitions.map((tag, index) => (
-        <Box key={tag.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box key={tag.id} sx={settingsItemCardSx}>
           <Box sx={headerRowSx}>
             <ResourceTagChip tag={{ ...tag, inherited: false }} />
             <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
@@ -1675,55 +1817,12 @@ export default function SettingsView({
               onChange={(value) => setResourceTag(index, { name: value.slice(0, 32) })}
             />
             <SettingField label="Color">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <TextField
-                  type="color"
-                  size="small"
-                  value={/^#[0-9a-fA-F]{6}$/.test(tag.color) ? tag.color : "#607d8b"}
-                  onChange={(event) => setResourceTag(index, { color: event.target.value })}
-                  sx={{ width: 72 }}
-                />
-                <TextField
-                  size="small"
-                  value={tag.color}
-                  onChange={(event) => setResourceTag(index, { color: event.target.value })}
-                  sx={{ maxWidth: 140 }}
-                />
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
-                  {resourceTagColorPresets.map((color) => {
-                    const selected = tag.color.toLowerCase() === color.toLowerCase();
-                    const usedByOther = settings.resourceTags.definitions.some((other, otherIndex) =>
-                      otherIndex !== index && other.color.toLowerCase() === color.toLowerCase(),
-                    );
-                    return (
-                      <AppIconButton
-                        key={color}
-                        tooltip={usedByOther ? `${color} already used` : color}
-                        label={`Use tag color ${color}`}
-                        onClick={() => setResourceTag(index, { color })}
-                        sx={{
-                          width: 26,
-                          height: 26,
-                          border: "1px solid",
-                          borderColor: selected ? "primary.main" : "divider",
-                          opacity: usedByOther && !selected ? 0.45 : 1,
-                        }}
-                      >
-                          <Box
-                            aria-hidden
-                            sx={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: "50%",
-                              bgcolor: color,
-                              boxShadow: selected ? "0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor" : "none",
-                            }}
-                          />
-                      </AppIconButton>
-                    );
-                  })}
-                </Box>
-              </Box>
+              <ResourceTagColorPicker
+                color={tag.color}
+                definitions={settings.resourceTags.definitions}
+                index={index}
+                onChange={(color) => setResourceTag(index, { color })}
+              />
             </SettingField>
           </SettingGrid>
         </Box>
@@ -1765,7 +1864,7 @@ export default function SettingsView({
   const renderLinksMacros = () => (
     <SettingSection
       title="Links & Macros"
-      icon={<SettingsIcon name="resourceTags" />}
+      icon={<SettingsIcon name="linksMacros" />}
       hint="Resource macros and dynamic links are local settings. They are resolved in resource drawers from names, labels, annotations, and scoped manual values."
     >
       <SettingRow
@@ -1780,18 +1879,37 @@ export default function SettingsView({
         checked={settings.dynamicLinks.enabled}
         onChange={(v) => setSettings((prev) => updateDynamicLinks(prev, { enabled: v }))}
       />
-      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
-        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Manual Macros</Typography>
-        <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { definitions: [...prev.resourceMacros.definitions, newResourceMacroDefinition()] }))}>
-          Add macro
-        </AppButton>
-      </Box>
-      <FieldGroup label="Manual macro definitions">
+      <Tabs
+        value={linksMacrosTab}
+        onChange={(_, value) => setLinksMacrosTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={settingsTabsSx}
+      >
+        {linksMacrosTabs.map((item) => (
+          <Tab
+            key={item.value}
+            value={item.value}
+            icon={<SettingsIcon name={item.icon} size={16} />}
+            iconPosition="start"
+            label={item.label}
+          />
+        ))}
+      </Tabs>
+      {linksMacrosTab === "manual" ? (
+        <>
+          <Box sx={settingsSubsectionHeaderSx}>
+            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Manual Macros</Typography>
+            <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { definitions: [...prev.resourceMacros.definitions, newResourceMacroDefinition()] }))}>
+              Add macro
+            </AppButton>
+          </Box>
+          <FieldGroup label="Manual macro definitions">
         {settings.resourceMacros.definitions.length === 0 ? (
           <Alert severity="info" variant="outlined">Define shared values such as JIRA_URL or GITLAB_URL.</Alert>
         ) : null}
         {settings.resourceMacros.definitions.map((definition, index) => (
-          <Box key={definition.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box key={definition.id} sx={settingsItemCardSx}>
             <Box sx={headerRowSx}>
               <Chip size="small" label={`$${definition.macroName}`} />
               <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
@@ -1852,18 +1970,22 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-      </FieldGroup>
+          </FieldGroup>
+        </>
+      ) : null}
 
-      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
-        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Extracted Macros</Typography>
-        <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { extractors: [...prev.resourceMacros.extractors, newResourceMacroExtractor()] }))}>Add extractor</AppButton>
-      </Box>
-      <FieldGroup label="Extractor definitions">
+      {linksMacrosTab === "extractors" ? (
+        <>
+          <Box sx={settingsSubsectionHeaderSx}>
+            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Extracted Macros</Typography>
+            <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { extractors: [...prev.resourceMacros.extractors, newResourceMacroExtractor()] }))}>Add extractor</AppButton>
+          </Box>
+          <FieldGroup label="Extractor definitions">
         {settings.resourceMacros.extractors.length === 0 ? (
           <Alert severity="info" variant="outlined">Add an extractor to derive macros from names, labels, or annotations.</Alert>
         ) : null}
         {settings.resourceMacros.extractors.map((extractor, index) => (
-          <Box key={extractor.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box key={extractor.id} sx={settingsItemCardSx}>
             <Box sx={headerRowSx}>
               <Chip size="small" label={`$${extractor.macroName}`} />
               <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
@@ -1913,18 +2035,22 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-      </FieldGroup>
+          </FieldGroup>
+        </>
+      ) : null}
 
-      <Box sx={{ ...headerRowSx, mt: 0.5 }}>
-        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Dynamic Links</Typography>
-        <AppButton intent="primary" onClick={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: [...prev.dynamicLinks.definitions, newDynamicLinkDefinition()] }))}>Add link</AppButton>
-      </Box>
-      <FieldGroup label="Link definitions">
+      {linksMacrosTab === "links" ? (
+        <>
+          <Box sx={settingsSubsectionHeaderSx}>
+            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Dynamic Links</Typography>
+            <AppButton intent="primary" onClick={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: [...prev.dynamicLinks.definitions, newDynamicLinkDefinition()] }))}>Add link</AppButton>
+          </Box>
+          <FieldGroup label="Link definitions">
         {settings.dynamicLinks.definitions.length === 0 ? (
           <Alert severity="info" variant="outlined">Add a link template such as $GITLAB_URL/$GITLAB_PROJECT.</Alert>
         ) : null}
         {settings.dynamicLinks.definitions.map((link, index) => (
-          <Box key={link.id} sx={{ ...panelBoxSx, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box key={link.id} sx={settingsItemCardSx}>
             <Box sx={headerRowSx}>
               <Chip size="small" label={link.label || "Link"} />
               <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1, minWidth: 0, overflowWrap: "anywhere" }}>
@@ -1946,14 +2072,16 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-      </FieldGroup>
+          </FieldGroup>
+        </>
+      ) : null}
     </SettingSection>
   );
 
   const renderCommand = (command: CustomCommandDefinition, index: number) => {
     const patternError = commandPatternError(command);
     return (
-      <Paper key={command.id} variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box key={command.id} sx={settingsItemCardSx}>
         <Box sx={headerRowSx}>
           <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
             Command {index + 1}
@@ -2078,7 +2206,7 @@ export default function SettingsView({
             />
           </FieldGroup>
         )}
-      </Paper>
+      </Box>
     );
   };
 
@@ -2116,7 +2244,7 @@ export default function SettingsView({
     const patternError = actionPatternError(action);
     const patchError = actionPatchError(action);
     return (
-      <Paper key={action.id} variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box key={action.id} sx={settingsItemCardSx}>
         <Box sx={headerRowSx}>
           <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
             Action {index + 1}
@@ -2280,7 +2408,7 @@ export default function SettingsView({
             )}
           </FieldGroup>
         )}
-      </Paper>
+      </Box>
     );
   };
 
@@ -2564,7 +2692,7 @@ export default function SettingsView({
     };
 
     return (
-      <Box data-testid="settings-section-dataplane" sx={{ display: "flex", flexDirection: "column", gap: 1.25, maxWidth: 900 }}>
+      <Box data-testid="settings-section-dataplane" sx={[settingsStackSx, { maxWidth: 900 }]}>
         <SettingSection
           title="Dataplane"
           icon={<SettingsIcon name="dataplane" />}
@@ -3047,7 +3175,7 @@ export default function SettingsView({
                     }
                   };
                   return (
-                    <Paper key={item.type} variant="outlined" sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1.25 }}>
+                    <Box key={item.type} sx={[settingsItemCardSx, { gap: 1.25 }]}>
                       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
                         <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
                           <Typography variant="subtitle2">{item.label}</Typography>
@@ -3120,7 +3248,7 @@ export default function SettingsView({
                       <Box sx={{ pt: 0.25 }}>
                         {renderSignalThresholdControls()}
                       </Box>
-                    </Paper>
+                    </Box>
                   );
                 })}
               </Box>
