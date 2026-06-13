@@ -9,6 +9,7 @@ import {
   Typography,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import type { PaperProps } from "@mui/material/Paper";
 import { apiGetWithContext } from "../../api";
 import type { Section } from "../../state";
 import type { ApiDataplaneSearchItem, ApiDataplaneSearchResponse } from "../../types/api";
@@ -157,6 +158,23 @@ export default function GlobalSearchInput({
     if (action) runAction(action);
   }, [contexts, namespaces, runAction]);
 
+  const PalettePaper = useCallback(({ children, ...paperProps }: PaperProps) => (
+    <Paper {...paperProps}>
+      {children}
+      {hasMore && !isCommandQuery(query) ? (
+        <Box sx={{ p: 0.75, borderTop: "1px solid", borderColor: "divider" }}>
+          <Chip
+            data-load-more
+            size="small"
+            variant="outlined"
+            label="Load more cached resources"
+            sx={{ width: "100%" }}
+          />
+        </Box>
+      ) : null}
+    </Paper>
+  ), [hasMore, query]);
+
   return (
     <Autocomplete<PaletteSuggestion, false, false, true>
       freeSolo
@@ -261,32 +279,19 @@ export default function GlobalSearchInput({
         );
       }}
       noOptionsText={error || (query.trim().length < 2 && !isCommandQuery(query) ? "Type at least 2 characters." : "No matches.")}
-      ListboxProps={{
-        sx: { maxHeight: 380 },
-        onMouseDown: (event) => {
-          const target = event.target as HTMLElement;
-          if (!target.closest("[data-load-more]")) return;
-          event.preventDefault();
-          event.stopPropagation();
-          loadMore();
+      slots={{ paper: PalettePaper }}
+      slotProps={{
+        listbox: {
+          sx: { maxHeight: 380 },
+          onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest("[data-load-more]")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            loadMore();
+          },
         },
       }}
-      PaperComponent={({ children, ...paperProps }) => (
-        <Paper {...paperProps}>
-          {children}
-          {hasMore && !isCommandQuery(query) ? (
-            <Box sx={{ p: 0.75, borderTop: "1px solid", borderColor: "divider" }}>
-              <Chip
-                data-load-more
-                size="small"
-                variant="outlined"
-                label="Load more cached resources"
-                sx={{ width: "100%" }}
-              />
-            </Box>
-          ) : null}
-        </Paper>
-      )}
     />
   );
 }
