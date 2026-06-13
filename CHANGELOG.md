@@ -3,6 +3,24 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.11.0 - 2026-06-13
+
+- Added policy resource views for NetworkPolicies, ResourceQuotas, and
+  LimitRanges, with policy drawers linked into the broader namespace and signal
+  investigation workflow.
+- Expanded custom resource workflows with a more capable list and drawer
+  experience, including cleaner browsing, stronger action parity, and support
+  for viewing Helm chart version manifests where available.
+- Added guarded YAML patch application for supported resources so live updates
+  are reviewed and confirmed more safely before changes are sent to the
+  cluster.
+- Unified header search and command entry into a single workflow and refined
+  global search autocomplete behavior, making navigation and command access
+  more consistent.
+- Improved drawer signal ranking so important attention states surface more
+  clearly, refreshed settings section presentation for a more consistent UI,
+  and pulled in maintenance dependency updates to keep the release current.
+
 ## v5.10.0 - 2026-05-29
 
 - Added a signal investigation workflow so operators can open **Investigate

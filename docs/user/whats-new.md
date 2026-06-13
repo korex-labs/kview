@@ -6,6 +6,18 @@ repository.
 
 ## Recent Highlights
 
+- Policy resources now have a dedicated sidebar group and richer drawers for
+  NetworkPolicies, ResourceQuotas, and LimitRanges, making namespace traffic
+  and capacity policy easier to inspect.
+- Custom resource browsing is more polished, with stronger list and drawer
+  workflows and Helm chart version manifests shown when available for related
+  releases.
+- YAML apply flows now use guarded patching so live changes are reviewed and
+  confirmed more safely before being sent to the cluster.
+- Header search and command entry now share one unified workflow, with updated
+  autocomplete behavior for faster navigation and action discovery.
+- Drawer attention signals are ranked more clearly, and the Settings sections
+  use a more consistent layout across the app.
 - Custom resource drawers now support delete actions, drawer tags, resource
   macros, dynamic links, and YAML editing/apply flows like built-in resources.
 - Custom Namespace Resources now fan out across CRDs more reliably on clusters
