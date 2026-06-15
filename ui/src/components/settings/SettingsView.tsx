@@ -106,6 +106,7 @@ import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } fr
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
+import { isKeyboardOwnedOverlayTarget } from "../../keyboard/keyboardUtils";
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -293,19 +294,6 @@ const settingsMainSurfaceSx = {
       theme.palette.mode === "dark" ? "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05))" : "none",
   },
 };
-
-function isSettingsEscapeBlocked(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined") return false;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest([
-    ".MuiAutocomplete-popper",
-    ".MuiMenu-root",
-    ".MuiPopover-root",
-    ".MuiDialog-root",
-    "[role='menu']",
-    "[role='listbox']",
-  ].join(","));
-}
 
 function ReorderButtons({
   label,
@@ -982,7 +970,7 @@ export default function SettingsView({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || isSettingsEscapeBlocked(event.target)) return;
+      if (event.key !== "Escape" || isKeyboardOwnedOverlayTarget(event.target)) return;
       event.preventDefault();
       onClose();
     };

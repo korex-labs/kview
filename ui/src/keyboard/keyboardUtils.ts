@@ -21,6 +21,30 @@ const ignoredInputTypes = new Set([
   "submit",
 ]);
 
+const keyboardOwnedSurfaceSelector = [
+  "[contenteditable='true']",
+  "[data-kview-ignore-shortcuts='true']",
+  ".xterm",
+  ".MuiAutocomplete-popper",
+  ".MuiDrawer-root",
+  ".MuiMenu-root",
+  ".MuiPopover-root",
+  ".MuiDialog-root",
+  "[role='dialog']",
+  "[role='menu']",
+  "[role='listbox']",
+].join(",");
+
+const overlaySurfaceSelector = [
+  ".MuiAutocomplete-popper",
+  ".MuiMenu-root",
+  ".MuiPopover-root",
+  ".MuiDialog-root",
+  "[role='dialog']",
+  "[role='menu']",
+  "[role='listbox']",
+].join(",");
+
 export function normalizeKeyboardEvent(event: KeyboardLike): NormalizedKey {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
   const printableShortcut = key === "?" || key === ":";
@@ -62,18 +86,22 @@ export function shouldIgnoreGlobalShortcut(target: EventTarget | null): boolean 
   if (typeof HTMLElement === "undefined") return false;
   if (!(target instanceof HTMLElement)) return false;
   if (isEditableElement(target)) return true;
+  return !!target.closest(keyboardOwnedSurfaceSelector);
+}
+
+export function isKeyboardOwnedOverlayTarget(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === "undefined") return false;
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest(overlaySurfaceSelector);
+}
+
+export function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
+  if (isEditableElement(target)) return true;
+  if (typeof HTMLElement === "undefined") return false;
+  if (!(target instanceof HTMLElement)) return false;
   return !!target.closest([
-    "[contenteditable='true']",
-    "[data-kview-ignore-shortcuts='true']",
+    overlaySurfaceSelector,
     ".xterm",
-    ".MuiAutocomplete-popper",
-    ".MuiDrawer-root",
-    ".MuiMenu-root",
-    ".MuiPopover-root",
-    ".MuiDialog-root",
-    "[role='dialog']",
-    "[role='menu']",
-    "[role='listbox']",
   ].join(","));
 }
 

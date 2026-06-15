@@ -15,7 +15,7 @@ import type { Section } from "../state";
 import type { KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
 import { buildShortcutHelpSections } from "./help";
-import { eventToBinding, isEditableElement, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
+import { eventToBinding, matchKeySequence, shouldIgnoreContextShortcut, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
 import { emitFocusActivityPanelTab, emitToggleActivityPanel } from "../activityEvents";
 import {
   formatBinding,
@@ -56,20 +56,6 @@ const KeyboardContext = createContext<KeyboardContextValue>({
     singleLetterGlobalSearch: true,
   },
 });
-
-function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
-  if (isEditableElement(target)) return true;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest([
-    ".MuiAutocomplete-popper",
-    ".MuiMenu-root",
-    ".MuiPopover-root",
-    ".MuiDialog-root",
-    ".xterm",
-    "[role='menu']",
-    "[role='listbox']",
-  ].join(","));
-}
 
 function effectiveContextActions(stack: ContextualKeyboardAction[][]): ContextualKeyboardAction[] {
   const seenBindings = new Set<string>();

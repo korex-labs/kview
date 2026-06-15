@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Drawer, type DrawerProps } from "@mui/material";
+import { isKeyboardOwnedOverlayTarget } from "../../keyboard/keyboardUtils";
 
 type Props = DrawerProps;
 
@@ -12,21 +13,8 @@ let nextRightDrawerId = 1;
 const rightDrawerStack: RightDrawerStackEntry[] = [];
 let escapeListenerRegistered = false;
 
-function isOverlayEscapeTarget(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined") return false;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest([
-    ".MuiAutocomplete-popper",
-    ".MuiMenu-root",
-    ".MuiPopover-root",
-    ".MuiDialog-root",
-    "[role='menu']",
-    "[role='listbox']",
-  ].join(","));
-}
-
 function onRightDrawerEscape(event: KeyboardEvent) {
-  if (event.key !== "Escape" || isOverlayEscapeTarget(event.target)) return;
+  if (event.key !== "Escape" || isKeyboardOwnedOverlayTarget(event.target)) return;
   const top = rightDrawerStack[rightDrawerStack.length - 1];
   const onClose = top?.onCloseRef.current;
   if (!onClose) return;

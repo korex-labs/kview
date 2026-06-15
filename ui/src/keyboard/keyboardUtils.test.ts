@@ -1,5 +1,13 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it } from "vitest";
-import { eventToBinding, matchKeySequence, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
+import {
+  eventToBinding,
+  isKeyboardOwnedOverlayTarget,
+  matchKeySequence,
+  shouldIgnoreContextShortcut,
+  shouldIgnoreGlobalShortcut,
+} from "./keyboardUtils";
 
 describe("keyboardUtils", () => {
   it("normalizes printable shortcuts and modifiers", () => {
@@ -16,5 +24,28 @@ describe("keyboardUtils", () => {
 
   it("does not ignore a missing target", () => {
     expect(shouldIgnoreGlobalShortcut(null)).toBe(false);
+    expect(shouldIgnoreContextShortcut(null)).toBe(false);
+    expect(isKeyboardOwnedOverlayTarget(null)).toBe(false);
+  });
+
+  it("treats overlays as keyboard-owned surfaces", () => {
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const button = document.createElement("button");
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+
+    expect(isKeyboardOwnedOverlayTarget(button)).toBe(true);
+    expect(shouldIgnoreContextShortcut(button)).toBe(true);
+    expect(shouldIgnoreGlobalShortcut(button)).toBe(true);
+  });
+
+  it("treats editable targets as shortcut-owned by the input", () => {
+    const input = document.createElement("input");
+    input.type = "text";
+
+    expect(isKeyboardOwnedOverlayTarget(input)).toBe(false);
+    expect(shouldIgnoreContextShortcut(input)).toBe(true);
+    expect(shouldIgnoreGlobalShortcut(input)).toBe(true);
   });
 });
