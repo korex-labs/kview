@@ -74,6 +74,14 @@ current application state.
 - Centralize shortcut registration, help metadata, conflict detection, and active
   scope debugging.
 - Make focus restoration explicit, not component-local best effort.
+- Audit all `keydown`/focus listeners and route app-owned shortcuts and Escape
+  behavior through `KeyboardProvider`; keep direct window listeners only for
+  low-level integration cases with documented justification.
+- Document keyboard/focus best practices for new surfaces: scope registration,
+  Escape ownership, editable-field suppression, contextual action registration,
+  and focus restoration.
+- Add regression tests for dialogs, drawers, settings, help, global search,
+  terminals, and nested overlays so shortcut ownership remains stable.
 
 ### 2. Kview Memory Bank
 
