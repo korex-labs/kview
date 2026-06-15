@@ -1,0 +1,135 @@
+// @vitest-environment jsdom
+
+import React, { useEffect } from "react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import KeyboardProvider, { useKeyboardControls, type KeyboardFocusScope } from "./KeyboardProvider";
+import type { Section } from "../state";
+
+const keyboardSettings = {
+  vimTableNavigation: true,
+  homeRowTableNavigation: true,
+  singleLetterGlobalSearch: true,
+};
+
+function renderKeyboard(children?: React.ReactNode) {
+  const handlers = {
+    focusSearch: vi.fn(),
+    selectSection: vi.fn<(section: Section) => void>(),
+    openSettings: vi.fn(),
+  };
+  render(
+    <KeyboardProvider
+      settingsOpen={false}
+      keyboardSettings={keyboardSettings}
+      onFocusGlobalSearch={handlers.focusSearch}
+      onSelectSection={handlers.selectSection}
+      onOpenSettings={handlers.openSettings}
+    >
+      {children}
+    </KeyboardProvider>,
+  );
+  return handlers;
+}
+
+function ScopeRegistrar({ scope }: { scope: KeyboardFocusScope }) {
+  const { registerKeyboardScope } = useKeyboardControls();
+  useEffect(() => registerKeyboardScope(scope), [registerKeyboardScope, scope]);
+  return null;
+}
+
+function ContextActionRegistrar({ onRun }: { onRun: () => void }) {
+  const { registerContextActions } = useKeyboardControls();
+  useEffect(() => registerContextActions([
+    {
+      id: "test.context",
+      label: "Test context action",
+      binding: ["x"],
+      run: () => {
+        onRun();
+        return true;
+      },
+    },
+  ]), [onRun, registerContextActions]);
+  return null;
+}
+
+afterEach(() => {
+  cleanup();
+});
+
+describe("KeyboardProvider", () => {
+  it("runs global shortcuts from the app surface", () => {
+    const handlers = renderKeyboard();
+
+    fireEvent.keyDown(window, { key: "s" });
+    expect(handlers.focusSearch).toHaveBeenCalledWith("");
+
+    fireEvent.keyDown(window, { key: "g" });
+    fireEvent.keyDown(window, { key: "p" });
+    expect(handlers.selectSection).toHaveBeenCalledWith("pods");
+  });
+
+  it("suppresses global shortcuts from editable and overlay targets", () => {
+    const handlers = renderKeyboard(
+      <>
+        <input aria-label="name" />
+        <div role="dialog">
+          <button type="button">Dialog action</button>
+        </div>
+      </>,
+    );
+
+    fireEvent.keyDown(document.querySelector("input")!, { key: "s" });
+    fireEvent.keyDown(document.querySelector("button")!, { key: "s" });
+
+    expect(handlers.focusSearch).not.toHaveBeenCalled();
+  });
+
+  it("runs contextual actions in drawer scopes while suppressing global shortcuts", () => {
+    const onRun = vi.fn();
+    const handlers = renderKeyboard(
+      <>
+        <ScopeRegistrar scope={{
+          id: "drawer",
+          label: "Drawer",
+          kind: "drawer",
+          suppressGlobalShortcuts: true,
+        }}
+        />
+        <ContextActionRegistrar onRun={onRun} />
+      </>,
+    );
+
+    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.keyDown(window, { key: "s" });
+
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(handlers.focusSearch).not.toHaveBeenCalled();
+  });
+
+  it("routes Escape to the active scope unless a nested overlay owns it", () => {
+    const onEscape = vi.fn();
+    renderKeyboard(
+      <>
+        <ScopeRegistrar scope={{
+          id: "settings",
+          label: "Settings",
+          kind: "settings",
+          suppressGlobalShortcuts: true,
+          suppressContextShortcuts: true,
+          onEscape,
+        }}
+        />
+        <div className="MuiDialog-root">
+          <button type="button">Nested dialog</button>
+        </div>
+      </>,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document.querySelector("button")!, { key: "Escape" });
+
+    expect(onEscape).toHaveBeenCalledTimes(1);
+  });
+});
