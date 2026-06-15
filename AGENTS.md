@@ -175,11 +175,12 @@ When adding or changing a user-facing feature:
 - follow the documentation structure and formatting rules in `docs/user/CONTRACT.md`
 - update the relevant `docs/user/*.md` page in the same change
 - update `docs/user/manifest.json` when adding, renaming, or removing a help page
-- update `docs/user/whats-new.md` for notable user-facing changes, especially before releases
 - keep engineering-only docs such as architecture, dataplane, and API ownership outside in-app Help unless the content is useful to end users
 
-The release-note helper updates both `CHANGELOG.md` and the curated
-`docs/user/whats-new.md` highlights.
+Do not edit `docs/user/whats-new.md` during normal development. The
+release-note helper updates both `CHANGELOG.md` and the curated
+`docs/user/whats-new.md` highlights during release preparation through
+`make release-notes TAG=vX.Y.Z` or `make release-tag TAG=vX.Y.Z`.
 
 ---
 

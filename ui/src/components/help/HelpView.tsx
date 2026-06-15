@@ -23,6 +23,7 @@ import MarkdownContent from "./MarkdownContent";
 import { featuredHelpPages, helpManifest, helpPages, helpPagesByCategory, type HelpPage } from "../../help/content";
 
 const changelogUrl = "https://github.com/korex-labs/kview/blob/main/CHANGELOG.md";
+const whatsNewHighlightLimit = 10;
 type ProjectLink = { id: string; label: string; href: string; icon: React.ReactElement };
 
 function pageMatches(page: HelpPage, query: string): boolean {
@@ -37,6 +38,55 @@ function bodyWithoutMatchingTitle(page: HelpPage): string {
     return lines.slice(1).join("\n").trimStart();
   }
   return page.body;
+}
+
+export function limitWhatsNewHighlights(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const limitedLines: string[] = [];
+  let inHighlights = false;
+  let highlightCount = 0;
+  let keepCurrentHighlight = false;
+
+  for (const line of lines) {
+    if (/^##\s+Recent Highlights\s*$/.test(line)) {
+      inHighlights = true;
+      limitedLines.push(line);
+      continue;
+    }
+
+    if (inHighlights && /^##\s+/.test(line)) {
+      inHighlights = false;
+      limitedLines.push(line);
+      continue;
+    }
+
+    if (!inHighlights) {
+      limitedLines.push(line);
+      continue;
+    }
+
+    if (/^-\s+/.test(line)) {
+      highlightCount += 1;
+      keepCurrentHighlight = highlightCount <= whatsNewHighlightLimit;
+      if (keepCurrentHighlight) limitedLines.push(line);
+      continue;
+    }
+
+    if (/^\s{2,}\S/.test(line)) {
+      if (keepCurrentHighlight) limitedLines.push(line);
+      continue;
+    }
+
+    limitedLines.push(line);
+  }
+
+  return limitedLines.join("\n");
+}
+
+function helpPageBody(page: HelpPage): string {
+  const body = bodyWithoutMatchingTitle(page);
+  if (page.id !== "whats-new") return body;
+  return limitWhatsNewHighlights(body);
 }
 
 const helpShellSx = {
@@ -197,7 +247,7 @@ export default function HelpView({ onClose }: { onClose: () => void }) {
                 ) : null}
               </Box>
               <Divider sx={{ mb: 1 }} />
-              <MarkdownContent markdown={bodyWithoutMatchingTitle(activePage)} />
+              <MarkdownContent markdown={helpPageBody(activePage)} />
             </>
           ) : (
             <Typography variant="body2" color="text.secondary">

@@ -13,6 +13,7 @@ fi
 tag_name="$1"
 notes_file="CHANGELOG.md"
 whats_new_file="docs/user/whats-new.md"
+whats_new_highlight_limit="10"
 codex_bin="${CODEX:-codex}"
 codex_model="${CODEX_MODEL:-gpt-5.4}"
 
@@ -77,6 +78,7 @@ Task:
 - Write concise user-facing notes grouped into bullets. Prefer meaningful product/workflow summaries over a raw commit list.
 - Mention infrastructure, tests, docs, and fixes when they are relevant to the release.
 - Keep ${whats_new_file} curated for in-app Help: update its recent highlights with the most relevant user-facing changes, and keep a pointer to ${notes_file} for the full history.
+- Keep ${whats_new_file} to at most ${whats_new_highlight_limit} bullets under "## Recent Highlights"; choose the most important user-facing highlights and leave full detail to ${notes_file}.
 - In ${whats_new_file}, the full-history pointer must be a markdown link to https://github.com/korex-labs/kview/blob/main/${notes_file}; do not render ${notes_file} as inline code there.
 - Do not create commits, tags, or modify any file except ${notes_file} and ${whats_new_file}; the release script will commit the docs after you finish.
 
@@ -116,6 +118,19 @@ fi
 
 if ! grep -Fq "https://github.com/korex-labs/kview/blob/main/${notes_file}" "$whats_new_file"; then
 	printf "%s\n" "${whats_new_file} must link to the GitHub ${notes_file} file for full history" >&2
+	exit 1
+fi
+
+whats_new_highlight_count="$(
+	awk '
+		/^## Recent Highlights$/ { in_highlights = 1; next }
+		in_highlights && /^## / { in_highlights = 0 }
+		in_highlights && /^- / { count++ }
+		END { print count + 0 }
+	' "$whats_new_file"
+)"
+if [ "$whats_new_highlight_count" -gt "$whats_new_highlight_limit" ]; then
+	printf "%s\n" "${whats_new_file} must contain at most ${whats_new_highlight_limit} Recent Highlights bullets; found ${whats_new_highlight_count}" >&2
 	exit 1
 fi
 
