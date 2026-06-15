@@ -30,6 +30,7 @@ AI_AGENT_RULES.md
 ## Planning Strategy
 
 Current product and architecture state is summarized in README.md and the focused docs under `docs/`.
+Active product and architecture planning lives in `docs/ROADMAP.md`.
 
 Planning agent responsibilities:
 - Align new work with the documented architecture and read ownership contracts

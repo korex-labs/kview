@@ -252,6 +252,7 @@ If you are an AI coding agent using this README as context, read these files bef
 
 | Document | Purpose |
 |----------|---------|
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Active product and architecture planning queue |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Product architecture and boundaries |
 | [docs/DATAPLANE.md](docs/DATAPLANE.md) | Read-side dataplane, snapshots, projections, metadata |
 | [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) | Route-by-route read ownership map |
