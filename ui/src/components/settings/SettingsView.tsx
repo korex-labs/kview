@@ -87,10 +87,8 @@ import {
 import { useUserSettings } from "../../settingsContext";
 import type { AppStateV1 } from "../../state";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
-import { formatChipLabel } from "../../utils/k8sUi";
 import { actionRowSx } from "../../theme/sxTokens";
 import InfoHint from "../shared/InfoHint";
-import ScopedCountChip from "../shared/ScopedCountChip";
 import ResourceTagChip from "../shared/ResourceTagChip";
 import { AppButton, AppIconButton } from "../shared/AppActions";
 import {
@@ -2839,19 +2837,6 @@ export default function SettingsView({
         item.suggestedAction,
       ].some((value) => String(value || "").toLowerCase().includes(q));
     });
-    const severityColor = (severity?: string): "error" | "warning" | "info" | "default" => {
-      switch (severity) {
-        case "high":
-          return "error";
-        case "medium":
-          return "warning";
-        case "low":
-          return "info";
-        default:
-          return "default";
-      }
-    };
-
     const gbl = settings.dataplane.global;
     const getGblAt = (path: string[]): unknown => {
       let cur: unknown = gbl;
@@ -3233,9 +3218,9 @@ export default function SettingsView({
                   const inheritedEnabled = dataplaneEditScope === "context" ? (globalOverride.enabled ?? item.defaultEnabled) : item.defaultEnabled;
                   const inheritedSeverity = dataplaneEditScope === "context" ? (globalOverride.severity || item.defaultSeverity || "low") : (item.defaultSeverity || "low");
                   const inheritedPriority = dataplaneEditScope === "context" ? (globalOverride.priority ?? item.defaultPriority) : item.defaultPriority;
-                  const effectiveSeverity = contextOverride.severity || globalOverride.severity || item.defaultSeverity;
                   const enabledChecked = override.enabled ?? inheritedEnabled;
                   const severityValue = override.severity || inheritedSeverity;
+                  const priorityValue = signalPriorityFor(item);
                   const changed = Object.keys(override).length > 0 || signalThresholdCustomized(item.type);
                   const inheritedSignalOverride: Partial<SignalOverride> = {
                     enabled: inheritedEnabled,
@@ -3362,60 +3347,50 @@ export default function SettingsView({
                             onUp={() => moveSignalPriority(item.type, -1)}
                             onDown={() => moveSignalPriority(item.type, 1)}
                           />
-                          <ScopedCountChip size="small" color={severityColor(item.defaultSeverity)} label="Default" count={formatChipLabel(item.defaultSeverity || "dynamic")} />
-                          <ScopedCountChip size="small" color={severityColor(effectiveSeverity)} label="Effective" count={formatChipLabel(effectiveSeverity || "dynamic")} />
                         </Box>
                       </Box>
                       <Box sx={{ pt: 0.25 }}>
                         <SettingGrid variant="auto">
-                        <Box sx={{ display: "flex", alignItems: "center", minHeight: 40 }}>
-                          <ToggleButtonGroup
-                            exclusive
-                            size="small"
-                            value={enabledChecked ? "enabled" : "disabled"}
-                            onChange={(_, value: "enabled" | "disabled" | null) => {
-                              if (!value) return;
-                              setSignalOverride(item.type, dataplaneEditScope, { enabled: value === "enabled" }, inheritedSignalOverride);
-                            }}
-                          >
-                            <ToggleButton value="enabled">Enabled</ToggleButton>
-                            <ToggleButton value="disabled">Disabled</ToggleButton>
-                          </ToggleButtonGroup>
-                        </Box>
-                        <SettingField
-                          label="Severity"
-                          hint={`Inherited value: ${inheritedSeverity}.`}
-                        >
-                          <TextField
-                            select
-                            size="small"
-                            fullWidth
-                            value={severityValue}
-                            slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setSignalOverride(item.type, dataplaneEditScope, {
-                                severity: value as SignalOverride["severity"],
-                              }, inheritedSignalOverride);
-                            }}
-                          >
-                            <MenuItem value="low">Low</MenuItem>
-                            <MenuItem value="medium">Medium</MenuItem>
-                            <MenuItem value="high">High</MenuItem>
-                          </TextField>
-                        </SettingField>
-                        <Box sx={{ display: "flex", alignItems: "center", minHeight: 40, gap: 0.75, flexWrap: "wrap" }}>
-                          <ScopedCountChip
-                            size="small"
-                            color="default"
-                            label="Priority"
-                            count={String(signalPriorityFor(item))}
+                          <SettingRow
+                            label="Enabled"
+                            hint={`Default value: ${item.defaultEnabled ? "enabled" : "disabled"}. Inherited value: ${inheritedEnabled ? "enabled" : "disabled"}.`}
+                            checked={enabledChecked}
+                            onChange={(value) => setSignalOverride(item.type, dataplaneEditScope, { enabled: value }, inheritedSignalOverride)}
                           />
-                          <Typography variant="caption" color="text.secondary">
-                            Move the card to change display priority. Inherits {inheritedPriority}.
-                          </Typography>
-                        </Box>
-                      </SettingGrid>
+                          <SettingField
+                            label="Severity"
+                            hint={`Default value: ${item.defaultSeverity || "dynamic"}. Inherited value: ${inheritedSeverity}.`}
+                          >
+                            <TextField
+                              select
+                              size="small"
+                              fullWidth
+                              value={severityValue}
+                              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setSignalOverride(item.type, dataplaneEditScope, {
+                                  severity: value as SignalOverride["severity"],
+                                }, inheritedSignalOverride);
+                              }}
+                            >
+                              <MenuItem value="low">Low</MenuItem>
+                              <MenuItem value="medium">Medium</MenuItem>
+                              <MenuItem value="high">High</MenuItem>
+                            </TextField>
+                          </SettingField>
+                          <SettingField
+                            label="Priority"
+                            hint={`Move the card to change display priority. Default value: ${item.defaultPriority}. Inherited value: ${inheritedPriority}.`}
+                          >
+                            <TextField
+                              size="small"
+                              fullWidth
+                              value={priorityValue}
+                              slotProps={{ input: { readOnly: true } }}
+                            />
+                          </SettingField>
+                        </SettingGrid>
                       </Box>
                       <Box sx={{ pt: 0.25 }}>
                         {renderSignalThresholdControls()}
