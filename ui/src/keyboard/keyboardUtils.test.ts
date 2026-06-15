@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   eventToBinding,
   isKeyboardOwnedOverlayTarget,
+  keyboardTargetScope,
   matchKeySequence,
   shouldIgnoreContextShortcut,
   shouldIgnoreGlobalShortcut,
@@ -26,6 +27,7 @@ describe("keyboardUtils", () => {
     expect(shouldIgnoreGlobalShortcut(null)).toBe(false);
     expect(shouldIgnoreContextShortcut(null)).toBe(false);
     expect(isKeyboardOwnedOverlayTarget(null)).toBe(false);
+    expect(keyboardTargetScope(null)).toBe("app");
   });
 
   it("treats overlays as keyboard-owned surfaces", () => {
@@ -36,6 +38,7 @@ describe("keyboardUtils", () => {
     document.body.appendChild(dialog);
 
     expect(isKeyboardOwnedOverlayTarget(button)).toBe(true);
+    expect(keyboardTargetScope(button)).toBe("overlay");
     expect(shouldIgnoreContextShortcut(button)).toBe(true);
     expect(shouldIgnoreGlobalShortcut(button)).toBe(true);
   });
@@ -45,7 +48,30 @@ describe("keyboardUtils", () => {
     input.type = "text";
 
     expect(isKeyboardOwnedOverlayTarget(input)).toBe(false);
+    expect(keyboardTargetScope(input)).toBe("editable");
     expect(shouldIgnoreContextShortcut(input)).toBe(true);
     expect(shouldIgnoreGlobalShortcut(input)).toBe(true);
+  });
+
+  it("classifies drawers and terminals separately", () => {
+    const drawer = document.createElement("div");
+    drawer.className = "MuiDrawer-root";
+    const drawerButton = document.createElement("button");
+    drawer.appendChild(drawerButton);
+    document.body.appendChild(drawer);
+
+    const terminal = document.createElement("div");
+    terminal.className = "xterm";
+    const terminalCell = document.createElement("div");
+    terminal.appendChild(terminalCell);
+    document.body.appendChild(terminal);
+
+    expect(keyboardTargetScope(drawerButton)).toBe("drawer");
+    expect(shouldIgnoreContextShortcut(drawerButton)).toBe(false);
+    expect(shouldIgnoreGlobalShortcut(drawerButton)).toBe(true);
+
+    expect(keyboardTargetScope(terminalCell)).toBe("terminal");
+    expect(shouldIgnoreContextShortcut(terminalCell)).toBe(true);
+    expect(shouldIgnoreGlobalShortcut(terminalCell)).toBe(true);
   });
 });

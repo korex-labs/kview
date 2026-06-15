@@ -8,6 +8,8 @@ export type NormalizedKey = {
   shift: boolean;
 };
 
+export type KeyboardTargetScope = "app" | "editable" | "overlay" | "drawer" | "terminal";
+
 type KeyboardLike = Pick<KeyboardEvent | ReactKeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">;
 
 const ignoredInputTypes = new Set([
@@ -21,20 +23,6 @@ const ignoredInputTypes = new Set([
   "submit",
 ]);
 
-const keyboardOwnedSurfaceSelector = [
-  "[contenteditable='true']",
-  "[data-kview-ignore-shortcuts='true']",
-  ".xterm",
-  ".MuiAutocomplete-popper",
-  ".MuiDrawer-root",
-  ".MuiMenu-root",
-  ".MuiPopover-root",
-  ".MuiDialog-root",
-  "[role='dialog']",
-  "[role='menu']",
-  "[role='listbox']",
-].join(",");
-
 const overlaySurfaceSelector = [
   ".MuiAutocomplete-popper",
   ".MuiMenu-root",
@@ -44,6 +32,10 @@ const overlaySurfaceSelector = [
   "[role='menu']",
   "[role='listbox']",
 ].join(",");
+
+const drawerSurfaceSelector = ".MuiDrawer-root";
+const terminalSurfaceSelector = ".xterm";
+const ignoreShortcutSurfaceSelector = "[data-kview-ignore-shortcuts='true']";
 
 export function normalizeKeyboardEvent(event: KeyboardLike): NormalizedKey {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
@@ -83,26 +75,27 @@ export function isEditableElement(target: EventTarget | null): boolean {
 }
 
 export function shouldIgnoreGlobalShortcut(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined") return false;
-  if (!(target instanceof HTMLElement)) return false;
-  if (isEditableElement(target)) return true;
-  return !!target.closest(keyboardOwnedSurfaceSelector);
+  return keyboardTargetScope(target) !== "app";
 }
 
 export function isKeyboardOwnedOverlayTarget(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined") return false;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest(overlaySurfaceSelector);
+  return keyboardTargetScope(target) === "overlay";
 }
 
 export function shouldIgnoreContextShortcut(target: EventTarget | null): boolean {
-  if (isEditableElement(target)) return true;
-  if (typeof HTMLElement === "undefined") return false;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest([
-    overlaySurfaceSelector,
-    ".xterm",
-  ].join(","));
+  const scope = keyboardTargetScope(target);
+  return scope === "editable" || scope === "overlay" || scope === "terminal";
+}
+
+export function keyboardTargetScope(target: EventTarget | null): KeyboardTargetScope {
+  if (typeof HTMLElement === "undefined") return "app";
+  if (!(target instanceof HTMLElement)) return "app";
+  if (isEditableElement(target)) return "editable";
+  if (target.closest(ignoreShortcutSurfaceSelector)) return "editable";
+  if (target.closest(overlaySurfaceSelector)) return "overlay";
+  if (target.closest(drawerSurfaceSelector)) return "drawer";
+  if (target.closest(terminalSurfaceSelector)) return "terminal";
+  return "app";
 }
 
 export type SequenceMatch = "matched" | "partial" | "none";
