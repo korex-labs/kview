@@ -15,7 +15,13 @@ import type { Section } from "../state";
 import type { KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
 import { buildShortcutHelpSections } from "./help";
-import { eventToBinding, matchKeySequence, shouldIgnoreContextShortcut, shouldIgnoreGlobalShortcut } from "./keyboardUtils";
+import {
+  eventToBinding,
+  isKeyboardOwnedOverlayTarget,
+  matchKeySequence,
+  shouldIgnoreContextShortcut,
+  shouldIgnoreGlobalShortcut,
+} from "./keyboardUtils";
 import { emitFocusActivityPanelTab, emitToggleActivityPanel } from "../activityEvents";
 import {
   formatBinding,
@@ -39,6 +45,7 @@ export type KeyboardFocusScope = {
   kind: "app" | "drawer" | "dialog" | "settings" | "terminal";
   suppressGlobalShortcuts?: boolean;
   suppressContextShortcuts?: boolean;
+  onEscape?: () => boolean | void;
 };
 
 type TableKeyboardControls = {
@@ -198,6 +205,16 @@ export default function KeyboardProvider({
         if (helpOpen) {
           event.preventDefault();
           setHelpOpen(false);
+          clearSequence();
+          return;
+        }
+        const activeScope = effectiveKeyboardScope(keyboardScopeStackRef.current);
+        if (activeScope?.onEscape && !isKeyboardOwnedOverlayTarget(event.target)) {
+          const handled = activeScope.onEscape();
+          if (handled !== false) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
           clearSequence();
           return;
         }

@@ -5,20 +5,33 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
+import KeyboardProvider from "../../keyboard/KeyboardProvider";
 
 function renderSettings(onClose = vi.fn()) {
   render(
     <UserSettingsProvider>
-      <SettingsView
-        token="test-token"
-        contexts={[{ name: "kind-test" }]}
-        namespaces={["default"]}
-        activeContext="kind-test"
-        activeNamespace="default"
-        appState={{ v: 1, favouriteNamespacesByContext: {} }}
-        setAppState={vi.fn()}
-        onClose={onClose}
-      />
+      <KeyboardProvider
+        settingsOpen={false}
+        keyboardSettings={{
+          vimTableNavigation: true,
+          homeRowTableNavigation: true,
+          singleLetterGlobalSearch: true,
+        }}
+        onFocusGlobalSearch={vi.fn()}
+        onSelectSection={vi.fn()}
+        onOpenSettings={vi.fn()}
+      >
+        <SettingsView
+          token="test-token"
+          contexts={[{ name: "kind-test" }]}
+          namespaces={["default"]}
+          activeContext="kind-test"
+          activeNamespace="default"
+          appState={{ v: 1, favouriteNamespacesByContext: {} }}
+          setAppState={vi.fn()}
+          onClose={onClose}
+        />
+      </KeyboardProvider>
     </UserSettingsProvider>,
   );
   return onClose;

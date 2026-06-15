@@ -106,7 +106,7 @@ import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } fr
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
-import { isKeyboardOwnedOverlayTarget } from "../../keyboard/keyboardUtils";
+import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -936,6 +936,7 @@ export default function SettingsView({
   setAppState,
   onClose,
 }: Props) {
+  const { registerKeyboardScope } = useKeyboardControls();
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
@@ -968,15 +969,14 @@ export default function SettingsView({
     [activeNamespace, namespaces],
   );
 
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || isKeyboardOwnedOverlayTarget(event.target)) return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+  useEffect(() => registerKeyboardScope({
+    id: "settings-view",
+    label: "Settings",
+    kind: "settings",
+    suppressGlobalShortcuts: true,
+    suppressContextShortcuts: true,
+    onEscape: onClose,
+  }), [onClose, registerKeyboardScope]);
 
   useEffect(() => {
     if (section !== "dataplane" || dataplaneTab !== "signals") return;
