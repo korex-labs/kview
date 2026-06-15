@@ -184,7 +184,12 @@ export default function CustomResourceDefinitionDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="customresourcedefinitions" title={<>CRD: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="customresourcedefinitions"
+        title={<>CRD: {name || "-"}</>}
+        resourceIdentity={{ resource: "customresourcedefinitions", name }}
+        onClose={props.onClose}
+      >
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />

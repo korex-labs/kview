@@ -62,6 +62,14 @@ function extractOverviewStructure(src: string, anchor: string) {
   };
 }
 
+function findDrawerFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const absPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return findDrawerFiles(absPath);
+    return entry.isFile() && entry.name.endsWith("Drawer.tsx") ? [absPath] : [];
+  });
+}
+
 describe("drawer layout order snapshots", () => {
   it("locks tab order and overview section order for migrated drawers", () => {
     const snapshotData = DRAWERS.map((drawer) => {
@@ -75,5 +83,23 @@ describe("drawer layout order snapshots", () => {
       };
     });
     expect(snapshotData).toMatchSnapshot();
+  });
+
+  it("keeps resource tags and macros reachable from resource drawers", () => {
+    const missing = findDrawerFiles(RESOURCES_DIR)
+      .map((absPath) => ({
+        relPath: path.relative(RESOURCES_DIR, absPath),
+        src: fs.readFileSync(absPath, "utf8"),
+      }))
+      .filter(({ src }) => src.includes("<ResourceDrawerShell"))
+      .filter(({ src }) => !(
+        src.includes("resourceIdentity=") ||
+        src.includes("dynamicLinks=") ||
+        src.includes("<ResourceDrawerTags") ||
+        src.includes("<ResourceDrawerMacros")
+      ))
+      .map(({ relPath }) => relPath);
+
+    expect(missing).toEqual([]);
   });
 });

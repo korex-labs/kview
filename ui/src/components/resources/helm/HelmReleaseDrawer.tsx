@@ -264,6 +264,7 @@ export default function HelmReleaseDrawer(props: {
             <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} />
           </>
         }
+        resourceIdentity={{ resource: "helm", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

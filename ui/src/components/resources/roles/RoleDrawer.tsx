@@ -154,6 +154,7 @@ export default function RoleDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        resourceIdentity={{ resource: "roles", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

@@ -138,7 +138,12 @@ export default function ClusterRoleDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="clusterroles" title={<>ClusterRole: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="clusterroles"
+        title={<>ClusterRole: {name || "-"}</>}
+        resourceIdentity={{ resource: "clusterroles", name }}
+        onClose={props.onClose}
+      >
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />

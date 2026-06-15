@@ -122,6 +122,7 @@ export default function LimitRangeDrawer({
       <ResourceDrawerShell
         resourceIcon="limitranges"
         title={`LimitRange: ${limitRangeName || "-"}`}
+        resourceIdentity={{ resource: "limitranges", namespace, name: limitRangeName }}
         onClose={onClose}
       >
         {loading ? (

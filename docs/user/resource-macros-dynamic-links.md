@@ -23,11 +23,12 @@ runbooks, dashboards, or internal portals.
   Links are not scoped to resource types; they appear anywhere their template
   can be resolved.
 
-Drawer headers that support local resource tags also include a macro edit
-control for assigning manual macros to that drawer scope. The macro menu shows
-directly assigned macros first and can optionally show inherited and extracted
-macros for the selected resource. Dynamic links appear as chips in the same
-drawer header row as resource tags when their URL templates resolve.
+Resource drawer headers include a macro edit control for assigning manual
+macros to that drawer scope. The macro menu shows directly assigned macros
+first and can optionally show inherited and extracted macros for the selected
+resource. Dynamic links appear as chips in the same drawer header row as
+resource tags when their URL templates resolve and the drawer has the resource
+metadata needed by the link.
 
 ## Macro Resolution
 

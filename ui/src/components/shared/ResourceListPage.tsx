@@ -217,14 +217,21 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
   const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
     if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
-    const shaped = row as TRow & { name?: unknown; namespace?: unknown };
-    if (typeof shaped.name !== "string" || !shaped.name) return null;
+    const shaped = row as TRow & { id?: unknown; name?: unknown; chartName?: unknown; namespace?: unknown };
+    const name = typeof shaped.name === "string" && shaped.name
+      ? shaped.name
+      : typeof shaped.chartName === "string" && shaped.chartName
+        ? shaped.chartName
+        : typeof shaped.id === "string" && shaped.id
+          ? shaped.id
+          : "";
+    if (!name) return null;
     const rowNamespace = typeof shaped.namespace === "string" ? shaped.namespace : namespace;
     return {
       context: contextName,
       resource: resourceKey,
       namespace: rowNamespace || "",
-      name: shaped.name,
+      name,
     };
   }, [getResourceTagTarget, namespace, resourceKey]);
 
@@ -243,7 +250,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
         return target ? <ResourceTagsCell target={target} /> : null;
       },
     };
-    const nameIndex = columns.findIndex((col) => col.field === "name");
+    const nameIndex = columns.findIndex((col) => col.field === "name" || col.field === "chartName");
     if (nameIndex < 0) return [tagColumn, ...columns];
     return [...columns.slice(0, nameIndex + 1), tagColumn, ...columns.slice(nameIndex + 1)];
   }, [activeContext, columns, resourceTagTargetForRow, settings.resourceTags.enabled]);

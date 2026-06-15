@@ -15,20 +15,25 @@ import type { ResourceIconName } from "../icons/resources/types";
 import { AppIconButton } from "./AppActions";
 import ResourceDynamicLinks from "./ResourceDynamicLinks";
 import type { ListResourceKey } from "../../utils/k8sResources";
+import { ResourceDrawerTags } from "./ResourceTags";
+import { ResourceDrawerMacros } from "./ResourceMacros";
+
+type ResourceDrawerIdentity = {
+  resource: ListResourceKey;
+  namespace?: string | null;
+  name?: string | null;
+  nodeName?: string | null;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+};
 
 export type ResourceDrawerShellProps = {
   /** Header title (e.g. "Pod: my-pod" or a fragment with chips). */
   title: React.ReactNode;
   resourceIcon?: ResourceIconName;
   headerMeta?: React.ReactNode;
-  dynamicLinks?: {
-    resource: ListResourceKey;
-    namespace?: string | null;
-    name?: string | null;
-    nodeName?: string | null;
-    labels?: Record<string, string>;
-    annotations?: Record<string, string>;
-  };
+  resourceIdentity?: ResourceDrawerIdentity;
+  dynamicLinks?: ResourceDrawerIdentity;
   headerActions?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
@@ -81,6 +86,7 @@ export default function ResourceDrawerShell({
   title,
   resourceIcon,
   headerMeta,
+  resourceIdentity,
   dynamicLinks,
   headerActions,
   onClose,
@@ -108,6 +114,15 @@ export default function ResourceDrawerShell({
   }, [maxWidth]);
 
   const [drawerWidth, setDrawerWidth] = useState(() => clampWidth(settings.appearance.resourceDrawerWidthPx || contentWidth));
+  const drawerIdentity = resourceIdentity || dynamicLinks || null;
+  const showAutoHeaderTags = Boolean(drawerIdentity && !headerMeta && settings.resourceTags.enabled);
+  const showHeaderMetaRow = Boolean(headerMeta || showAutoHeaderTags || dynamicLinks);
+  const showAutoHeaderActions = Boolean(
+    drawerIdentity &&
+    !headerActions &&
+    (settings.resourceMacros.enabled || settings.resourceTags.enabled),
+  );
+  const showHeaderActions = Boolean(headerActions || showAutoHeaderActions);
 
   useEffect(() => {
     if (isResizing) return;
@@ -294,16 +309,41 @@ export default function ResourceDrawerShell({
           <Typography variant="h6" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
             {title}
           </Typography>
-          {headerMeta || dynamicLinks ? (
+          {showHeaderMetaRow ? (
             <Box sx={{ mt: 0.75, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
               {headerMeta ? <Box sx={{ display: "contents" }}>{headerMeta}</Box> : null}
+              {showAutoHeaderTags && drawerIdentity ? (
+                <ResourceDrawerTags
+                  resource={drawerIdentity.resource}
+                  namespace={drawerIdentity.namespace}
+                  name={drawerIdentity.name}
+                />
+              ) : null}
               {dynamicLinks ? <ResourceDynamicLinks {...dynamicLinks} /> : null}
             </Box>
           ) : null}
         </Box>
-        {headerActions ? (
+        {showHeaderActions ? (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, flexShrink: 0, mt: 0.25 }}>
             {headerActions}
+            {showAutoHeaderActions && drawerIdentity ? (
+              <>
+                <ResourceDrawerMacros
+                  resource={drawerIdentity.resource}
+                  namespace={drawerIdentity.namespace}
+                  name={drawerIdentity.name}
+                  nodeName={drawerIdentity.nodeName}
+                  labels={drawerIdentity.labels}
+                  annotations={drawerIdentity.annotations}
+                />
+                <ResourceDrawerTags
+                  resource={drawerIdentity.resource}
+                  namespace={drawerIdentity.namespace}
+                  name={drawerIdentity.name}
+                  mode="edit"
+                />
+              </>
+            ) : null}
           </Box>
         ) : null}
         <AppIconButton tooltip="Close drawer" label="Close drawer" onClick={onClose} sx={{ flexShrink: 0, mt: 0.25 }}>

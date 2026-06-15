@@ -203,6 +203,7 @@ export default function ServiceAccountDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        resourceIdentity={{ resource: "serviceaccounts", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

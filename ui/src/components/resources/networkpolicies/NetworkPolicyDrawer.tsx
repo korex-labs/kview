@@ -117,6 +117,7 @@ export default function NetworkPolicyDrawer(props: {
       <ResourceDrawerShell
         resourceIcon="networkpolicies"
         title={`NetworkPolicy: ${name || "-"}`}
+        resourceIdentity={{ resource: "networkpolicies", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

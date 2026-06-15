@@ -220,7 +220,12 @@ export default function HelmChartDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="helmcharts" title={<>Helm Chart: {displayChart?.chartName || chart?.chartName || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="helmcharts"
+        title={<>Helm Chart: {displayChart?.chartName || chart?.chartName || "-"}</>}
+        resourceIdentity={{ resource: "helmcharts", name: displayChart?.chartName || chart?.chartName }}
+        onClose={props.onClose}
+      >
         {!chart ? (
           <EmptyState message="No Helm chart selected." />
         ) : (

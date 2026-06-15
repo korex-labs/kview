@@ -17,7 +17,8 @@ upgrade or uninstall when permissions allow.
 
 Helm Charts are derived from cached release snapshots. Chart rows group release
 data by chart name and version so users can see where a chart is deployed
-across visible namespaces.
+across visible namespaces. When Resource Tags are enabled, chart list rows keep
+the chart name first and show tags next to it like other resource lists.
 
 Open a chart and select **Versions** to inspect one chart version at a time.
 The version detail shows the exact namespaces and Helm releases using that

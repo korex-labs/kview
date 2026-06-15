@@ -253,6 +253,7 @@ export default function PersistentVolumeClaimDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        resourceIdentity={{ resource: "persistentvolumeclaims", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

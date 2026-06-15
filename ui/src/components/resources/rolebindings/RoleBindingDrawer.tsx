@@ -170,6 +170,7 @@ export default function RoleBindingDrawer(props: {
             {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
           </>
         }
+        resourceIdentity={{ resource: "rolebindings", namespace: ns, name }}
         onClose={props.onClose}
       >
         {loading ? (

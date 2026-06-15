@@ -252,6 +252,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
               {ns ? <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} /> : null}
             </>
           }
+          resourceIdentity={{ resource: "horizontalpodautoscalers", namespace: ns, name }}
           onClose={props.onClose}
         >
         {loading ? (

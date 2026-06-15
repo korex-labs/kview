@@ -11,8 +11,8 @@ to the cluster.
 
 ## Main Controls
 
-- **Enable resource tags**: shows tag columns in supported resource lists and
-  tag controls in supported drawer headers.
+- **Enable resource tags**: shows tag columns in resource lists and tag
+  controls in resource drawer headers.
 - **Inherit namespace tags**: shows namespace tags on namespace-scoped
   resources.
 - **Cleanup missing resource assignments**: when enabled, removes direct tag
@@ -27,10 +27,11 @@ to the cluster.
 ## Optional Behavior
 
 Resource Tags are disabled by default. When disabled, tag columns and drawer
-tag controls are hidden. When enabled, supported lists show a **Tags** column
-and list filtering can match tags with `tag:<name>`. List cells show the first
-visible tags plus a `+N` marker when additional tags are attached; hover the
-marker to see all tags for that row.
+tag controls are hidden. When enabled, resource lists show a **Tags** column
+after the resource name column where possible, and list filtering can match
+tags with `tag:<name>`. List cells show the first visible tags plus a `+N`
+marker when additional tags are attached; hover the marker to see all tags for
+that row.
 
 When enabled, the cluster dashboard can also show tag chips in the signal
 filters for tagged resources that have signals in the loaded signal set.

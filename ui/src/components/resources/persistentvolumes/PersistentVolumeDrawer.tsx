@@ -236,7 +236,12 @@ export default function PersistentVolumeDrawer(props: {
 
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
-      <ResourceDrawerShell resourceIcon="persistentvolumes" title={<>PV: {name || "-"}</>} onClose={props.onClose}>
+      <ResourceDrawerShell
+        resourceIcon="persistentvolumes"
+        title={<>PV: {name || "-"}</>}
+        resourceIdentity={{ resource: "persistentvolumes", name }}
+        onClose={props.onClose}
+      >
         {loading ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
