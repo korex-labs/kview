@@ -56,6 +56,20 @@ export type ResourceTagsSettings = {
   assignments: Record<string, string[]>;
 };
 
+export type SavedResourceViewDefinition = {
+  id: string;
+  name: string;
+  context: string;
+  namespace: string;
+  resource: ListResourceKey;
+  filter: string;
+  sortModel: Array<{ field: string; sort: "asc" | "desc" }>;
+  columnVisibilityModel: Record<string, boolean>;
+  columnWidths: Record<string, number>;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type ResourceMacroScope = "global" | "context" | "namespace" | "node" | "resource";
 export type ResourceMacroExtractorSource = "name" | "label" | "annotation";
 export type ResourceMacroExtractorTransform = "none" | "uppercase" | "lowercase" | "ucfirst";
@@ -194,6 +208,7 @@ export type KviewUserSettingsV2 = {
   resourceTags: ResourceTagsSettings;
   resourceMacros: ResourceMacrosSettings;
   dynamicLinks: DynamicLinksSettings;
+  savedViews: SavedResourceViewDefinition[];
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
@@ -593,6 +608,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     resourceTags: defaultResourceTagsSettings(),
     resourceMacros: defaultResourceMacrosSettings(),
     dynamicLinks: defaultDynamicLinksSettings(),
+    savedViews: [],
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
@@ -1153,6 +1169,85 @@ function normalizeDynamicLinksSettings(input: unknown): DynamicLinksSettings {
     enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
     definitions,
   };
+}
+
+function normalizeSavedResourceView(input: unknown, fallbackId: string): SavedResourceViewDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<SavedResourceViewDefinition>;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  const context = typeof raw.context === "string" ? raw.context.trim() : "";
+  const namespace = typeof raw.namespace === "string" ? raw.namespace.trim() : "";
+  const filter = typeof raw.filter === "string" ? raw.filter : "";
+  if (!name || !context || !isListResourceKey(raw.resource)) return null;
+  const createdAt = typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) && raw.createdAt > 0
+    ? Math.floor(raw.createdAt)
+    : Date.now();
+  const updatedAt = typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) && raw.updatedAt > 0
+    ? Math.floor(raw.updatedAt)
+    : createdAt;
+  return {
+    id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackId,
+    name,
+    context,
+    namespace,
+    resource: raw.resource,
+    filter,
+    sortModel: normalizeSavedViewSortModel(raw.sortModel),
+    columnVisibilityModel: normalizeSavedViewColumnVisibilityModel(raw.columnVisibilityModel),
+    columnWidths: normalizeSavedViewColumnWidths(raw.columnWidths),
+    createdAt,
+    updatedAt,
+  };
+}
+
+function normalizeSavedViewSortModel(input: unknown): SavedResourceViewDefinition["sortModel"] {
+  if (!Array.isArray(input)) return [];
+  const out: SavedResourceViewDefinition["sortModel"] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as { field?: unknown; sort?: unknown };
+    const field = typeof raw.field === "string" ? raw.field.trim() : "";
+    if (!field || (raw.sort !== "asc" && raw.sort !== "desc")) continue;
+    out.push({ field, sort: raw.sort });
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+function normalizeSavedViewColumnVisibilityModel(input: unknown): Record<string, boolean> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, boolean> = {};
+  for (const [field, visible] of Object.entries(input)) {
+    const key = field.trim();
+    if (!key || typeof visible !== "boolean") continue;
+    out[key] = visible;
+  }
+  return out;
+}
+
+function normalizeSavedViewColumnWidths(input: unknown): Record<string, number> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, number> = {};
+  for (const [field, width] of Object.entries(input)) {
+    const key = field.trim();
+    if (!key || typeof width !== "number" || !Number.isFinite(width)) continue;
+    const normalized = Math.round(width);
+    if (normalized >= 40 && normalized <= 2000) out[key] = normalized;
+  }
+  return out;
+}
+
+function normalizeSavedResourceViews(input: unknown): SavedResourceViewDefinition[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: SavedResourceViewDefinition[] = [];
+  input.forEach((item, index) => {
+    const normalized = normalizeSavedResourceView(item, `saved-view-${index + 1}`);
+    if (!normalized || seen.has(normalized.id)) return;
+    seen.add(normalized.id);
+    out.push(normalized);
+  });
+  return out.slice(0, 50);
 }
 
 function normalizeContextSignalOverrides(input: unknown): Record<string, Record<string, SignalOverride>> {
@@ -1886,6 +1981,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     resourceTags: normalizeResourceTagsSettings(root.resourceTags),
     resourceMacros: normalizeResourceMacrosSettings(root.resourceMacros),
     dynamicLinks: normalizeDynamicLinksSettings(root.dynamicLinks),
+    savedViews: normalizeSavedResourceViews(root.savedViews),
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,
@@ -2488,6 +2584,7 @@ export const allListResourceKeys: ListResourceKey[] = [
   "customresourcedefinitions",
   "helm",
   "helmcharts",
+  "clusterresources",
   "resourcequotas",
   "limitranges",
 ];

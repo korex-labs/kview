@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Box,
+  Chip,
   FormControl,
   InputAdornment,
   InputLabel,
@@ -9,6 +10,8 @@ import {
   TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import BookmarkAddOutlinedIcon from "@mui/icons-material/BookmarkAddOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import { AppIconButton } from "./AppActions";
@@ -17,6 +20,7 @@ import type { QuickFilter } from "../../utils/listFilters";
 import { refreshOptions } from "../../utils/listFilters";
 import { actionRowSx } from "../../theme/sxTokens";
 import ScopedCountChip, { activeChipSx } from "./ScopedCountChip";
+import type { SavedResourceViewDefinition } from "../../settings";
 
 function quickFilterChipSx(filter: QuickFilter, selected: boolean) {
   const color = /^#[0-9a-fA-F]{6}$/.test(filter.color || "") ? filter.color : "";
@@ -41,6 +45,13 @@ export type ResourceTableToolbarProps = {
   refreshSec: number;
   onRefreshChange: (value: number) => void;
   quickFilters: QuickFilter[];
+  savedViews?: SavedResourceViewDefinition[];
+  selectedSavedViewId?: string;
+  selectedSavedViewDirty?: boolean;
+  onSavedViewApply?: (id: string) => void;
+  onSavedViewClear?: () => void;
+  onSavedViewSave?: () => void;
+  onSavedViewDelete?: (id: string) => void;
   disabled?: boolean;
   showRefresh?: boolean;
 };
@@ -57,6 +68,13 @@ export default function ResourceTableToolbar({
   refreshSec,
   onRefreshChange,
   quickFilters,
+  savedViews = [],
+  selectedSavedViewId = "",
+  selectedSavedViewDirty = false,
+  onSavedViewApply,
+  onSavedViewClear,
+  onSavedViewSave,
+  onSavedViewDelete,
   disabled = false,
   showRefresh = true,
 }: ResourceTableToolbarProps) {
@@ -103,6 +121,69 @@ export default function ResourceTableToolbar({
             </Select>
           </FormControl>
         ) : null}
+        <FormControl size="small" sx={{ minWidth: 190 }}>
+          <InputLabel id="saved-view-label">Saved view</InputLabel>
+          <Select
+            labelId="saved-view-label"
+            label="Saved view"
+            value={selectedSavedViewId}
+            onChange={(e) => {
+              const value = String(e.target.value);
+              if (!value) {
+                onSavedViewClear?.();
+                return;
+              }
+              onSavedViewApply?.(value);
+            }}
+            disabled={disabled || savedViews.length === 0}
+          >
+            <MenuItem value="">
+              {savedViews.length === 0 ? "No saved views" : "No saved view"}
+            </MenuItem>
+            {savedViews.map((view) => (
+              <MenuItem key={view.id} value={view.id}>
+                {view.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        {selectedSavedViewId ? (
+          <AppIconButton
+            tooltip="Clear saved view and reset table"
+            label="Clear saved view and reset table"
+            onClick={onSavedViewClear}
+            disabled={disabled}
+          >
+            <CloseIcon fontSize="small" />
+          </AppIconButton>
+        ) : null}
+        {selectedSavedViewDirty ? (
+          <Chip
+            size="small"
+            color="warning"
+            variant="outlined"
+            label="Modified"
+            title="The current table differs from the selected saved view. Save to update it or reselect the view to restore it."
+            sx={{ height: 24 }}
+          />
+        ) : null}
+        <AppIconButton
+          tooltip={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
+          label={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
+          onClick={onSavedViewSave}
+          disabled={disabled}
+        >
+          <BookmarkAddOutlinedIcon fontSize="small" />
+        </AppIconButton>
+        <AppIconButton
+          tooltip="Delete selected saved view"
+          label="Delete selected saved view"
+          onClick={() => selectedSavedViewId && onSavedViewDelete?.(selectedSavedViewId)}
+          disabled={disabled || !selectedSavedViewId}
+          intent="destructive"
+        >
+          <DeleteOutlineIcon fontSize="small" />
+        </AppIconButton>
         <Box sx={{ flexGrow: 1 }} />
       </Box>
       {quickFilters.length > 0 && (

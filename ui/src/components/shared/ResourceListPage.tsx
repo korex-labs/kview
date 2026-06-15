@@ -1,11 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Paper, Typography, Box } from "@mui/material";
+import {
+  Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  TextField,
+  Typography,
+} from "@mui/material";
 import {
   DataGrid,
   GridColDef,
   GridColumnVisibilityModel,
   GridRowId,
   GridRowSelectionModel,
+  GridSortModel,
   useGridApiRef,
 } from "@mui/x-data-grid";
 import useListQuery from "../../utils/useListQuery";
@@ -31,6 +41,14 @@ import {
   type ResourceTagTarget,
 } from "../../resourceTags";
 import { ResourceTagsCell } from "./ResourceTags";
+import type { SavedResourceViewDefinition } from "../../settings";
+import {
+  clearPendingSavedResourceView,
+  defaultSavedResourceViewName,
+  dispatchApplySavedResourceView,
+  loadPendingSavedResourceView,
+} from "../../savedViews";
+import { DialogActionButton } from "./AppActions";
 
 const defaultDataplaneRefreshSec = 0;
 const columnWidthsStoragePrefix = "kview:list:columnWidths:v1";
@@ -117,6 +135,73 @@ function singleRowSelectionModel(id: GridRowId): GridRowSelectionModel {
 function selectedRowId(selectionModel: GridRowSelectionModel): string | null {
   const first = selectionModel.ids.values().next();
   return first.done ? null : String(first.value);
+}
+
+function newSavedViewId(): string {
+  return `saved-view-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function recordsEqual<T extends string | number | boolean>(a: Record<string, T>, b: Record<string, T>): boolean {
+  const aEntries = Object.entries(a);
+  const bEntries = Object.entries(b);
+  if (aEntries.length !== bEntries.length) return false;
+  return aEntries.every(([key, value]) => b[key] === value);
+}
+
+function sortModelsEqual(
+  a: ReadonlyArray<{ field: string; sort?: unknown }>,
+  b: ReadonlyArray<{ field: string; sort?: unknown }>,
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item.field === b[index]?.field && item.sort === b[index]?.sort);
+}
+
+function savedSortModelFromGrid(sortModel: GridSortModel): SavedResourceViewDefinition["sortModel"] {
+  return sortModel
+    .filter((item) => item.field && (item.sort === "asc" || item.sort === "desc"))
+    .map((item) => ({ field: item.field, sort: item.sort === "desc" ? "desc" : "asc" }));
+}
+
+function visibilityModelsEqual(a: GridColumnVisibilityModel, b: GridColumnVisibilityModel): boolean {
+  return recordsEqual(a as Record<string, boolean>, b as Record<string, boolean>);
+}
+
+function savedViewMatchesCurrentState(
+  view: SavedResourceViewDefinition,
+  input: {
+    context: string;
+    namespace: string;
+    resource: ListResourceKey;
+    filter: string;
+    sortModel: GridSortModel;
+    columnVisibilityModel: GridColumnVisibilityModel;
+    columnWidths: Record<string, number>;
+  },
+): boolean {
+  return (
+    view.context === input.context &&
+    view.namespace === input.namespace &&
+    view.resource === input.resource &&
+    view.filter === input.filter &&
+    sortModelsEqual(view.sortModel, savedSortModelFromGrid(input.sortModel)) &&
+    recordsEqual(view.columnVisibilityModel, input.columnVisibilityModel as Record<string, boolean>) &&
+    recordsEqual(view.columnWidths, input.columnWidths)
+  );
+}
+
+function savedViewMatchesLocation(
+  view: SavedResourceViewDefinition,
+  input: {
+    context: string;
+    namespace: string;
+    resource: ListResourceKey;
+  },
+): boolean {
+  return (
+    view.context === input.context &&
+    view.namespace === input.namespace &&
+    view.resource === input.resource
+  );
 }
 
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
@@ -293,9 +378,32 @@ export default function ResourceListPage<TRow extends { id: string }>({
     [activeContext, namespace, resourceKey],
   );
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadPersistedColumnWidths(columnWidthsKey));
+  const defaultSortModel = useMemo<GridSortModel>(
+    () => [{ field: defaultSortField, sort: "asc" }],
+    [defaultSortField],
+  );
+  const [sortModel, setSortModel] = useState<GridSortModel>(defaultSortModel);
+  const defaultColumnVisibilityModelKey = useMemo(
+    () => JSON.stringify(initialColumnVisibilityModel || {}),
+    [initialColumnVisibilityModel],
+  );
+  const defaultColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
+    () => JSON.parse(defaultColumnVisibilityModelKey) as GridColumnVisibilityModel,
+    [defaultColumnVisibilityModelKey],
+  );
+  const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>(defaultColumnVisibilityModel);
   useEffect(() => {
-    setColumnWidths(loadPersistedColumnWidths(columnWidthsKey));
+    setColumnWidths((prev) => {
+      const next = loadPersistedColumnWidths(columnWidthsKey);
+      return recordsEqual(prev, next) ? prev : next;
+    });
   }, [columnWidthsKey]);
+  useEffect(() => {
+    setSortModel((prev) => sortModelsEqual(prev, defaultSortModel) ? prev : defaultSortModel);
+  }, [defaultSortModel]);
+  useEffect(() => {
+    setColumnVisibilityModel((prev) => visibilityModelsEqual(prev, defaultColumnVisibilityModel) ? prev : defaultColumnVisibilityModel);
+  }, [defaultColumnVisibilityModel]);
   const gridColumns = useMemo(
     () => orderedColumns.map((col) => {
       const width = columnWidths[String(col.field)];
@@ -321,6 +429,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const keepFilterFocusRef = useRef(false);
   const apiRef = useGridApiRef();
   const [refreshSec, setRefreshSec] = useState<number>(initialRefreshSec ?? 0);
+  const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState("");
+  const [saveViewExistingId, setSaveViewExistingId] = useState<string | null>(null);
+  const [deleteViewId, setDeleteViewId] = useState<string | null>(null);
+  const [activeSavedViewId, setActiveSavedViewId] = useState("");
 
   useEffect(() => {
     setRefreshSec(initialRefreshSec ?? 0);
@@ -501,11 +614,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [apiRef, filteredRows.length, handleFocusGrid]);
 
   useEffect(() => {
+    if (saveViewDialogOpen || Boolean(deleteViewId)) return;
     if (!keepFilterFocusRef.current) return;
     if (!filterInputRef.current) return;
     if (document.activeElement === filterInputRef.current) return;
     filterInputRef.current.focus();
-  }, [filter, filteredRows]);
+  }, [deleteViewId, filter, filteredRows, saveViewDialogOpen]);
 
   useEffect(() => {
     return registerTableControls({
@@ -524,13 +638,174 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const emptyMessage = `No ${resourceLabel} found.`;
   const filteredEmptyMessage = `No ${resourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
 
-  const sortModel = useMemo(
-    () => [{ field: defaultSortField, sort: "asc" as const }],
-    [defaultSortField],
+  const savedViews = useMemo(
+    () => [...settings.savedViews].sort((a, b) => a.name.localeCompare(b.name)),
+    [settings.savedViews],
   );
-  const initialColumns = useMemo(
-    () => initialColumnVisibilityModel ? { columnVisibilityModel: initialColumnVisibilityModel } : undefined,
-    [initialColumnVisibilityModel],
+  const handleSortModelChange = useCallback((next: GridSortModel) => {
+    setSortModel((prev) => sortModelsEqual(prev, next) ? prev : next);
+  }, []);
+  const handleColumnVisibilityModelChange = useCallback((next: GridColumnVisibilityModel) => {
+    setColumnVisibilityModel((prev) => visibilityModelsEqual(prev, next) ? prev : next);
+  }, []);
+  const applySavedViewState = useCallback((view: SavedResourceViewDefinition) => {
+    if (
+      view.context !== activeContext ||
+      view.namespace !== (namespace || "") ||
+      view.resource !== resourceKey
+    ) {
+      return false;
+    }
+    setActiveSavedViewId(view.id);
+    setFilter(view.filter || "");
+    const nextSortModel = Array.isArray(view.sortModel) && view.sortModel.length > 0 ? view.sortModel : defaultSortModel;
+    setSortModel((prev) => sortModelsEqual(prev, nextSortModel) ? prev : nextSortModel);
+    const nextVisibilityModel = {
+      ...defaultColumnVisibilityModel,
+      ...view.columnVisibilityModel,
+    };
+    setColumnVisibilityModel((prev) => visibilityModelsEqual(prev, nextVisibilityModel) ? prev : nextVisibilityModel);
+    const nextColumnWidths = view.columnWidths || {};
+    setColumnWidths((prev) => recordsEqual(prev, nextColumnWidths) ? prev : nextColumnWidths);
+    savePersistedColumnWidths(columnWidthsKey, nextColumnWidths);
+    return true;
+  }, [activeContext, columnWidthsKey, defaultColumnVisibilityModel, defaultSortModel, namespace, resourceKey, setFilter]);
+  useEffect(() => {
+    const pendingView = loadPendingSavedResourceView();
+    if (!pendingView) return;
+    if (!applySavedViewState(pendingView)) return;
+    clearPendingSavedResourceView();
+  }, [applySavedViewState]);
+  const selectedSavedView = useMemo(() => {
+    if (!activeSavedViewId) return null;
+    const view = settings.savedViews.find((item) => item.id === activeSavedViewId);
+    if (!view) return null;
+    return savedViewMatchesLocation(view, {
+      context: activeContext,
+      namespace: namespace || "",
+      resource: resourceKey,
+    }) ? view : null;
+  }, [activeContext, activeSavedViewId, namespace, resourceKey, settings.savedViews]);
+  useEffect(() => {
+    if (!activeSavedViewId || selectedSavedView) return;
+    setActiveSavedViewId("");
+  }, [activeSavedViewId, selectedSavedView]);
+  const selectedSavedViewId = selectedSavedView?.id || "";
+  const selectedSavedViewDirty = useMemo(() => {
+    if (!selectedSavedView) return false;
+    return !savedViewMatchesCurrentState(selectedSavedView, {
+      context: activeContext,
+      namespace: namespace || "",
+      resource: resourceKey,
+      filter,
+      sortModel,
+      columnVisibilityModel,
+      columnWidths,
+    });
+  }, [activeContext, columnVisibilityModel, columnWidths, filter, namespace, resourceKey, selectedSavedView, sortModel]);
+  const savedViewDefaultFilterName = useMemo(() => {
+    const quickFilter = quickFilters.find((item) => item.value === selectedQuickFilter);
+    if (!quickFilter) return filter;
+    return quickFilter.kind === "tag" ? `tag:${quickFilter.label}` : quickFilter.label;
+  }, [filter, quickFilters, selectedQuickFilter]);
+  const handleClearSavedView = useCallback(() => {
+    keepFilterFocusRef.current = false;
+    setActiveSavedViewId("");
+    clearPendingSavedResourceView();
+    setFilter("");
+    setSortModel((prev) => sortModelsEqual(prev, defaultSortModel) ? prev : defaultSortModel);
+    setColumnVisibilityModel((prev) => (
+      visibilityModelsEqual(prev, defaultColumnVisibilityModel) ? prev : defaultColumnVisibilityModel
+    ));
+    setColumnWidths((prev) => {
+      if (recordsEqual(prev, {})) return prev;
+      savePersistedColumnWidths(columnWidthsKey, {});
+      return {};
+    });
+  }, [columnWidthsKey, defaultColumnVisibilityModel, defaultSortModel, setFilter]);
+  const handleApplySavedView = useCallback((id: string) => {
+    if (!id) {
+      handleClearSavedView();
+      return;
+    }
+    const view = settings.savedViews.find((item) => item.id === id);
+    if (!view) return;
+    dispatchApplySavedResourceView(view);
+    if (applySavedViewState(view)) {
+      clearPendingSavedResourceView();
+    }
+  }, [applySavedViewState, handleClearSavedView, settings.savedViews]);
+  const handleSaveCurrentView = useCallback(() => {
+    keepFilterFocusRef.current = false;
+    const existing = selectedSavedView;
+    const fallbackName = existing?.name || defaultSavedResourceViewName({
+      resourceLabel,
+      namespace,
+      filter,
+      filterLabel: savedViewDefaultFilterName,
+    });
+    setSaveViewExistingId(existing?.id || null);
+    setSaveViewName(fallbackName);
+    setSaveViewDialogOpen(true);
+  }, [filter, namespace, resourceLabel, savedViewDefaultFilterName, selectedSavedView]);
+  const handleSaveViewDialogClose = useCallback(() => {
+    keepFilterFocusRef.current = false;
+    setSaveViewDialogOpen(false);
+    setSaveViewExistingId(null);
+    setSaveViewName("");
+  }, []);
+  const handleSaveViewConfirm = useCallback(() => {
+    const name = saveViewName.trim();
+    if (!name) return;
+    const now = Date.now();
+    const existing = saveViewExistingId
+      ? settings.savedViews.find((view) => view.id === saveViewExistingId)
+      : null;
+    const nextView: SavedResourceViewDefinition = {
+      id: existing?.id || newSavedViewId(),
+      name,
+      context: activeContext,
+      namespace: namespace || "",
+      resource: resourceKey,
+      filter,
+      sortModel: savedSortModelFromGrid(sortModel),
+      columnVisibilityModel: columnVisibilityModel as Record<string, boolean>,
+      columnWidths,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    setActiveSavedViewId(nextView.id);
+    setSettings((prev) => ({
+      ...prev,
+      savedViews: [
+        nextView,
+        ...prev.savedViews.filter((view) => view.id !== nextView.id),
+      ].slice(0, 50),
+    }));
+    handleSaveViewDialogClose();
+  }, [activeContext, columnVisibilityModel, columnWidths, filter, handleSaveViewDialogClose, namespace, resourceKey, saveViewExistingId, saveViewName, setSettings, settings.savedViews, sortModel]);
+  const handleDeleteSavedView = useCallback((id: string) => {
+    const view = settings.savedViews.find((item) => item.id === id);
+    if (!view) return;
+    keepFilterFocusRef.current = false;
+    setDeleteViewId(view.id);
+  }, [settings.savedViews]);
+  const handleDeleteViewDialogClose = useCallback(() => {
+    keepFilterFocusRef.current = false;
+    setDeleteViewId(null);
+  }, []);
+  const handleDeleteViewConfirm = useCallback(() => {
+    if (!deleteViewId) return;
+    setSettings((prev) => ({
+      ...prev,
+      savedViews: prev.savedViews.filter((item) => item.id !== deleteViewId),
+    }));
+    setActiveSavedViewId((current) => current === deleteViewId ? "" : current);
+    setDeleteViewId(null);
+  }, [deleteViewId, setSettings]);
+  const deleteView = useMemo(
+    () => settings.savedViews.find((view) => view.id === deleteViewId) || null,
+    [deleteViewId, settings.savedViews],
   );
 
   return (
@@ -565,6 +840,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
           showToolbar
           rowSelectionModel={selectionModel}
           onRowSelectionModelChange={(m) => setSelectionModel(m)}
+          sortModel={sortModel}
+          onSortModelChange={handleSortModelChange}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
           onColumnWidthChange={(params) => {
             setColumnWidths((prev) => {
               const field = String(params.colDef.field);
@@ -587,10 +866,6 @@ export default function ResourceListPage<TRow extends { id: string }>({
             event.stopPropagation();
           }}
           onRowDoubleClick={(params) => handleRowDoubleClick(params.row)}
-          initialState={{
-            columns: initialColumns,
-            sorting: { sortModel },
-          }}
           {...(getRowHeight ? { getRowHeight } : {})}
           slots={{
             // DataGrid slot types don't match our toolbar/overlay props; we pass props via slotProps
@@ -628,6 +903,13 @@ export default function ResourceListPage<TRow extends { id: string }>({
               refreshSec,
               onRefreshChange: setRefreshSec,
               quickFilters,
+              savedViews,
+              selectedSavedViewId,
+              selectedSavedViewDirty,
+              onSavedViewApply: handleApplySavedView,
+              onSavedViewClear: handleClearSavedView,
+              onSavedViewSave: handleSaveCurrentView,
+              onSavedViewDelete: handleDeleteSavedView,
               disabled: offline,
               showRefresh: !dataplaneRevisionPoll,
             } as ResourceTableToolbarProps,
@@ -663,6 +945,44 @@ export default function ResourceListPage<TRow extends { id: string }>({
         onClose: handleCloseDrawer,
         refetch,
       })}
+
+      <Dialog open={saveViewDialogOpen} onClose={handleSaveViewDialogClose} fullWidth maxWidth="xs">
+        <DialogTitle>{saveViewExistingId ? "Update Saved View" : "Save Current View"}</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Name"
+            value={saveViewName}
+            onChange={(event) => setSaveViewName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              handleSaveViewConfirm();
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <DialogActionButton action="cancel" onClick={handleSaveViewDialogClose}>Cancel</DialogActionButton>
+          <DialogActionButton action="primary" onClick={handleSaveViewConfirm} disabled={!saveViewName.trim()}>
+            {saveViewExistingId ? "Update" : "Save"}
+          </DialogActionButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteView)} onClose={handleDeleteViewDialogClose} fullWidth maxWidth="xs">
+        <DialogTitle>Delete Saved View</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Delete saved view {deleteView ? `"${deleteView.name}"` : ""}?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <DialogActionButton action="cancel" onClick={handleDeleteViewDialogClose}>Cancel</DialogActionButton>
+          <DialogActionButton action="destructive" onClick={handleDeleteViewConfirm}>Delete</DialogActionButton>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

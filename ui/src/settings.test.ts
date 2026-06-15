@@ -96,6 +96,84 @@ describe("user settings", () => {
     expect(validateUserSettings({ v: 1 })?.dynamicLinks).toEqual(defaultUserSettings().dynamicLinks);
   });
 
+  it("keeps saved views empty by default", () => {
+    expect(defaultUserSettings().savedViews).toEqual([]);
+    expect(validateUserSettings({ v: 1 })?.savedViews).toEqual([]);
+  });
+
+  it("validates saved resource views", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      savedViews: [
+        {
+          id: "pods-prod",
+          name: "  Prod pods  ",
+          context: "prod",
+          namespace: "apps",
+          resource: "pods",
+          filter: "tag:prod",
+          sortModel: [
+            { field: "status", sort: "desc" },
+            { field: "bad" },
+            { field: "name", sort: "sideways" },
+          ],
+          columnVisibilityModel: {
+            status: true,
+            internal: false,
+            bad: "no",
+          },
+          columnWidths: {
+            name: 260.4,
+            tiny: 20,
+            huge: 4000,
+            bad: "120",
+          },
+          createdAt: 10,
+          updatedAt: 20,
+        },
+        {
+          id: "bad-resource",
+          name: "Bad",
+          context: "prod",
+          namespace: "apps",
+          resource: "not-a-resource",
+          filter: "",
+        },
+        {
+          id: "pods-prod",
+          name: "Duplicate",
+          context: "prod",
+          namespace: "apps",
+          resource: "deployments",
+          filter: "",
+        },
+      ],
+    });
+
+    expect(parsed?.savedViews).toEqual([
+      {
+        id: "pods-prod",
+        name: "Prod pods",
+        context: "prod",
+        namespace: "apps",
+        resource: "pods",
+        filter: "tag:prod",
+        sortModel: [
+          { field: "status", sort: "desc" },
+        ],
+        columnVisibilityModel: {
+          status: true,
+          internal: false,
+        },
+        columnWidths: {
+          name: 260,
+        },
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ]);
+  });
+
   it("validates resource tag definitions and assignments", () => {
     const parsed = validateUserSettings({
       ...defaultUserSettings(),

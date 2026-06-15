@@ -15,6 +15,14 @@ drawers for detail, and start resource-specific actions when available.
   as name, namespace, status, labels, images, selectors, or related targets.
 - **Quick filter chips**: generated chips that apply common text filters when
   Smart Filters produce matches.
+- **Saved view**: opens a saved list view. Saved views restore the context,
+  namespace, resource list, filter, sort order, visible columns, and column
+  widths captured when the view was saved. Saved views are global across list
+  pages, so choosing one can move you back to the saved context, namespace, and
+  resource list.
+- **Save current view**: stores the current list layout and filter as a named
+  local view. If a saved view is selected, saving updates that view. Use the
+  delete button next to the selector to remove the selected saved view.
 - **Refresh**: manually reloads the list. Some dataplane-backed lists also
   watch a cheap revision endpoint and reload only when cached data changes.
 - **Column sorting**: sort by supported table columns.
@@ -50,11 +58,46 @@ degraded fallback.
 
 - Filter by a resource name, owner, image, status, or `tag:<name>`.
 - Use generated chips to jump to a repeated naming pattern.
+- Save a filtered or customized list when you frequently return to the same
+  context, namespace, resource type, filter, sort order, or column layout.
+- Select a saved view from any resource list to return to its saved location
+  and table layout.
 - Resize dense columns when values are clipped.
 - Hover tag overflow indicators when the Tags column has a `+N` marker.
 - Open a row drawer to inspect status, events, metadata, and YAML.
 - Use access-denied or degraded states to understand whether missing data is a
   permission issue or a partial-data issue.
+
+## Saved View Drift
+
+After opening a saved view, changing the text filter, sort order, visible
+columns, or column widths makes the current table different from the saved
+definition. kview keeps the saved view selected and shows a **Modified** marker
+so you can see that the table has drifted.
+
+When a saved view is marked **Modified**:
+
+- Click **Save current view** to update the selected saved view with the current
+  table state.
+- Select the same saved view again to discard the local drift and restore the
+  saved definition.
+- Click the **Clear saved view** `X`, or select **No saved view**, to leave
+  saved-view mode and reset the list filter, quick filter, sort order, visible
+  columns, and saved-view-applied column widths.
+
+Saved-view mode is explicit. kview enters it only when you select a saved view
+or save a new one. It does not automatically select a saved view just because
+the current table happens to match a saved definition.
+
+Navigation rules:
+
+- Selecting a saved view can move you to another context, namespace, or resource
+  list.
+- Navigating away from the saved view's context, namespace, or resource list
+  leaves saved-view mode.
+- Filtering, quick-filter chips, sorting, hiding columns, or resizing columns
+  keeps the saved view selected and marks it **Modified** until you update,
+  restore, or deselect it.
 
 ## Permission And Data Notes
 
@@ -62,6 +105,9 @@ List visibility follows Kubernetes RBAC. If the active account cannot list a
 resource, kview shows an access-denied state for that view. If only some related
 data is visible, kview prefers partial or degraded payloads over failing the
 entire list.
+
+Saved views are local browser settings. They do not grant access to resources;
+opening a saved view still follows the current Kubernetes context and RBAC.
 
 ## Related Settings
 

@@ -11,10 +11,13 @@ import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext, toApiError } 
 import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api";
 import {
   loadState,
+  isSection,
   namespacesListApiPath,
   recordRecentNamespace,
   recordRecentSection,
   saveState,
+  saveListTextFilter,
+  saveQuickFilterSelection,
   setSidebarGroupCollapsed,
   toggleFavouriteNamespace,
   type AppStateV1,
@@ -34,8 +37,9 @@ import type { ApiDataplaneSearchItem } from "./types/api";
 import StartupDialog, { type StartupKubeconfigInfo, type StartupStep, type StartupStepStatus } from "./components/StartupDialog";
 import { POLL_STATUS_INTERVAL_MS } from "./constants/pollIntervals";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
-import { dataplaneSettingsForContext } from "./settings";
+import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
+import { APPLY_SAVED_RESOURCE_VIEW_EVENT } from "./savedViews";
 import usePageVisible from "./utils/usePageVisible";
 import {
   performanceDiagnosticsEnabled,
@@ -471,10 +475,10 @@ function AppInner() {
     return result;
   }
 
-  async function onSelectContext(name: string) {
+  async function onSelectContext(name: string, preferredNamespace?: string) {
     if (!name || name === activeContext || contextSwitching) return;
     const selected = contexts.find((c) => c.name === name);
-    const optimisticNamespace = optimisticNamespaceForContext(appState, name, selected?.namespace);
+    const optimisticNamespace = preferredNamespace || optimisticNamespaceForContext(appState, name, selected?.namespace);
     const showStartupDialog = bootstrapPhase !== "ready";
     setContextSwitching(true);
     setBootstrapError("");
@@ -565,6 +569,23 @@ function AppInner() {
     setSection(sec);
     setAppState((s) => recordRecentSection({ ...s, activeSection: sec }, sec, settings.appearance.recentMenuLimit));
   }
+
+  useEffect(() => {
+    const handleApplySavedView = (event: Event) => {
+      const view = (event as CustomEvent<SavedResourceViewDefinition>).detail;
+      if (!view || !isSection(view.resource)) return;
+      saveListTextFilter(view.filter || "");
+      saveQuickFilterSelection([]);
+      if (view.context && view.context !== activeContext) {
+        void onSelectContext(view.context, view.namespace);
+      } else if (view.namespace) {
+        onSelectNamespace(view.namespace);
+      }
+      onSelectSection(view.resource);
+    };
+    window.addEventListener(APPLY_SAVED_RESOURCE_VIEW_EVENT, handleApplySavedView);
+    return () => window.removeEventListener(APPLY_SAVED_RESOURCE_VIEW_EVENT, handleApplySavedView);
+  });
 
   function onToggleSidebarGroup(groupId: string) {
     setAppState((s) => {

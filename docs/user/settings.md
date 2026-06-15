@@ -49,6 +49,9 @@ from the Appearance form. For example, context and namespace selection,
 collapsed sidebar groups, resource drawer width, and Activity Panel open state
 and height are saved from direct interaction with those UI elements.
 
+Saved resource views are also stored locally. They are created from resource
+list toolbars and are included in full settings export/import.
+
 ## Keyboard
 
 Keyboard settings control optional bindings:
