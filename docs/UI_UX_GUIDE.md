@@ -23,6 +23,29 @@ The list remains visible while the drawer displays resource details.
 
 ---
 
+# Keyboard And Focus
+
+App-owned keyboard shortcuts are centralized in
+`ui/src/keyboard/KeyboardProvider.tsx`. New surfaces must not add window-level
+`keydown` listeners for normal app shortcuts or Escape handling.
+
+Use the keyboard provider APIs instead:
+
+- Register focus scopes for app surfaces that temporarily own keyboard behavior
+  (drawers, settings, help, dialogs, terminals).
+- Register contextual actions for current-resource shortcuts.
+- Keep text inputs, selects, menus, popovers, dialogs, and terminal surfaces
+  protected from global shortcut handling.
+- Route Escape ownership through the active keyboard scope unless the key event
+  belongs to a nested overlay.
+- Add direct window listeners only for low-level browser integration cases, and
+  document why the provider cannot own that behavior.
+
+Focus restoration must be explicit and scoped. Avoid component-local focus loops
+that can steal focus from dialogs, popovers, text inputs, or terminal sessions.
+
+---
+
 # Resource List Pattern
 
 All resource lists follow the same layout:

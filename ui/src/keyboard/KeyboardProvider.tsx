@@ -45,7 +45,7 @@ export type KeyboardFocusScope = {
   kind: "app" | "drawer" | "dialog" | "settings" | "terminal";
   suppressGlobalShortcuts?: boolean;
   suppressContextShortcuts?: boolean;
-  onEscape?: () => boolean | void;
+  onEscape?: (event: KeyboardEvent) => boolean | void;
 };
 
 type TableKeyboardControls = {
@@ -92,6 +92,13 @@ function effectiveContextActions(stack: ContextualKeyboardAction[][]): Contextua
 
 function effectiveKeyboardScope(stack: KeyboardFocusScope[]): KeyboardFocusScope | null {
   return stack.length ? stack[stack.length - 1] : null;
+}
+
+function effectiveEscapeScope(stack: KeyboardFocusScope[]): KeyboardFocusScope | null {
+  for (let index = stack.length - 1; index >= 0; index -= 1) {
+    if (stack[index].onEscape) return stack[index];
+  }
+  return null;
 }
 
 export function useKeyboardControls() {
@@ -208,9 +215,9 @@ export default function KeyboardProvider({
           clearSequence();
           return;
         }
-        const activeScope = effectiveKeyboardScope(keyboardScopeStackRef.current);
-        if (activeScope?.onEscape && !isKeyboardOwnedOverlayTarget(event.target)) {
-          const handled = activeScope.onEscape();
+        const escapeScope = effectiveEscapeScope(keyboardScopeStackRef.current);
+        if (escapeScope?.onEscape && !isKeyboardOwnedOverlayTarget(event.target)) {
+          const handled = escapeScope.onEscape(event);
           if (handled !== false) {
             event.preventDefault();
             event.stopPropagation();
