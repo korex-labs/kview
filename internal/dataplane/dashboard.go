@@ -177,30 +177,32 @@ type ClusterDashboardSignalFilter struct {
 }
 
 type ClusterDashboardSignal struct {
-	Kind            string `json:"kind"`
-	Namespace       string `json:"namespace,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Severity        string `json:"severity"`
-	Score           int    `json:"score"`
-	Reason          string `json:"reason"`
-	LikelyCause     string `json:"likelyCause,omitempty"`
-	SuggestedAction string `json:"suggestedAction,omitempty"`
-	Confidence      string `json:"confidence,omitempty"`
-	Section         string `json:"section,omitempty"`
-	SignalType      string `json:"signalType,omitempty"`
-	SignalPriority  int    `json:"signalPriority,omitempty"`
-	ResourceKind    string `json:"resourceKind,omitempty"`
-	ResourceName    string `json:"resourceName,omitempty"`
-	Scope           string `json:"scope,omitempty"`         // cluster | namespace
-	ScopeLocation   string `json:"scopeLocation,omitempty"` // namespace, node, or another scope-specific location
-	ActualData      string `json:"actualData,omitempty"`
-	CalculatedData  string `json:"calculatedData,omitempty"`
-	FirstSeenAt     int64  `json:"firstSeenAt,omitempty"`
-	LastSeenAt      int64  `json:"lastSeenAt,omitempty"`
-	Acknowledged    bool   `json:"acknowledged,omitempty"`
-	AcknowledgedAt  int64  `json:"acknowledgedAt,omitempty"`
-	AckComment      string `json:"acknowledgementComment,omitempty"`
-	HistoryKey      string `json:"historyKey,omitempty"`
+	Kind            string            `json:"kind"`
+	Namespace       string            `json:"namespace,omitempty"`
+	Name            string            `json:"name,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	Annotations     map[string]string `json:"annotations,omitempty"`
+	Severity        string            `json:"severity"`
+	Score           int               `json:"score"`
+	Reason          string            `json:"reason"`
+	LikelyCause     string            `json:"likelyCause,omitempty"`
+	SuggestedAction string            `json:"suggestedAction,omitempty"`
+	Confidence      string            `json:"confidence,omitempty"`
+	Section         string            `json:"section,omitempty"`
+	SignalType      string            `json:"signalType,omitempty"`
+	SignalPriority  int               `json:"signalPriority,omitempty"`
+	ResourceKind    string            `json:"resourceKind,omitempty"`
+	ResourceName    string            `json:"resourceName,omitempty"`
+	Scope           string            `json:"scope,omitempty"`         // cluster | namespace
+	ScopeLocation   string            `json:"scopeLocation,omitempty"` // namespace, node, or another scope-specific location
+	ActualData      string            `json:"actualData,omitempty"`
+	CalculatedData  string            `json:"calculatedData,omitempty"`
+	FirstSeenAt     int64             `json:"firstSeenAt,omitempty"`
+	LastSeenAt      int64             `json:"lastSeenAt,omitempty"`
+	Acknowledged    bool              `json:"acknowledged,omitempty"`
+	AcknowledgedAt  int64             `json:"acknowledgedAt,omitempty"`
+	AckComment      string            `json:"acknowledgementComment,omitempty"`
+	HistoryKey      string            `json:"historyKey,omitempty"`
 }
 
 type ClusterDashboardListOptions struct {
@@ -223,10 +225,23 @@ type ClusterDashboardResourceTagDefinition struct {
 	Color string `json:"color,omitempty"`
 }
 
+type ClusterDashboardResourceAutoTagRule struct {
+	ID        string   `json:"id"`
+	Enabled   bool     `json:"enabled"`
+	TagIDs    []string `json:"tagIds,omitempty"`
+	Context   string   `json:"context,omitempty"`
+	Resources []string `json:"resources,omitempty"`
+	Source    string   `json:"source,omitempty"`
+	Key       string   `json:"key,omitempty"`
+	Pattern   string   `json:"pattern,omitempty"`
+	Flags     string   `json:"flags,omitempty"`
+}
+
 type ClusterDashboardResourceTagsOptions struct {
 	Enabled              bool                                    `json:"enabled"`
 	InheritNamespaceTags bool                                    `json:"inheritNamespaceTags"`
 	Definitions          []ClusterDashboardResourceTagDefinition `json:"definitions,omitempty"`
+	AutoTagRules         []ClusterDashboardResourceAutoTagRule   `json:"autoTagRules,omitempty"`
 	Assignments          map[string][]string                     `json:"assignments,omitempty"`
 	Context              string                                  `json:"-"`
 }

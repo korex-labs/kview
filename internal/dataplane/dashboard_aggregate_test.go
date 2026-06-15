@@ -346,6 +346,70 @@ func TestSummarizeDashboardSignalsFiltersByResourceTags(t *testing.T) {
 	}
 }
 
+func TestSummarizeDashboardSignalsFiltersByAutoResourceTags(t *testing.T) {
+	tagOptions := ClusterDashboardResourceTagsOptions{
+		Enabled:              true,
+		InheritNamespaceTags: true,
+		Context:              "kind",
+		Definitions: []ClusterDashboardResourceTagDefinition{
+			{ID: "prod", Name: "Prod", Color: "#d32f2f"},
+			{ID: "team", Name: "Team", Color: "#1e88e5"},
+			{ID: "platform", Name: "Platform", Color: "#43a047"},
+		},
+		AutoTagRules: []ClusterDashboardResourceAutoTagRule{
+			{
+				ID:        "prod-name",
+				Enabled:   true,
+				TagIDs:    []string{"prod"},
+				Context:   "kind",
+				Resources: []string{"jobs"},
+				Source:    "name",
+				Pattern:   "^prod-",
+			},
+			{
+				ID:        "team-namespace",
+				Enabled:   true,
+				TagIDs:    []string{"team"},
+				Context:   "kind",
+				Resources: []string{"namespaces"},
+				Source:    "name",
+				Pattern:   "^team-a$",
+			},
+			{
+				ID:        "platform-label",
+				Enabled:   true,
+				TagIDs:    []string{"platform"},
+				Context:   "kind",
+				Resources: []string{"secrets"},
+				Source:    "label",
+				Key:       "team",
+				Pattern:   "platform",
+			},
+		},
+	}
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
+		{Kind: "Job", ResourceKind: "Job", ResourceName: "prod-migrate", Severity: "high", Score: 95, Namespace: "team-a", Name: "prod-migrate"},
+		{Kind: "Secret", ResourceKind: "Secret", ResourceName: "token", Severity: "low", Score: 35, Namespace: "team-b", Name: "token", Labels: map[string]string{"team": "platform"}},
+	}, 10, ClusterDashboardListOptions{
+		SignalsFilter: "tag:team",
+		SignalsLimit:  10,
+		ResourceTags:  tagOptions,
+	})
+
+	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].Name != "prod-migrate" {
+		t.Fatalf("expected namespace auto-tag to inherit to team-a job, got %+v", summary.Items)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "tag:prod", "Prod", 1) {
+		t.Fatalf("expected prod auto-tag filter count, got %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "tag:team", "Team", 1) {
+		t.Fatalf("expected inherited namespace auto-tag filter count, got %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "tag:platform", "Platform", 1) {
+		t.Fatalf("expected label auto-tag filter count, got %+v", summary.Filters)
+	}
+}
+
 func TestSummarizeDashboardSignalsCombinesFiltersAndNarrowsChips(t *testing.T) {
 	summary := summarizeDashboardSignals([]ClusterDashboardSignal{
 		dashboardSignalItem("abnormal_job", "Job", "team-a", "api-migrate", "high", 95, "Job failed recently.", "high", "jobs"),

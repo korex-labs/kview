@@ -366,7 +366,7 @@ export default function NamespaceDrawer(props: {
       <ResourceDrawerShell
         resourceIcon="namespaces"
         title={<>Namespace: {name || "-"}</>}
-        headerMeta={<ResourceDrawerTags resource="namespaces" name={name} />}
+        headerMeta={<ResourceDrawerTags resource="namespaces" name={name} labels={details?.metadata?.labels} annotations={details?.metadata?.annotations} />}
         dynamicLinks={{ resource: "namespaces", name, labels: details?.metadata?.labels, annotations: details?.metadata?.annotations }}
         headerActions={
           <>
@@ -376,7 +376,7 @@ export default function NamespaceDrawer(props: {
               labels={details?.metadata?.labels}
               annotations={details?.metadata?.annotations}
             />
-            <ResourceDrawerTags resource="namespaces" name={name} mode="edit" />
+            <ResourceDrawerTags resource="namespaces" name={name} labels={details?.metadata?.labels} annotations={details?.metadata?.annotations} mode="edit" />
           </>
         }
         onClose={props.onClose}

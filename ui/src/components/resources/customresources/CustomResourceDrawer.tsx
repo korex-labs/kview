@@ -192,7 +192,7 @@ export default function CustomResourceDrawer(props: {
         title={title}
         onClose={props.onClose}
         headerMeta={
-          ref ? <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} /> : null
+          ref ? <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} labels={labels} annotations={annotations} /> : null
         }
         dynamicLinks={ref ? {
           resource: drawerResourceKey,
@@ -210,7 +210,7 @@ export default function CustomResourceDrawer(props: {
               labels={labels}
               annotations={annotations}
             />
-            <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} mode="edit" />
+            <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} labels={labels} annotations={annotations} mode="edit" />
           </>
         ) : undefined}
       >

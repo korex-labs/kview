@@ -217,7 +217,14 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
   const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
     if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
-    const shaped = row as TRow & { id?: unknown; name?: unknown; chartName?: unknown; namespace?: unknown };
+    const shaped = row as TRow & {
+      id?: unknown;
+      name?: unknown;
+      chartName?: unknown;
+      namespace?: unknown;
+      labels?: unknown;
+      annotations?: unknown;
+    };
     const name = typeof shaped.name === "string" && shaped.name
       ? shaped.name
       : typeof shaped.chartName === "string" && shaped.chartName
@@ -232,6 +239,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
       resource: resourceKey,
       namespace: rowNamespace || "",
       name,
+      labels: shaped.labels && typeof shaped.labels === "object" && !Array.isArray(shaped.labels)
+        ? shaped.labels as Record<string, string>
+        : undefined,
+      annotations: shaped.annotations && typeof shaped.annotations === "object" && !Array.isArray(shaped.annotations)
+        ? shaped.annotations as Record<string, string>
+        : undefined,
     };
   }, [getResourceTagTarget, namespace, resourceKey]);
 
@@ -358,6 +371,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     useListFilters<TRow>({
       rows,
       lastRefresh,
+      getResourceTagTarget: (row) => resourceTagTargetForRow(row, activeContext),
       filterPredicate: (row, q) => {
         if (filterPredicate(row, q)) return true;
         const target = resourceTagTargetForRow(row, activeContext);

@@ -72,8 +72,10 @@ describe("user settings", () => {
     expect(defaultUserSettings().resourceTags).toEqual({
       enabled: false,
       inheritNamespaceTags: true,
+      quickFiltersEnabled: true,
       cleanupMissingAssignments: false,
       definitions: [],
+      autoTagRules: [],
       assignments: {},
     });
     expect(validateUserSettings({ v: 1 })?.resourceTags).toEqual(defaultUserSettings().resourceTags);
@@ -100,12 +102,26 @@ describe("user settings", () => {
       resourceTags: {
         enabled: true,
         inheritNamespaceTags: false,
+        quickFiltersEnabled: false,
         cleanupMissingAssignments: false,
         definitions: [
           { id: "team-a", name: "  Team   A  ", color: "#AB12CD" },
           { id: "bad id", name: "Bad", color: "#000000" },
           { id: "ops", name: "Operations", color: "blue" },
           { id: "ops", name: "Duplicate", color: "#111111" },
+        ],
+        autoTagRules: [
+          {
+            id: "prod-name",
+            enabled: true,
+            tagIds: ["team-a", "missing"],
+            context: "ctx",
+            resources: ["pods", "not-a-resource"],
+            source: "name",
+            key: "ignored",
+            pattern: "prod",
+            flags: "ii",
+          },
         ],
         assignments: {
           "ctx/pods/app/api": ["team-a", "missing", "team-a"],
@@ -118,11 +134,25 @@ describe("user settings", () => {
     expect(parsed?.resourceTags).toEqual({
       enabled: true,
       inheritNamespaceTags: false,
+      quickFiltersEnabled: false,
       cleanupMissingAssignments: false,
       definitions: [
         { id: "team-a", name: "Team A", color: "#ab12cd" },
         { id: "tag-2", name: "Bad", color: "#000000" },
         { id: "ops", name: "Operations", color: "#607d8b" },
+      ],
+      autoTagRules: [
+        {
+          id: "prod-name",
+          enabled: true,
+          tagIds: ["team-a"],
+          context: "ctx",
+          resources: ["pods"],
+          source: "name",
+          key: "",
+          pattern: "prod",
+          flags: "i",
+        },
       ],
       assignments: {
         "ctx/pods/app/api": ["team-a"],
@@ -240,8 +270,10 @@ describe("user settings", () => {
     settings.resourceTags = {
       enabled: true,
       inheritNamespaceTags: true,
+      quickFiltersEnabled: true,
       cleanupMissingAssignments: true,
       definitions: [{ id: "handoff", name: "Handoff", color: "#1e88e5" }],
+      autoTagRules: [],
       assignments: { "ctx/pods/apps/api": ["handoff"] },
     };
     settings.resourceMacros = {

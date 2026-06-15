@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Box, Checkbox, Divider, ListItemText, Menu, MenuItem, TextField, Typography } from "@mui/material";
+import { Box, Checkbox, Divider, ListItemText, Menu, MenuItem, TextField } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DataObjectIcon from "@mui/icons-material/DataObject";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
@@ -248,10 +248,7 @@ export function ResourceMacrosEditorButton({ target }: { target: MacroEditorTarg
             </MenuItem>
           ))
           : null}
-        <Box sx={{ px: 1, py: 0.75, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {definitions.length} assigned
-          </Typography>
+        <Box sx={{ px: 1, py: 0.75, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1 }}>
           <AppButton
             startIcon={<AddIcon />}
             onClick={() => {

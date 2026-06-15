@@ -1462,7 +1462,7 @@ export default function PodDrawer(props: {
             <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} />
           </>
         }
-        headerMeta={<ResourceDrawerTags resource="pods" namespace={ns} name={name} />}
+        headerMeta={<ResourceDrawerTags resource="pods" namespace={ns} name={name} labels={details?.metadata?.labels} annotations={details?.metadata?.annotations} />}
         dynamicLinks={{
           resource: "pods",
           namespace: ns,
@@ -1481,7 +1481,7 @@ export default function PodDrawer(props: {
               labels={details?.metadata?.labels}
               annotations={details?.metadata?.annotations}
             />
-            <ResourceDrawerTags resource="pods" namespace={ns} name={name} mode="edit" />
+            <ResourceDrawerTags resource="pods" namespace={ns} name={name} labels={details?.metadata?.labels} annotations={details?.metadata?.annotations} mode="edit" />
           </>
         }
         onClose={props.onClose}

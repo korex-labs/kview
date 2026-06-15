@@ -317,6 +317,8 @@ export default function ResourceDrawerShell({
                   resource={drawerIdentity.resource}
                   namespace={drawerIdentity.namespace}
                   name={drawerIdentity.name}
+                  labels={drawerIdentity.labels}
+                  annotations={drawerIdentity.annotations}
                 />
               ) : null}
               {dynamicLinks ? <ResourceDynamicLinks {...dynamicLinks} /> : null}
@@ -340,6 +342,8 @@ export default function ResourceDrawerShell({
                   resource={drawerIdentity.resource}
                   namespace={drawerIdentity.namespace}
                   name={drawerIdentity.name}
+                  labels={drawerIdentity.labels}
+                  annotations={drawerIdentity.annotations}
                   mode="edit"
                 />
               </>

@@ -312,7 +312,7 @@ export default function DeploymentDrawer(props: {
             <ResourceLinkChip label={ns} onClick={() => setDrawerNamespace(ns)} />
           </>
         }
-        headerMeta={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} />}
+        headerMeta={<ResourceDrawerTags resource="deployments" namespace={ns} name={name} labels={details?.spec?.metadata?.labels} annotations={details?.spec?.metadata?.annotations} />}
         dynamicLinks={{
           resource: "deployments",
           namespace: ns,
@@ -329,7 +329,7 @@ export default function DeploymentDrawer(props: {
               labels={details?.spec?.metadata?.labels}
               annotations={details?.spec?.metadata?.annotations}
             />
-            <ResourceDrawerTags resource="deployments" namespace={ns} name={name} mode="edit" />
+            <ResourceDrawerTags resource="deployments" namespace={ns} name={name} labels={details?.spec?.metadata?.labels} annotations={details?.spec?.metadata?.annotations} mode="edit" />
           </>
         }
         onClose={props.onClose}

@@ -3,14 +3,16 @@ import { loadListTextFilter, loadQuickFilterSelection, saveListTextFilter, saveQ
 import { useUserSettings } from "../settingsContext";
 import type { SmartFilterMatchContext } from "../settings";
 import type { QuickFilter } from "./listFilters";
-import { buildQuickFilters } from "./listFilters";
+import { buildQuickFilters, buildTagQuickFilters } from "./listFilters";
 import { performanceDiagnosticsEnabled, recordListTiming } from "./performanceDiagnostics";
+import type { ResourceTagTarget } from "../resourceTags";
 
 type UseListFiltersOptions<T> = {
   rows: T[];
   lastRefresh: Date | null;
   filterPredicate: (row: T, query: string) => boolean;
   getQuickFilterKey?: (row: T) => string;
+  getResourceTagTarget?: (row: T) => ResourceTagTarget | null;
   smartFilterContext: SmartFilterMatchContext;
   diagnosticsLabel?: string;
 };
@@ -34,6 +36,7 @@ export default function useListFilters<T>({
   lastRefresh,
   filterPredicate,
   getQuickFilterKey = defaultQuickFilterKey,
+  getResourceTagTarget,
   smartFilterContext,
   diagnosticsLabel,
 }: UseListFiltersOptions<T>): UseListFiltersResult<T> {
@@ -50,6 +53,9 @@ export default function useListFilters<T>({
       smartFilterContext,
       settings.smartFilters.minCount,
     );
+    if (settings.resourceTags.enabled && settings.resourceTags.quickFiltersEnabled && getResourceTagTarget) {
+      next.push(...buildTagQuickFilters(rows, settings.resourceTags, getResourceTagTarget));
+    }
     if (startedAt && diagnosticsLabel) {
       recordListTiming({
         label: diagnosticsLabel,
@@ -63,7 +69,9 @@ export default function useListFilters<T>({
   }, [
     rows,
     getQuickFilterKey,
+    getResourceTagTarget,
     settings.appearance.smartFiltersEnabled,
+    settings.resourceTags,
     settings.smartFilters.rules,
     settings.smartFilters.minCount,
     smartFilterContext,

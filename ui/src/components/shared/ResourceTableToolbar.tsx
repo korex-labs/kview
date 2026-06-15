@@ -9,12 +9,25 @@ import {
   TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import { AppIconButton } from "./AppActions";
 import { GridToolbarContainer } from "@mui/x-data-grid";
 import type { QuickFilter } from "../../utils/listFilters";
 import { refreshOptions } from "../../utils/listFilters";
 import { actionRowSx } from "../../theme/sxTokens";
 import ScopedCountChip, { activeChipSx } from "./ScopedCountChip";
+
+function quickFilterChipSx(filter: QuickFilter, selected: boolean) {
+  const color = /^#[0-9a-fA-F]{6}$/.test(filter.color || "") ? filter.color : "";
+  if (!color) return selected ? activeChipSx("primary") : undefined;
+  return {
+    "--scoped-chip-bg": `${color}22`,
+    "--scoped-chip-fg": color,
+    "--scoped-chip-border": `${color}99`,
+    ...(selected ? { border: `2px solid ${color}` } : {}),
+  };
+}
 
 export type ResourceTableToolbarProps = {
   filterLabel: string;
@@ -96,19 +109,21 @@ export default function ResourceTableToolbar({
         <Box sx={actionRowSx}>
           {quickFilters.map((q) => {
             const selected = selectedQuickFilter === q.value;
+            const isTag = q.kind === "tag";
             return (
               <ScopedCountChip
                 key={q.value}
                 size="small"
-                density="toolbar"
                 color={selected ? "primary" : "default"}
                 variant={selected ? "filled" : "outlined"}
                 label={q.label}
                 count={q.count}
+                icon={isTag ? <LocalOfferOutlinedIcon /> : <SearchOutlinedIcon />}
                 onClick={() => onQuickFilterToggle(q.value)}
                 clickable
                 disabled={disabled}
-                sx={selected ? activeChipSx("primary") : undefined}
+                sx={quickFilterChipSx(q, selected)}
+                title={isTag ? `Tag filter: ${q.label}` : `Search filter: ${q.label}`}
               />
             );
           })}

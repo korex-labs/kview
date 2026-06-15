@@ -6,10 +6,13 @@ export type ResourceTagTarget = {
   resource: ListResourceKey;
   namespace?: string | null;
   name: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
 };
 
 export type ResolvedResourceTag = ResourceTagDefinition & {
   inherited: boolean;
+  source: "direct" | "auto" | "inherited";
 };
 
 export type ResourceTagsIndex = {
@@ -46,6 +49,45 @@ export function buildResourceTagsIndex(settings: ResourceTagsSettings): Resource
   };
 }
 
+function safeRegex(pattern: string, flags: string): RegExp | null {
+  try {
+    return new RegExp(pattern, flags);
+  } catch {
+    return null;
+  }
+}
+
+function regexMatches(pattern: RegExp, value: string): boolean {
+  pattern.lastIndex = 0;
+  return pattern.test(value);
+}
+
+function autoTagRuleMatches(target: ResourceTagTarget, rule: ResourceTagsSettings["autoTagRules"][number]): boolean {
+  if (!rule?.enabled) return false;
+  if (rule.context && rule.context !== target.context) return false;
+  if (rule.resources.length > 0 && !rule.resources.includes(target.resource)) return false;
+  if (!rule.pattern.trim()) return false;
+
+  const pattern = safeRegex(rule.pattern, rule.flags);
+  if (!pattern) return false;
+  if (rule.source === "name") return regexMatches(pattern, target.name);
+
+  const values = rule.source === "label" ? target.labels : target.annotations;
+  if (!values) return false;
+  if (rule.key) return regexMatches(pattern, values[rule.key] || "");
+  return Object.values(values).some((value) => regexMatches(pattern, value));
+}
+
+function autoTagIdsForTarget(settings: ResourceTagsSettings, target: ResourceTagTarget): string[] {
+  const ids: string[] = [];
+  for (const rule of settings.autoTagRules) {
+    if (!rule.enabled) continue;
+    if (!autoTagRuleMatches(target, rule)) continue;
+    ids.push(...rule.tagIds);
+  }
+  return Array.from(new Set(ids));
+}
+
 export function resourceTagsForTarget(
   settings: ResourceTagsSettings,
   index: ResourceTagsIndex,
@@ -53,22 +95,28 @@ export function resourceTagsForTarget(
 ): ResolvedResourceTag[] {
   if (!settings.enabled) return [];
   const directIds = index.assignmentsByKey.get(resourceTagTargetKey(target)) || [];
-  const inheritedIds =
-    settings.inheritNamespaceTags && target.resource !== "namespaces" && target.namespace
-      ? index.assignmentsByKey.get(resourceTagTargetKey(namespaceTagTarget(target.context, target.namespace))) || []
-      : [];
+  const autoIds = autoTagIdsForTarget(settings, target);
+  const inheritedIds = [] as string[];
+  if (settings.inheritNamespaceTags && target.resource !== "namespaces" && target.namespace) {
+    const namespaceTarget = namespaceTagTarget(target.context, target.namespace);
+    inheritedIds.push(...(index.assignmentsByKey.get(resourceTagTargetKey(namespaceTarget)) || []));
+    inheritedIds.push(...autoTagIdsForTarget(settings, namespaceTarget));
+  }
 
   const directSet = new Set(directIds);
+  const autoSet = new Set(autoIds);
   const out: ResolvedResourceTag[] = [];
   const seen = new Set<string>();
-  for (const id of [...directIds, ...inheritedIds]) {
+  for (const id of [...directIds, ...autoIds, ...inheritedIds]) {
     if (seen.has(id)) continue;
     const definition = index.definitionsById.get(id);
     if (!definition) continue;
     seen.add(id);
+    const source = directSet.has(id) ? "direct" : autoSet.has(id) ? "auto" : "inherited";
     out.push({
       ...definition,
-      inherited: !directSet.has(id),
+      inherited: source === "inherited",
+      source,
     });
   }
   return out;

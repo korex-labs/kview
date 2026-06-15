@@ -34,11 +34,25 @@ export type ResourceTagDefinition = {
   color: string;
 };
 
+export type ResourceAutoTagRuleDefinition = {
+  id: string;
+  enabled: boolean;
+  tagIds: string[];
+  context: string;
+  resources: ListResourceKey[];
+  source: "name" | "label" | "annotation";
+  key: string;
+  pattern: string;
+  flags: string;
+};
+
 export type ResourceTagsSettings = {
   enabled: boolean;
   inheritNamespaceTags: boolean;
+  quickFiltersEnabled: boolean;
   cleanupMissingAssignments: boolean;
   definitions: ResourceTagDefinition[];
+  autoTagRules: ResourceAutoTagRuleDefinition[];
   assignments: Record<string, string[]>;
 };
 
@@ -531,8 +545,10 @@ export function defaultResourceTagsSettings(): ResourceTagsSettings {
   return {
     enabled: false,
     inheritNamespaceTags: true,
+    quickFiltersEnabled: true,
     cleanupMissingAssignments: false,
     definitions: [],
+    autoTagRules: [],
     assignments: {},
   };
 }
@@ -923,6 +939,34 @@ function normalizeResourceTagDefinition(input: unknown, fallbackId: string): Res
   };
 }
 
+function normalizeResourceAutoTagRule(input: unknown, fallbackId: string, allowedIds: Set<string>): ResourceAutoTagRuleDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<ResourceAutoTagRuleDefinition>;
+  const id = normalizeResourceTagId(raw.id) || fallbackId;
+  const tagIds = Array.isArray(raw.tagIds)
+    ? Array.from(new Set(raw.tagIds.filter((value): value is string => typeof value === "string" && allowedIds.has(value))))
+    : [];
+  if (tagIds.length === 0) return null;
+  const source = raw.source === "label" || raw.source === "annotation" ? raw.source : "name";
+  const pattern = typeof raw.pattern === "string" ? raw.pattern.trim().slice(0, 256) : "";
+  if (!pattern) return null;
+  const flags = sanitizeRegexFlags(typeof raw.flags === "string" ? raw.flags : "");
+  const resources = Array.isArray(raw.resources)
+    ? Array.from(new Set(raw.resources.filter(isListResourceKey)))
+    : [];
+  return {
+    id,
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : true,
+    tagIds,
+    context: typeof raw.context === "string" ? raw.context.trim().slice(0, 128) : "",
+    resources,
+    source,
+    key: source === "name" ? "" : typeof raw.key === "string" ? raw.key.trim().slice(0, 256) : "",
+    pattern,
+    flags,
+  };
+}
+
 function normalizeResourceTagsSettings(input: unknown): ResourceTagsSettings {
   const defaults = defaultResourceTagsSettings();
   if (!input || typeof input !== "object") return defaults;
@@ -948,16 +992,28 @@ function normalizeResourceTagsSettings(input: unknown): ResourceTagsSettings {
     const tagIds = Array.from(new Set(rawTagIds.filter((value): value is string => typeof value === "string" && allowedIds.has(value))));
     if (tagIds.length > 0) assignments[key] = tagIds;
   }
+  const autoTagRules: ResourceAutoTagRuleDefinition[] = [];
+  const seenRuleIds = new Set<string>();
+  const rawAutoTagRules = Array.isArray(raw.autoTagRules) ? raw.autoTagRules : [];
+  rawAutoTagRules.forEach((rule, ruleIndex) => {
+    const normalized = normalizeResourceAutoTagRule(rule, `auto-tag-${ruleIndex + 1}`, allowedIds);
+    if (!normalized || seenRuleIds.has(normalized.id)) return;
+    seenRuleIds.add(normalized.id);
+    autoTagRules.push(normalized);
+  });
 
   return {
     enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
     inheritNamespaceTags:
       typeof raw.inheritNamespaceTags === "boolean" ? raw.inheritNamespaceTags : defaults.inheritNamespaceTags,
+    quickFiltersEnabled:
+      typeof raw.quickFiltersEnabled === "boolean" ? raw.quickFiltersEnabled : defaults.quickFiltersEnabled,
     cleanupMissingAssignments:
       typeof raw.cleanupMissingAssignments === "boolean"
         ? raw.cleanupMissingAssignments
         : defaults.cleanupMissingAssignments,
     definitions,
+    autoTagRules,
     assignments,
   };
 }
@@ -2146,8 +2202,10 @@ function mergeResourceTags(
   return {
     enabled: strategy === "useImported" ? incoming.enabled : current.enabled,
     inheritNamespaceTags: strategy === "useImported" ? incoming.inheritNamespaceTags : current.inheritNamespaceTags,
+    quickFiltersEnabled: strategy === "useImported" ? incoming.quickFiltersEnabled : current.quickFiltersEnabled,
     cleanupMissingAssignments: strategy === "useImported" ? incoming.cleanupMissingAssignments : current.cleanupMissingAssignments,
     definitions: mergeById(current.definitions, incoming.definitions, strategy),
+    autoTagRules: mergeById(current.autoTagRules, incoming.autoTagRules, strategy),
     assignments,
   };
 }

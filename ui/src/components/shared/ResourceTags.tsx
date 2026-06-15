@@ -7,6 +7,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -25,6 +26,27 @@ import { useActiveContext } from "../../activeContext";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import ResourceTagChip from "./ResourceTagChip";
 import { AppButton, AppIconButton } from "./AppActions";
+
+const drawerTagColorPresets = [
+  "#1e88e5",
+  "#43a047",
+  "#fb8c00",
+  "#8e24aa",
+  "#00acc1",
+  "#e53935",
+  "#3949ab",
+  "#7cb342",
+  "#f4511e",
+  "#6d4c41",
+  "#00897b",
+  "#5e35b1",
+];
+
+function suggestedTagColor(usedColors: readonly string[]): string {
+  const used = new Set(usedColors.map((color) => color.toLowerCase()));
+  return drawerTagColorPresets.find((color) => !used.has(color.toLowerCase())) ||
+    drawerTagColorPresets[used.size % drawerTagColorPresets.length];
+}
 
 export function ResourceTagsRow({
   tags,
@@ -105,7 +127,9 @@ export function ResourceTagsRow({
     : maxVisible == null ? tags.length : Math.max(0, Math.min(tags.length, Math.floor(maxVisible)));
   const visibleTags = tags.slice(0, visibleCount);
   const hiddenTags = tags.slice(visibleCount);
-  const fullTagList = tags.map((tag) => tag.inherited ? `${tag.name} (inherited)` : tag.name).join(", ");
+  const fullTagList = tags.map((tag) =>
+    tag.source === "inherited" ? `${tag.name} (inherited)` : tag.source === "auto" ? `${tag.name} (auto)` : tag.name,
+  ).join(", ");
   return (
     <Box
       ref={containerRef}
@@ -121,7 +145,7 @@ export function ResourceTagsRow({
       }}
     >
       {visibleTags.map((tag) => (
-        <ResourceTagChip key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}`} tag={tag} sx={chipSx} />
+        <ResourceTagChip key={`${tag.id}:${tag.source}`} tag={tag} sx={chipSx} />
       ))}
       {hiddenTags.length > 0 ? (
         <Tooltip title={fullTagList} arrow>
@@ -150,7 +174,7 @@ export function ResourceTagsRow({
           }}
         >
           {tags.map((tag) => (
-            <Box component="span" data-tag-measure key={`${tag.id}:${tag.inherited ? "inherited" : "direct"}:measure`}>
+            <Box component="span" data-tag-measure key={`${tag.id}:${tag.source}:measure`}>
               <ResourceTagChip tag={tag} sx={chipSx} />
             </Box>
           ))}
@@ -188,12 +212,17 @@ export function ResourceTagsHeader({ target }: { target: ResourceTagTarget | nul
 export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget | null }) {
   const { settings, setSettings } = useUserSettings();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("");
   const open = Boolean(anchorEl);
   const enabled = settings.resourceTags.enabled && target;
   const directTagIds = target ? assignmentTagIdsForTarget(settings.resourceTags, target) : [];
   const directSet = new Set(directTagIds);
   const index = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
-  const inherited = target ? resourceTagsForTarget(settings.resourceTags, index, target).filter((tag) => tag.inherited) : [];
+  const resolvedTags = target ? resourceTagsForTarget(settings.resourceTags, index, target) : [];
+  const autoTags = resolvedTags.filter((tag) => tag.source === "auto");
+  const inherited = resolvedTags.filter((tag) => tag.source === "inherited");
+  const selectedNewTagColor = newTagColor || suggestedTagColor(settings.resourceTags.definitions.map((tag) => tag.color));
 
   if (!settings.resourceTags.enabled) return null;
 
@@ -212,6 +241,35 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
     setDirectTagIds(next);
   };
 
+  const createAndAssignTag = () => {
+    if (!target) return;
+    const cleanName = newTagName.trim().slice(0, 32) || "New tag";
+    setSettings((prev) => {
+      const id = `tag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const tagIds = assignmentTagIdsForTarget(prev.resourceTags, target);
+      return {
+        ...prev,
+        resourceTags: withResourceTagAssignment(
+          {
+            ...prev.resourceTags,
+            definitions: [
+              ...prev.resourceTags.definitions,
+              {
+                id,
+                name: cleanName,
+                color: selectedNewTagColor,
+              },
+            ],
+          },
+          target,
+          [...tagIds, id],
+        ),
+      };
+    });
+    setNewTagName("");
+    setNewTagColor("");
+  };
+
   return (
     <>
       <AppIconButton tooltip="Edit resource tags" label="Edit resource tags" disabled={!enabled} onClick={(event) => setAnchorEl(event.currentTarget)}>
@@ -224,7 +282,7 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
         keepMounted
         slotProps={{ paper: { sx: { width: 320, maxWidth: "calc(100vw - 32px)" } } }}
       >
-        <MenuItem disabled sx={{ opacity: 1 }}>
+        <MenuItem disabled dense sx={{ opacity: 1, minHeight: 34, py: 0.5 }}>
           <ListItemText
             primary="Resource tags"
             secondary="Select direct tags for this drawer scope."
@@ -236,13 +294,17 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
         </MenuItem>
         <Divider />
         {settings.resourceTags.definitions.length === 0 ? (
-          <MenuItem disabled>
-            <ListItemText primary="No tags defined" secondary="Create tags in Settings" />
+          <MenuItem disabled dense sx={{ minHeight: 32 }}>
+            <ListItemText
+              primary="No tags defined"
+              secondary="Create a tag below."
+              slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
+            />
           </MenuItem>
         ) : (
           settings.resourceTags.definitions.map((tag) => (
-            <MenuItem key={tag.id} onClick={() => toggleTag(tag.id)} dense sx={{ minHeight: 34 }}>
-              <Checkbox size="small" checked={directSet.has(tag.id)} />
+            <MenuItem key={tag.id} onClick={() => toggleTag(tag.id)} dense sx={{ minHeight: 30, py: 0.25, px: 1 }}>
+              <Checkbox size="small" checked={directSet.has(tag.id)} sx={{ p: 0.25, mr: 0.75 }} />
               <Box
                 aria-hidden
                 sx={{
@@ -252,20 +314,39 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
                   bgcolor: tag.color,
                   border: "1px solid",
                   borderColor: "divider",
-                  mr: 1,
+                  mr: 0.75,
+                  flex: "0 0 auto",
                 }}
               />
               <ListItemText
                 primary={tag.name}
                 slotProps={{ primary: { variant: "body2", noWrap: true } }}
               />
+              {autoTags.some((autoTag) => autoTag.id === tag.id) ? (
+                <Chip size="small" variant="outlined" label="Auto" sx={{ height: 20, ml: 0.75 }} />
+              ) : null}
             </MenuItem>
           ))
         )}
+        {autoTags.length > 0 ? (
+          <>
+            <Divider />
+            <MenuItem disabled dense sx={{ minHeight: 32, py: 0.5 }}>
+              <ListItemText
+                primary="Auto-applied"
+                secondary={autoTags.map((tag) => tag.name).join(", ")}
+                slotProps={{
+                  primary: { variant: "body2", sx: { fontWeight: 600 } },
+                  secondary: { variant: "caption", sx: { whiteSpace: "normal", overflowWrap: "anywhere" } },
+                }}
+              />
+            </MenuItem>
+          </>
+        ) : null}
         {inherited.length > 0 ? (
           <>
             <Divider />
-            <MenuItem disabled>
+            <MenuItem disabled dense sx={{ minHeight: 32, py: 0.5 }}>
               <ListItemText
                 primary="Inherited"
                 secondary={inherited.map((tag) => tag.name).join(", ")}
@@ -278,17 +359,102 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
           </>
         ) : null}
         <Divider />
-        <Box sx={{ px: 1, py: 0.75, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {directTagIds.length} assigned
-          </Typography>
+        <Box
+          sx={{ px: 1, py: 0.75, display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 0.75 }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <AppIconButton
+            tooltip={`New tag color ${selectedNewTagColor}`}
+            label={`New tag color ${selectedNewTagColor}`}
+            component="label"
+            sx={{
+              width: 30,
+              height: 30,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+            }}
+          >
+            <Box
+              aria-hidden
+              sx={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                bgcolor: selectedNewTagColor,
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            />
+            <Box
+              component="input"
+              type="color"
+              value={selectedNewTagColor}
+              onChange={(event) => setNewTagColor(event.target.value)}
+              sx={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                opacity: 0,
+                pointerEvents: "none",
+              }}
+            />
+          </AppIconButton>
+          <TextField
+            size="small"
+            value={newTagName}
+            onChange={(event) => setNewTagName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                createAndAssignTag();
+              }
+            }}
+            placeholder="New tag"
+            fullWidth
+            slotProps={{ input: { sx: { fontSize: 13 } } }}
+          />
           <AppButton
             startIcon={<AddIcon />}
-            onClick={() => setAnchorEl(null)}
-            disabled
+            onClick={createAndAssignTag}
+            disabled={!target}
           >
-            Create in Settings
+            Add tag
           </AppButton>
+        </Box>
+        <Box
+          sx={{ px: 1, pb: 0.75, display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 0.35 }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {drawerTagColorPresets.map((presetColor) => {
+            const selected = selectedNewTagColor.toLowerCase() === presetColor.toLowerCase();
+            return (
+              <AppIconButton
+                key={presetColor}
+                tooltip={`Use ${presetColor}`}
+                label={`Use tag color ${presetColor}`}
+                onClick={() => setNewTagColor(presetColor)}
+                sx={{
+                  width: 22,
+                  height: 22,
+                  border: "1px solid",
+                  borderColor: selected ? "primary.main" : "divider",
+                  color: selected ? "primary.main" : "inherit",
+                }}
+              >
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    bgcolor: presetColor,
+                    boxShadow: selected ? "0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor" : "none",
+                  }}
+                />
+              </AppIconButton>
+            );
+          })}
         </Box>
       </Menu>
     </>
@@ -299,11 +465,15 @@ export function ResourceDrawerTags({
   resource,
   namespace,
   name,
+  labels,
+  annotations,
   mode = "row",
 }: {
   resource: ListResourceKey;
   namespace?: string | null;
   name?: string | null;
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
   mode?: "row" | "edit";
 }) {
   const context = useActiveContext();
@@ -313,6 +483,8 @@ export function ResourceDrawerTags({
       resource,
       namespace: namespace || "",
       name,
+      labels,
+      annotations,
     }
     : null;
   return mode === "edit" ? <ResourceTagsEditorButton target={target} /> : <ResourceTagsHeader target={target} />;

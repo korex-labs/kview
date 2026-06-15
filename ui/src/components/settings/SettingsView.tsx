@@ -69,6 +69,7 @@ import {
   type KeyboardSettings,
   type KviewUserSettingsV2,
   type DynamicLinkDefinition,
+  type ResourceAutoTagRuleDefinition,
   type ResourceMacroDefinition,
   type ResourceMacroExtractorDefinition,
   type ResourceTagDefinition,
@@ -102,6 +103,7 @@ import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx
 type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 type LinksMacrosTab = "manual" | "extractors" | "links";
+type ResourceTagsTab = "manual" | "auto";
 
 type Props = {
   token: string;
@@ -175,6 +177,11 @@ const linksMacrosTabs: Array<{ value: LinksMacrosTab; label: string; icon: Setti
   { value: "manual", label: "Manual Macros", icon: "linksMacros" },
   { value: "extractors", label: "Extracted Macros", icon: "smartFilters" },
   { value: "links", label: "Dynamic Links", icon: "linksMacros" },
+];
+
+const resourceTagsTabs: Array<{ value: ResourceTagsTab; label: string; icon: SettingsIconName }> = [
+  { value: "manual", label: "Manual Tags", icon: "resourceTags" },
+  { value: "auto", label: "Auto-Tagging", icon: "smartFilters" },
 ];
 
 const resourceTagColorPresets = [
@@ -325,6 +332,60 @@ function ReorderButtons({
   );
 }
 
+type SettingsMultiSelectOption<T extends string> = {
+  value: T;
+  label: React.ReactNode;
+  renderValueLabel?: string;
+};
+
+function SettingsMultiSelect<T extends string>({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  emptyLabel = "None",
+}: {
+  id: string;
+  label: React.ReactNode;
+  value: T[];
+  options: Array<SettingsMultiSelectOption<T>>;
+  onChange: (value: T[]) => void;
+  emptyLabel?: string;
+}) {
+  const labelByValue = new Map(options.map((option) => [
+    option.value,
+    option.renderValueLabel ?? (typeof option.label === "string" ? option.label : option.value),
+  ]));
+  return (
+    <FormControl size="small" fullWidth>
+      <InputLabel id={`${id}-label`}>{label}</InputLabel>
+      <Select<T[]>
+        labelId={`${id}-label`}
+        label={typeof label === "string" ? label : undefined}
+        multiple
+        displayEmpty
+        MenuProps={denseSelectMenuProps}
+        value={value}
+        onChange={(event: SelectChangeEvent<T[]>) => {
+          const next = event.target.value;
+          onChange(typeof next === "string" ? next.split(",") as T[] : next);
+        }}
+        renderValue={(selected) =>
+          selected.length === 0 ? emptyLabel : selected.map((item) => labelByValue.get(item) || item).join(", ")
+        }
+      >
+        {options.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            <Checkbox size="small" checked={value.includes(option.value)} />
+            <ListItemText primary={option.label} />
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+}
+
 function updateAppearance(
   settings: KviewUserSettingsV2,
   patch: Partial<KviewUserSettingsV2["appearance"]>,
@@ -425,16 +486,32 @@ function newResourceTagDefinition(usedColors: readonly string[]): ResourceTagDef
   };
 }
 
+function newResourceAutoTagRule(tagIds: string[]): ResourceAutoTagRuleDefinition {
+  return {
+    id: `auto-tag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    enabled: true,
+    tagIds: tagIds.slice(0, 1),
+    context: "",
+    resources: [],
+    source: "name",
+    key: "",
+    pattern: "",
+    flags: "",
+  };
+}
+
 function ResourceTagColorPicker({
   color,
   definitions,
   index,
   onChange,
+  compact = false,
 }: {
   color: string;
   definitions: ResourceTagDefinition[];
   index: number;
   onChange: (color: string) => void;
+  compact?: boolean;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const normalizedColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#607d8b";
@@ -442,26 +519,54 @@ function ResourceTagColorPicker({
 
   return (
     <>
-      <AppButton
-        startIcon={
+      {compact ? (
+        <AppIconButton
+          tooltip={`Edit tag color ${normalizedColor}`}
+          label={`Edit tag color ${normalizedColor}`}
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+          sx={{
+            width: 32,
+            height: 32,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1,
+            flex: "0 0 auto",
+          }}
+        >
           <Box
             aria-hidden
             sx={{
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               borderRadius: "50%",
               bgcolor: normalizedColor,
               border: "1px solid",
               borderColor: "divider",
             }}
           />
-        }
-        endIcon={<PaletteOutlinedIcon fontSize="small" />}
-        onClick={(event) => setAnchorEl(event.currentTarget)}
-        sx={{ justifyContent: "space-between", minWidth: 132 }}
-      >
-        {color}
-      </AppButton>
+        </AppIconButton>
+      ) : (
+        <AppButton
+          startIcon={
+            <Box
+              aria-hidden
+              sx={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                bgcolor: normalizedColor,
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            />
+          }
+          endIcon={<PaletteOutlinedIcon fontSize="small" />}
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+          sx={{ justifyContent: "space-between", minWidth: 132 }}
+        >
+          {color}
+        </AppButton>
+      )}
       <Popover
         open={open}
         anchorEl={anchorEl}
@@ -890,6 +995,7 @@ export default function SettingsView({
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [linksMacrosTab, setLinksMacrosTab] = useState<LinksMacrosTab>("manual");
+  const [resourceTagsTab, setResourceTagsTab] = useState<ResourceTagsTab>("manual");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
@@ -1622,33 +1728,19 @@ export default function SettingsView({
         </SettingGrid>
         {rule.resourceScope === "selected" ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-            <FormControl size="small" fullWidth>
-              <InputLabel id={`resources-${rule.id}`}>
+            <SettingsMultiSelect<ListResourceKey>
+              id={`resources-${rule.id}`}
+              label={(
                 <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
                   Resources
                   <InfoHint title={smartFilterResourceHelperText(rule.scope)} />
                 </Box>
-              </InputLabel>
-              <Select<ListResourceKey[]>
-                labelId={`resources-${rule.id}`}
-                label="Resources"
-                multiple
-                MenuProps={denseSelectMenuProps}
-                value={rule.resources}
-                onChange={(e: SelectChangeEvent<ListResourceKey[]>) => {
-                  const value = e.target.value;
-                  setRule(index, { resources: typeof value === "string" ? [value as ListResourceKey] : value });
-                }}
-                renderValue={(selected) => selected.map((key) => getResourceLabel(key)).join(", ")}
-              >
-                {resourceOptions.map((key) => (
-                  <MenuItem key={key} value={key}>
-                    <Checkbox checked={rule.resources.includes(key)} />
-                    <ListItemText primary={getResourceLabel(key)} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+              )}
+              value={rule.resources}
+              options={resourceOptions.map((key) => ({ value: key, label: getResourceLabel(key) }))}
+              onChange={(resources) => setRule(index, { resources })}
+              emptyLabel="No resources selected"
+            />
           </Box>
         ) : null}
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "minmax(260px, 2fr) minmax(120px, 0.6fr) minmax(180px, 1fr)" }}>
@@ -1730,6 +1822,15 @@ export default function SettingsView({
     });
   };
 
+  const setResourceAutoTagRule = (index: number, patch: Partial<ResourceAutoTagRuleDefinition>) => {
+    setSettings((prev) => {
+      const autoTagRules = prev.resourceTags.autoTagRules.map((rule, i) =>
+        i === index ? { ...rule, ...patch } : rule,
+      );
+      return updateResourceTags(prev, { autoTagRules });
+    });
+  };
+
   const removeResourceTag = (index: number) => {
     setSettings((prev) => {
       const removed = prev.resourceTags.definitions[index];
@@ -1740,12 +1841,38 @@ export default function SettingsView({
           .map(([key, tagIds]) => [key, tagIds.filter((id) => id !== removed.id)] as const)
           .filter(([, tagIds]) => tagIds.length > 0),
       );
-      return updateResourceTags(prev, { definitions, assignments });
+      const autoTagRules = prev.resourceTags.autoTagRules
+        .map((rule) => ({
+          ...rule,
+          tagIds: rule.tagIds.filter((id) => id !== removed.id),
+        }))
+        .filter((rule) => rule.tagIds.length > 0);
+      return updateResourceTags(prev, { definitions, assignments, autoTagRules });
     });
   };
 
   const resourceTagAssignmentCount = (tagId: string): number =>
     Object.values(settings.resourceTags.assignments).filter((tagIds) => tagIds.includes(tagId)).length;
+
+  const addResourceTag = () =>
+    setSettings((prev) =>
+      updateResourceTags(prev, {
+        definitions: [
+          ...prev.resourceTags.definitions,
+          newResourceTagDefinition(prev.resourceTags.definitions.map((tag) => tag.color)),
+        ],
+      }),
+    );
+
+  const addResourceAutoTagRule = () =>
+    setSettings((prev) =>
+      updateResourceTags(prev, {
+        autoTagRules: [
+          ...prev.resourceTags.autoTagRules,
+          newResourceAutoTagRule(prev.resourceTags.definitions.map((tag) => tag.id)),
+        ],
+      }),
+    );
 
   const renderResourceTags = () => (
     <SettingSection
@@ -1755,18 +1882,10 @@ export default function SettingsView({
       actions={
         <AppButton
           intent="primary"
-          onClick={() =>
-            setSettings((prev) =>
-              updateResourceTags(prev, {
-                definitions: [
-                  ...prev.resourceTags.definitions,
-                  newResourceTagDefinition(prev.resourceTags.definitions.map((tag) => tag.color)),
-                ],
-              }),
-            )
-          }
+          onClick={resourceTagsTab === "auto" ? addResourceAutoTagRule : addResourceTag}
+          disabled={resourceTagsTab === "auto" && settings.resourceTags.definitions.length === 0}
         >
-          Add tag
+          {resourceTagsTab === "auto" ? "Add rule" : "Add tag"}
         </AppButton>
       }
     >
@@ -1783,24 +1902,66 @@ export default function SettingsView({
         onChange={(v) => setSettings((prev) => updateResourceTags(prev, { inheritNamespaceTags: v }))}
       />
       <SettingRow
+        label="Show tag quick filters"
+        hint="Adds tag chips to resource list quick filters when Resource Tags and Smart Filters are enabled."
+        checked={settings.resourceTags.quickFiltersEnabled}
+        onChange={(v) => setSettings((prev) => updateResourceTags(prev, { quickFiltersEnabled: v }))}
+      />
+      <SettingRow
         label="Cleanup missing resource assignments"
         hint="When an authoritative fresh resource list confirms a non-namespace resource is gone, direct tag assignments in that visible scope are removed."
         checked={settings.resourceTags.cleanupMissingAssignments}
         onChange={(v) => setSettings((prev) => updateResourceTags(prev, { cleanupMissingAssignments: v }))}
       />
-      <FieldGroup label="Tag definitions">
+      <Tabs
+        value={resourceTagsTab}
+        onChange={(_, value) => setResourceTagsTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={settingsTabsSx}
+      >
+        {resourceTagsTabs.map((item) => (
+          <Tab
+            key={item.value}
+            value={item.value}
+            icon={<SettingsIcon name={item.icon} size={16} />}
+            iconPosition="start"
+            label={item.label}
+          />
+        ))}
+      </Tabs>
+      {resourceTagsTab === "manual" ? (
+        <>
       {settings.resourceTags.definitions.length === 0 ? (
         <Alert severity="info" variant="outlined">
           Define at least one tag to start tagging resources.
         </Alert>
       ) : null}
       {settings.resourceTags.definitions.map((tag, index) => (
-        <Box key={tag.id} sx={settingsItemCardSx}>
-          <Box sx={headerRowSx}>
-            <ResourceTagChip tag={{ ...tag, inherited: false }} />
-            <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
-              {resourceTagAssignmentCount(tag.id)} direct assignment{resourceTagAssignmentCount(tag.id) === 1 ? "" : "s"}
-            </Typography>
+        <Box key={tag.id} sx={{ ...settingsItemCardSx, p: 1, gap: 0.5 }}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "auto minmax(160px, 1fr) auto",
+              alignItems: "center",
+              gap: 0.75,
+            }}
+          >
+            <ResourceTagColorPicker
+              color={tag.color}
+              definitions={settings.resourceTags.definitions}
+              index={index}
+              onChange={(color) => setResourceTag(index, { color })}
+              compact
+            />
+            <TextField
+              size="small"
+              value={tag.name}
+              onChange={(event) => setResourceTag(index, { name: event.target.value.slice(0, 32) })}
+              placeholder="Tag name"
+              fullWidth
+              slotProps={{ htmlInput: { "aria-label": `Tag ${index + 1} name` } }}
+            />
             <ReorderButtons
               label={`tag ${index + 1}`}
               index={index}
@@ -1810,24 +1971,109 @@ export default function SettingsView({
               onRemove={() => removeResourceTag(index)}
             />
           </Box>
-          <SettingGrid variant="auto">
-            <SettingField
-              label="Name"
-              value={tag.name}
-              onChange={(value) => setResourceTag(index, { name: value.slice(0, 32) })}
-            />
-            <SettingField label="Color">
-              <ResourceTagColorPicker
-                color={tag.color}
-                definitions={settings.resourceTags.definitions}
-                index={index}
-                onChange={(color) => setResourceTag(index, { color })}
-              />
-            </SettingField>
-          </SettingGrid>
+          <Typography variant="caption" color="text.secondary" sx={{ pl: 5 }}>
+            {resourceTagAssignmentCount(tag.id)} direct resource assignment{resourceTagAssignmentCount(tag.id) === 1 ? "" : "s"}
+          </Typography>
         </Box>
       ))}
-      </FieldGroup>
+        </>
+      ) : null}
+      {resourceTagsTab === "auto" ? (
+        <>
+          {settings.resourceTags.definitions.length === 0 ? (
+            <Alert severity="info" variant="outlined">
+              Create at least one tag before adding auto-tagging rules.
+            </Alert>
+          ) : null}
+          {settings.resourceTags.autoTagRules.length === 0 ? (
+            <Alert severity="info" variant="outlined">
+              Add rules to assign existing tags from resource names, labels, or annotations.
+            </Alert>
+          ) : null}
+          {settings.resourceTags.autoTagRules.map((rule, index) => (
+            <Box key={rule.id} sx={settingsItemCardSx}>
+              <Box sx={headerRowSx}>
+                <Chip
+                  size="small"
+                  label={rule.tagIds
+                    .map((tagId) => settings.resourceTags.definitions.find((tag) => tag.id === tagId)?.name || tagId)
+                    .join(", ") || "No tags"}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+                  {rule.source}{rule.key ? `:${rule.key}` : ""} / {rule.pattern || "no pattern"}
+                </Typography>
+                <ReorderButtons
+                  label={`auto-tag rule ${index + 1}`}
+                  index={index}
+                  lastIndex={settings.resourceTags.autoTagRules.length - 1}
+                  onUp={() => setSettings((prev) => updateResourceTags(prev, { autoTagRules: moveItem(prev.resourceTags.autoTagRules, index, -1) }))}
+                  onDown={() => setSettings((prev) => updateResourceTags(prev, { autoTagRules: moveItem(prev.resourceTags.autoTagRules, index, 1) }))}
+                  onRemove={() => setSettings((prev) => updateResourceTags(prev, { autoTagRules: prev.resourceTags.autoTagRules.filter((_, i) => i !== index) }))}
+                />
+              </Box>
+              <SettingRow
+                label="Enabled"
+                checked={rule.enabled}
+                onChange={(value) => setResourceAutoTagRule(index, { enabled: value })}
+              />
+              <SettingGrid variant="auto">
+                <SettingField label="Tags">
+                  <SettingsMultiSelect<string>
+                    id={`auto-tag-tags-${rule.id}`}
+                    label="Tags"
+                    value={rule.tagIds}
+                    options={settings.resourceTags.definitions.map((tag) => ({ value: tag.id, label: tag.name }))}
+                    onChange={(tagIds) => setResourceAutoTagRule(index, { tagIds })}
+                    emptyLabel="No tags selected"
+                  />
+                </SettingField>
+                <SettingField label="Context">
+                  <TextField
+                    select
+                    size="small"
+                    value={rule.context || "__any"}
+                    onChange={(event) => setResourceAutoTagRule(index, { context: event.target.value === "__any" ? "" : event.target.value })}
+                    fullWidth
+                    slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
+                  >
+                    <MenuItem value="__any">Any context</MenuItem>
+                    {contextOptions.map((contextName) => <MenuItem key={contextName} value={contextName}>{contextName}</MenuItem>)}
+                  </TextField>
+                </SettingField>
+                <SettingField label="Resources">
+                  <SettingsMultiSelect<ListResourceKey>
+                    id={`auto-tag-resources-${rule.id}`}
+                    label="Resources"
+                    value={rule.resources}
+                    options={resourceOptions.map((resource) => ({ value: resource, label: getResourceLabel(resource) }))}
+                    onChange={(resources) => setResourceAutoTagRule(index, { resources })}
+                    emptyLabel="Any resource"
+                  />
+                </SettingField>
+                <SettingField label="Source">
+                  <TextField
+                    select
+                    size="small"
+                    value={rule.source}
+                    onChange={(event) => setResourceAutoTagRule(index, {
+                      source: event.target.value as ResourceAutoTagRuleDefinition["source"],
+                      key: event.target.value === "name" ? "" : rule.key,
+                    })}
+                    fullWidth
+                  >
+                    <MenuItem value="name">name</MenuItem>
+                    <MenuItem value="label">label</MenuItem>
+                    <MenuItem value="annotation">annotation</MenuItem>
+                  </TextField>
+                </SettingField>
+                <SettingField label="Key" value={rule.key} onChange={(value) => setResourceAutoTagRule(index, { key: value })} disabled={rule.source === "name"} />
+                <SettingField label="Pattern" value={rule.pattern} onChange={(value) => setResourceAutoTagRule(index, { pattern: value })} />
+                <SettingField label="Flags" value={rule.flags} onChange={(value) => setResourceAutoTagRule(index, { flags: sanitizeRegexFlags(value) })} />
+              </SettingGrid>
+            </Box>
+          ))}
+        </>
+      ) : null}
     </SettingSection>
   );
 
@@ -1898,13 +2144,11 @@ export default function SettingsView({
       </Tabs>
       {linksMacrosTab === "manual" ? (
         <>
-          <Box sx={settingsSubsectionHeaderSx}>
-            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Manual Macros</Typography>
+          <Box sx={{ ...settingsSubsectionHeaderSx, justifyContent: "flex-end" }}>
             <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { definitions: [...prev.resourceMacros.definitions, newResourceMacroDefinition()] }))}>
               Add macro
             </AppButton>
           </Box>
-          <FieldGroup label="Manual macro definitions">
         {settings.resourceMacros.definitions.length === 0 ? (
           <Alert severity="info" variant="outlined">Define shared values such as JIRA_URL or GITLAB_URL.</Alert>
         ) : null}
@@ -1970,17 +2214,14 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-          </FieldGroup>
         </>
       ) : null}
 
       {linksMacrosTab === "extractors" ? (
         <>
-          <Box sx={settingsSubsectionHeaderSx}>
-            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Extracted Macros</Typography>
+          <Box sx={{ ...settingsSubsectionHeaderSx, justifyContent: "flex-end" }}>
             <AppButton intent="primary" onClick={() => setSettings((prev) => updateResourceMacros(prev, { extractors: [...prev.resourceMacros.extractors, newResourceMacroExtractor()] }))}>Add extractor</AppButton>
           </Box>
-          <FieldGroup label="Extractor definitions">
         {settings.resourceMacros.extractors.length === 0 ? (
           <Alert severity="info" variant="outlined">Add an extractor to derive macros from names, labels, or annotations.</Alert>
         ) : null}
@@ -2004,16 +2245,14 @@ export default function SettingsView({
             <SettingGrid variant="auto">
               <SettingField label="Macro" value={extractor.macroName} onChange={(value) => setMacroExtractor(index, { macroName: value.replace(/^\$/, "").toUpperCase() })} />
               <SettingField label="Resources">
-                <TextField
-                  select
-                  size="small"
+                <SettingsMultiSelect<ListResourceKey>
+                  id={`macro-extractor-resources-${extractor.id}`}
+                  label="Resources"
                   value={extractor.resources}
-                  onChange={(event) => setMacroExtractor(index, { resources: typeof event.target.value === "string" ? parseResourceList(event.target.value) : event.target.value as ListResourceKey[] })}
-                  fullWidth
-                  slotProps={{ select: { multiple: true } }}
-                >
-                  {resourceOptions.map((resource) => <MenuItem key={resource} value={resource}>{getResourceLabel(resource)}</MenuItem>)}
-                </TextField>
+                  options={resourceOptions.map((resource) => ({ value: resource, label: getResourceLabel(resource) }))}
+                  onChange={(resources) => setMacroExtractor(index, { resources })}
+                  emptyLabel="Any resource"
+                />
               </SettingField>
               <SettingField label="Source">
                 <TextField select size="small" value={extractor.source} onChange={(event) => setMacroExtractor(index, { source: event.target.value as ResourceMacroExtractorDefinition["source"] })} fullWidth>
@@ -2035,17 +2274,14 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-          </FieldGroup>
         </>
       ) : null}
 
       {linksMacrosTab === "links" ? (
         <>
-          <Box sx={settingsSubsectionHeaderSx}>
-            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>Dynamic Links</Typography>
+          <Box sx={{ ...settingsSubsectionHeaderSx, justifyContent: "flex-end" }}>
             <AppButton intent="primary" onClick={() => setSettings((prev) => updateDynamicLinks(prev, { definitions: [...prev.dynamicLinks.definitions, newDynamicLinkDefinition()] }))}>Add link</AppButton>
           </Box>
-          <FieldGroup label="Link definitions">
         {settings.dynamicLinks.definitions.length === 0 ? (
           <Alert severity="info" variant="outlined">Add a link template such as $GITLAB_URL/$GITLAB_PROJECT.</Alert>
         ) : null}
@@ -2072,7 +2308,6 @@ export default function SettingsView({
             </SettingGrid>
           </Box>
         ))}
-          </FieldGroup>
         </>
       ) : null}
     </SettingSection>
@@ -2303,28 +2538,14 @@ export default function SettingsView({
             </TextField>
           </SettingField>
         </SettingGrid>
-        <FormControl size="small" fullWidth>
-          <InputLabel id={`action-resources-${action.id}`}>Resources</InputLabel>
-          <Select<ListResourceKey[]>
-            labelId={`action-resources-${action.id}`}
-            label="Resources"
-            multiple
-            MenuProps={denseSelectMenuProps}
-            value={action.resources}
-            onChange={(e: SelectChangeEvent<ListResourceKey[]>) => {
-              const value = e.target.value;
-              setAction(index, { resources: typeof value === "string" ? [value as ListResourceKey] : value });
-            }}
-            renderValue={(selected) => selected.map((key) => getResourceLabel(key)).join(", ")}
-          >
-            {customActionResourceKeys.map((key) => (
-              <MenuItem key={key} value={key}>
-                <Checkbox checked={action.resources.includes(key)} />
-                <ListItemText primary={getResourceLabel(key)} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <SettingsMultiSelect<ListResourceKey>
+          id={`action-resources-${action.id}`}
+          label="Resources"
+          value={action.resources}
+          options={customActionResourceKeys.map((key) => ({ value: key, label: getResourceLabel(key) }))}
+          onChange={(resources) => setAction(index, { resources })}
+          emptyLabel="No resources selected"
+        />
         {action.action === "patch" ? (
           <FieldGroup label="Patch settings">
             <Box sx={{ maxWidth: 240 }}>
@@ -2897,33 +3118,19 @@ export default function SettingsView({
                     onReset={() => resetOverridePath(["namespaceEnrichment", "warmResourceKinds"])}
                   />
                 )}
-                <FormControl size="small" fullWidth>
-                  <InputLabel id="namespace-warm-kinds-label">
+                <SettingsMultiSelect<string>
+                  id="namespace-warm-kinds"
+                  label={(
                     <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
                       Resource snapshots warmed by enrichment
                       <InfoHint title="Namespaced list kinds that enrichment will keep warm for selected namespace targets. Wide and diagnostic profiles warm every namespaced dataplane list kind slowly within the same target and sweep caps." />
                     </Box>
-                  </InputLabel>
-                  <Select<string[]>
-                    labelId="namespace-warm-kinds-label"
-                    multiple
-                    label="Resource snapshots warmed by enrichment"
-                    MenuProps={denseSelectMenuProps}
-                    value={ne.warmResourceKinds}
-                    onChange={(e: SelectChangeEvent<string[]>) => {
-                      const value = e.target.value;
-                      setNamespaceEnrichment({ warmResourceKinds: typeof value === "string" ? value.split(",") : value });
-                    }}
-                    renderValue={(selected) => selected.map(dataplaneWarmResourceLabel).join(", ")}
-                  >
-                    {dataplaneNamespaceWarmResourceKeys.map((kind) => (
-                      <MenuItem key={kind} value={kind}>
-                        <Checkbox checked={ne.warmResourceKinds.includes(kind)} />
-                        <ListItemText primary={dataplaneWarmResourceLabel(kind)} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                  )}
+                  value={ne.warmResourceKinds}
+                  options={dataplaneNamespaceWarmResourceKeys.map((kind) => ({ value: kind, label: dataplaneWarmResourceLabel(kind) }))}
+                  onChange={(warmResourceKinds) => setNamespaceEnrichment({ warmResourceKinds })}
+                  emptyLabel="No resources selected"
+                />
               </Box>
             </SettingSection>
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -765,22 +766,11 @@ func dashboardSignalTagFilters(signals []ClusterDashboardSignal, opts ClusterDas
 }
 
 func dashboardSignalTagIDs(signal ClusterDashboardSignal, tags ClusterDashboardResourceTagsOptions) []string {
-	if !tags.Enabled || len(tags.Assignments) == 0 {
+	if !tags.Enabled {
 		return nil
 	}
 	target, ok := dashboardSignalResourceTagTarget(signal)
 	if !ok {
-		return nil
-	}
-	directIDs := tags.Assignments[dashboardResourceTagTargetKey(target, tags.Context)]
-	inheritedIDs := []string(nil)
-	if tags.InheritNamespaceTags && target.resource != "namespaces" && target.namespace != "" {
-		inheritedIDs = tags.Assignments[dashboardResourceTagTargetKey(dashboardResourceTagTarget{
-			resource: "namespaces",
-			name:     target.namespace,
-		}, tags.Context)]
-	}
-	if len(directIDs) == 0 && len(inheritedIDs) == 0 {
 		return nil
 	}
 	allowed := map[string]struct{}{}
@@ -790,9 +780,23 @@ func dashboardSignalTagIDs(signal ClusterDashboardSignal, tags ClusterDashboardR
 			allowed[id] = struct{}{}
 		}
 	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	directIDs := tags.Assignments[dashboardResourceTagTargetKey(target, tags.Context)]
+	autoIDs := dashboardAutoTagIDsForTarget(target, signal.Labels, signal.Annotations, tags, allowed)
+	inheritedIDs := []string(nil)
+	if tags.InheritNamespaceTags && target.resource != "namespaces" && target.namespace != "" {
+		namespaceTarget := dashboardResourceTagTarget{
+			resource: "namespaces",
+			name:     target.namespace,
+		}
+		inheritedIDs = append(inheritedIDs, tags.Assignments[dashboardResourceTagTargetKey(namespaceTarget, tags.Context)]...)
+		inheritedIDs = append(inheritedIDs, dashboardAutoTagIDsForTarget(namespaceTarget, nil, nil, tags, allowed)...)
+	}
 	seen := map[string]struct{}{}
 	out := []string{}
-	for _, id := range append(append([]string{}, directIDs...), inheritedIDs...) {
+	for _, id := range append(append(append([]string{}, directIDs...), autoIDs...), inheritedIDs...) {
 		id = strings.TrimSpace(id)
 		if id == "" {
 			continue
@@ -807,6 +811,109 @@ func dashboardSignalTagIDs(signal ClusterDashboardSignal, tags ClusterDashboardR
 		out = append(out, id)
 	}
 	return out
+}
+
+func dashboardAutoTagIDsForTarget(target dashboardResourceTagTarget, labels, annotations map[string]string, tags ClusterDashboardResourceTagsOptions, allowed map[string]struct{}) []string {
+	if len(tags.AutoTagRules) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, rule := range tags.AutoTagRules {
+		if !dashboardAutoTagRuleMatches(target, labels, annotations, rule, tags.Context) {
+			continue
+		}
+		for _, id := range rule.TagIDs {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			if _, ok := allowed[id]; !ok {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func dashboardAutoTagRuleMatches(target dashboardResourceTagTarget, labels, annotations map[string]string, rule ClusterDashboardResourceAutoTagRule, activeContext string) bool {
+	if !rule.Enabled {
+		return false
+	}
+	if context := strings.TrimSpace(rule.Context); context != "" && context != activeContext {
+		return false
+	}
+	if len(rule.Resources) > 0 {
+		matchesResource := false
+		for _, resource := range rule.Resources {
+			if strings.TrimSpace(resource) == target.resource {
+				matchesResource = true
+				break
+			}
+		}
+		if !matchesResource {
+			return false
+		}
+	}
+	pattern := strings.TrimSpace(rule.Pattern)
+	if pattern == "" {
+		return false
+	}
+	re, err := regexp.Compile(dashboardAutoTagRegexPattern(pattern, rule.Flags))
+	if err != nil {
+		return false
+	}
+	source := strings.TrimSpace(rule.Source)
+	if source == "" {
+		source = "name"
+	}
+	switch source {
+	case "name":
+		return re.MatchString(target.name)
+	case "label":
+		return dashboardAutoTagMapMatches(labels, strings.TrimSpace(rule.Key), re)
+	case "annotation":
+		return dashboardAutoTagMapMatches(annotations, strings.TrimSpace(rule.Key), re)
+	default:
+		return false
+	}
+}
+
+func dashboardAutoTagRegexPattern(pattern, flags string) string {
+	prefix := ""
+	if strings.Contains(flags, "i") {
+		prefix += "i"
+	}
+	if strings.Contains(flags, "m") {
+		prefix += "m"
+	}
+	if strings.Contains(flags, "s") {
+		prefix += "s"
+	}
+	if prefix == "" {
+		return pattern
+	}
+	return "(?" + prefix + ")" + pattern
+}
+
+func dashboardAutoTagMapMatches(values map[string]string, key string, re *regexp.Regexp) bool {
+	if len(values) == 0 {
+		return false
+	}
+	if key != "" {
+		return re.MatchString(values[key])
+	}
+	for _, value := range values {
+		if re.MatchString(value) {
+			return true
+		}
+	}
+	return false
 }
 
 type dashboardResourceTagTarget struct {

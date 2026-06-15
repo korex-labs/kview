@@ -15,11 +15,13 @@ function baseSettings(): ResourceTagsSettings {
   return {
     enabled: true,
     inheritNamespaceTags: true,
+    quickFiltersEnabled: true,
     cleanupMissingAssignments: true,
     definitions: [
       { id: "team-a", name: "Team A", color: "#1e88e5" },
       { id: "prod", name: "Prod", color: "#d32f2f" },
     ],
+    autoTagRules: [],
     assignments: {},
   };
 }
@@ -44,8 +46,8 @@ describe("resource tags", () => {
     const tags = resourceTagsForTarget(settings, buildResourceTagsIndex(settings), pod);
 
     expect(tags).toEqual([
-      { id: "prod", name: "Prod", color: "#d32f2f", inherited: false },
-      { id: "team-a", name: "Team A", color: "#1e88e5", inherited: false },
+      { id: "prod", name: "Prod", color: "#d32f2f", inherited: false, source: "direct" },
+      { id: "team-a", name: "Team A", color: "#1e88e5", inherited: false, source: "direct" },
     ]);
   });
 
@@ -54,7 +56,7 @@ describe("resource tags", () => {
     const settings = withResourceTagAssignment(baseSettings(), namespaceTagTarget("kind", "app"), ["team-a"]);
     const tags = resourceTagsForTarget(settings, buildResourceTagsIndex(settings), pod);
 
-    expect(tags).toEqual([{ id: "team-a", name: "Team A", color: "#1e88e5", inherited: true }]);
+    expect(tags).toEqual([{ id: "team-a", name: "Team A", color: "#1e88e5", inherited: true, source: "inherited" }]);
   });
 
   it("updates direct assignments without storing unknown tag ids", () => {
@@ -92,5 +94,100 @@ describe("resource tags", () => {
 
     expect(resourceTagFilterMatches(settings, index, pod, "tag:team")).toBe(true);
     expect(resourceTagFilterMatches(settings, index, pod, "api")).toBe(false);
+  });
+
+  it("resolves auto tags from resource names and labels", () => {
+    const pod: ResourceTagTarget = {
+      context: "kind",
+      resource: "pods",
+      namespace: "app",
+      name: "prod-api",
+      labels: { team: "platform" },
+    };
+    const settings: ResourceTagsSettings = {
+      ...baseSettings(),
+      autoTagRules: [
+        {
+          id: "auto-prod",
+          enabled: true,
+          tagIds: ["prod"],
+          context: "",
+          resources: ["pods"],
+          source: "name",
+          key: "",
+          pattern: "^prod-",
+          flags: "",
+        },
+        {
+          id: "auto-team",
+          enabled: true,
+          tagIds: ["team-a"],
+          context: "kind",
+          resources: [],
+          source: "label",
+          key: "team",
+          pattern: "platform",
+          flags: "",
+        },
+      ],
+    };
+
+    const tags = resourceTagsForTarget(settings, buildResourceTagsIndex(settings), pod);
+
+    expect(tags).toEqual([
+      { id: "prod", name: "Prod", color: "#d32f2f", inherited: false, source: "auto" },
+      { id: "team-a", name: "Team A", color: "#1e88e5", inherited: false, source: "auto" },
+    ]);
+  });
+
+  it("inherits namespace auto tags on namespaced resources", () => {
+    const pod: ResourceTagTarget = {
+      context: "kind",
+      resource: "pods",
+      namespace: "prod-app",
+      name: "api",
+    };
+    const settings: ResourceTagsSettings = {
+      ...baseSettings(),
+      autoTagRules: [
+        {
+          id: "auto-namespace",
+          enabled: true,
+          tagIds: ["prod"],
+          context: "",
+          resources: ["namespaces"],
+          source: "name",
+          key: "",
+          pattern: "^prod-",
+          flags: "",
+        },
+      ],
+    };
+
+    expect(resourceTagsForTarget(settings, buildResourceTagsIndex(settings), pod)).toEqual([
+      { id: "prod", name: "Prod", color: "#d32f2f", inherited: true, source: "inherited" },
+    ]);
+  });
+
+  it("ignores incomplete auto tag rules", () => {
+    const pod: ResourceTagTarget = { context: "kind", resource: "pods", namespace: "app", name: "prod-api" };
+    const settings: ResourceTagsSettings = {
+      ...baseSettings(),
+      autoTagRules: [
+        {
+          id: "auto-empty",
+          enabled: true,
+          tagIds: ["prod"],
+          context: "",
+          resources: [],
+          source: "name",
+          key: "",
+          pattern: "",
+          flags: "",
+        },
+      ],
+    };
+
+    expect(resourceTagsForTarget(settings, buildResourceTagsIndex(settings), pod)).toEqual([]);
   });
 });

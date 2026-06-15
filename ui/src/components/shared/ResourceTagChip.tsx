@@ -1,5 +1,6 @@
 import React from "react";
 import { Chip, Tooltip } from "@mui/material";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import type { SxProps, Theme } from "@mui/material/styles";
 import type { ResolvedResourceTag } from "../../resourceTags";
@@ -25,21 +26,24 @@ export default function ResourceTagChip({
 }) {
   const color = tag.color || "#607d8b";
   const fg = readableTextColor(color);
+  const source = tag.source || (tag.inherited ? "inherited" : "direct");
+  const Icon = source === "auto" ? AutoAwesomeOutlinedIcon : LocalOfferOutlinedIcon;
   const chip = (
     <Chip
       size={size}
-      icon={<LocalOfferOutlinedIcon />}
+      icon={<Icon />}
       label={tag.name}
-      variant={tag.inherited ? "outlined" : "filled"}
+      variant={source === "inherited" ? "outlined" : "filled"}
       sx={{
         borderRadius: CHIP_BORDER_RADIUS,
         maxWidth: 160,
         height: size === "small" ? 24 : 30,
-        bgcolor: tag.inherited ? "transparent" : color,
+        bgcolor: source === "inherited" ? "transparent" : color,
         borderColor: color,
-        color: tag.inherited ? color : fg,
+        borderStyle: source === "auto" ? "dashed" : "solid",
+        color: source === "inherited" ? color : fg,
         "& .MuiChip-icon": {
-          color: tag.inherited ? color : fg,
+          color: source === "inherited" ? color : fg,
           fontSize: size === "small" ? 15 : 17,
         },
         "& .MuiChip-label": {
@@ -52,8 +56,13 @@ export default function ResourceTagChip({
       }}
     />
   );
+  const title = source === "inherited"
+    ? `${tag.name} (inherited from namespace)`
+    : source === "auto"
+      ? `${tag.name} (auto-tagged by rule)`
+      : tag.name;
   return (
-    <Tooltip title={tag.inherited ? `${tag.name} (inherited from namespace)` : tag.name} arrow>
+    <Tooltip title={title} arrow>
       <span>{chip}</span>
     </Tooltip>
   );

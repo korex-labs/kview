@@ -22,7 +22,9 @@ release prefixes.
 
 Smart Filters are enabled by default. When enabled, kview evaluates configured
 rules against the current list rows and shows chips only for labels with enough
-matches. When disabled, generated chips are hidden but the normal text filter
+matches. If **Resource Tags** and **Show tag quick filters** are also enabled,
+visible list tags are added as quick-filter chips. When Smart Filters are
+disabled, generated quick-filter chips are hidden but the normal text filter
 continues to work.
 
 Rules can be scoped by context, namespace, resource type, or all resources. Use

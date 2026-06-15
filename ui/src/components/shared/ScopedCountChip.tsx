@@ -22,6 +22,7 @@ export type ScopedCountChipProps = {
   disabled?: ChipProps["disabled"];
   sx?: SxProps<Theme>;
   title?: string;
+  icon?: React.ReactNode;
 };
 
 export function activeChipSx(color: ScopedCountChipColor): SxProps<Theme> {
@@ -47,11 +48,13 @@ export function ScopedCountContent({
   count,
   size,
   density = "default",
+  icon,
 }: {
   label: string;
   count: React.ReactNode;
   size: ScopedCountChipSize;
   density?: ScopedCountChipDensity;
+  icon?: React.ReactNode;
 }) {
   const compact = density === "compact";
   const toolbar = density === "toolbar";
@@ -75,6 +78,21 @@ export function ScopedCountContent({
           overflow: "hidden",
         }}
       >
+        {icon ? (
+          <Box
+            component="span"
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              mr: 0.5,
+              "& .MuiSvgIcon-root": {
+                fontSize: size === "small" ? 15 : 17,
+              },
+            }}
+          >
+            {icon}
+          </Box>
+        ) : null}
         <OverflowTooltip title={label}>{label}</OverflowTooltip>
       </Box>
       <Box
@@ -153,13 +171,14 @@ export default function ScopedCountChip({
   disabled,
   sx,
   title,
+  icon,
 }: ScopedCountChipProps) {
   const chip = (
     <Chip
       size={size}
       variant={variant}
       label={(
-        <ScopedCountContent label={label} count={count} size={size} density={density} />
+        <ScopedCountContent label={label} count={count} size={size} density={density} icon={icon} />
       )}
       onClick={onClick}
       clickable={clickable ?? !!onClick}
