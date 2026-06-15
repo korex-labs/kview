@@ -94,7 +94,7 @@ export default function ResourceDrawerShell({
   contentWidth = RESOURCE_DRAWER_WIDTH,
 }: ResourceDrawerShellProps) {
   const { settings, setSettings } = useUserSettings();
-  const { registerContextActions } = useKeyboardControls();
+  const { registerContextActions, registerKeyboardScope } = useKeyboardControls();
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
   const dragStartXRef = useRef(0);
@@ -168,6 +168,13 @@ export default function ResourceDrawerShell({
     window.requestAnimationFrame(focusShell);
     window.setTimeout(focusShell, 0);
   }, []);
+
+  useEffect(() => registerKeyboardScope({
+    id: "resource-drawer",
+    label: "Resource drawer",
+    kind: "drawer",
+    suppressGlobalShortcuts: true,
+  }), [registerKeyboardScope]);
 
   const clickDrawerControl = useCallback((predicate: (el: HTMLElement) => boolean) => {
     const root = shellRef.current;

@@ -33,6 +33,14 @@ export type ContextualKeyboardAction = {
   disabled?: boolean;
 };
 
+export type KeyboardFocusScope = {
+  id: string;
+  label: string;
+  kind: "app" | "drawer" | "dialog" | "settings" | "terminal";
+  suppressGlobalShortcuts?: boolean;
+  suppressContextShortcuts?: boolean;
+};
+
 type TableKeyboardControls = {
   focusFilter: () => boolean;
   focusGrid: () => boolean;
@@ -44,12 +52,16 @@ type TableKeyboardControls = {
 type KeyboardContextValue = {
   registerTableControls: (controls: TableKeyboardControls) => () => void;
   registerContextActions: (actions: ContextualKeyboardAction[]) => () => void;
+  registerKeyboardScope: (scope: KeyboardFocusScope) => () => void;
+  activeKeyboardScope: KeyboardFocusScope | null;
   keyboardSettings: KeyboardSettings;
 };
 
 const KeyboardContext = createContext<KeyboardContextValue>({
   registerTableControls: () => () => undefined,
   registerContextActions: () => () => undefined,
+  registerKeyboardScope: () => () => undefined,
+  activeKeyboardScope: null,
   keyboardSettings: {
     vimTableNavigation: true,
     homeRowTableNavigation: true,
@@ -69,6 +81,10 @@ function effectiveContextActions(stack: ContextualKeyboardAction[][]): Contextua
     }
   }
   return actions;
+}
+
+function effectiveKeyboardScope(stack: KeyboardFocusScope[]): KeyboardFocusScope | null {
+  return stack.length ? stack[stack.length - 1] : null;
 }
 
 export function useKeyboardControls() {
@@ -97,14 +113,20 @@ export default function KeyboardProvider({
   const tableControlsRef = useRef<TableKeyboardControls | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [contextActionStack, setContextActionStack] = useState<ContextualKeyboardAction[][]>([]);
+  const [keyboardScopeStack, setKeyboardScopeStack] = useState<KeyboardFocusScope[]>([]);
   const sequenceRef = useRef<string[]>([]);
   const sequenceTimerRef = useRef<number | null>(null);
   const contextActionStackRef = useRef<ContextualKeyboardAction[][]>([]);
+  const keyboardScopeStackRef = useRef<KeyboardFocusScope[]>([]);
   const activeShortcutCommands = useMemo(() => shortcutCommandsForSettings(keyboardSettings), [keyboardSettings]);
+  const activeKeyboardScope = useMemo(() => effectiveKeyboardScope(keyboardScopeStack), [keyboardScopeStack]);
 
   useEffect(() => {
     contextActionStackRef.current = contextActionStack;
   }, [contextActionStack]);
+  useEffect(() => {
+    keyboardScopeStackRef.current = keyboardScopeStack;
+  }, [keyboardScopeStack]);
 
   const runCommand = useCallback((command: ShortcutCommandId) => {
     const nav = activeShortcutCommands.find((item) => item.id === command);
@@ -182,8 +204,9 @@ export default function KeyboardProvider({
         clearSequence();
       }
       if (helpOpen || settingsOpen) return;
+      const activeScope = effectiveKeyboardScope(keyboardScopeStackRef.current);
       const contextActions = effectiveContextActions(contextActionStackRef.current);
-      if (contextActions.length && !shouldIgnoreContextShortcut(event.target)) {
+      if (contextActions.length && !activeScope?.suppressContextShortcuts && !shouldIgnoreContextShortcut(event.target)) {
         const key = eventToBinding(event);
         const action = contextActions.find((item) => !item.disabled && matchKeySequence(item.binding, [key]) === "matched");
         if (action) {
@@ -203,6 +226,7 @@ export default function KeyboardProvider({
           return;
         }
       }
+      if (activeScope?.suppressGlobalShortcuts) return;
       if (shouldIgnoreGlobalShortcut(event.target)) return;
 
       const key = eventToBinding(event);
@@ -252,9 +276,26 @@ export default function KeyboardProvider({
     };
   }, []);
 
+  const registerKeyboardScope = useCallback((scope: KeyboardFocusScope) => {
+    setKeyboardScopeStack((prev) => [...prev, scope]);
+    return () => {
+      setKeyboardScopeStack((prev) => {
+        const index = prev.lastIndexOf(scope);
+        if (index < 0) return prev;
+        return [...prev.slice(0, index), ...prev.slice(index + 1)];
+      });
+    };
+  }, []);
+
   const value = useMemo(
-    () => ({ registerTableControls, registerContextActions, keyboardSettings }),
-    [keyboardSettings, registerContextActions, registerTableControls],
+    () => ({
+      registerTableControls,
+      registerContextActions,
+      registerKeyboardScope,
+      activeKeyboardScope,
+      keyboardSettings,
+    }),
+    [activeKeyboardScope, keyboardSettings, registerContextActions, registerKeyboardScope, registerTableControls],
   );
 
   return (
