@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
-  Chip,
   Checkbox,
+  Chip,
   Divider,
   Dialog,
   DialogActions,
@@ -93,7 +93,16 @@ import InfoHint from "../shared/InfoHint";
 import ScopedCountChip from "../shared/ScopedCountChip";
 import ResourceTagChip from "../shared/ResourceTagChip";
 import { AppButton, AppIconButton } from "../shared/AppActions";
-import { FieldGroup, SettingField, SettingGrid, SettingRow, SettingSection, ScopeTag } from "./shared";
+import {
+  FieldGroup,
+  SettingField,
+  SettingGrid,
+  SettingRow,
+  SettingSection,
+  SettingsMultiSelect,
+  type SettingsMultiSelectOption,
+  ScopeTag,
+} from "./shared";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
@@ -332,58 +341,8 @@ function ReorderButtons({
   );
 }
 
-type SettingsMultiSelectOption<T extends string> = {
-  value: T;
-  label: React.ReactNode;
-  renderValueLabel?: string;
-};
-
-function SettingsMultiSelect<T extends string>({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-  emptyLabel = "None",
-}: {
-  id: string;
-  label: React.ReactNode;
-  value: T[];
-  options: Array<SettingsMultiSelectOption<T>>;
-  onChange: (value: T[]) => void;
-  emptyLabel?: string;
-}) {
-  const labelByValue = new Map(options.map((option) => [
-    option.value,
-    option.renderValueLabel ?? (typeof option.label === "string" ? option.label : option.value),
-  ]));
-  return (
-    <FormControl size="small" fullWidth>
-      <InputLabel id={`${id}-label`}>{label}</InputLabel>
-      <Select<T[]>
-        labelId={`${id}-label`}
-        label={typeof label === "string" ? label : undefined}
-        multiple
-        displayEmpty
-        MenuProps={denseSelectMenuProps}
-        value={value}
-        onChange={(event: SelectChangeEvent<T[]>) => {
-          const next = event.target.value;
-          onChange(typeof next === "string" ? next.split(",") as T[] : next);
-        }}
-        renderValue={(selected) =>
-          selected.length === 0 ? emptyLabel : selected.map((item) => labelByValue.get(item) || item).join(", ")
-        }
-      >
-        {options.map((option) => (
-          <MenuItem key={option.value} value={option.value}>
-            <Checkbox size="small" checked={value.includes(option.value)} />
-            <ListItemText primary={option.label} />
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
+function resourceMultiSelectOptions(keys: readonly ListResourceKey[]): Array<SettingsMultiSelectOption<ListResourceKey>> {
+  return keys.map((key) => ({ value: key, label: getResourceLabel(key) }));
 }
 
 function updateAppearance(
@@ -1737,9 +1696,10 @@ export default function SettingsView({
                 </Box>
               )}
               value={rule.resources}
-              options={resourceOptions.map((key) => ({ value: key, label: getResourceLabel(key) }))}
+              options={resourceMultiSelectOptions(resourceOptions)}
               onChange={(resources) => setRule(index, { resources })}
               emptyLabel="No resources selected"
+              menuProps={denseSelectMenuProps}
             />
           </Box>
         ) : null}
@@ -2025,6 +1985,7 @@ export default function SettingsView({
                     options={settings.resourceTags.definitions.map((tag) => ({ value: tag.id, label: tag.name }))}
                     onChange={(tagIds) => setResourceAutoTagRule(index, { tagIds })}
                     emptyLabel="No tags selected"
+                    menuProps={denseSelectMenuProps}
                   />
                 </SettingField>
                 <SettingField label="Context">
@@ -2045,9 +2006,10 @@ export default function SettingsView({
                     id={`auto-tag-resources-${rule.id}`}
                     label="Resources"
                     value={rule.resources}
-                    options={resourceOptions.map((resource) => ({ value: resource, label: getResourceLabel(resource) }))}
+                    options={resourceMultiSelectOptions(resourceOptions)}
                     onChange={(resources) => setResourceAutoTagRule(index, { resources })}
                     emptyLabel="Any resource"
+                    menuProps={denseSelectMenuProps}
                   />
                 </SettingField>
                 <SettingField label="Source">
@@ -2249,9 +2211,10 @@ export default function SettingsView({
                   id={`macro-extractor-resources-${extractor.id}`}
                   label="Resources"
                   value={extractor.resources}
-                  options={resourceOptions.map((resource) => ({ value: resource, label: getResourceLabel(resource) }))}
+                  options={resourceMultiSelectOptions(resourceOptions)}
                   onChange={(resources) => setMacroExtractor(index, { resources })}
                   emptyLabel="Any resource"
+                  menuProps={denseSelectMenuProps}
                 />
               </SettingField>
               <SettingField label="Source">
@@ -2542,9 +2505,10 @@ export default function SettingsView({
           id={`action-resources-${action.id}`}
           label="Resources"
           value={action.resources}
-          options={customActionResourceKeys.map((key) => ({ value: key, label: getResourceLabel(key) }))}
+          options={resourceMultiSelectOptions(customActionResourceKeys)}
           onChange={(resources) => setAction(index, { resources })}
           emptyLabel="No resources selected"
+          menuProps={denseSelectMenuProps}
         />
         {action.action === "patch" ? (
           <FieldGroup label="Patch settings">
@@ -3130,6 +3094,7 @@ export default function SettingsView({
                   options={dataplaneNamespaceWarmResourceKeys.map((kind) => ({ value: kind, label: dataplaneWarmResourceLabel(kind) }))}
                   onChange={(warmResourceKinds) => setNamespaceEnrichment({ warmResourceKinds })}
                   emptyLabel="No resources selected"
+                  menuProps={denseSelectMenuProps}
                 />
               </Box>
             </SettingSection>

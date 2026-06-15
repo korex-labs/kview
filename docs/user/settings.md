@@ -86,9 +86,18 @@ When **Enable resource tags** is on, supported resource lists show a Tags
 column and supported drawer headers show tag controls. Tags can be assigned to
 individual resources.
 
+When **Show tag quick filters** is on, resource list quick filters include tag
+chips from visible rows when both **Resource Tags** and **Smart Filters** are
+enabled.
+
 When **Inherit namespace tags** is on, namespace-scoped resources also show tags
 assigned to their namespace. Inherited tags are shown differently from direct
 resource tags and do not create Kubernetes labels or annotations.
+
+Use the **Auto-Tagging** tab to assign existing tags automatically from resource
+names, label values, or annotation values. Auto-applied tags are shown
+differently from direct and namespace-inherited tags, and they do not change
+the direct tag assignment menu state.
 
 When **Cleanup missing resource assignments** is on, a fresh list that confirms
 a resource is gone removes direct tag assignments in that visible scope.
