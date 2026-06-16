@@ -3,6 +3,10 @@ import {
   Box,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   InputLabel,
   MenuItem,
@@ -15,6 +19,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import BookmarkAddOutlinedIcon from "@mui/icons-material/BookmarkAddOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import { apiGet, apiGetWithContext, apiPost } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
@@ -35,7 +41,7 @@ import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
-import { AppButton, AppIconButton } from "../../shared/AppActions";
+import { AppIconButton, DialogActionButton } from "../../shared/AppActions";
 import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
@@ -63,7 +69,7 @@ import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
 import {
   addDashboardSignalViewProfile,
   dashboardSignalViewSnapshot,
-  loadDashboardSignalViewProfiles,
+  loadDashboardSignalViewInitialState,
   removeDashboardSignalViewProfile,
   saveDashboardSignalViewProfiles,
   updateDashboardSignalViewProfile,
@@ -328,18 +334,22 @@ function DashboardInspectDrawers({
 }
 
 export default function DashboardView(props: Props) {
+  const [initialSignalViewState] = useState(() => loadDashboardSignalViewInitialState());
   const [loading, setLoading] = useState(false);
   const [signalsLoading, setSignalsLoading] = useState(false);
   const [data, setData] = useState<ApiDashboardClusterResponse | null>(null);
-  const [signalFilter, setSignalFilter] = useState("top");
-  const [signalFilters, setSignalFilters] = useState<string[]>(["top"]);
-  const [signalsQuery, setSignalsQuery] = useState("");
-  const [signalsSort, setSignalsSort] = useState("priority");
+  const [signalFilter, setSignalFilter] = useState(initialSignalViewState.snapshot.signalFilter);
+  const [signalFilters, setSignalFilters] = useState<string[]>(initialSignalViewState.snapshot.signalFilters);
+  const [signalsQuery, setSignalsQuery] = useState(initialSignalViewState.snapshot.signalsQuery);
+  const [signalsSort, setSignalsSort] = useState(initialSignalViewState.snapshot.signalsSort);
   const [signalsPage, setSignalsPage] = useState(0);
-  const [signalsRowsPerPage, setSignalsRowsPerPage] = useState(10);
+  const [signalsRowsPerPage, setSignalsRowsPerPage] = useState(initialSignalViewState.snapshot.signalsRowsPerPage);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
-  const [dashboardProfiles, setDashboardProfiles] = useState(() => loadDashboardSignalViewProfiles());
+  const [dashboardProfiles, setDashboardProfiles] = useState(initialSignalViewState.profiles);
   const [dashboardProfileName, setDashboardProfileName] = useState("");
+  const [dashboardProfileDialogOpen, setDashboardProfileDialogOpen] = useState(false);
+  const [dashboardProfileExistingId, setDashboardProfileExistingId] = useState<string | null>(null);
+  const [deleteDashboardProfileId, setDeleteDashboardProfileId] = useState<string | null>(null);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const { settings } = useUserSettings();
@@ -389,17 +399,57 @@ export default function DashboardView(props: Props) {
     setDashboardProfiles((prev) => ({ ...prev, activeProfileId: profile.id }));
   };
 
+  const clearDashboardSignalProfile = () => {
+    setSignalFilter("top");
+    setSignalFilters(["top"]);
+    setSignalsQuery("");
+    setSignalsSort("priority");
+    setSignalsRowsPerPage(10);
+    setSignalsPage(0);
+    setDashboardProfiles((prev) => ({ ...prev, activeProfileId: "" }));
+  };
+
   const createDashboardSignalProfile = () => {
     setDashboardProfiles((prev) => addDashboardSignalViewProfile(prev, dashboardProfileName, currentDashboardProfileSnapshot));
     setDashboardProfileName("");
+    setDashboardProfileDialogOpen(false);
+    setDashboardProfileExistingId(null);
   };
 
   const updateActiveDashboardSignalProfile = () => {
     if (!activeDashboardProfile) return;
     setDashboardProfiles((prev) =>
-      updateDashboardSignalViewProfile(prev, activeDashboardProfile.id, currentDashboardProfileSnapshot),
+      updateDashboardSignalViewProfile(prev, activeDashboardProfile.id, {
+        ...currentDashboardProfileSnapshot,
+      }, Date.now(), dashboardProfileName),
     );
+    setDashboardProfileName("");
+    setDashboardProfileDialogOpen(false);
+    setDashboardProfileExistingId(null);
   };
+
+  const openDashboardProfileDialog = () => {
+    setDashboardProfileExistingId(activeDashboardProfile?.id || null);
+    setDashboardProfileName(activeDashboardProfile?.name || "Signal view");
+    setDashboardProfileDialogOpen(true);
+  };
+
+  const closeDashboardProfileDialog = () => {
+    setDashboardProfileDialogOpen(false);
+    setDashboardProfileExistingId(null);
+    setDashboardProfileName("");
+  };
+
+  const confirmDashboardProfileSave = () => {
+    if (!dashboardProfileName.trim()) return;
+    if (dashboardProfileExistingId && activeDashboardProfile) {
+      updateActiveDashboardSignalProfile();
+      return;
+    }
+    createDashboardSignalProfile();
+  };
+
+  const deleteDashboardProfile = dashboardProfiles.definitions.find((profile) => profile.id === deleteDashboardProfileId) || null;
 
   useEffect(() => {
     if (health === "unhealthy" || !pageVisible) return;
@@ -618,7 +668,7 @@ export default function DashboardView(props: Props) {
             onChange={(event) => {
               const id = event.target.value;
               if (!id) {
-                setDashboardProfiles((prev) => ({ ...prev, activeProfileId: "" }));
+                clearDashboardSignalProfile();
                 return;
               }
               const profile = dashboardProfiles.definitions.find((item) => item.id === id);
@@ -635,30 +685,32 @@ export default function DashboardView(props: Props) {
             ))}
           </Select>
         </FormControl>
-        {activeDashboardProfile && dashboardProfileDirty ? (
-          <Chip size="small" color="warning" variant="outlined" label="Modified" />
+        {dashboardProfiles.activeProfileId ? (
+          <AppIconButton
+            tooltip="Clear signal view and reset dashboard"
+            label="Clear signal view and reset dashboard"
+            onClick={clearDashboardSignalProfile}
+          >
+            <CloseIcon fontSize="small" />
+          </AppIconButton>
         ) : null}
-        <TextField
-          size="small"
-          label="Signal view name"
-          value={dashboardProfileName}
-          onChange={(event) => setDashboardProfileName(event.target.value)}
-          sx={{ minWidth: { xs: "100%", sm: 220 } }}
-        />
-        <AppButton
-          intent="primary"
-          disabled={!dashboardProfileName.trim()}
-          onClick={createDashboardSignalProfile}
+        {activeDashboardProfile && dashboardProfileDirty ? (
+          <Chip
+            size="small"
+            color="warning"
+            variant="outlined"
+            label="Modified"
+            title="The current dashboard signal filters differ from the selected signal view. Save to update it or reselect the view to restore it."
+            sx={{ height: 24 }}
+          />
+        ) : null}
+        <AppIconButton
+          tooltip={activeDashboardProfile ? "Update selected signal view" : "Save current signal view"}
+          label={activeDashboardProfile ? "Update selected signal view" : "Save current signal view"}
+          onClick={openDashboardProfileDialog}
         >
-          Save signal view
-        </AppButton>
-        <AppButton
-          variant="outlined"
-          disabled={!activeDashboardProfile}
-          onClick={updateActiveDashboardSignalProfile}
-        >
-          Update signal view
-        </AppButton>
+          <BookmarkAddOutlinedIcon fontSize="small" />
+        </AppIconButton>
         <AppIconButton
           tooltip="Delete selected signal view"
           label="Delete selected signal view"
@@ -666,7 +718,7 @@ export default function DashboardView(props: Props) {
           disabled={!activeDashboardProfile}
           onClick={() => {
             if (!activeDashboardProfile) return;
-            setDashboardProfiles((prev) => removeDashboardSignalViewProfile(prev, activeDashboardProfile.id));
+            setDeleteDashboardProfileId(activeDashboardProfile.id);
           }}
         >
           <DeleteOutlineIcon fontSize="inherit" />
@@ -999,6 +1051,51 @@ export default function DashboardView(props: Props) {
         onClose={() => setInspectTarget(null)}
         onNavigate={props.onNavigate}
       />
+      <Dialog open={dashboardProfileDialogOpen} onClose={closeDashboardProfileDialog} fullWidth maxWidth="xs">
+        <DialogTitle>{dashboardProfileExistingId ? "Update Signal View" : "Save Current Signal View"}</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Name"
+            value={dashboardProfileName}
+            onChange={(event) => setDashboardProfileName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              confirmDashboardProfileSave();
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <DialogActionButton action="cancel" onClick={closeDashboardProfileDialog}>Cancel</DialogActionButton>
+          <DialogActionButton action="primary" onClick={confirmDashboardProfileSave} disabled={!dashboardProfileName.trim()}>
+            {dashboardProfileExistingId ? "Update" : "Save"}
+          </DialogActionButton>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={Boolean(deleteDashboardProfile)} onClose={() => setDeleteDashboardProfileId(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Delete Signal View</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Delete signal view {deleteDashboardProfile ? `"${deleteDashboardProfile.name}"` : ""}?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <DialogActionButton action="cancel" onClick={() => setDeleteDashboardProfileId(null)}>Cancel</DialogActionButton>
+          <DialogActionButton
+            action="destructive"
+            onClick={() => {
+              if (!deleteDashboardProfile) return;
+              setDashboardProfiles((prev) => removeDashboardSignalViewProfile(prev, deleteDashboardProfile.id));
+              setDeleteDashboardProfileId(null);
+            }}
+          >
+            Delete
+          </DialogActionButton>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

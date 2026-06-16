@@ -18,7 +18,26 @@ vi.mock("../../../api", () => ({
 }));
 
 vi.mock("./DashboardSignalsPanel", () => ({
-  default: () => <div>Signals panel</div>,
+  default: (props: {
+    signalFilter: string;
+    signalFilters: string[];
+    signalsQuery: string;
+    signalsSort: string;
+    signalsRowsPerPage: number;
+  }) => (
+    <div>
+      Signals panel
+      <span data-testid="dashboard-signal-state">
+        {JSON.stringify({
+          signalFilter: props.signalFilter,
+          signalFilters: props.signalFilters,
+          signalsQuery: props.signalsQuery,
+          signalsSort: props.signalsSort,
+          signalsRowsPerPage: props.signalsRowsPerPage,
+        })}
+      </span>
+    </div>
+  ),
 }));
 
 function dashboardResponse(): ApiDashboardClusterResponse {
@@ -203,6 +222,45 @@ afterEach(() => {
 });
 
 describe("DashboardView warmup loading", () => {
+  it("applies the active signal view before the first dashboard render", async () => {
+    localStorage.setItem("kview:dashboardSignalViewProfiles:v1", JSON.stringify({
+      activeProfileId: "prod",
+      definitions: [
+        {
+          id: "prod",
+          name: "Prod",
+          snapshot: {
+            signalFilter: "severity:high",
+            signalFilters: ["severity:high"],
+            signalsQuery: "api",
+            signalsSort: "last_seen_desc",
+            signalsRowsPerPage: 25,
+          },
+          createdAt: 10,
+          updatedAt: 20,
+        },
+      ],
+    }));
+    apiGet.mockResolvedValueOnce(readyDashboardResponse());
+
+    renderDashboard();
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalled());
+    expect(String(apiGet.mock.calls[0][0])).toContain("signalsFilter=severity%3Ahigh");
+    expect(String(apiGet.mock.calls[0][0])).toContain("signalsQ=api");
+    expect(String(apiGet.mock.calls[0][0])).toContain("signalsSort=last_seen_desc");
+    expect(String(apiGet.mock.calls[0][0])).toContain("signalsLimit=25");
+    await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
+    expect(screen.queryByText("Modified")).toBeNull();
+    expect(JSON.parse(screen.getByTestId("dashboard-signal-state").textContent || "{}")).toEqual({
+      signalFilter: "severity:high",
+      signalFilters: ["severity:high"],
+      signalsQuery: "api",
+      signalsSort: "last_seen_desc",
+      signalsRowsPerPage: 25,
+    });
+  });
+
   it("clears startup loading after deferred warmup retries commit data", async () => {
     apiGet
       .mockResolvedValueOnce(dashboardResponse())

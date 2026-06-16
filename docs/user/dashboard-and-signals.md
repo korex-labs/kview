@@ -22,7 +22,8 @@ Use the dashboard to answer:
   seen timestamps.
 - **Signal views**: save and reapply the current signal chips, search
   text, sort order, and rows per page from the dashboard header. Applying a
-  signal view resets the signal table to the first page.
+  signal view resets the signal table to the first page. kview remembers the
+  selected signal view and applies it when the dashboard opens again.
 - **Signal acknowledgement**: marks a signal as known without treating it as
   resolved. kview shows this action beside signal severity in the dashboard,
   namespace signal tables, and resource drawer attention banners when signal
@@ -63,7 +64,10 @@ refreshes do not run too aggressively.
 
 Signal views live directly in the dashboard header. They are for fast switching
 between views such as high-severity production signals, a namespace, a tag, or
-newest Helm-related signals. Broader dashboard policy, such as combined filter
+newest Helm-related signals. Use the save action to create or update a signal
+view in a dialog, the clear action to leave the selected signal view and reset
+dashboard signal controls, and the delete action to remove the selected signal
+view after confirmation. Broader dashboard policy, such as combined filter
 behavior, favourite and recent namespace chips, refresh cadence, and signal
 limits, remains normal Settings/Profile behavior.
 

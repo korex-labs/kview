@@ -19,6 +19,11 @@ export type DashboardSignalViewProfilesState = {
   definitions: DashboardSignalViewProfile[];
 };
 
+export type DashboardSignalViewInitialState = {
+  profiles: DashboardSignalViewProfilesState;
+  snapshot: DashboardSignalViewSnapshot;
+};
+
 export const DASHBOARD_SIGNAL_VIEW_PROFILES_KEY = "kview:dashboardSignalViewProfiles:v1";
 
 const defaultDashboardSignalViewProfilesState = (): DashboardSignalViewProfilesState => ({
@@ -123,6 +128,21 @@ export function dashboardSignalViewSnapshot(input: DashboardSignalViewSnapshot):
   };
 }
 
+export function loadDashboardSignalViewInitialState(): DashboardSignalViewInitialState {
+  const profiles = loadDashboardSignalViewProfiles();
+  const activeProfile = profiles.definitions.find((profile) => profile.id === profiles.activeProfileId);
+  return {
+    profiles,
+    snapshot: activeProfile ? activeProfile.snapshot : dashboardSignalViewSnapshot({
+      signalFilter: "top",
+      signalFilters: ["top"],
+      signalsQuery: "",
+      signalsSort: "priority",
+      signalsRowsPerPage: 10,
+    }),
+  };
+}
+
 export function addDashboardSignalViewProfile(
   state: DashboardSignalViewProfilesState,
   nameInput: string,
@@ -150,13 +170,20 @@ export function updateDashboardSignalViewProfile(
   profileId: string,
   snapshotInput: DashboardSignalViewSnapshot,
   now = Date.now(),
+  nameInput?: string,
 ): DashboardSignalViewProfilesState {
   if (!state.definitions.some((profile) => profile.id === profileId)) return state;
+  const name = typeof nameInput === "string" ? cleanName(nameInput) : "";
   return {
     activeProfileId: profileId,
     definitions: state.definitions.map((profile) =>
       profile.id === profileId
-        ? { ...profile, snapshot: dashboardSignalViewSnapshot(snapshotInput), updatedAt: Math.floor(now) }
+        ? {
+            ...profile,
+            name: name || profile.name,
+            snapshot: dashboardSignalViewSnapshot(snapshotInput),
+            updatedAt: Math.floor(now),
+          }
         : profile,
     ),
   };
