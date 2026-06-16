@@ -172,7 +172,13 @@ Real-time pod and node usage from the Kubernetes Metrics Server (`metrics.k8s.io
 Dataplane-backed **list** handlers use a shared envelope pattern (`active`, `items`, `observed`, `meta` with `freshness`, `coverage`, `degradation`, `completeness`, `state`). Tests in `internal/server` cover response shaping where applicable.
 These read handlers accept optional `X-Kview-Context` so the UI can pin list and dashboard reads to the context that was active when the request was issued; missing headers fall back to the current active context.
 When a snapshot returns usable items with a normalized transient/proxy/degraded error, handlers preserve the items and return the metadata state rather than discarding the payload.
-The UI performs periodic background refresh for dataplane-backed list views and the cluster dashboard; this advances snapshots/projections while keeping the toolbar refresh mode off by default.
+The UI performs periodic background refresh for dataplane-backed list views and
+the cluster dashboard; this advances snapshots/projections while keeping the
+toolbar refresh mode off by default. List views use cheap revision polling
+where available and run at most one full list fetch per visible list generation
+at a time, so revision polling, forced dataplane refresh, and user-selected
+refresh intervals do not stack concurrent full-list requests. Repeated revision
+poll failures back off locally while preserving the last rendered rows.
 
 ---
 

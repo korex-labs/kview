@@ -93,6 +93,47 @@ describe("useListQuery revision polling", () => {
     await waitFor(() => expect(fetchItems).toHaveBeenCalledTimes(1));
   });
 
+  it("does not overlap full list refetches when revision polling changes during a slow fetch", async () => {
+    let resolveRefresh: (value: { rows: Array<{ id: string; name: string }> }) => void = () => {};
+    const fetchItems = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: "1", name: "a" }] })
+      .mockImplementation(() => new Promise<{ rows: Array<{ id: string; name: string }> }>((resolve) => {
+        resolveRefresh = resolve;
+      }));
+    let rev = "1";
+    const fetchRevision = vi.fn().mockImplementation(async () => rev);
+
+    const { result } = renderHook(() =>
+      useListQuery<{ id: string; name: string }>({
+        enabled: true,
+        refreshSec: 0,
+        fetchItems,
+        fetchRevision,
+        revisionPollSec: 1,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    fetchItems.mockClear();
+    rev = "2";
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(fetchItems).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(fetchItems).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRefresh({ rows: [{ id: "2", name: "b" }] });
+    });
+    await waitFor(() => expect(result.current.items[0]?.id).toBe("2"));
+  });
+
   it("can refetch dataplane lists on a full refresh interval even when revision is unchanged", async () => {
     const fetchItems = vi.fn().mockResolvedValue({ rows: [{ id: "1", name: "a" }] });
     const fetchRevision = vi.fn().mockResolvedValue("5");

@@ -69,6 +69,10 @@ export default function useListQuery<T>({
 
   const fetchItemsRef = useRef(fetchItems);
   const fetchRevisionRef = useRef(fetchRevision);
+  const fetchInFlightRef = useRef<{ generation: number; reason: string } | null>(null);
+  const revisionPollInFlightRef = useRef(false);
+  const revisionPollFailuresRef = useRef(0);
+  const nextRevisionPollAtRef = useRef(0);
   useEffect(() => {
     fetchItemsRef.current = fetchItems;
   }, [fetchItems]);
@@ -79,10 +83,12 @@ export default function useListQuery<T>({
   const lastRevisionRef = useRef<string | null>(null);
   const generationRef = useRef(0);
 
-  const loadInitial = useCallback(async () => {
-    const generation = generationRef.current;
-    setLoading(true);
-    setError(null);
+  const runFetchItems = useCallback(async (
+    generation: number,
+    reason: "initial" | "refresh" | "revision" | "dataplane",
+  ): Promise<ResourceListFetchResult<T> | null> => {
+    if (fetchInFlightRef.current?.generation === generation) return null;
+    fetchInFlightRef.current = { generation, reason };
     try {
       const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
       const next = await fetchItemsRef.current();
@@ -94,24 +100,47 @@ export default function useListQuery<T>({
           rows: next.rows.length,
         });
       }
+      return next;
+    } finally {
+      const current = fetchInFlightRef.current;
+      if (current?.generation === generation && current.reason === reason) {
+        fetchInFlightRef.current = null;
+      }
+    }
+  }, [diagnosticsLabel]);
+
+  const syncRevisionMarker = useCallback(async (generation: number) => {
+    const fr = fetchRevisionRef.current;
+    if (!fr) {
+      lastRevisionRef.current = null;
+      revisionPollFailuresRef.current = 0;
+      nextRevisionPollAtRef.current = 0;
+      return;
+    }
+    try {
+      const rev = await fr();
+      if (generation !== generationRef.current) return;
+      lastRevisionRef.current = rev;
+      revisionPollFailuresRef.current = 0;
+      nextRevisionPollAtRef.current = 0;
+    } catch {
+      if (generation !== generationRef.current) return;
+    }
+  }, []);
+
+  const loadInitial = useCallback(async () => {
+    const generation = generationRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await runFetchItems(generation, "initial");
+      if (!next) return;
       if (generation !== generationRef.current) return;
       setFetchedRows(next.rows);
       setDataplaneMeta(next.dataplaneMeta ?? null);
       setLastRefresh(new Date());
       onInitialResultRef.current?.();
-      const fr = fetchRevisionRef.current;
-      if (fr) {
-        try {
-          const rev = await fr();
-          if (generation !== generationRef.current) return;
-          lastRevisionRef.current = rev;
-        } catch {
-          if (generation !== generationRef.current) return;
-          lastRevisionRef.current = null;
-        }
-      } else {
-        lastRevisionRef.current = null;
-      }
+      await syncRevisionMarker(generation);
     } catch (err) {
       if (generation !== generationRef.current) return;
       onInitialResultRef.current?.();
@@ -121,7 +150,7 @@ export default function useListQuery<T>({
         setLoading(false);
       }
     }
-  }, [diagnosticsLabel]);
+  }, [runFetchItems, syncRevisionMarker]);
 
   const mapRowsRef = useRef(mapRows);
   useEffect(() => {
@@ -154,6 +183,10 @@ export default function useListQuery<T>({
     setError(null);
     setLastRefresh(null);
     lastRevisionRef.current = null;
+    fetchInFlightRef.current = null;
+    revisionPollInFlightRef.current = false;
+    revisionPollFailuresRef.current = 0;
+    nextRevisionPollAtRef.current = 0;
     void loadInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- queryKey is the caller-provided list identity
   }, [enabled, loadInitial, ...(queryKey ?? [])]);
@@ -163,37 +196,20 @@ export default function useListQuery<T>({
     const t = setInterval(async () => {
       const generation = generationRef.current;
       try {
-        const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
-        const next = await fetchItemsRef.current();
-        if (startedAt && diagnosticsLabel) {
-          recordListTiming({
-            label: diagnosticsLabel,
-            phase: "fetch",
-            durationMs: window.performance.now() - startedAt,
-            rows: next.rows.length,
-          });
-        }
+        const next = await runFetchItems(generation, "refresh");
+        if (!next) return;
         if (generation !== generationRef.current) return;
         setFetchedRows(next.rows);
         setDataplaneMeta(next.dataplaneMeta ?? null);
         setLastRefresh(new Date());
         setError(null);
-        const fr = fetchRevisionRef.current;
-        if (fr) {
-          try {
-            const rev = await fr();
-            if (generation !== generationRef.current) return;
-            lastRevisionRef.current = rev;
-          } catch {
-            /* keep previous revision marker */
-          }
-        }
+        await syncRevisionMarker(generation);
       } catch {
         // keep previous data on refresh error
       }
     }, refreshSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, pageVisible, refreshSec, fetchItems, diagnosticsLabel]);
+  }, [enabled, health, pageVisible, refreshSec, runFetchItems, syncRevisionMarker]);
 
   useEffect(() => {
     if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
@@ -202,28 +218,25 @@ export default function useListQuery<T>({
     if (!fr || revisionPollSec <= 0) return;
 
     const tick = async () => {
+      const now = Date.now();
+      if (revisionPollInFlightRef.current || now < nextRevisionPollAtRef.current) return;
       const generation = generationRef.current;
+      revisionPollInFlightRef.current = true;
       try {
         const rev = await fr();
         if (generation !== generationRef.current) return;
+        revisionPollFailuresRef.current = 0;
+        nextRevisionPollAtRef.current = 0;
         const prev = lastRevisionRef.current;
         if (prev === null) {
           lastRevisionRef.current = rev;
           return;
         }
         if (prev !== rev) {
-          lastRevisionRef.current = rev;
-          const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
-          const next = await fetchItemsRef.current();
-          if (startedAt && diagnosticsLabel) {
-            recordListTiming({
-              label: diagnosticsLabel,
-              phase: "fetch",
-              durationMs: window.performance.now() - startedAt,
-              rows: next.rows.length,
-            });
-          }
+          const next = await runFetchItems(generation, "revision");
+          if (!next) return;
           if (generation !== generationRef.current) return;
+          lastRevisionRef.current = rev;
           setFetchedRows(next.rows);
           setDataplaneMeta(next.dataplaneMeta ?? null);
           setLastRefresh(new Date());
@@ -231,12 +244,24 @@ export default function useListQuery<T>({
         }
       } catch {
         // keep previous data
+        if (generation === generationRef.current) {
+          revisionPollFailuresRef.current += 1;
+          const backoffMs = Math.min(
+            60_000,
+            revisionPollSec * 1000 * Math.pow(2, Math.min(revisionPollFailuresRef.current - 1, 5)),
+          );
+          nextRevisionPollAtRef.current = Date.now() + backoffMs;
+        }
+      } finally {
+        if (generation === generationRef.current) {
+          revisionPollInFlightRef.current = false;
+        }
       }
     };
 
     const t = setInterval(() => void tick(), revisionPollSec * 1000);
     return () => clearInterval(t);
-  }, [enabled, health, pageVisible, loading, refreshSec, revisionPollSec, fetchRevision, diagnosticsLabel]);
+  }, [enabled, health, pageVisible, loading, refreshSec, revisionPollSec, fetchRevision, runFetchItems]);
 
   useEffect(() => {
     if (!enabled || health === "unhealthy" || !pageVisible || loading) return;
@@ -246,31 +271,14 @@ export default function useListQuery<T>({
     const tick = async () => {
       const generation = generationRef.current;
       try {
-        const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
-        const next = await fetchItemsRef.current();
-        if (startedAt && diagnosticsLabel) {
-          recordListTiming({
-            label: diagnosticsLabel,
-            phase: "fetch",
-            durationMs: window.performance.now() - startedAt,
-            rows: next.rows.length,
-          });
-        }
+        const next = await runFetchItems(generation, "dataplane");
+        if (!next) return;
         if (generation !== generationRef.current) return;
         setFetchedRows(next.rows);
         setDataplaneMeta(next.dataplaneMeta ?? null);
         setLastRefresh(new Date());
         setError(null);
-        const fr = fetchRevisionRef.current;
-        if (fr) {
-          try {
-            const rev = await fr();
-            if (generation !== generationRef.current) return;
-            lastRevisionRef.current = rev;
-          } catch {
-            /* keep previous revision marker */
-          }
-        }
+        await syncRevisionMarker(generation);
       } catch {
         // keep previous data on dataplane refresh error
       }
@@ -278,7 +286,7 @@ export default function useListQuery<T>({
 
     const t = setInterval(() => void tick(), dataplaneRefreshSec * 1000);
     return () => clearInterval(t);
-  }, [dataplaneRefreshSec, enabled, health, pageVisible, loading, refreshSec, diagnosticsLabel]);
+  }, [dataplaneRefreshSec, enabled, health, pageVisible, loading, refreshSec, runFetchItems, syncRevisionMarker]);
 
   return { items, dataplaneMeta, error, loading, lastRefresh, refetch: loadInitial };
 }
