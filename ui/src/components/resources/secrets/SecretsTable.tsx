@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import SecretDrawer from "./SecretDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import ListSignalChip from "../../shared/ListSignalChip";
@@ -112,10 +112,8 @@ export default function SecretsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/type/signal)"
       resourceLabel={resourceLabel}
       resourceKey="secrets"
-      accessResource={listResourceAccess.secrets}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const secretName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

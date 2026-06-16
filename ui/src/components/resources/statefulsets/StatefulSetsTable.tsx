@@ -6,7 +6,7 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import StatefulSetDrawer from "./StatefulSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -109,10 +109,8 @@ export default function StatefulSetsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/service)"
       resourceLabel={resourceLabel}
       resourceKey="statefulsets"
-      accessResource={listResourceAccess.statefulsets}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const statefulSetName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

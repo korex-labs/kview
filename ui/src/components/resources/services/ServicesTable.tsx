@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceDrawer from "./ServiceDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -129,10 +129,8 @@ export default function ServicesTable({ token, namespace }: { token: string; nam
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/type/signal/exposure)"
       resourceLabel={resourceLabel}
       resourceKey="services"
-      accessResource={listResourceAccess.services}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const serviceName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

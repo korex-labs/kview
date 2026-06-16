@@ -13,7 +13,7 @@ import NamespaceDrawer from "./NamespaceDrawer";
 import { AppIconButton } from "../../shared/AppActions";
 import { fmtAge } from "../../../utils/format";
 import { dataplaneCoarseStateChipColor, namespacePhaseChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import { useActiveContext } from "../../../activeContext";
@@ -468,10 +468,8 @@ export default function NamespacesTable({
       }}
       dataplaneRefreshSec={0}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name, status, signals, workload, quota)"
       resourceLabel={resourceLabel}
       resourceKey="namespaces"
-      accessResource={listResourceAccess.namespaces}
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (
         <NamespaceDrawer

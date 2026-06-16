@@ -6,7 +6,7 @@ import type { ApiDataplaneListResponse, NamespaceResourceQuota } from "../../../
 import { dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import GaugeBar from "../../shared/GaugeBar";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ResourceQuotaDrawer from "./ResourceQuotaDrawer";
@@ -96,10 +96,8 @@ export default function ResourceQuotasTable({ token, namespace }: { token: strin
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "resourcequotas", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/key)"
       resourceLabel={resourceLabel}
       resourceKey="resourcequotas"
-      accessResource={listResourceAccess.resourcequotas}
       namespace={namespace}
       renderDrawer={({ selectedRow, open, onClose }) => (
         <ResourceQuotaDrawer

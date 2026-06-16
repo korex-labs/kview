@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import { fmtAge } from "../../../utils/format";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import CustomResourceDrawer, { type CRRef } from "./CustomResourceDrawer";
 import CustomResourceStatusCell from "./CustomResourceStatusCell";
@@ -123,12 +123,10 @@ export default function CustomResourcesTable({
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/kind/group/status)"
       filterIntent={filterIntent}
       onFilterIntentApplied={onFilterIntentApplied}
       resourceLabel={resourceLabel}
       resourceKey="customresources"
-      accessResource={listResourceAccess.customresources}
       namespace={namespace}
       skipEmptyAccessCheck
       dataplaneMetaPrefix={metaPrefix}

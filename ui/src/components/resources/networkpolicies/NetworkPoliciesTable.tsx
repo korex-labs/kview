@@ -6,7 +6,7 @@ import type { ApiDataplaneListResponse, NetworkPolicy } from "../../../types/api
 import { dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import NetworkPolicyDrawer from "./NetworkPolicyDrawer";
 
@@ -62,10 +62,8 @@ export default function NetworkPoliciesTable({ token, namespace }: { token: stri
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "networkpolicies", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/selector/type)"
       resourceLabel={resourceLabel}
       resourceKey="networkpolicies"
-      accessResource={listResourceAccess.networkpolicies}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const networkPolicyName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

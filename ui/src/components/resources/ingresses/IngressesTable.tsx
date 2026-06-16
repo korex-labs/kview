@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import IngressDrawer from "./IngressDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -136,10 +136,8 @@ export default function IngressesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/class/signal/host)"
       resourceLabel={resourceLabel}
       resourceKey="ingresses"
-      accessResource={listResourceAccess.ingresses}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const ingressName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

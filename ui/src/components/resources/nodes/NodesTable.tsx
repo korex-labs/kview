@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import NodeDrawer from "./NodeDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { deploymentHealthBucketColor, nodeStatusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -237,10 +237,8 @@ export default function NodesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/role/status/signal/source)"
       resourceLabel={resourceLabel}
       resourceKey="nodes"
-      accessResource={listResourceAccess.nodes}
       namespace={null}
       skipEmptyAccessCheck
       renderDrawer={({ selectedId, open, onClose }) => (

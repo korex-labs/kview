@@ -6,7 +6,7 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import DeploymentDrawer from "./DeploymentDrawer";
 import { fmtAge, fmtTimeAgo } from "../../../utils/format";
 import { deploymentHealthBucketColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -114,10 +114,8 @@ export default function DeploymentsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/strategy)"
       resourceLabel={resourceLabel}
       resourceKey="deployments"
-      accessResource={listResourceAccess.deployments}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const deploymentName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

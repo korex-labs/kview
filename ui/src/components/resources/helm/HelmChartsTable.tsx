@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { valueOrDash } from "../../../utils/format";
 import HelmChartDrawer from "./HelmChartDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type DataplaneListMeta } from "../../../types/api";
 import ScopedCountChip from "../../shared/ScopedCountChip";
@@ -118,10 +118,8 @@ export default function HelmChartsTable({ token }: { token: string }) {
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (chart/version/status/source)"
       resourceLabel={resourceLabel}
       resourceKey="helmcharts"
-      accessResource={listResourceAccess.helmcharts}
       namespace={null}
       skipEmptyAccessCheck
       renderDrawer={({ selectedRow, open, onClose }) => (

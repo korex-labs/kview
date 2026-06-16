@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ConfigMapDrawer from "./ConfigMapDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import ListSignalChip from "../../shared/ListSignalChip";
@@ -100,10 +100,8 @@ export default function ConfigMapsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="configmaps"
-      accessResource={listResourceAccess.configmaps}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const configMapName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

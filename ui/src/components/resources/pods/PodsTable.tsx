@@ -11,7 +11,7 @@ import {
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
@@ -230,10 +230,8 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
       dataplaneRefreshSec={metricsUsable ? podMetricsRefreshSec : undefined}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/node/status)"
       resourceLabel={resourceLabel}
       resourceKey="pods"
-      accessResource={listResourceAccess.pods}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const podName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

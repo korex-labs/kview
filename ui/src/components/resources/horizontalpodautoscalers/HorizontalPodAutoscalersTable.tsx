@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -161,10 +161,8 @@ export default function HorizontalPodAutoscalersTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/target/metric/signal)"
       resourceLabel={resourceLabel}
       resourceKey="horizontalpodautoscalers"
-      accessResource={listResourceAccess.horizontalpodautoscalers}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const hpaName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

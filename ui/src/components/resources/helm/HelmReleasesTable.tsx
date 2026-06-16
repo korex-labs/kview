@@ -6,7 +6,7 @@ import { fmtTs, valueOrDash } from "../../../utils/format";
 import { helmStatusChipColor } from "../../../utils/k8sUi";
 import HelmReleaseDrawer from "./HelmReleaseDrawer";
 import { HelmInstallButton } from "./HelmActions";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -132,10 +132,8 @@ export default function HelmReleasesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name / chart / signal / version)"
       resourceLabel={resourceLabel}
       resourceKey="helm"
-      accessResource={listResourceAccess.helm}
       namespace={namespace}
       renderFooterExtra={(refetch) => (
         <HelmInstallButton

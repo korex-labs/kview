@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import CustomResourceDefinitionDrawer from "./CustomResourceDefinitionDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -123,10 +123,8 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/group/kind/scope/signal)"
       resourceLabel={resourceLabel}
       resourceKey="customresourcedefinitions"
-      accessResource={listResourceAccess.customresourcedefinitions}
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (
         <CustomResourceDefinitionDrawer

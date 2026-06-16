@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceAccountDrawer from "./ServiceAccountDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
@@ -128,10 +128,8 @@ export default function ServiceAccountsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/token/pullSecret)"
       resourceLabel={resourceLabel}
       resourceKey="serviceaccounts"
-      accessResource={listResourceAccess.serviceaccounts}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const serviceAccountName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

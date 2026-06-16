@@ -6,7 +6,7 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import JobDrawer from "./JobDrawer";
 import { fmtAge } from "../../../utils/format";
 import { jobStatusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -107,10 +107,8 @@ export default function JobsTable({ token, namespace }: { token: string; namespa
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/status)"
       resourceLabel={resourceLabel}
       resourceKey="jobs"
-      accessResource={listResourceAccess.jobs}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const jobName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

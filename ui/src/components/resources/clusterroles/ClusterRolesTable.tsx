@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ClusterRoleDrawer from "./ClusterRoleDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -79,10 +79,8 @@ export default function ClusterRolesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="clusterroles"
-      accessResource={listResourceAccess.clusterroles}
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (
         <ClusterRoleDrawer

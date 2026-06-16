@@ -5,7 +5,7 @@ import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { pvPhaseChipColor } from "../../../utils/k8sUi";
 import PersistentVolumeDrawer from "./PersistentVolumeDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -128,10 +128,8 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/status/signal/storageClass/claim)"
       resourceLabel={resourceLabel}
       resourceKey="persistentvolumes"
-      accessResource={listResourceAccess.persistentvolumes}
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (
         <PersistentVolumeDrawer

@@ -4,7 +4,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import RoleBindingDrawer from "./RoleBindingDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
@@ -111,10 +111,8 @@ export default function RoleBindingsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/signal)"
       resourceLabel={resourceLabel}
       resourceKey="rolebindings"
-      accessResource={listResourceAccess.rolebindings}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const roleBindingName = selectedId ? selectedId.split("/").slice(1).join("/") : null;

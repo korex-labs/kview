@@ -22,7 +22,7 @@ import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
-import { getResourceIcon, getResourceViewPolicy, type AccessReviewResource } from "../../utils/k8sResources";
+import { getResourceIcon, getResourceViewPolicy, listResourceAccess, type AccessReviewResource } from "../../utils/k8sResources";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import type { DataplaneListMeta, ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
@@ -265,7 +265,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   onFilterIntentApplied?: (nonce: number) => void;
   resourceLabel: string;
   resourceKey: ListResourceKey;
-  accessResource: AccessReviewResource;
+  accessResource?: AccessReviewResource;
   namespace?: string | null;
   defaultSortField?: string;
   initialColumnVisibilityModel?: GridColumnVisibilityModel;
@@ -333,6 +333,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const { registerTableControls, keyboardSettings } = useKeyboardControls();
   const offline = health === "unhealthy";
   const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
+  const effectiveAccessResource = accessResource || listResourceAccess[resourceKey];
   const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
     if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
     const shaped = row as TRow & {
@@ -512,7 +513,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     itemsLength: rows.length,
     error,
     loading: loading || skipEmptyAccessCheck,
-    resource: accessResource,
+    resource: effectiveAccessResource,
     namespace,
     contextName: activeContext,
   });

@@ -6,7 +6,7 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { pvcPhaseChipColor } from "../../../utils/k8sUi";
 import PersistentVolumeClaimDrawer from "./PersistentVolumeClaimDrawer";
-import { getResourceLabel, listResourceAccess } from "../../../utils/k8sResources";
+import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -144,10 +144,8 @@ export default function PersistentVolumeClaimsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      filterLabel="Filter (name/status/signal/storageClass/volume)"
       resourceLabel={resourceLabel}
       resourceKey="persistentvolumeclaims"
-      accessResource={listResourceAccess.persistentvolumeclaims}
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
         const pvcName = selectedId ? selectedId.split("/").slice(1).join("/") : null;
