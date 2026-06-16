@@ -92,13 +92,6 @@ export default function ReplicaSetsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.owner?.name || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -109,7 +102,6 @@ export default function ReplicaSetsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="replicasets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

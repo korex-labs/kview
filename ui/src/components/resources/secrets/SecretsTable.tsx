@@ -88,15 +88,6 @@ export default function SecretsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.type || "").toLowerCase().includes(q) ||
-      (row.typeHint || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -107,7 +98,6 @@ export default function SecretsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="secrets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

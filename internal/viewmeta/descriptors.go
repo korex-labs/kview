@@ -133,6 +133,38 @@ func searchFieldsForResource(key string) []string {
 		return []string{"name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"}
 	case "nodes":
 		return []string{"name", "role", "roles", "status", "source", "signalSeverity", "listSignalSeverity"}
+	case "deployments", "daemonsets":
+		return []string{"name", "strategy", "status", "phase", "signalSeverity", "listSignalSeverity"}
+	case "statefulsets":
+		return []string{"name", "serviceName", "service", "status", "phase", "signalSeverity", "listSignalSeverity"}
+	case "replicasets":
+		return []string{"name", "owner.name", "ownerName", "status", "phase", "signalSeverity", "listSignalSeverity"}
+	case "jobs":
+		return []string{"name", "status", "phase", "conditions", "signalSeverity", "listSignalSeverity"}
+	case "cronjobs":
+		return []string{"name", "schedule", "scheduleHint", "status", "phase", "signalSeverity", "listSignalSeverity"}
+	case "services":
+		return []string{"name", "type", "clusterIP", "externalName", "exposure", "signalSeverity", "listSignalSeverity"}
+	case "ingresses":
+		return []string{"name", "className", "ingressClassName", "hosts", "signalSeverity", "listSignalSeverity"}
+	case "networkpolicies":
+		return []string{"name", "podSelector", "policyTypes", "types", "signalSeverity", "listSignalSeverity"}
+	case "secrets":
+		return []string{"name", "type", "signalSeverity", "listSignalSeverity"}
+	case "serviceaccounts":
+		return []string{"name", "tokenCount", "tokens", "pullSecretCount", "pullSecrets", "imagePullSecrets"}
+	case "roles", "clusterroles":
+		return []string{"name", "privilegeBreadth", "signalSeverity", "listSignalSeverity"}
+	case "rolebindings", "clusterrolebindings":
+		return []string{"name", "roleName", "bindingHint", "subjectBreadth", "signalSeverity", "listSignalSeverity"}
+	case "persistentvolumeclaims":
+		return []string{"name", "status", "phase", "storageClass", "storageClassName", "volumeName", "signalSeverity", "listSignalSeverity"}
+	case "persistentvolumes":
+		return []string{"name", "status", "phase", "storageClass", "storageClassName", "claim", "claimRef.name", "claimRef.namespace", "signalSeverity", "listSignalSeverity"}
+	case "resourcequotas":
+		return []string{"name", "key", "hard", "used", "status", "signalSeverity", "listSignalSeverity"}
+	case "limitranges":
+		return []string{"name", "type", "types", "status", "signalSeverity", "listSignalSeverity"}
 	default:
 		return []string{"name", "status", "phase", "type", "signalSeverity", "listSignalSeverity"}
 	}

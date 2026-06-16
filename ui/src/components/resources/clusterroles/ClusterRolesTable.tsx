@@ -58,13 +58,6 @@ export default function ClusterRolesTable({ token }: { token: string }) {
     };
   }, [token]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.privilegeBreadth || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -74,7 +67,6 @@ export default function ClusterRolesTable({ token }: { token: string }) {
         fetchRevision: dataplaneRevisionFetcher(token, "clusterroles"),
         pollSec: defaultRevisionPollSec,
       }}
-      filterPredicate={filterPredicate}
       resourceKey="clusterroles"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

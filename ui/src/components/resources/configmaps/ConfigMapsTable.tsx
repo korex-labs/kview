@@ -80,11 +80,6 @@ export default function ConfigMapsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q) || (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -95,7 +90,6 @@ export default function ConfigMapsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="configmaps"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

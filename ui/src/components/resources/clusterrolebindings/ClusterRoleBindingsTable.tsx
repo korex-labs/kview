@@ -75,17 +75,6 @@ export default function ClusterRoleBindingsTable({ token }: { token: string }) {
     };
   }, [token]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.roleRefKind || "").toLowerCase().includes(q) ||
-      (row.roleRefName || "").toLowerCase().includes(q) ||
-      (row.bindingHint || "").toLowerCase().includes(q) ||
-      (row.subjectBreadth || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -95,7 +84,6 @@ export default function ClusterRoleBindingsTable({ token }: { token: string }) {
         fetchRevision: dataplaneRevisionFetcher(token, "clusterrolebindings"),
         pollSec: defaultRevisionPollSec,
       }}
-      filterPredicate={filterPredicate}
       resourceKey="clusterrolebindings"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

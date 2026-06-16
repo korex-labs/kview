@@ -87,13 +87,6 @@ export default function StatefulSetsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.serviceName || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -104,7 +97,6 @@ export default function StatefulSetsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="statefulsets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

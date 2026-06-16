@@ -119,16 +119,6 @@ export default function PersistentVolumeClaimsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.phase || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.storageClassName || "").toLowerCase().includes(q) ||
-      (row.volumeName || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -139,7 +129,6 @@ export default function PersistentVolumeClaimsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="persistentvolumeclaims"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

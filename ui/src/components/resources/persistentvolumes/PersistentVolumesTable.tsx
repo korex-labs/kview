@@ -102,18 +102,6 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
     };
   }, [token]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.phase || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.bindingHint || "").toLowerCase().includes(q) ||
-      (row.storageClassName || "").toLowerCase().includes(q) ||
-      (row.reclaimPolicy || "").toLowerCase().includes(q) ||
-      (row.claimRef || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -123,7 +111,6 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
         fetchRevision: dataplaneRevisionFetcher(token, "persistentvolumes"),
         pollSec: defaultRevisionPollSec,
       }}
-      filterPredicate={filterPredicate}
       resourceKey="persistentvolumes"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

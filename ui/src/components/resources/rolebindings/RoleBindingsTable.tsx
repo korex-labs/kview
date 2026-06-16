@@ -87,15 +87,6 @@ export default function RoleBindingsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.bindingHint || "").toLowerCase().includes(q) ||
-      (row.subjectBreadth || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -106,7 +97,6 @@ export default function RoleBindingsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="rolebindings"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

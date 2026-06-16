@@ -73,11 +73,6 @@ export default function RolesTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) => row.name.toLowerCase().includes(q) || (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -88,7 +83,6 @@ export default function RolesTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="roles"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

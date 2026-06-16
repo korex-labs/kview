@@ -93,12 +93,6 @@ export default function DeploymentsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) || (row.strategy || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -109,7 +103,6 @@ export default function DeploymentsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="deployments"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

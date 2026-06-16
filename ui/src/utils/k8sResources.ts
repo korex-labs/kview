@@ -184,6 +184,41 @@ function defaultSearchFields(key: ListResourceKey): string[] {
       return ["name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"];
     case "nodes":
       return ["name", "role", "roles", "status", "source", "signalSeverity", "listSignalSeverity"];
+    case "deployments":
+    case "daemonsets":
+      return ["name", "strategy", "status", "phase", "signalSeverity", "listSignalSeverity"];
+    case "statefulsets":
+      return ["name", "serviceName", "service", "status", "phase", "signalSeverity", "listSignalSeverity"];
+    case "replicasets":
+      return ["name", "owner.name", "ownerName", "status", "phase", "signalSeverity", "listSignalSeverity"];
+    case "jobs":
+      return ["name", "status", "phase", "conditions", "signalSeverity", "listSignalSeverity"];
+    case "cronjobs":
+      return ["name", "schedule", "scheduleHint", "status", "phase", "signalSeverity", "listSignalSeverity"];
+    case "services":
+      return ["name", "type", "clusterIP", "externalName", "exposure", "signalSeverity", "listSignalSeverity"];
+    case "ingresses":
+      return ["name", "className", "ingressClassName", "hosts", "signalSeverity", "listSignalSeverity"];
+    case "networkpolicies":
+      return ["name", "podSelector", "policyTypes", "types", "signalSeverity", "listSignalSeverity"];
+    case "secrets":
+      return ["name", "type", "signalSeverity", "listSignalSeverity"];
+    case "serviceaccounts":
+      return ["name", "tokenCount", "tokens", "pullSecretCount", "pullSecrets", "imagePullSecrets"];
+    case "roles":
+    case "clusterroles":
+      return ["name", "privilegeBreadth", "signalSeverity", "listSignalSeverity"];
+    case "rolebindings":
+    case "clusterrolebindings":
+      return ["name", "roleName", "bindingHint", "subjectBreadth", "signalSeverity", "listSignalSeverity"];
+    case "persistentvolumeclaims":
+      return ["name", "status", "phase", "storageClass", "storageClassName", "volumeName", "signalSeverity", "listSignalSeverity"];
+    case "persistentvolumes":
+      return ["name", "status", "phase", "storageClass", "storageClassName", "claim", "claimRef.name", "claimRef.namespace", "signalSeverity", "listSignalSeverity"];
+    case "resourcequotas":
+      return ["name", "key", "hard", "used", "status", "signalSeverity", "listSignalSeverity"];
+    case "limitranges":
+      return ["name", "type", "types", "status", "signalSeverity", "listSignalSeverity"];
     default:
       return ["name", "status", "phase", "type", "signalSeverity", "listSignalSeverity"];
   }

@@ -84,14 +84,6 @@ export default function JobsTable({ token, namespace }: { token: string; namespa
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.listStatus || row.status || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -102,7 +94,6 @@ export default function JobsTable({ token, namespace }: { token: string; namespa
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="jobs"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

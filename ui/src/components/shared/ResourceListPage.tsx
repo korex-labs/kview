@@ -217,7 +217,12 @@ function valueMatchesQuery(value: unknown, query: string): boolean {
 
 function rowFieldValue(row: unknown, field: string): unknown {
   if (!field || !row || typeof row !== "object") return undefined;
-  return (row as Record<string, unknown>)[field];
+  let current: unknown = row;
+  for (const segment of field.split(".")) {
+    if (!segment || !current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
 }
 
 function rowMatchesSearchFields(row: unknown, fields: string[], query: string): boolean {
@@ -259,7 +264,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   mapRows?: (rows: TRow[]) => TRow[];
   mapRowsDeps?: unknown[];
   enabled?: boolean;
-  filterPredicate: (row: TRow, query: string) => boolean;
+  filterPredicate?: (row: TRow, query: string) => boolean;
   filterLabel?: string;
   filterIntent?: { value: string; nonce: number } | null;
   onFilterIntentApplied?: (nonce: number) => void;
@@ -296,7 +301,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
 
 /**
  * Reusable resource list page: DataGrid with toolbar, no-rows overlay, footer, and drawer slot.
- * Resource-specific: columns, fetchRows, filterPredicate, filterLabel, and drawer are passed in.
+ * Resource-specific: columns, fetchRows, optional filterPredicate, and drawer are passed in.
  */
 export default function ResourceListPage<TRow extends { id: string }>({
   token,
@@ -421,7 +426,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     [resourceViewPolicy.identity],
   );
   const effectiveFilterPredicate = useCallback(
-    (row: TRow, q: string) => filterPredicate(row, q) || rowMatchesSearchFields(row, resourceViewPolicy.searchFields, q),
+    (row: TRow, q: string) => (filterPredicate?.(row, q) ?? false) || rowMatchesSearchFields(row, resourceViewPolicy.searchFields, q),
     [filterPredicate, resourceViewPolicy.searchFields],
   );
   const defaultSortModel = useMemo<GridSortModel>(

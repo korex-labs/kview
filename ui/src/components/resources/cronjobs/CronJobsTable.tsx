@@ -131,14 +131,6 @@ export default function CronJobsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.schedule || "").toLowerCase().includes(q) ||
-      (row.scheduleHint || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -149,7 +141,6 @@ export default function CronJobsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="cronjobs"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

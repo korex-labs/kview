@@ -39,11 +39,6 @@ export default function LimitRangesTable({ token, namespace }: { token: string; 
     };
   }, [namespace, token]);
 
-  const filterPredicate = useCallback((row: Row, q: string) => (
-    row.name.toLowerCase().includes(q) ||
-    row.types.toLowerCase().includes(q)
-  ), []);
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -51,7 +46,6 @@ export default function LimitRangesTable({ token, namespace }: { token: string; 
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "limitranges", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="limitranges"
       namespace={namespace}
       renderDrawer={({ selectedRow, open, onClose }) => (
