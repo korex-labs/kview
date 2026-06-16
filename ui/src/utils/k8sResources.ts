@@ -54,6 +54,9 @@ export type ResourceViewPolicy = {
     field: string;
     direction: "asc" | "desc";
   };
+  filterLabel: string;
+  identity: string[];
+  searchFields: string[];
 };
 
 export type SidebarGroup = {
@@ -153,9 +156,97 @@ export const resourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> =
         field: key === "helmcharts" ? "chartName" : key === "customresources" || key === "clusterresources" ? "kind" : "name",
         direction: "asc",
       },
+      filterLabel: defaultFilterLabel(key as ListResourceKey),
+      identity: defaultIdentityFields(key as ListResourceKey),
+      searchFields: defaultSearchFields(key as ListResourceKey),
     },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
+
+function defaultIdentityFields(key: ListResourceKey): string[] {
+  if (key === "helmcharts") return ["chartName"];
+  if (key === "customresources" || key === "clusterresources") return ["kind", "name"];
+  return ["name"];
+}
+
+function defaultSearchFields(key: ListResourceKey): string[] {
+  switch (key) {
+    case "helmcharts":
+      return ["chartName", "chartVersion", "appVersion", "statuses", "derivedSource"];
+    case "helm":
+      return ["name", "chart", "chartVersion", "appVersion", "status", "signalSeverity", "listSignalSeverity"];
+    case "customresources":
+    case "clusterresources":
+      return ["name", "kind", "group", "signalSeverity", "statusSummary"];
+    case "customresourcedefinitions":
+      return ["name", "group", "kind", "scope", "signalSeverity", "listSignalSeverity"];
+    case "pods":
+      return ["name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"];
+    case "nodes":
+      return ["name", "role", "roles", "status", "source", "signalSeverity", "listSignalSeverity"];
+    default:
+      return ["name", "status", "phase", "type", "signalSeverity", "listSignalSeverity"];
+  }
+}
+
+function defaultFilterLabel(key: ListResourceKey): string {
+  switch (key) {
+    case "horizontalpodautoscalers":
+      return "Filter (name/target/metric/signal)";
+    case "clusterrolebindings":
+      return "Filter (name/role/signal)";
+    case "networkpolicies":
+      return "Filter (name/selector/type)";
+    case "persistentvolumes":
+      return "Filter (name/status/signal/storageClass/claim)";
+    case "jobs":
+      return "Filter (name/status)";
+    case "ingresses":
+      return "Filter (name/class/signal/host)";
+    case "statefulsets":
+      return "Filter (name/service)";
+    case "customresources":
+    case "clusterresources":
+      return "Filter (name/kind/group/status)";
+    case "clusterroles":
+      return "Filter (name/signal)";
+    case "deployments":
+    case "daemonsets":
+      return "Filter (name/strategy)";
+    case "services":
+      return "Filter (name/type/signal/exposure)";
+    case "helmcharts":
+      return "Filter (chart/version/status/source)";
+    case "helm":
+      return "Filter (name / chart / signal / version)";
+    case "nodes":
+      return "Filter (name/role/status/signal/source)";
+    case "namespaces":
+      return "Filter (name, status, signals, workload, quota)";
+    case "configmaps":
+    case "roles":
+    case "rolebindings":
+      return "Filter (name/signal)";
+    case "resourcequotas":
+      return "Filter (name/key)";
+    case "secrets":
+      return "Filter (name/type/signal)";
+    case "limitranges":
+      return "Filter (name/type)";
+    case "replicasets":
+      return "Filter (name/owner)";
+    case "cronjobs":
+      return "Filter (name/schedule)";
+    case "persistentvolumeclaims":
+      return "Filter (name/status/signal/storageClass/volume)";
+    case "pods":
+      return "Filter (name/node/status)";
+    case "serviceaccounts":
+      return "Filter (name/token/pullSecret)";
+    default:
+      return "Filter";
+  }
+}
 
 export const sidebarGroups: SidebarGroup[] = [
   {
@@ -235,9 +326,21 @@ export function isClusterScopedSection(section: Section): boolean {
 
 export function getResourceViewPolicy(key?: ListResourceKey | null): ResourceViewPolicy {
   if (!key || !isListResourceKey(key)) {
-    return { quickFilters: { search: true, tag: true }, defaultSort: { field: "name", direction: "asc" } };
+    return {
+      quickFilters: { search: true, tag: true },
+      defaultSort: { field: "name", direction: "asc" },
+      filterLabel: "Filter",
+      identity: ["name"],
+      searchFields: ["name"],
+    };
   }
-  return resourceViewPolicies[key] ?? { quickFilters: { search: true, tag: true }, defaultSort: { field: "name", direction: "asc" } };
+  return resourceViewPolicies[key] ?? {
+    quickFilters: { search: true, tag: true },
+    defaultSort: { field: "name", direction: "asc" },
+    filterLabel: "Filter",
+    identity: ["name"],
+    searchFields: ["name"],
+  };
 }
 
 export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> = {
@@ -290,7 +393,13 @@ const defaultListResourceAccess: Record<ListResourceKey, AccessReviewResource> =
 const defaultResourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> = Object.fromEntries(
   Object.entries(resourceViewPolicies).map(([key, policy]) => [
     key,
-    { quickFilters: { ...policy.quickFilters }, defaultSort: { ...policy.defaultSort } },
+    {
+      quickFilters: { ...policy.quickFilters },
+      defaultSort: { ...policy.defaultSort },
+      filterLabel: policy.filterLabel,
+      identity: [...policy.identity],
+      searchFields: [...policy.searchFields],
+    },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
 
@@ -306,6 +415,9 @@ export function resetViewResourceDescriptorsForTest(): void {
     resourceViewPolicies[key] = {
       quickFilters: { ...defaultResourceViewPolicies[key].quickFilters },
       defaultSort: { ...defaultResourceViewPolicies[key].defaultSort },
+      filterLabel: defaultResourceViewPolicies[key].filterLabel,
+      identity: [...defaultResourceViewPolicies[key].identity],
+      searchFields: [...defaultResourceViewPolicies[key].searchFields],
     };
   }
   sidebarGroups.splice(
@@ -383,6 +495,27 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
         changed = true;
       }
     }
+
+    const listView = descriptor.listView;
+    if (listView?.filterLabel || listView?.identity || listView?.searchFields) {
+      const currentPolicy = resourceViewPolicies[descriptor.key];
+      const nextIdentity = normalizeFieldList(listView.identity) || currentPolicy.identity;
+      const nextSearchFields = normalizeFieldList(listView.searchFields) || currentPolicy.searchFields;
+      const nextFilterLabel = listView.filterLabel?.trim() || currentPolicy.filterLabel;
+      if (
+        currentPolicy.filterLabel !== nextFilterLabel ||
+        currentPolicy.identity.join("\u0000") !== nextIdentity.join("\u0000") ||
+        currentPolicy.searchFields.join("\u0000") !== nextSearchFields.join("\u0000")
+      ) {
+        resourceViewPolicies[descriptor.key] = {
+          ...currentPolicy,
+          filterLabel: nextFilterLabel,
+          identity: [...nextIdentity],
+          searchFields: [...nextSearchFields],
+        };
+        changed = true;
+      }
+    }
   }
 
   const nextGroups = (response?.sidebarGroups || [])
@@ -405,4 +538,12 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
   }
 
   return changed;
+}
+
+function normalizeFieldList(fields: string[] | undefined): string[] | null {
+  if (!Array.isArray(fields)) return null;
+  const normalized = fields
+    .map((field) => field.trim())
+    .filter(Boolean);
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : null;
 }

@@ -1185,6 +1185,9 @@ func TestGetViewResources(t *testing.T) {
 	if pods.ListView.DefaultSort.Field != "name" || pods.ListView.DefaultSort.Direction != "asc" {
 		t.Fatalf("expected pods default sort policy: %#v", pods.ListView.DefaultSort)
 	}
+	if pods.ListView.FilterLabel == "" || len(pods.ListView.Identity) == 0 || len(pods.ListView.SearchFields) == 0 {
+		t.Fatalf("expected pods list view defaults: %#v", pods.ListView)
+	}
 	helmCharts, ok := byKey["helmcharts"]
 	if !ok {
 		t.Fatal("missing helmcharts descriptor")

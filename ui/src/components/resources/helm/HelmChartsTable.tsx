@@ -123,7 +123,6 @@ export default function HelmChartsTable({ token }: { token: string }) {
       resourceKey="helmcharts"
       accessResource={listResourceAccess.helmcharts}
       namespace={null}
-      defaultSortField="chartName"
       skipEmptyAccessCheck
       renderDrawer={({ selectedRow, open, onClose }) => (
         <HelmChartDrawer

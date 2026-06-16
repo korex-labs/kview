@@ -31,6 +31,15 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 		if resource.ListView.DefaultSort.Field == "" || resource.ListView.DefaultSort.Direction == "" {
 			t.Fatalf("%s: expected default sort policy", resource.Key)
 		}
+		if resource.ListView.FilterLabel == "" {
+			t.Fatalf("%s: expected filter label", resource.Key)
+		}
+		if len(resource.ListView.Identity) == 0 {
+			t.Fatalf("%s: expected identity fields", resource.Key)
+		}
+		if len(resource.ListView.SearchFields) == 0 {
+			t.Fatalf("%s: expected search fields", resource.Key)
+		}
 		if _, exists := byKey[resource.Key]; exists {
 			t.Fatalf("%s: duplicate descriptor", resource.Key)
 		}
@@ -61,6 +70,7 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 func TestBundleReturnsCopies(t *testing.T) {
 	first := Bundle()
 	first.Resources[0].Label = "changed"
+	first.Resources[0].ListView.Identity[0] = "changed"
 	first.SidebarGroups[0].Items[0] = "changed"
 
 	second := Bundle()
@@ -72,6 +82,9 @@ func TestBundleReturnsCopies(t *testing.T) {
 	}
 	if second.Resources[0].ListView.DefaultSort.Field != "name" {
 		t.Fatal("default sort policy was not preserved")
+	}
+	if second.Resources[0].ListView.Identity[0] != "name" {
+		t.Fatal("identity fields were not copied")
 	}
 	if second.SidebarGroups[0].Items[0] == "changed" {
 		t.Fatal("sidebar group items were not copied")

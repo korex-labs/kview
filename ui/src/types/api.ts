@@ -87,6 +87,9 @@ export type ApiViewResourceDescriptor = {
       field?: string;
       direction?: "asc" | "desc" | string;
     };
+    filterLabel?: string;
+    identity?: string[];
+    searchFields?: string[];
   };
 };
 

@@ -118,7 +118,6 @@ export default function ClusterCustomResourcesTable({ token }: { token: string }
       resourceKey="clusterresources"
       accessResource={listResourceAccess.clusterresources}
       namespace={null}
-      defaultSortField="kind"
       skipEmptyAccessCheck
       dataplaneMetaPrefix={metaPrefix}
       renderDrawer={({ selectedRow, open, onClose }) => {

@@ -204,6 +204,39 @@ function savedViewMatchesLocation(
   );
 }
 
+function valueMatchesQuery(value: unknown, query: string): boolean {
+  if (value == null) return false;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value).toLowerCase().includes(query);
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => valueMatchesQuery(item, query));
+  }
+  return false;
+}
+
+function rowFieldValue(row: unknown, field: string): unknown {
+  if (!field || !row || typeof row !== "object") return undefined;
+  return (row as Record<string, unknown>)[field];
+}
+
+function rowMatchesSearchFields(row: unknown, fields: string[], query: string): boolean {
+  return fields.some((field) => valueMatchesQuery(rowFieldValue(row, field), query));
+}
+
+function rowIdentityValue(row: unknown, fields: string[]): string {
+  return fields
+    .map((field) => rowFieldValue(row, field))
+    .filter((value): value is string | number | boolean => (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ))
+    .map(String)
+    .filter(Boolean)
+    .join(" ");
+}
+
 export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: string }> = {
   selectedId: string | null;
   /** The row object when a row is selected (for drawers that need the full row, e.g. HelmChart). */
@@ -227,7 +260,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   mapRowsDeps?: unknown[];
   enabled?: boolean;
   filterPredicate: (row: TRow, query: string) => boolean;
-  filterLabel: string;
+  filterLabel?: string;
   filterIntent?: { value: string; nonce: number } | null;
   onFilterIntentApplied?: (nonce: number) => void;
   resourceLabel: string;
@@ -379,6 +412,15 @@ export default function ResourceListPage<TRow extends { id: string }>({
   );
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadPersistedColumnWidths(columnWidthsKey));
   const resourceViewPolicy = getResourceViewPolicy(resourceKey);
+  const effectiveFilterLabel = filterLabel || resourceViewPolicy.filterLabel;
+  const getViewQuickFilterKey = useCallback(
+    (row: TRow) => rowIdentityValue(row, resourceViewPolicy.identity),
+    [resourceViewPolicy.identity],
+  );
+  const effectiveFilterPredicate = useCallback(
+    (row: TRow, q: string) => filterPredicate(row, q) || rowMatchesSearchFields(row, resourceViewPolicy.searchFields, q),
+    [filterPredicate, resourceViewPolicy.searchFields],
+  );
   const defaultSortModel = useMemo<GridSortModel>(
     () => [{
       field: defaultSortField || resourceViewPolicy.defaultSort.field || "name",
@@ -488,9 +530,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
     useListFilters<TRow>({
       rows,
       lastRefresh,
+      getQuickFilterKey: getViewQuickFilterKey,
       getResourceTagTarget: (row) => resourceTagTargetForRow(row, activeContext),
       filterPredicate: (row, q) => {
-        if (filterPredicate(row, q)) return true;
+        if (effectiveFilterPredicate(row, q)) return true;
         const target = resourceTagTargetForRow(row, activeContext);
         return target ? resourceTagFilterMatches(settings.resourceTags, resourceTagsIndex, target, q) : false;
       },
@@ -878,7 +921,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
           }}
           slotProps={{
             toolbar: {
-              filterLabel,
+      filterLabel: effectiveFilterLabel,
               filter,
               onFilterChange: (value: string) => {
                 keepFilterFocusRef.current = true;

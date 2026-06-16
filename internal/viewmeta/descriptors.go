@@ -17,6 +17,9 @@ type ResourceDescriptor struct {
 type ListViewDescriptor struct {
 	QuickFilters QuickFilterPolicy `json:"quickFilters"`
 	DefaultSort  SortPolicy        `json:"defaultSort"`
+	FilterLabel  string            `json:"filterLabel"`
+	Identity     []string          `json:"identity"`
+	SearchFields []string          `json:"searchFields"`
 }
 
 type QuickFilterPolicy struct {
@@ -92,6 +95,9 @@ func Bundle() DescriptorBundle {
 		resourceCopy[i].ListView = ListViewDescriptor{
 			QuickFilters: QuickFilterPolicy{Search: resourceCopy[i].Key != "dashboard", Tag: resourceCopy[i].Key != "dashboard"},
 			DefaultSort:  defaultSortForResource(resourceCopy[i].Key),
+			FilterLabel:  filterLabelForResource(resourceCopy[i].Key),
+			Identity:     identityFieldsForResource(resourceCopy[i].Key),
+			SearchFields: searchFieldsForResource(resourceCopy[i].Key),
 		}
 	}
 	groupCopy := make([]SidebarGroup, 0, len(sidebarGroups))
@@ -100,6 +106,91 @@ func Bundle() DescriptorBundle {
 		groupCopy = append(groupCopy, group)
 	}
 	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy}
+}
+
+func identityFieldsForResource(key string) []string {
+	switch key {
+	case "helmcharts":
+		return []string{"chartName"}
+	case "customresources", "clusterresources":
+		return []string{"kind", "name"}
+	default:
+		return []string{"name"}
+	}
+}
+
+func searchFieldsForResource(key string) []string {
+	switch key {
+	case "helmcharts":
+		return []string{"chartName", "chartVersion", "appVersion", "statuses", "derivedSource"}
+	case "helm":
+		return []string{"name", "chart", "chartVersion", "appVersion", "status", "signalSeverity", "listSignalSeverity"}
+	case "customresources", "clusterresources":
+		return []string{"name", "kind", "group", "signalSeverity", "statusSummary"}
+	case "customresourcedefinitions":
+		return []string{"name", "group", "kind", "scope", "signalSeverity", "listSignalSeverity"}
+	case "pods":
+		return []string{"name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"}
+	case "nodes":
+		return []string{"name", "role", "roles", "status", "source", "signalSeverity", "listSignalSeverity"}
+	default:
+		return []string{"name", "status", "phase", "type", "signalSeverity", "listSignalSeverity"}
+	}
+}
+
+func filterLabelForResource(key string) string {
+	switch key {
+	case "horizontalpodautoscalers":
+		return "Filter (name/target/metric/signal)"
+	case "clusterrolebindings":
+		return "Filter (name/role/signal)"
+	case "networkpolicies":
+		return "Filter (name/selector/type)"
+	case "persistentvolumes":
+		return "Filter (name/status/signal/storageClass/claim)"
+	case "jobs":
+		return "Filter (name/status)"
+	case "ingresses":
+		return "Filter (name/class/signal/host)"
+	case "statefulsets":
+		return "Filter (name/service)"
+	case "customresources", "clusterresources":
+		return "Filter (name/kind/group/status)"
+	case "clusterroles":
+		return "Filter (name/signal)"
+	case "deployments", "daemonsets":
+		return "Filter (name/strategy)"
+	case "services":
+		return "Filter (name/type/signal/exposure)"
+	case "helmcharts":
+		return "Filter (chart/version/status/source)"
+	case "helm":
+		return "Filter (name / chart / signal / version)"
+	case "nodes":
+		return "Filter (name/role/status/signal/source)"
+	case "namespaces":
+		return "Filter (name, status, signals, workload, quota)"
+	case "configmaps", "roles", "rolebindings":
+		return "Filter (name/signal)"
+	case "resourcequotas":
+		return "Filter (name/key)"
+	case "secrets":
+		return "Filter (name/type/signal)"
+	case "limitranges":
+		return "Filter (name/type)"
+	case "replicasets":
+		return "Filter (name/owner)"
+	case "cronjobs":
+		return "Filter (name/schedule)"
+	case "persistentvolumeclaims":
+		return "Filter (name/status/signal/storageClass/volume)"
+	case "pods":
+		return "Filter (name/node/status)"
+	case "serviceaccounts":
+		return "Filter (name/token/pullSecret)"
+	default:
+		return "Filter"
+	}
 }
 
 func defaultSortForResource(key string) SortPolicy {

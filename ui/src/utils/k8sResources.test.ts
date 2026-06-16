@@ -26,6 +26,9 @@ describe("view resource descriptors", () => {
           listView: {
             quickFilters: { search: false, tag: true },
             defaultSort: { field: "createdAt", direction: "desc" },
+            filterLabel: "Filter pods",
+            identity: ["namespace", "name"],
+            searchFields: ["name", "phase"],
           },
         },
       ],
@@ -46,6 +49,9 @@ describe("view resource descriptors", () => {
     expect(getResourceViewPolicy("pods")).toMatchObject({
       quickFilters: { search: false, tag: true },
       defaultSort: { field: "createdAt", direction: "desc" },
+      filterLabel: "Filter pods",
+      identity: ["namespace", "name"],
+      searchFields: ["name", "phase"],
     });
     expect(sidebarGroups).toEqual([
       {
@@ -90,6 +96,9 @@ describe("view resource descriptors", () => {
     expect(getResourceViewPolicy("pods")).toMatchObject({
       quickFilters: { search: true, tag: true },
       defaultSort: { field: "name", direction: "asc" },
+      filterLabel: "Filter (name/node/status)",
+      identity: ["name"],
+      searchFields: ["name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"],
     });
     expect(sidebarGroups.some((group) => group.id === "invalid")).toBe(false);
   });

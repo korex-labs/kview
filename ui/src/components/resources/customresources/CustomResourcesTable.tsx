@@ -130,7 +130,6 @@ export default function CustomResourcesTable({
       resourceKey="customresources"
       accessResource={listResourceAccess.customresources}
       namespace={namespace}
-      defaultSortField="kind"
       skipEmptyAccessCheck
       dataplaneMetaPrefix={metaPrefix}
       renderDrawer={({ selectedRow, open, onClose }) => {
