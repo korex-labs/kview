@@ -1,9 +1,5 @@
 import React, { useState } from "react";
 import { Box, Menu, MenuItem } from "@mui/material";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
-import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import TuneIcon from "@mui/icons-material/Tune";
 import { useActiveContext } from "../../activeContext";
 import ActionButton from "./ActionButton";
 import { AppButton } from "../shared/AppActions";
@@ -21,6 +17,7 @@ import {
 } from "../../lib/actions/builders";
 import { customActionsForResource, type CustomActionDefinition } from "../../settings";
 import type { ListResourceKey } from "../../utils/k8sResources";
+import { actionPresentationIcon, getActionPresentation } from "../../utils/actionPresentation";
 
 function runtimeParamSpec(action: CustomActionDefinition) {
   if (!action.runtimeValue || action.action !== "set") return undefined;
@@ -60,6 +57,7 @@ function useCustomActionMenu(opts: {
   const canPatch = canPatchOrUpdate(caps);
   const actions = customActionsForResource(settings.customActions.actions, opts.resourceKey);
   if (actions.length === 0) return null;
+  const presentation = getActionPresentation("custom.workload");
 
   const run = (action: CustomActionDefinition) => {
     setAnchor(null);
@@ -107,11 +105,12 @@ function useCustomActionMenu(opts: {
   return (
     <>
       <AppButton
-        startIcon={<MoreHorizIcon />}
+        startIcon={actionPresentationIcon(presentation?.icon)}
+        color={presentation?.color}
         disabled={!canPatch}
         onClick={(e) => setAnchor(e.currentTarget)}
       >
-        Custom actions
+        {presentation?.label || "Custom actions"}
       </AppButton>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
         {actions.map((action) => (
@@ -180,9 +179,6 @@ export function DeleteOnlyActions({
   return (
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
-        label="Delete"
-        color="error"
-        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -275,8 +271,6 @@ export function WorkloadScaleRestartDeleteActions({
   return (
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
-        label="Scale"
-        startIcon={<TuneIcon />}
         descriptor={buildScaleDescriptor({
           id: config.scaleId,
           title: config.scaleTitle,
@@ -296,8 +290,6 @@ export function WorkloadScaleRestartDeleteActions({
       {custom}
 
       <ActionButton
-        label="Restart"
-        startIcon={<RestartAltIcon />}
         descriptor={buildRestartDescriptor({
           id: config.restartId,
           title: config.restartTitle,
@@ -313,9 +305,6 @@ export function WorkloadScaleRestartDeleteActions({
       />
 
       <ActionButton
-        label="Delete"
-        color="error"
-        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -402,8 +391,6 @@ export function WorkloadRestartDeleteActions({
   return (
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
-        label="Restart"
-        startIcon={<RestartAltIcon />}
         descriptor={buildRestartDescriptor({
           id: config.restartId,
           title: config.restartTitle,
@@ -421,9 +408,6 @@ export function WorkloadRestartDeleteActions({
       {custom}
 
       <ActionButton
-        label="Delete"
-        color="error"
-        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,
@@ -512,8 +496,6 @@ export function WorkloadScaleDeleteActions({
   return (
     <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
-        label="Scale"
-        startIcon={<TuneIcon />}
         descriptor={buildScaleDescriptor({
           id: config.scaleId,
           title: config.scaleTitle,
@@ -533,9 +515,6 @@ export function WorkloadScaleDeleteActions({
       {custom}
 
       <ActionButton
-        label="Delete"
-        color="error"
-        startIcon={<DeleteOutlineIcon />}
         descriptor={buildDeleteDescriptor({
           id: config.deleteId,
           title: config.deleteTitle,

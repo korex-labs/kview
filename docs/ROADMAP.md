@@ -113,8 +113,10 @@ Reduce frontend-only business logic so the project can later split cleanly into
   naming, compatibility/drift policy, plus dashboard signal-view defaults and
   signal filter category presentation. Signal definitions remain backend-owned
   in dataplane signal catalog APIs.
-- Next candidates: action capability presentation hints and deeper
-  investigation/search navigation contracts.
+- Completed third slice: descriptors now own static action presentation hints
+  for mutation labels, icons, colors, and ordering. Runtime permissions still
+  belong to capability checks and `/api/actions`.
+- Next candidates: deeper investigation/search navigation contracts.
 - Keep React responsible for rendering and interaction state, not authoritative
   product rules.
 - Maintain `API_READ_OWNERSHIP.md` whenever read ownership moves from UI or

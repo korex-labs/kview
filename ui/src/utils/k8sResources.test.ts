@@ -10,6 +10,7 @@ import {
   resetViewResourceDescriptorsForTest,
   sidebarGroups,
 } from "./k8sResources";
+import { getActionPresentation } from "./actionPresentation";
 
 describe("view resource descriptors", () => {
   afterEach(() => {
@@ -59,6 +60,9 @@ describe("view resource descriptors", () => {
           { key: "custom", label: "Custom", order: 11, compact: true },
         ],
       },
+      actions: [
+        { id: "delete", label: "Remove", icon: "delete", color: "error", order: 95 },
+      ],
     });
 
     expect(changed).toBe(true);
@@ -100,6 +104,12 @@ describe("view resource descriptors", () => {
       label: "Custom",
       order: 11,
       compact: true,
+    });
+    expect(getActionPresentation("pod.delete")).toMatchObject({
+      label: "Remove",
+      icon: "delete",
+      color: "error",
+      order: 95,
     });
   });
 
@@ -152,6 +162,12 @@ describe("view resource descriptors", () => {
       label: "Priority",
       order: 0,
       compact: true,
+    });
+    expect(getActionPresentation("pod.delete")).toMatchObject({
+      label: "Delete",
+      icon: "delete",
+      color: "error",
+      order: 90,
     });
   });
 });

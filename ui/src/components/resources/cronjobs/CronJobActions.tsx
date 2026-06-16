@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { Box } from "@mui/material";
-import PauseCircleOutlinedIcon from "@mui/icons-material/PauseCircleOutlined";
-import PlayCircleOutlinedIcon from "@mui/icons-material/PlayCircleOutlined";
 import { DeleteOnlyActions } from "../../mutations/ResourceActions";
 import ActionButton from "../../mutations/ActionButton";
 import { useActiveContext } from "../../../activeContext";
@@ -148,9 +146,7 @@ export default function CronJobActions({
     <>
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
         <ActionButton
-          label={desiredSuspend ? "Suspend" : "Resume"}
-          color={desiredSuspend ? "warning" : "success"}
-          startIcon={desiredSuspend ? <PauseCircleOutlinedIcon /> : <PlayCircleOutlinedIcon />}
+          presentationId={desiredSuspend ? "cronjob.suspend" : "cronjob.resume"}
           descriptor={suspendDescriptor}
           targetRef={targetRef}
           token={token}
@@ -159,7 +155,6 @@ export default function CronJobActions({
           onClickOverride={openSuspendDialog}
         />
         <ActionButton
-          label="Run now"
           descriptor={runDescriptor}
           targetRef={targetRef}
           token={token}

@@ -51,6 +51,7 @@ type DescriptorBundle struct {
 	Resources     []ResourceDescriptor `json:"resources"`
 	SidebarGroups []SidebarGroup       `json:"sidebarGroups"`
 	Dashboard     DashboardDescriptor  `json:"dashboard"`
+	Actions       []ActionPresentation `json:"actions"`
 }
 
 type DashboardDescriptor struct {
@@ -69,6 +70,14 @@ type DashboardSignalFilterCategoryPolicy struct {
 	Label   string `json:"label"`
 	Order   int    `json:"order"`
 	Compact bool   `json:"compact"`
+}
+
+type ActionPresentation struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
+	Order int    `json:"order"`
 }
 
 var resources = []ResourceDescriptor{
@@ -133,7 +142,12 @@ func Bundle() DescriptorBundle {
 		group.Items = append([]string(nil), group.Items...)
 		groupCopy = append(groupCopy, group)
 	}
-	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy, Dashboard: dashboardDescriptor()}
+	return DescriptorBundle{
+		Resources:     resourceCopy,
+		SidebarGroups: groupCopy,
+		Dashboard:     dashboardDescriptor(),
+		Actions:       actionPresentationDescriptors(),
+	}
 }
 
 func dashboardDescriptor() DashboardDescriptor {
@@ -156,6 +170,28 @@ func dashboardDescriptor() DashboardDescriptor {
 			{Key: "derived", Label: "Derived", Order: 9},
 			{Key: "other", Label: "Other", Order: 10},
 		},
+	}
+}
+
+func actionPresentationDescriptors() []ActionPresentation {
+	return []ActionPresentation{
+		{ID: "scale", Label: "Scale", Icon: "tune", Order: 10},
+		{ID: "cronjob.suspend", Label: "Suspend", Icon: "pause", Color: "warning", Order: 15},
+		{ID: "cronjob.resume", Label: "Resume", Icon: "play", Color: "success", Order: 15},
+		{ID: "job.rerun", Label: "Rerun", Icon: "replay", Order: 20},
+		{ID: "cronjob.run", Label: "Run now", Icon: "play", Order: 20},
+		{ID: "restart", Label: "Restart", Icon: "restart", Order: 30},
+		{ID: "custom.workload", Label: "Custom actions", Icon: "more", Order: 40},
+		{ID: "helm.install", Label: "Install", Icon: "add", Color: "primary", Order: 45},
+		{ID: "helm.reinstall", Label: "Reinstall", Icon: "replay", Order: 50},
+		{ID: "helm.upgrade", Label: "Upgrade", Icon: "upgrade", Order: 55},
+		{ID: "helm.rollback", Label: "Rollback", Icon: "undo", Order: 60},
+		{ID: "resource.yaml.validate", Label: "Validate", Icon: "check", Order: 70},
+		{ID: "resource.yaml.apply", Label: "Apply", Icon: "upgrade", Color: "warning", Order: 75},
+		{ID: "resource.patch.validate", Label: "Validate patch", Icon: "check", Order: 80},
+		{ID: "resource.patch.apply", Label: "Apply patch", Icon: "upgrade", Color: "warning", Order: 85},
+		{ID: "delete", Label: "Delete", Icon: "delete", Color: "error", Order: 90},
+		{ID: "helm.uninstall", Label: "Uninstall", Icon: "delete", Color: "error", Order: 90},
 	}
 }
 

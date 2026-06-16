@@ -19,6 +19,24 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 	if len(bundle.Dashboard.SignalFilterCategories) == 0 {
 		t.Fatal("expected dashboard signal filter category policy")
 	}
+	if len(bundle.Actions) == 0 {
+		t.Fatal("expected action presentation policy")
+	}
+	actionByID := map[string]ActionPresentation{}
+	for _, action := range bundle.Actions {
+		if action.ID == "" || action.Label == "" {
+			t.Fatalf("action presentation has incomplete metadata: %#v", action)
+		}
+		if _, exists := actionByID[action.ID]; exists {
+			t.Fatalf("%s: duplicate action presentation", action.ID)
+		}
+		actionByID[action.ID] = action
+	}
+	for _, id := range []string{"delete", "scale", "restart", "job.rerun", "cronjob.run", "helm.uninstall"} {
+		if _, exists := actionByID[id]; !exists {
+			t.Fatalf("missing action presentation for %s", id)
+		}
+	}
 
 	byKey := map[string]ResourceDescriptor{}
 	for _, resource := range bundle.Resources {
@@ -99,6 +117,7 @@ func TestBundleReturnsCopies(t *testing.T) {
 	first.SidebarGroups[0].Items[0] = "changed"
 	first.Dashboard.SignalViews.State[0] = "changed"
 	first.Dashboard.SignalFilterCategories[0].Label = "changed"
+	first.Actions[0].Label = "changed"
 
 	second := Bundle()
 	if second.Resources[0].Label == "changed" {
@@ -124,5 +143,8 @@ func TestBundleReturnsCopies(t *testing.T) {
 	}
 	if second.Dashboard.SignalFilterCategories[0].Label == "changed" {
 		t.Fatal("dashboard signal filter categories were not copied")
+	}
+	if second.Actions[0].Label == "changed" {
+		t.Fatal("action presentation policy was not copied")
 	}
 }

@@ -1173,6 +1173,9 @@ func TestGetViewResources(t *testing.T) {
 		len(body.Dashboard.SignalFilterCategories) == 0 {
 		t.Fatalf("expected dashboard view policy: %#v", body.Dashboard)
 	}
+	if len(body.Actions) == 0 {
+		t.Fatal("expected action presentation policy")
+	}
 
 	byKey := map[string]viewmeta.ResourceDescriptor{}
 	for _, resource := range body.Resources {

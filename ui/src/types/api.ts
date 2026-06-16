@@ -120,10 +120,19 @@ export type ApiDashboardViewDescriptor = {
   }>;
 };
 
+export type ApiActionPresentationDescriptor = {
+  id?: string;
+  label?: string;
+  icon?: string;
+  color?: string;
+  order?: number;
+};
+
 export type ApiViewResourcesResponse = {
   resources?: ApiViewResourceDescriptor[];
   sidebarGroups?: ApiViewSidebarGroup[];
   dashboard?: ApiDashboardViewDescriptor;
+  actions?: ApiActionPresentationDescriptor[];
 };
 
 /** GET /api/namespaces/enrichment?revision= */

@@ -11,12 +11,12 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import ActionButton from "../../mutations/ActionButton";
 import { executeAction } from "../../../lib/actions/executeAction";
 import { AppButton, DialogActionButton } from "../../shared/AppActions";
+import { actionPresentationIcon, getActionPresentation } from "../../../utils/actionPresentation";
 
 // --- Uninstall / Upgrade / Reinstall buttons for a selected release ---
 
@@ -55,7 +55,6 @@ export function HelmReleaseActions({
   return (
     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
       <ActionButton
-        label="Reinstall"
         descriptor={{
           id: "helm.reinstall",
           title: "Reinstall Helm Release",
@@ -82,7 +81,6 @@ export function HelmReleaseActions({
       />
 
       <ActionButton
-        label="Upgrade"
         descriptor={{
           id: "helm.upgrade",
           title: "Upgrade Helm Release",
@@ -128,8 +126,6 @@ export function HelmReleaseActions({
       />
 
       <ActionButton
-        label="Uninstall"
-        color="error"
         descriptor={{
           id: "helm.uninstall",
           title: "Uninstall Helm Release",
@@ -203,11 +199,18 @@ export function HelmInstallButton({ token, namespace, onSuccess }: InstallButton
   const { health } = useConnectionState();
   const offline = health === "unhealthy";
   const [open, setOpen] = useState(false);
+  const presentation = getActionPresentation("helm.install");
 
   return (
     <>
-      <AppButton intent="primary" startIcon={<AddIcon />} disabled={offline} onClick={() => setOpen(true)}>
-        Install
+      <AppButton
+        intent="primary"
+        color={presentation?.color}
+        startIcon={actionPresentationIcon(presentation?.icon)}
+        disabled={offline}
+        onClick={() => setOpen(true)}
+      >
+        {presentation?.label || "Install"}
       </AppButton>
       <InstallDialog
         open={open}
@@ -244,6 +247,7 @@ function InstallDialog(props: {
   const [createNamespace, setCreateNamespace] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const presentation = getActionPresentation("helm.install");
 
   useEffect(() => {
     if (props.open) {
@@ -368,8 +372,13 @@ function InstallDialog(props: {
         <DialogActionButton action="cancel" onClick={props.onClose} disabled={busy}>
           Cancel
         </DialogActionButton>
-        <DialogActionButton action="primary" onClick={handleConfirm} disabled={!valid || busy} startIcon={busy ? undefined : <AddIcon />}>
-          {busy ? <CircularProgress size={20} /> : "Install"}
+        <DialogActionButton
+          action="primary"
+          onClick={handleConfirm}
+          disabled={!valid || busy}
+          startIcon={busy ? undefined : actionPresentationIcon(presentation?.icon)}
+        >
+          {busy ? <CircularProgress size={20} /> : presentation?.label || "Install"}
         </DialogActionButton>
       </DialogActions>
     </Dialog>

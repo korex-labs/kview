@@ -1,6 +1,7 @@
 import type { Section } from "../state";
 import type { ResourceIconName } from "../components/icons/resources/types";
 import type { ApiViewResourcesResponse } from "../types/api";
+import { applyActionPresentationDescriptors, resetActionPresentationsForTest } from "./actionPresentation";
 
 export type AccessReviewResource = {
   group: string;
@@ -574,6 +575,7 @@ export function resetViewResourceDescriptorsForTest(): void {
   dashboardViewPolicy.signalFilterCategories = Object.fromEntries(
     Object.entries(defaultDashboardViewPolicy.signalFilterCategories).map(([key, policy]) => [key, { ...policy }]),
   );
+  resetActionPresentationsForTest();
 }
 
 export function applyViewResourceDescriptors(response: ApiViewResourcesResponse | null | undefined): boolean {
@@ -752,6 +754,10 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
       dashboardViewPolicy.signalFilterCategories = merged;
       changed = true;
     }
+  }
+
+  if (applyActionPresentationDescriptors(response?.actions)) {
+    changed = true;
   }
 
   return changed;

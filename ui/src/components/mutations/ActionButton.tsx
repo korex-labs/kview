@@ -11,6 +11,7 @@ import { useMutationDialog } from "./useMutationDialog";
 import type { MutationActionDescriptor, TargetRef } from "../../lib/actions/types";
 import { useConnectionState } from "../../connectionState";
 import { AppButton } from "../shared/AppActions";
+import { actionPresentationIcon, getActionPresentation } from "../../utils/actionPresentation";
 
 export type ActionButtonProps = {
   descriptor: MutationActionDescriptor;
@@ -19,6 +20,8 @@ export type ActionButtonProps = {
   onSuccess?: () => void;
   /** Override the button label (defaults to descriptor.title). */
   label?: string;
+  /** Optional static presentation key when one backend action has multiple UI states. */
+  presentationId?: string;
   color?: "primary" | "secondary" | "error" | "warning" | "info" | "success" | "inherit";
   size?: "small" | "medium" | "large";
   variant?: "text" | "outlined" | "contained";
@@ -57,6 +60,7 @@ export default function ActionButton({
   token,
   onSuccess,
   label,
+  presentationId,
   color,
   size = "small",
   variant = "outlined",
@@ -83,19 +87,22 @@ export default function ActionButton({
     open({ descriptor, targetRef, token, onSuccess, initialParams });
   }
 
-  const effectiveStartIcon = startIcon ?? defaultActionIcon(descriptor, label);
+  const presentation = getActionPresentation(presentationId || descriptor.id);
+  const effectiveLabel = label ?? presentation?.label ?? descriptor.title;
+  const effectiveStartIcon = startIcon ?? actionPresentationIcon(presentation?.icon) ?? defaultActionIcon(descriptor, effectiveLabel);
+  const effectiveColor = color ?? presentation?.color;
 
   return (
     <AppButton
       size={size}
       variant={variant}
-      color={color}
+      color={effectiveColor}
       disabled={effectiveDisabled}
       onClick={handleClick}
       startIcon={effectiveStartIcon}
       tooltip={effectiveDisabled && effectiveDisabledReason ? effectiveDisabledReason : undefined}
     >
-      {label ?? descriptor.title}
+      {effectiveLabel}
     </AppButton>
   );
 }

@@ -101,7 +101,6 @@ export default function JobActions({ token, namespace, jobName, onDeleted }: Pro
     <>
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
         <ActionButton
-          label="Rerun"
           descriptor={rerunDescriptor}
           targetRef={targetRef}
           token={token}

@@ -23,6 +23,8 @@ Resource descriptors own product-level view rules:
   name prefixes, and drift-comparison state
 - `dashboard.signalFilterCategories` for dashboard signal filter group labels,
   ordering, and compact layout hints
+- `actions` for static mutation-action presentation hints such as button label,
+  icon, color, and relative order
 
 React components should not duplicate these values unless a view intentionally
 deviates from the resource default. Examples of valid table-local overrides are
@@ -51,6 +53,13 @@ for signal-view defaults and signal filter category presentation. Signal
 definitions, effective signal policy, and per-response filter counts still come
 from dataplane signal APIs; the view descriptor owns only static presentation
 rules.
+
+`ActionButton` uses the action presentation catalog for default mutation button
+labels, icons, and colors. Runtime availability is intentionally outside this
+contract: RBAC and target-specific capability checks still come from
+`POST /api/capabilities`, and execution still goes through `POST /api/actions`.
+When an action ID is resource-specific, for example `pod.delete`, the UI first
+checks the exact ID and then falls back to the suffix policy such as `delete`.
 
 ## Saved-view rules
 
