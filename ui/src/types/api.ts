@@ -83,6 +83,10 @@ export type ApiViewResourceDescriptor = {
       search?: boolean;
       tag?: boolean;
     };
+    defaultSort?: {
+      field?: string;
+      direction?: "asc" | "desc" | string;
+    };
   };
 };
 

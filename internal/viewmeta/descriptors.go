@@ -16,11 +16,17 @@ type ResourceDescriptor struct {
 
 type ListViewDescriptor struct {
 	QuickFilters QuickFilterPolicy `json:"quickFilters"`
+	DefaultSort  SortPolicy        `json:"defaultSort"`
 }
 
 type QuickFilterPolicy struct {
 	Search bool `json:"search"`
 	Tag    bool `json:"tag"`
+}
+
+type SortPolicy struct {
+	Field     string `json:"field"`
+	Direction string `json:"direction"`
 }
 
 type SidebarGroup struct {
@@ -83,7 +89,10 @@ var sidebarGroups = []SidebarGroup{
 func Bundle() DescriptorBundle {
 	resourceCopy := append([]ResourceDescriptor(nil), resources...)
 	for i := range resourceCopy {
-		resourceCopy[i].ListView.QuickFilters = QuickFilterPolicy{Search: resourceCopy[i].Key != "dashboard", Tag: resourceCopy[i].Key != "dashboard"}
+		resourceCopy[i].ListView = ListViewDescriptor{
+			QuickFilters: QuickFilterPolicy{Search: resourceCopy[i].Key != "dashboard", Tag: resourceCopy[i].Key != "dashboard"},
+			DefaultSort:  defaultSortForResource(resourceCopy[i].Key),
+		}
 	}
 	groupCopy := make([]SidebarGroup, 0, len(sidebarGroups))
 	for _, group := range sidebarGroups {
@@ -91,4 +100,15 @@ func Bundle() DescriptorBundle {
 		groupCopy = append(groupCopy, group)
 	}
 	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy}
+}
+
+func defaultSortForResource(key string) SortPolicy {
+	switch key {
+	case "customresources", "clusterresources":
+		return SortPolicy{Field: "kind", Direction: "asc"}
+	case "helmcharts":
+		return SortPolicy{Field: "chartName", Direction: "asc"}
+	default:
+		return SortPolicy{Field: "name", Direction: "asc"}
+	}
 }

@@ -50,6 +50,10 @@ export type ResourceViewPolicy = {
     search: boolean;
     tag: boolean;
   };
+  defaultSort: {
+    field: string;
+    direction: "asc" | "desc";
+  };
 };
 
 export type SidebarGroup = {
@@ -145,6 +149,10 @@ export const resourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> =
         search: key !== "dashboard",
         tag: key !== "dashboard",
       },
+      defaultSort: {
+        field: key === "helmcharts" ? "chartName" : key === "customresources" || key === "clusterresources" ? "kind" : "name",
+        direction: "asc",
+      },
     },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
@@ -227,9 +235,9 @@ export function isClusterScopedSection(section: Section): boolean {
 
 export function getResourceViewPolicy(key?: ListResourceKey | null): ResourceViewPolicy {
   if (!key || !isListResourceKey(key)) {
-    return { quickFilters: { search: true, tag: true } };
+    return { quickFilters: { search: true, tag: true }, defaultSort: { field: "name", direction: "asc" } };
   }
-  return resourceViewPolicies[key] ?? { quickFilters: { search: true, tag: true } };
+  return resourceViewPolicies[key] ?? { quickFilters: { search: true, tag: true }, defaultSort: { field: "name", direction: "asc" } };
 }
 
 export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> = {
@@ -282,7 +290,7 @@ const defaultListResourceAccess: Record<ListResourceKey, AccessReviewResource> =
 const defaultResourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> = Object.fromEntries(
   Object.entries(resourceViewPolicies).map(([key, policy]) => [
     key,
-    { quickFilters: { ...policy.quickFilters } },
+    { quickFilters: { ...policy.quickFilters }, defaultSort: { ...policy.defaultSort } },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
 
@@ -295,7 +303,10 @@ export function resetViewResourceDescriptorsForTest(): void {
   for (const key of Object.keys(resourceMeta) as ListResourceKey[]) {
     resourceMeta[key] = { ...defaultResourceMeta[key] };
     listResourceAccess[key] = { ...defaultListResourceAccess[key] };
-    resourceViewPolicies[key] = { quickFilters: { ...defaultResourceViewPolicies[key].quickFilters } };
+    resourceViewPolicies[key] = {
+      quickFilters: { ...defaultResourceViewPolicies[key].quickFilters },
+      defaultSort: { ...defaultResourceViewPolicies[key].defaultSort },
+    };
   }
   sidebarGroups.splice(
     0,
@@ -339,6 +350,7 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
     const quickFilters = descriptor.listView?.quickFilters;
     if (quickFilters) {
       const nextPolicy: ResourceViewPolicy = {
+        ...resourceViewPolicies[descriptor.key],
         quickFilters: {
           search: quickFilters.search !== false,
           tag: quickFilters.tag !== false,
@@ -350,6 +362,24 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
         currentPolicy.quickFilters.tag !== nextPolicy.quickFilters.tag
       ) {
         resourceViewPolicies[descriptor.key] = nextPolicy;
+        changed = true;
+      }
+    }
+
+    const defaultSort = descriptor.listView?.defaultSort;
+    if (defaultSort?.field && (defaultSort.direction === "asc" || defaultSort.direction === "desc")) {
+      const currentPolicy = resourceViewPolicies[descriptor.key];
+      if (
+        currentPolicy.defaultSort.field !== defaultSort.field ||
+        currentPolicy.defaultSort.direction !== defaultSort.direction
+      ) {
+        resourceViewPolicies[descriptor.key] = {
+          ...currentPolicy,
+          defaultSort: {
+            field: defaultSort.field,
+            direction: defaultSort.direction,
+          },
+        };
         changed = true;
       }
     }

@@ -22,7 +22,7 @@ import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
-import { getResourceIcon, type AccessReviewResource } from "../../utils/k8sResources";
+import { getResourceIcon, getResourceViewPolicy, type AccessReviewResource } from "../../utils/k8sResources";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import type { DataplaneListMeta, ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
@@ -280,7 +280,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   resourceKey,
   accessResource,
   namespace = null,
-  defaultSortField = "name",
+  defaultSortField,
   initialColumnVisibilityModel,
   initialRefreshSec,
   dataplaneMetaPrefix,
@@ -378,9 +378,13 @@ export default function ResourceListPage<TRow extends { id: string }>({
     [activeContext, namespace, resourceKey],
   );
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadPersistedColumnWidths(columnWidthsKey));
+  const resourceViewPolicy = getResourceViewPolicy(resourceKey);
   const defaultSortModel = useMemo<GridSortModel>(
-    () => [{ field: defaultSortField, sort: "asc" }],
-    [defaultSortField],
+    () => [{
+      field: defaultSortField || resourceViewPolicy.defaultSort.field || "name",
+      sort: defaultSortField ? "asc" : resourceViewPolicy.defaultSort.direction,
+    }],
+    [defaultSortField, resourceViewPolicy.defaultSort.direction, resourceViewPolicy.defaultSort.field],
   );
   const [sortModel, setSortModel] = useState<GridSortModel>(defaultSortModel);
   const defaultColumnVisibilityModelKey = useMemo(

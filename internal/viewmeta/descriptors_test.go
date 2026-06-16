@@ -28,6 +28,9 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 		if resource.Key != "dashboard" && (!resource.ListView.QuickFilters.Search || !resource.ListView.QuickFilters.Tag) {
 			t.Fatalf("%s: expected list quick filter policy", resource.Key)
 		}
+		if resource.ListView.DefaultSort.Field == "" || resource.ListView.DefaultSort.Direction == "" {
+			t.Fatalf("%s: expected default sort policy", resource.Key)
+		}
 		if _, exists := byKey[resource.Key]; exists {
 			t.Fatalf("%s: duplicate descriptor", resource.Key)
 		}
@@ -66,6 +69,9 @@ func TestBundleReturnsCopies(t *testing.T) {
 	}
 	if second.Resources[0].ListView.QuickFilters.Search {
 		t.Fatal("dashboard list view policy was not preserved")
+	}
+	if second.Resources[0].ListView.DefaultSort.Field != "name" {
+		t.Fatal("default sort policy was not preserved")
 	}
 	if second.SidebarGroups[0].Items[0] == "changed" {
 		t.Fatal("sidebar group items were not copied")
