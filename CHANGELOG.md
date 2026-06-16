@@ -3,6 +3,29 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.12.0 - 2026-06-16
+
+- Added saved resource views so operators can return to frequently used list
+  setups more quickly, with broader backend-driven view policies keeping quick
+  filters, default sorting, labels, and action presentation more consistent
+  across resource types.
+- Expanded resource drawer workflows with tags and Resource Macros, including
+  tag automation support so repeated tagging conventions can be applied more
+  efficiently while investigating live resources.
+- Added operator and dashboard settings profiles, making it easier to switch
+  between different working setups for cluster browsing and signal triage.
+- Improved keyboard navigation reliability by introducing explicit focus scopes
+  and routing drawer and Help escape handling through the shared keyboard
+  system, making layered UI surfaces behave more predictably.
+- Added backend resource descriptors and focused resource navigation to tighten
+  the handoff between lists, drawers, and signal-driven investigation flows.
+- Fixed remembered dashboard signal views and overlapping dataplane list
+  polling, reducing view reset surprises and unnecessary background refresh
+  contention.
+- Refreshed Go and UI dependencies, stabilized targeted frontend and
+  custom-resource tests, and continued documentation planning work for keyboard
+  focus and the broader product roadmap.
+
 ## v5.11.0 - 2026-06-13
 
 - Added policy resource views for NetworkPolicies, ResourceQuotas, and
