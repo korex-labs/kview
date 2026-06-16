@@ -3,13 +3,19 @@ import {
   Box,
   Chip,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import { apiGet, apiGetWithContext, apiPost } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
@@ -29,6 +35,7 @@ import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
+import { AppButton, AppIconButton } from "../../shared/AppActions";
 import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
@@ -53,6 +60,15 @@ import RoleBindingDrawer from "../rolebindings/RoleBindingDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
 import ResourceQuotaDrawer from "../resourcequotas/ResourceQuotaDrawer";
 import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
+import {
+  addDashboardSignalViewProfile,
+  dashboardSignalViewSnapshot,
+  loadDashboardSignalViewProfiles,
+  removeDashboardSignalViewProfile,
+  saveDashboardSignalViewProfiles,
+  updateDashboardSignalViewProfile,
+  type DashboardSignalViewProfile,
+} from "../../../dashboardProfiles";
 
 type Props = {
   token: string;
@@ -322,6 +338,8 @@ export default function DashboardView(props: Props) {
   const [signalsPage, setSignalsPage] = useState(0);
   const [signalsRowsPerPage, setSignalsRowsPerPage] = useState(10);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
+  const [dashboardProfiles, setDashboardProfiles] = useState(() => loadDashboardSignalViewProfiles());
+  const [dashboardProfileName, setDashboardProfileName] = useState("");
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
   const { settings } = useUserSettings();
@@ -345,6 +363,43 @@ export default function DashboardView(props: Props) {
   const warmupRetryAttemptsRef = useRef<Record<string, number>>({});
   const warmupRetryTimerRef = useRef<number | null>(null);
   const responseCacheRef = useRef<{ key: string; at: number; data: ApiDashboardClusterResponse } | null>(null);
+  const currentDashboardProfileSnapshot = dashboardSignalViewSnapshot({
+    signalFilter,
+    signalFilters,
+    signalsQuery,
+    signalsSort,
+    signalsRowsPerPage,
+  });
+  const activeDashboardProfile = dashboardProfiles.definitions.find((profile) => profile.id === dashboardProfiles.activeProfileId);
+  const dashboardProfileDirty = activeDashboardProfile
+    ? JSON.stringify(activeDashboardProfile.snapshot) !== JSON.stringify(currentDashboardProfileSnapshot)
+    : false;
+
+  useEffect(() => {
+    saveDashboardSignalViewProfiles(dashboardProfiles);
+  }, [dashboardProfiles]);
+
+  const applyDashboardSignalProfile = (profile: DashboardSignalViewProfile) => {
+    setSignalFilter(profile.snapshot.signalFilter);
+    setSignalFilters(profile.snapshot.signalFilters);
+    setSignalsQuery(profile.snapshot.signalsQuery);
+    setSignalsSort(profile.snapshot.signalsSort);
+    setSignalsRowsPerPage(profile.snapshot.signalsRowsPerPage);
+    setSignalsPage(0);
+    setDashboardProfiles((prev) => ({ ...prev, activeProfileId: profile.id }));
+  };
+
+  const createDashboardSignalProfile = () => {
+    setDashboardProfiles((prev) => addDashboardSignalViewProfile(prev, dashboardProfileName, currentDashboardProfileSnapshot));
+    setDashboardProfileName("");
+  };
+
+  const updateActiveDashboardSignalProfile = () => {
+    if (!activeDashboardProfile) return;
+    setDashboardProfiles((prev) =>
+      updateDashboardSignalViewProfile(prev, activeDashboardProfile.id, currentDashboardProfileSnapshot),
+    );
+  };
 
   useEffect(() => {
     if (health === "unhealthy" || !pageVisible) return;
@@ -551,6 +606,71 @@ export default function DashboardView(props: Props) {
         <ResourceIcon name="dashboard" size={21} sx={{ color: "primary.main" }} />
         <Typography variant="h6">Cluster dashboard</Typography>
         <InfoHint title="Dataplane snapshot view. Resource totals and signals use cached namespace list snapshots only; unknown namespaces are not inferred." />
+      </Box>
+
+      <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 220 } }}>
+          <InputLabel id="dashboard-signal-profile-label">Signal view</InputLabel>
+          <Select
+            labelId="dashboard-signal-profile-label"
+            label="Signal view"
+            value={dashboardProfiles.activeProfileId}
+            onChange={(event) => {
+              const id = event.target.value;
+              if (!id) {
+                setDashboardProfiles((prev) => ({ ...prev, activeProfileId: "" }));
+                return;
+              }
+              const profile = dashboardProfiles.definitions.find((item) => item.id === id);
+              if (profile) applyDashboardSignalProfile(profile);
+            }}
+          >
+            <MenuItem value="">
+              {dashboardProfiles.definitions.length === 0 ? "No signal views" : "No signal view"}
+            </MenuItem>
+            {dashboardProfiles.definitions.map((profile) => (
+              <MenuItem key={profile.id} value={profile.id}>
+                {profile.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        {activeDashboardProfile && dashboardProfileDirty ? (
+          <Chip size="small" color="warning" variant="outlined" label="Modified" />
+        ) : null}
+        <TextField
+          size="small"
+          label="Signal view name"
+          value={dashboardProfileName}
+          onChange={(event) => setDashboardProfileName(event.target.value)}
+          sx={{ minWidth: { xs: "100%", sm: 220 } }}
+        />
+        <AppButton
+          intent="primary"
+          disabled={!dashboardProfileName.trim()}
+          onClick={createDashboardSignalProfile}
+        >
+          Save signal view
+        </AppButton>
+        <AppButton
+          variant="outlined"
+          disabled={!activeDashboardProfile}
+          onClick={updateActiveDashboardSignalProfile}
+        >
+          Update signal view
+        </AppButton>
+        <AppIconButton
+          tooltip="Delete selected signal view"
+          label="Delete selected signal view"
+          intent="destructive"
+          disabled={!activeDashboardProfile}
+          onClick={() => {
+            if (!activeDashboardProfile) return;
+            setDashboardProfiles((prev) => removeDashboardSignalViewProfile(prev, activeDashboardProfile.id));
+          }}
+        >
+          <DeleteOutlineIcon fontSize="inherit" />
+        </AppIconButton>
       </Box>
 
       {loading && (

@@ -20,6 +20,9 @@ Use the dashboard to answer:
 - **Signal search**: narrows visible signals by text.
 - **Signal sorting**: changes signal order by priority, severity, resource, or
   seen timestamps.
+- **Signal views**: save and reapply the current signal chips, search
+  text, sort order, and rows per page from the dashboard header. Applying a
+  signal view resets the signal table to the first page.
 - **Signal acknowledgement**: marks a signal as known without treating it as
   resolved. kview shows this action beside signal severity in the dashboard,
   namespace signal tables, and resource drawer attention banners when signal
@@ -58,12 +61,11 @@ Dashboard refresh cadence is configured under **Dataplane**. Wide and
 diagnostic dataplane profiles apply a minimum refresh floor so broad dashboard
 refreshes do not run too aggressively.
 
-Dashboard profiles in **Settings** > **Profiles** can save and reapply
-dashboard presentation policy for common workflows. A dashboard profile captures
-combined signal-filter mode, favourite and recent namespace filter chips,
-dataplane profile, refresh cadence, cached totals mode, and signal limits. It
-does not capture the currently selected signal chip, signal search text,
-sorting, or pagination.
+Signal views live directly in the dashboard header. They are for fast switching
+between views such as high-severity production signals, a namespace, a tag, or
+newest Helm-related signals. Broader dashboard policy, such as combined filter
+behavior, favourite and recent namespace chips, refresh cadence, and signal
+limits, remains normal Settings/Profile behavior.
 
 ## Signals
 

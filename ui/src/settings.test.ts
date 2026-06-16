@@ -2,9 +2,7 @@
 
 import { describe, expect, it, beforeEach } from "vitest";
 import {
-  addDashboardProfile,
   addOperatorProfile,
-  applyDashboardProfile,
   applyDataplaneProfile,
   applyOperatorProfile,
   applySettingsTransferBundle,
@@ -17,13 +15,11 @@ import {
   dataplaneSettingsForContext,
   labelForSmartFilterRules,
   loadUserSettings,
-  removeDashboardProfile,
   removeOperatorProfile,
   parseSettingsTransferJSON,
   parseUserSettingsJSON,
   settingsTransferSectionIds,
   smartFilterResourceKeysForScope,
-  updateDashboardProfileSnapshot,
   updateOperatorProfileSnapshot,
   validateUserSettings,
   USER_SETTINGS_KEY,
@@ -107,10 +103,8 @@ describe("user settings", () => {
   it("keeps saved views empty by default", () => {
     expect(defaultUserSettings().savedViews).toEqual([]);
     expect(defaultUserSettings().operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
-    expect(defaultUserSettings().dashboardProfiles).toEqual({ activeProfileId: "", definitions: [] });
     expect(validateUserSettings({ v: 1 })?.savedViews).toEqual([]);
     expect(validateUserSettings({ v: 1 })?.operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
-    expect(validateUserSettings({ v: 1 })?.dashboardProfiles).toEqual({ activeProfileId: "", definitions: [] });
   });
 
   it("captures, applies, updates, and removes operator profiles", () => {
@@ -192,124 +186,6 @@ describe("user settings", () => {
     });
     expect(parsed?.operatorProfiles.definitions[0].description).toHaveLength(280);
     expect(parsed?.operatorProfiles.definitions[0].snapshot.keyboard.vimTableNavigation).toBe(false);
-  });
-
-  it("captures, applies, updates, and removes dashboard profiles", () => {
-    const initial = {
-      ...defaultUserSettings(),
-      appearance: {
-        ...defaultUserSettings().appearance,
-        dashboardCombinedSignalFilters: true,
-        dashboardFavouriteNamespaceFilters: true,
-        dashboardRecentNamespaceFilters: false,
-      },
-      dataplane: {
-        ...defaultUserSettings().dataplane,
-        global: {
-          ...defaultUserSettings().dataplane.global,
-          profile: "wide" as const,
-          dashboard: {
-            ...defaultUserSettings().dataplane.global.dashboard,
-            refreshSec: 30,
-            signalLimit: 20,
-          },
-        },
-      },
-    };
-    const profiled = addDashboardProfile(initial, {
-      name: "  Incident dashboard  ",
-      description: "Broad dashboard",
-      now: 100,
-    });
-    const profile = profiled.dashboardProfiles.definitions[0];
-
-    expect(profile).toMatchObject({
-      name: "Incident dashboard",
-      description: "Broad dashboard",
-      createdAt: 100,
-      updatedAt: 100,
-    });
-    expect(profile.snapshot.dataplaneProfile).toBe("wide");
-    expect(profile.snapshot.dashboard.signalLimit).toBe(20);
-
-    const drifted = {
-      ...profiled,
-      appearance: {
-        ...profiled.appearance,
-        dashboardCombinedSignalFilters: false,
-      },
-      dataplane: {
-        ...profiled.dataplane,
-        global: {
-          ...profiled.dataplane.global,
-          profile: "focused" as const,
-          dashboard: {
-            ...profiled.dataplane.global.dashboard,
-            refreshSec: 5,
-            signalLimit: 5,
-          },
-        },
-      },
-    };
-    const applied = applyDashboardProfile(drifted, profile.id);
-    expect(applied.appearance.dashboardCombinedSignalFilters).toBe(true);
-    expect(applied.dataplane.global.profile).toBe("wide");
-    expect(applied.dataplane.global.dashboard.refreshSec).toBe(30);
-    expect(applied.dataplane.global.dashboard.signalLimit).toBe(20);
-
-    const updated = updateDashboardProfileSnapshot(drifted, profile.id, 200);
-    expect(updated.dashboardProfiles.definitions[0].updatedAt).toBe(200);
-    expect(applyDashboardProfile(updated, profile.id).dataplane.global.dashboard.signalLimit).toBe(5);
-
-    expect(removeDashboardProfile(updated, profile.id).dashboardProfiles).toEqual({ activeProfileId: "", definitions: [] });
-  });
-
-  it("validates imported dashboard profiles and clamps dashboard settings", () => {
-    const base = defaultUserSettings();
-    const parsed = validateUserSettings({
-      ...base,
-      dashboardProfiles: {
-        activeProfileId: "dashboard",
-        definitions: [
-          {
-            id: "dashboard",
-            name: " Dashboard ",
-            snapshot: {
-              appearance: {
-                dashboardCombinedSignalFilters: true,
-                dashboardFavouriteNamespaceFilters: true,
-                dashboardRecentNamespaceFilters: true,
-              },
-              dataplaneProfile: "diagnostic",
-              dashboard: {
-                refreshSec: 9999,
-                useCachedTotalsOnly: false,
-                signalLimit: 250,
-                newestSignalLimit: 0,
-              },
-            },
-            createdAt: 10,
-            updatedAt: 20,
-          },
-        ],
-      },
-    });
-
-    expect(parsed?.dashboardProfiles.activeProfileId).toBe("dashboard");
-    expect(parsed?.dashboardProfiles.definitions[0].snapshot).toMatchObject({
-      appearance: {
-        dashboardCombinedSignalFilters: true,
-        dashboardFavouriteNamespaceFilters: true,
-        dashboardRecentNamespaceFilters: true,
-      },
-      dataplaneProfile: "diagnostic",
-      dashboard: {
-        refreshSec: 10,
-        useCachedTotalsOnly: false,
-        signalLimit: 10,
-        newestSignalLimit: 10,
-      },
-    });
   });
 
   it("validates saved resource views", () => {
