@@ -66,6 +66,12 @@ Applying a profile replaces those captured settings sections and marks that
 profile as active. Updating a profile overwrites its snapshot with the current
 settings. Deleting a profile removes only that local snapshot.
 
+Dashboard profiles are narrower snapshots for dashboard presentation policy.
+They capture combined signal-filter mode, favourite and recent namespace filter
+chips, dataplane profile, dashboard refresh cadence, cached totals mode, and
+signal limits. They do not capture the currently selected signal chip, signal
+search text, sorting, or pagination.
+
 ## Keyboard
 
 Keyboard settings control optional bindings:

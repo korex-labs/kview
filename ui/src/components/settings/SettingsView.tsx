@@ -40,7 +40,9 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
+  addDashboardProfile,
   addOperatorProfile,
+  applyDashboardProfile,
   applyDataplaneProfile,
   applyOperatorProfile,
   customActionResourceKeys,
@@ -59,6 +61,8 @@ import {
   dataplaneSettingsForContext,
   applySettingsTransferBundle,
   removeOperatorProfile,
+  removeDashboardProfile,
+  updateDashboardProfileSnapshot,
   updateOperatorProfileSnapshot,
   type CustomActionDefinition,
   type CustomActionKind,
@@ -73,6 +77,7 @@ import {
   type KeyboardSettings,
   type KviewUserSettingsV2,
   type DynamicLinkDefinition,
+  type DashboardProfileDefinition,
   type OperatorProfileDefinition,
   type ResourceAutoTagRuleDefinition,
   type ResourceMacroDefinition,
@@ -955,6 +960,8 @@ export default function SettingsView({
   const [resourceTagsTab, setResourceTagsTab] = useState<ResourceTagsTab>("manual");
   const [profileName, setProfileName] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
+  const [dashboardProfileName, setDashboardProfileName] = useState("");
+  const [dashboardProfileDescription, setDashboardProfileDescription] = useState("");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
@@ -1547,8 +1554,68 @@ export default function SettingsView({
     );
   };
 
+  const renderDashboardProfileCard = (profile: DashboardProfileDefinition) => {
+    const isActive = settings.dashboardProfiles.activeProfileId === profile.id;
+    const summary = [
+      dataplaneProfileLabel(profile.snapshot.dataplaneProfile),
+      profile.snapshot.dashboard.refreshSec > 0 ? `${profile.snapshot.dashboard.refreshSec}s refresh` : "manual refresh",
+      `${profile.snapshot.dashboard.signalLimit} top`,
+      profile.snapshot.appearance.dashboardCombinedSignalFilters ? "combined filters" : "single filter",
+    ];
+    return (
+      <Box key={profile.id} sx={settingsItemCardSx}>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, justifyContent: "space-between" }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+              <Typography variant="subtitle2">{profile.name}</Typography>
+              {isActive ? <Chip size="small" label="Active" color="primary" variant="outlined" /> : null}
+            </Box>
+            {profile.description ? (
+              <Typography variant="body2" color="text.secondary">
+                {profile.description}
+              </Typography>
+            ) : null}
+            <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.5 }}>
+              {summary.map((item) => (
+                <Chip key={item} size="small" variant="outlined" label={item} />
+              ))}
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              Updated {profileTimestampLabel(profile.updatedAt)}
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <AppButton
+              size="small"
+              disabled={isActive}
+              onClick={() => setSettings((prev) => applyDashboardProfile(prev, profile.id))}
+            >
+              Apply
+            </AppButton>
+            <AppButton
+              size="small"
+              variant="outlined"
+              onClick={() => setSettings((prev) => updateDashboardProfileSnapshot(prev, profile.id))}
+            >
+              Update
+            </AppButton>
+            <AppIconButton
+              tooltip={`Delete ${profile.name}`}
+              label={`Delete ${profile.name}`}
+              intent="destructive"
+              onClick={() => setSettings((prev) => removeDashboardProfile(prev, profile.id))}
+            >
+              <DeleteOutlineIcon fontSize="inherit" />
+            </AppIconButton>
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
   const renderProfiles = () => {
     const canCreateProfile = profileName.trim().length > 0;
+    const canCreateDashboardProfile = dashboardProfileName.trim().length > 0;
     return (
       <Box sx={settingsStackSx}>
         <SettingSection
@@ -1590,6 +1657,54 @@ export default function SettingsView({
           ) : (
             <Alert severity="info">
               No profiles yet. Create one from the current settings, then apply it later when switching workflows.
+            </Alert>
+          )}
+        </SettingSection>
+
+        <SettingSection
+          title="Dashboard Profiles"
+          icon={<SettingsIcon name="overview" />}
+          hint="Dashboard profiles capture dashboard presentation policy: signal-filter mode, favourite/recent namespace chips, dataplane profile, refresh cadence, cached totals mode, and signal limits."
+        >
+          <SettingGrid>
+            <TextField
+              label="Profile name"
+              size="small"
+              value={dashboardProfileName}
+              onChange={(event) => setDashboardProfileName(event.target.value)}
+            />
+            <TextField
+              label="Description"
+              size="small"
+              value={dashboardProfileDescription}
+              onChange={(event) => setDashboardProfileDescription(event.target.value)}
+            />
+          </SettingGrid>
+          <Box sx={actionRowSx}>
+            <AppButton
+              intent="primary"
+              disabled={!canCreateDashboardProfile}
+              onClick={() => {
+                setSettings((prev) =>
+                  addDashboardProfile(prev, {
+                    name: dashboardProfileName,
+                    description: dashboardProfileDescription,
+                  }),
+                );
+                setDashboardProfileName("");
+                setDashboardProfileDescription("");
+              }}
+            >
+              Create dashboard profile
+            </AppButton>
+          </Box>
+          {settings.dashboardProfiles.definitions.length > 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {settings.dashboardProfiles.definitions.map(renderDashboardProfileCard)}
+            </Box>
+          ) : (
+            <Alert severity="info">
+              No dashboard profiles yet. Create one after tuning dashboard and dataplane controls for a workflow.
             </Alert>
           )}
         </SettingSection>

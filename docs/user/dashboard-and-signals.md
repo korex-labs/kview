@@ -58,6 +58,13 @@ Dashboard refresh cadence is configured under **Dataplane**. Wide and
 diagnostic dataplane profiles apply a minimum refresh floor so broad dashboard
 refreshes do not run too aggressively.
 
+Dashboard profiles in **Settings** > **Profiles** can save and reapply
+dashboard presentation policy for common workflows. A dashboard profile captures
+combined signal-filter mode, favourite and recent namespace filter chips,
+dataplane profile, refresh cadence, cached totals mode, and signal limits. It
+does not capture the currently selected signal chip, signal search text,
+sorting, or pagination.
+
 ## Signals
 
 Signals are backend-produced and designed for triage. A signal can include:

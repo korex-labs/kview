@@ -97,6 +97,29 @@ export type OperatorProfilesSettings = {
   definitions: OperatorProfileDefinition[];
 };
 
+export type DashboardProfileSnapshot = {
+  appearance: Pick<
+    KviewUserSettingsV1["appearance"],
+    "dashboardCombinedSignalFilters" | "dashboardFavouriteNamespaceFilters" | "dashboardRecentNamespaceFilters"
+  >;
+  dataplaneProfile: DataplaneProfile;
+  dashboard: DataplaneSettings["dashboard"];
+};
+
+export type DashboardProfileDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  snapshot: DashboardProfileSnapshot;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DashboardProfilesSettings = {
+  activeProfileId: string;
+  definitions: DashboardProfileDefinition[];
+};
+
 export type ResourceMacroScope = "global" | "context" | "namespace" | "node" | "resource";
 export type ResourceMacroExtractorSource = "name" | "label" | "annotation";
 export type ResourceMacroExtractorTransform = "none" | "uppercase" | "lowercase" | "ucfirst";
@@ -237,6 +260,7 @@ export type KviewUserSettingsV2 = {
   dynamicLinks: DynamicLinksSettings;
   savedViews: SavedResourceViewDefinition[];
   operatorProfiles: OperatorProfilesSettings;
+  dashboardProfiles: DashboardProfilesSettings;
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
@@ -619,6 +643,13 @@ export function defaultOperatorProfilesSettings(): OperatorProfilesSettings {
   };
 }
 
+export function defaultDashboardProfilesSettings(): DashboardProfilesSettings {
+  return {
+    activeProfileId: "",
+    definitions: [],
+  };
+}
+
 function dataplaneContextOverridesFromLegacy(
   input: Record<string, Record<string, SignalOverride>> | undefined,
 ): Record<string, DataplaneContextOverrideSettings> {
@@ -645,6 +676,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     dynamicLinks: defaultDynamicLinksSettings(),
     savedViews: [],
     operatorProfiles: defaultOperatorProfilesSettings(),
+    dashboardProfiles: defaultDashboardProfilesSettings(),
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
@@ -669,6 +701,10 @@ function normalizeOperatorProfileName(input: string): string {
 
 function newOperatorProfileId(): string {
   return `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function newDashboardProfileId(): string {
+  return `dashboard-profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function operatorProfileSnapshotFromSettings(settings: KviewUserSettingsV2): OperatorProfileSnapshot {
@@ -745,6 +781,7 @@ export function applyOperatorProfile(settings: KviewUserSettingsV2, profileId: s
       ...settings.operatorProfiles,
       activeProfileId: profileId,
     },
+    dashboardProfiles: settings.dashboardProfiles,
   };
 }
 
@@ -754,6 +791,102 @@ export function removeOperatorProfile(settings: KviewUserSettingsV2, profileId: 
     ...settings,
     operatorProfiles: {
       activeProfileId: settings.operatorProfiles.activeProfileId === profileId ? "" : settings.operatorProfiles.activeProfileId,
+      definitions,
+    },
+  };
+}
+
+export function dashboardProfileSnapshotFromSettings(settings: KviewUserSettingsV2): DashboardProfileSnapshot {
+  return cloneSettingsValue({
+    appearance: {
+      dashboardCombinedSignalFilters: settings.appearance.dashboardCombinedSignalFilters,
+      dashboardFavouriteNamespaceFilters: settings.appearance.dashboardFavouriteNamespaceFilters,
+      dashboardRecentNamespaceFilters: settings.appearance.dashboardRecentNamespaceFilters,
+    },
+    dataplaneProfile: settings.dataplane.global.profile,
+    dashboard: settings.dataplane.global.dashboard,
+  });
+}
+
+export function addDashboardProfile(
+  settings: KviewUserSettingsV2,
+  input: { name: string; description?: string; now?: number },
+): KviewUserSettingsV2 {
+  const name = normalizeOperatorProfileName(input.name);
+  if (!name) return settings;
+  const now = typeof input.now === "number" && Number.isFinite(input.now) ? Math.floor(input.now) : Date.now();
+  const id = newDashboardProfileId();
+  const definition: DashboardProfileDefinition = {
+    id,
+    name,
+    description: typeof input.description === "string" ? input.description.trim().slice(0, 280) : "",
+    snapshot: dashboardProfileSnapshotFromSettings(settings),
+    createdAt: now,
+    updatedAt: now,
+  };
+  return {
+    ...settings,
+    dashboardProfiles: {
+      activeProfileId: id,
+      definitions: [...settings.dashboardProfiles.definitions, definition].slice(-25),
+    },
+  };
+}
+
+export function updateDashboardProfileSnapshot(
+  settings: KviewUserSettingsV2,
+  profileId: string,
+  now = Date.now(),
+): KviewUserSettingsV2 {
+  if (!settings.dashboardProfiles.definitions.some((definition) => definition.id === profileId)) return settings;
+  const definitions = settings.dashboardProfiles.definitions.map((definition) =>
+    definition.id === profileId
+      ? {
+          ...definition,
+          snapshot: dashboardProfileSnapshotFromSettings(settings),
+          updatedAt: Math.floor(now),
+        }
+      : definition,
+  );
+  return {
+    ...settings,
+    dashboardProfiles: {
+      activeProfileId: profileId,
+      definitions,
+    },
+  };
+}
+
+export function applyDashboardProfile(settings: KviewUserSettingsV2, profileId: string): KviewUserSettingsV2 {
+  const profile = settings.dashboardProfiles.definitions.find((definition) => definition.id === profileId);
+  if (!profile) return settings;
+  const profileDataplane = applyDataplaneProfile(settings.dataplane.global, profile.snapshot.dataplaneProfile);
+  return {
+    ...settings,
+    appearance: {
+      ...settings.appearance,
+      ...cloneSettingsValue(profile.snapshot.appearance),
+    },
+    dataplane: {
+      ...settings.dataplane,
+      global: {
+        ...profileDataplane,
+        dashboard: cloneSettingsValue(profile.snapshot.dashboard),
+      },
+    },
+    dashboardProfiles: {
+      ...settings.dashboardProfiles,
+      activeProfileId: profileId,
+    },
+  };
+}
+
+export function removeDashboardProfile(settings: KviewUserSettingsV2, profileId: string): KviewUserSettingsV2 {
+  const definitions = settings.dashboardProfiles.definitions.filter((definition) => definition.id !== profileId);
+  return {
+    ...settings,
+    dashboardProfiles: {
+      activeProfileId: settings.dashboardProfiles.activeProfileId === profileId ? "" : settings.dashboardProfiles.activeProfileId,
       definitions,
     },
   };
@@ -1426,6 +1559,77 @@ function normalizeOperatorProfilesSettings(input: unknown): OperatorProfilesSett
   const definitions: OperatorProfileDefinition[] = [];
   (Array.isArray(raw.definitions) ? raw.definitions : []).forEach((definition, index) => {
     const normalized = normalizeOperatorProfileDefinition(definition, `profile-${index + 1}`);
+    if (!normalized || seen.has(normalized.id)) return;
+    seen.add(normalized.id);
+    definitions.push(normalized);
+  });
+  const activeProfileId = typeof raw.activeProfileId === "string" && seen.has(raw.activeProfileId)
+    ? raw.activeProfileId
+    : "";
+  return {
+    activeProfileId,
+    definitions: definitions.slice(0, 25),
+  };
+}
+
+function normalizeDashboardProfileSnapshot(input: unknown): DashboardProfileSnapshot | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<DashboardProfileSnapshot>;
+  const rawAppearance = (raw.appearance ?? {}) as Partial<DashboardProfileSnapshot["appearance"]>;
+  const normalizedDataplane = normalizeDataplaneSettings({
+    profile: raw.dataplaneProfile,
+    dashboard: raw.dashboard,
+  });
+  return {
+    appearance: {
+      dashboardCombinedSignalFilters:
+        typeof rawAppearance.dashboardCombinedSignalFilters === "boolean"
+          ? rawAppearance.dashboardCombinedSignalFilters
+          : false,
+      dashboardFavouriteNamespaceFilters:
+        typeof rawAppearance.dashboardFavouriteNamespaceFilters === "boolean"
+          ? rawAppearance.dashboardFavouriteNamespaceFilters
+          : false,
+      dashboardRecentNamespaceFilters:
+        typeof rawAppearance.dashboardRecentNamespaceFilters === "boolean"
+          ? rawAppearance.dashboardRecentNamespaceFilters
+          : false,
+    },
+    dataplaneProfile: normalizedDataplane.profile,
+    dashboard: normalizedDataplane.dashboard,
+  };
+}
+
+function normalizeDashboardProfileDefinition(input: unknown, fallbackId: string): DashboardProfileDefinition | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<DashboardProfileDefinition>;
+  const name = typeof raw.name === "string" ? normalizeOperatorProfileName(raw.name) : "";
+  const snapshot = normalizeDashboardProfileSnapshot(raw.snapshot);
+  if (!name || !snapshot) return null;
+  const createdAt = typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) && raw.createdAt > 0
+    ? Math.floor(raw.createdAt)
+    : Date.now();
+  const updatedAt = typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) && raw.updatedAt > 0
+    ? Math.floor(raw.updatedAt)
+    : createdAt;
+  return {
+    id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim().slice(0, 96) : fallbackId,
+    name,
+    description: typeof raw.description === "string" ? raw.description.trim().slice(0, 280) : "",
+    snapshot,
+    createdAt,
+    updatedAt,
+  };
+}
+
+function normalizeDashboardProfilesSettings(input: unknown): DashboardProfilesSettings {
+  const defaults = defaultDashboardProfilesSettings();
+  if (!input || typeof input !== "object" || Array.isArray(input)) return defaults;
+  const raw = input as Partial<DashboardProfilesSettings>;
+  const seen = new Set<string>();
+  const definitions: DashboardProfileDefinition[] = [];
+  (Array.isArray(raw.definitions) ? raw.definitions : []).forEach((definition, index) => {
+    const normalized = normalizeDashboardProfileDefinition(definition, `dashboard-profile-${index + 1}`);
     if (!normalized || seen.has(normalized.id)) return;
     seen.add(normalized.id);
     definitions.push(normalized);
@@ -2172,6 +2376,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     dynamicLinks: normalizeDynamicLinksSettings(root.dynamicLinks),
     savedViews: normalizeSavedResourceViews(root.savedViews),
     operatorProfiles: normalizeOperatorProfilesSettings(root.operatorProfiles),
+    dashboardProfiles: normalizeDashboardProfilesSettings(root.dashboardProfiles),
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,
