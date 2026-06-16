@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from "vitest";
-import { loadPersistedColumnWidths, savePersistedColumnWidths, shouldCleanupResourceTagAssignments } from "./ResourceListPage";
+import {
+  loadPersistedColumnWidths,
+  resourceListRowMatchesSearchFields,
+  savePersistedColumnWidths,
+  shouldCleanupResourceTagAssignments,
+} from "./ResourceListPage";
 import type { DataplaneListMeta } from "../../types/api";
 
 afterEach(() => {
@@ -51,5 +56,24 @@ describe("ResourceListPage persisted column widths", () => {
 
     savePersistedColumnWidths(key, { bad: Number.NaN });
     expect(window.localStorage.getItem(key)).toBeNull();
+  });
+});
+
+describe("ResourceListPage descriptor search fields", () => {
+  it("matches scalar, array, and projected array-object fields", () => {
+    const row = {
+      name: "quota-main",
+      status: "ok",
+      clusterIPs: ["10.0.0.10", "10.0.0.11"],
+      entries: [
+        { key: "requests.cpu", used: "200m" },
+        { key: "limits.memory", used: "1Gi" },
+      ],
+    };
+
+    expect(resourceListRowMatchesSearchFields(row, ["name"], "quota")).toBe(true);
+    expect(resourceListRowMatchesSearchFields(row, ["clusterIPs"], "10.0.0.11")).toBe(true);
+    expect(resourceListRowMatchesSearchFields(row, ["entries.key"], "limits.memory")).toBe(true);
+    expect(resourceListRowMatchesSearchFields(row, ["entries.used"], "500m")).toBe(false);
   });
 });

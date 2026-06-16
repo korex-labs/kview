@@ -196,15 +196,15 @@ function defaultSearchFields(key: ListResourceKey): string[] {
     case "cronjobs":
       return ["name", "schedule", "scheduleHint", "status", "phase", "signalSeverity", "listSignalSeverity"];
     case "services":
-      return ["name", "type", "clusterIP", "externalName", "exposure", "signalSeverity", "listSignalSeverity"];
+      return ["name", "type", "clusterIP", "externalName", "exposure", "exposureHint", "clusterIPs", "portsSummary", "signalSeverity", "listSignalSeverity"];
     case "ingresses":
-      return ["name", "className", "ingressClassName", "hosts", "signalSeverity", "listSignalSeverity"];
+      return ["name", "className", "ingressClassName", "hosts", "addresses", "addressState", "tlsHint", "signalSeverity", "listSignalSeverity"];
     case "networkpolicies":
       return ["name", "podSelector", "policyTypes", "types", "signalSeverity", "listSignalSeverity"];
     case "secrets":
       return ["name", "type", "signalSeverity", "listSignalSeverity"];
     case "serviceaccounts":
-      return ["name", "tokenCount", "tokens", "pullSecretCount", "pullSecrets", "imagePullSecrets"];
+      return ["name", "tokenCount", "tokens", "tokenMountPolicy", "pullSecretCount", "pullSecrets", "pullSecretHint", "imagePullSecrets", "signalSeverity", "listSignalSeverity"];
     case "roles":
     case "clusterroles":
       return ["name", "privilegeBreadth", "signalSeverity", "listSignalSeverity"];
@@ -216,7 +216,7 @@ function defaultSearchFields(key: ListResourceKey): string[] {
     case "persistentvolumes":
       return ["name", "status", "phase", "storageClass", "storageClassName", "claim", "claimRef.name", "claimRef.namespace", "signalSeverity", "listSignalSeverity"];
     case "resourcequotas":
-      return ["name", "key", "hard", "used", "status", "signalSeverity", "listSignalSeverity"];
+      return ["name", "key", "hard", "used", "entries.key", "maxEntry", "status", "signalSeverity", "listSignalSeverity"];
     case "limitranges":
       return ["name", "type", "types", "status", "signalSeverity", "listSignalSeverity"];
     default:

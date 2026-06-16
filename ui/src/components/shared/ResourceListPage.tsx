@@ -219,13 +219,20 @@ function rowFieldValue(row: unknown, field: string): unknown {
   if (!field || !row || typeof row !== "object") return undefined;
   let current: unknown = row;
   for (const segment of field.split(".")) {
-    if (!segment || !current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    if (!segment || current == null) return undefined;
+    if (Array.isArray(current)) {
+      current = current
+        .map((item) => item && typeof item === "object" ? (item as Record<string, unknown>)[segment] : undefined)
+        .filter((value) => value != null);
+      continue;
+    }
+    if (typeof current !== "object") return undefined;
     current = (current as Record<string, unknown>)[segment];
   }
   return current;
 }
 
-function rowMatchesSearchFields(row: unknown, fields: string[], query: string): boolean {
+export function resourceListRowMatchesSearchFields(row: unknown, fields: string[], query: string): boolean {
   return fields.some((field) => valueMatchesQuery(rowFieldValue(row, field), query));
 }
 
@@ -426,7 +433,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     [resourceViewPolicy.identity],
   );
   const effectiveFilterPredicate = useCallback(
-    (row: TRow, q: string) => (filterPredicate?.(row, q) ?? false) || rowMatchesSearchFields(row, resourceViewPolicy.searchFields, q),
+    (row: TRow, q: string) => (filterPredicate?.(row, q) ?? false) || resourceListRowMatchesSearchFields(row, resourceViewPolicy.searchFields, q),
     [filterPredicate, resourceViewPolicy.searchFields],
   );
   const defaultSortModel = useMemo<GridSortModel>(

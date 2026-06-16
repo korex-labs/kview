@@ -104,15 +104,6 @@ export default function ServiceAccountsTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.tokenMountPolicy || "").toLowerCase().includes(q) ||
-      (row.pullSecretHint || "").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -123,7 +114,6 @@ export default function ServiceAccountsTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="serviceaccounts"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

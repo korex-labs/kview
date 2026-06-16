@@ -78,12 +78,6 @@ export default function ResourceQuotasTable({ token, namespace }: { token: strin
     };
   }, [namespace, token]);
 
-  const filterPredicate = useCallback((row: Row, q: string) => (
-    row.name.toLowerCase().includes(q) ||
-    (row.maxEntry || "").toLowerCase().includes(q) ||
-    (row.entries || []).some((entry) => entry.key.toLowerCase().includes(q))
-  ), []);
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -91,7 +85,6 @@ export default function ResourceQuotasTable({ token, namespace }: { token: strin
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "resourcequotas", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="resourcequotas"
       namespace={namespace}
       renderDrawer={({ selectedRow, open, onClose }) => (

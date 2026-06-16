@@ -44,12 +44,6 @@ export default function NetworkPoliciesTable({ token, namespace }: { token: stri
     };
   }, [namespace, token]);
 
-  const filterPredicate = useCallback((row: Row, q: string) => (
-    row.name.toLowerCase().includes(q) ||
-    (row.podSelector || "").toLowerCase().includes(q) ||
-    (row.policyTypes || []).some((type) => type.toLowerCase().includes(q))
-  ), []);
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -57,7 +51,6 @@ export default function NetworkPoliciesTable({ token, namespace }: { token: stri
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "networkpolicies", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="networkpolicies"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

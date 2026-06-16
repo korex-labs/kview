@@ -144,15 +144,15 @@ func searchFieldsForResource(key string) []string {
 	case "cronjobs":
 		return []string{"name", "schedule", "scheduleHint", "status", "phase", "signalSeverity", "listSignalSeverity"}
 	case "services":
-		return []string{"name", "type", "clusterIP", "externalName", "exposure", "signalSeverity", "listSignalSeverity"}
+		return []string{"name", "type", "clusterIP", "externalName", "exposure", "exposureHint", "clusterIPs", "portsSummary", "signalSeverity", "listSignalSeverity"}
 	case "ingresses":
-		return []string{"name", "className", "ingressClassName", "hosts", "signalSeverity", "listSignalSeverity"}
+		return []string{"name", "className", "ingressClassName", "hosts", "addresses", "addressState", "tlsHint", "signalSeverity", "listSignalSeverity"}
 	case "networkpolicies":
 		return []string{"name", "podSelector", "policyTypes", "types", "signalSeverity", "listSignalSeverity"}
 	case "secrets":
 		return []string{"name", "type", "signalSeverity", "listSignalSeverity"}
 	case "serviceaccounts":
-		return []string{"name", "tokenCount", "tokens", "pullSecretCount", "pullSecrets", "imagePullSecrets"}
+		return []string{"name", "tokenCount", "tokens", "tokenMountPolicy", "pullSecretCount", "pullSecrets", "pullSecretHint", "imagePullSecrets", "signalSeverity", "listSignalSeverity"}
 	case "roles", "clusterroles":
 		return []string{"name", "privilegeBreadth", "signalSeverity", "listSignalSeverity"}
 	case "rolebindings", "clusterrolebindings":
@@ -162,7 +162,7 @@ func searchFieldsForResource(key string) []string {
 	case "persistentvolumes":
 		return []string{"name", "status", "phase", "storageClass", "storageClassName", "claim", "claimRef.name", "claimRef.namespace", "signalSeverity", "listSignalSeverity"}
 	case "resourcequotas":
-		return []string{"name", "key", "hard", "used", "status", "signalSeverity", "listSignalSeverity"}
+		return []string{"name", "key", "hard", "used", "entries.key", "maxEntry", "status", "signalSeverity", "listSignalSeverity"}
 	case "limitranges":
 		return []string{"name", "type", "types", "status", "signalSeverity", "listSignalSeverity"}
 	default:

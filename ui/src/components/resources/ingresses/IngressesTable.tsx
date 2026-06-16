@@ -109,18 +109,6 @@ export default function IngressesTable({
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback(
-    (row: Row, q: string) =>
-      row.name.toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.addressState || "").toLowerCase().includes(q) ||
-      (row.tlsHint || "").toLowerCase().includes(q) ||
-      (row.ingressClassName || "").toLowerCase().includes(q) ||
-      (row.hosts || []).join(" ").toLowerCase().includes(q) ||
-      (row.addresses || []).join(" ").toLowerCase().includes(q),
-    [],
-  );
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -131,7 +119,6 @@ export default function IngressesTable({
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="ingresses"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

@@ -103,17 +103,6 @@ export default function ServicesTable({ token, namespace }: { token: string; nam
     };
   }, [token, namespace]);
 
-  const filterPredicate = useCallback((row: Row, q: string) => {
-    return (
-      row.name.toLowerCase().includes(q) ||
-      (row.type || "").toLowerCase().includes(q) ||
-      (row.listSignalSeverity || "").toLowerCase().includes(q) ||
-      (row.exposureHint || "").toLowerCase().includes(q) ||
-      (row.clusterIPs || []).join(", ").toLowerCase().includes(q) ||
-      (row.portsSummary || "").toLowerCase().includes(q)
-    );
-  }, []);
-
   return (
     <ResourceListPage<Row>
       token={token}
@@ -124,7 +113,6 @@ export default function ServicesTable({ token, namespace }: { token: string; nam
         pollSec: defaultRevisionPollSec,
       }}
       enabled={!!namespace}
-      filterPredicate={filterPredicate}
       resourceKey="services"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

@@ -101,9 +101,12 @@ called **Memory Palace**.
 Reduce frontend-only business logic so the project can later split cleanly into
 `kview-core`, `kview-web`, `kview-cli`, and `kview-tui`.
 
-- Move resource/view descriptors, filter semantics, quick-filter definitions,
-  saved-view compatibility rules, dashboard signal definitions, and action
-  capability presentation hints toward backend-provided contracts.
+- Completed first slice: resource/view descriptors now own labels, icons,
+  scope, sidebar grouping, list access targets, list view filter labels,
+  default sort, quick-filter source policy, quick-filter identity, and baseline
+  searchable fields. See `docs/VIEW_DESCRIPTOR_CONTRACT.md`.
+- Next candidates: saved-view compatibility rules, dashboard signal
+  definitions, and action capability presentation hints.
 - Keep React responsible for rendering and interaction state, not authoritative
   product rules.
 - Maintain `API_READ_OWNERSHIP.md` whenever read ownership moves from UI or
