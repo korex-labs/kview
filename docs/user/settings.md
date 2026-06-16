@@ -52,6 +52,20 @@ and height are saved from direct interaction with those UI elements.
 Saved resource views are also stored locally. They are created from resource
 list toolbars and are included in full settings export/import.
 
+## Profiles
+
+Profiles are local snapshots of kview settings sections. Create a profile from
+the current settings when you want to preserve a workflow setup, such as daily
+monitoring, incident triage, or Helm review.
+
+Profile snapshots include appearance, keyboard, smart filters, resource tags,
+links and macros, saved views, custom commands, custom actions, and dataplane
+settings. The profile library itself is not nested into snapshots.
+
+Applying a profile replaces those captured settings sections and marks that
+profile as active. Updating a profile overwrites its snapshot with the current
+settings. Deleting a profile removes only that local snapshot.
+
 ## Keyboard
 
 Keyboard settings control optional bindings:

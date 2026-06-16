@@ -40,7 +40,9 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
+  addOperatorProfile,
   applyDataplaneProfile,
+  applyOperatorProfile,
   customActionResourceKeys,
   defaultDataplaneSettings,
   dataplaneNamespaceWarmResourceKeys,
@@ -56,6 +58,8 @@ import {
   smartFilterResourceKeysForScope,
   dataplaneSettingsForContext,
   applySettingsTransferBundle,
+  removeOperatorProfile,
+  updateOperatorProfileSnapshot,
   type CustomActionDefinition,
   type CustomActionKind,
   type CustomActionPatchType,
@@ -69,6 +73,7 @@ import {
   type KeyboardSettings,
   type KviewUserSettingsV2,
   type DynamicLinkDefinition,
+  type OperatorProfileDefinition,
   type ResourceAutoTagRuleDefinition,
   type ResourceMacroDefinition,
   type ResourceMacroExtractorDefinition,
@@ -108,7 +113,7 @@ import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagno
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 
-type SettingsSection = "appearance" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
+type SettingsSection = "appearance" | "profiles" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
 type LinksMacrosTab = "manual" | "extractors" | "links";
 type ResourceTagsTab = "manual" | "auto";
@@ -161,8 +166,14 @@ function dataplaneProfileEnrichmentText(profile: DataplaneProfile): string {
   }
 }
 
+function profileTimestampLabel(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "Unknown";
+  return new Date(value).toLocaleString();
+}
+
 const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconName }> = [
   { id: "appearance", label: "Appearance", icon: "appearance" },
+  { id: "profiles", label: "Profiles", icon: "profile" },
   { id: "keyboard", label: "Keyboard", icon: "keyboard" },
   { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
   { id: "resourceTags", label: "Resource Tags", icon: "resourceTags" },
@@ -942,6 +953,8 @@ export default function SettingsView({
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [linksMacrosTab, setLinksMacrosTab] = useState<LinksMacrosTab>("manual");
   const [resourceTagsTab, setResourceTagsTab] = useState<ResourceTagsTab>("manual");
+  const [profileName, setProfileName] = useState("");
+  const [profileDescription, setProfileDescription] = useState("");
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
@@ -1485,6 +1498,104 @@ export default function SettingsView({
       </SettingSection>
     </Box>
   );
+
+  const renderProfileCard = (profile: OperatorProfileDefinition) => {
+    const isActive = settings.operatorProfiles.activeProfileId === profile.id;
+    return (
+      <Box key={profile.id} sx={settingsItemCardSx}>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, justifyContent: "space-between" }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+              <Typography variant="subtitle2">{profile.name}</Typography>
+              {isActive ? <Chip size="small" label="Active" color="primary" variant="outlined" /> : null}
+            </Box>
+            {profile.description ? (
+              <Typography variant="body2" color="text.secondary">
+                {profile.description}
+              </Typography>
+            ) : null}
+            <Typography variant="caption" color="text.secondary">
+              Updated {profileTimestampLabel(profile.updatedAt)}
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <AppButton
+              size="small"
+              disabled={isActive}
+              onClick={() => setSettings((prev) => applyOperatorProfile(prev, profile.id))}
+            >
+              Apply
+            </AppButton>
+            <AppButton
+              size="small"
+              variant="outlined"
+              onClick={() => setSettings((prev) => updateOperatorProfileSnapshot(prev, profile.id))}
+            >
+              Update
+            </AppButton>
+            <AppIconButton
+              tooltip={`Delete ${profile.name}`}
+              label={`Delete ${profile.name}`}
+              intent="destructive"
+              onClick={() => setSettings((prev) => removeOperatorProfile(prev, profile.id))}
+            >
+              <DeleteOutlineIcon fontSize="inherit" />
+            </AppIconButton>
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderProfiles = () => {
+    const canCreateProfile = profileName.trim().length > 0;
+    return (
+      <Box sx={settingsStackSx}>
+        <SettingSection
+          title="Profiles"
+          icon={<SettingsIcon name="profile" />}
+          hint="Local operator profiles capture settings sections as named snapshots. Applying a profile is explicit and reversible by applying or updating another profile."
+        >
+          <SettingGrid>
+            <TextField
+              label="Profile name"
+              size="small"
+              value={profileName}
+              onChange={(event) => setProfileName(event.target.value)}
+            />
+            <TextField
+              label="Description"
+              size="small"
+              value={profileDescription}
+              onChange={(event) => setProfileDescription(event.target.value)}
+            />
+          </SettingGrid>
+          <Box sx={actionRowSx}>
+            <AppButton
+              intent="primary"
+              disabled={!canCreateProfile}
+              onClick={() => {
+                setSettings((prev) => addOperatorProfile(prev, { name: profileName, description: profileDescription }));
+                setProfileName("");
+                setProfileDescription("");
+              }}
+            >
+              Create profile from current settings
+            </AppButton>
+          </Box>
+          {settings.operatorProfiles.definitions.length > 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {settings.operatorProfiles.definitions.map(renderProfileCard)}
+            </Box>
+          ) : (
+            <Alert severity="info">
+              No profiles yet. Create one from the current settings, then apply it later when switching workflows.
+            </Alert>
+          )}
+        </SettingSection>
+      </Box>
+    );
+  };
 
   const renderKeyboard = () => {
     const summaryRows = [
@@ -3619,6 +3730,7 @@ export default function SettingsView({
           </AppIconButton>
         </Box>
         {section === "appearance" ? renderAppearance() : null}
+        {section === "profiles" ? renderProfiles() : null}
         {section === "keyboard" ? renderKeyboard() : null}
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "resourceTags" ? renderResourceTags() : null}

@@ -70,6 +70,33 @@ export type SavedResourceViewDefinition = {
   updatedAt: number;
 };
 
+export type OperatorProfileSnapshot = {
+  appearance: KviewUserSettingsV1["appearance"];
+  smartFilters: KviewUserSettingsV1["smartFilters"];
+  resourceTags: ResourceTagsSettings;
+  resourceMacros: ResourceMacrosSettings;
+  dynamicLinks: DynamicLinksSettings;
+  savedViews: SavedResourceViewDefinition[];
+  customCommands: KviewUserSettingsV1["customCommands"];
+  customActions: KviewUserSettingsV1["customActions"];
+  keyboard: KeyboardSettings;
+  dataplane: DataplaneSettingsV2;
+};
+
+export type OperatorProfileDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  snapshot: OperatorProfileSnapshot;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type OperatorProfilesSettings = {
+  activeProfileId: string;
+  definitions: OperatorProfileDefinition[];
+};
+
 export type ResourceMacroScope = "global" | "context" | "namespace" | "node" | "resource";
 export type ResourceMacroExtractorSource = "name" | "label" | "annotation";
 export type ResourceMacroExtractorTransform = "none" | "uppercase" | "lowercase" | "ucfirst";
@@ -209,6 +236,7 @@ export type KviewUserSettingsV2 = {
   resourceMacros: ResourceMacrosSettings;
   dynamicLinks: DynamicLinksSettings;
   savedViews: SavedResourceViewDefinition[];
+  operatorProfiles: OperatorProfilesSettings;
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
@@ -584,6 +612,13 @@ export function defaultDynamicLinksSettings(): DynamicLinksSettings {
   };
 }
 
+export function defaultOperatorProfilesSettings(): OperatorProfilesSettings {
+  return {
+    activeProfileId: "",
+    definitions: [],
+  };
+}
+
 function dataplaneContextOverridesFromLegacy(
   input: Record<string, Record<string, SignalOverride>> | undefined,
 ): Record<string, DataplaneContextOverrideSettings> {
@@ -609,6 +644,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     resourceMacros: defaultResourceMacrosSettings(),
     dynamicLinks: defaultDynamicLinksSettings(),
     savedViews: [],
+    operatorProfiles: defaultOperatorProfilesSettings(),
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
@@ -621,6 +657,106 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
 
 export function defaultUserSettings(): KviewUserSettingsV2 {
   return toV2Settings(defaultUserSettingsV1());
+}
+
+function cloneSettingsValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function normalizeOperatorProfileName(input: string): string {
+  return input.trim().replace(/\s+/g, " ").slice(0, 64);
+}
+
+function newOperatorProfileId(): string {
+  return `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function operatorProfileSnapshotFromSettings(settings: KviewUserSettingsV2): OperatorProfileSnapshot {
+  return cloneSettingsValue({
+    appearance: settings.appearance,
+    smartFilters: settings.smartFilters,
+    resourceTags: settings.resourceTags,
+    resourceMacros: settings.resourceMacros,
+    dynamicLinks: settings.dynamicLinks,
+    savedViews: settings.savedViews,
+    customCommands: settings.customCommands,
+    customActions: settings.customActions,
+    keyboard: settings.keyboard,
+    dataplane: settings.dataplane,
+  });
+}
+
+export function addOperatorProfile(
+  settings: KviewUserSettingsV2,
+  input: { name: string; description?: string; now?: number },
+): KviewUserSettingsV2 {
+  const name = normalizeOperatorProfileName(input.name);
+  if (!name) return settings;
+  const now = typeof input.now === "number" && Number.isFinite(input.now) ? Math.floor(input.now) : Date.now();
+  const id = newOperatorProfileId();
+  const definition: OperatorProfileDefinition = {
+    id,
+    name,
+    description: typeof input.description === "string" ? input.description.trim().slice(0, 280) : "",
+    snapshot: operatorProfileSnapshotFromSettings(settings),
+    createdAt: now,
+    updatedAt: now,
+  };
+  return {
+    ...settings,
+    operatorProfiles: {
+      activeProfileId: id,
+      definitions: [...settings.operatorProfiles.definitions, definition].slice(-25),
+    },
+  };
+}
+
+export function updateOperatorProfileSnapshot(
+  settings: KviewUserSettingsV2,
+  profileId: string,
+  now = Date.now(),
+): KviewUserSettingsV2 {
+  if (!settings.operatorProfiles.definitions.some((definition) => definition.id === profileId)) return settings;
+  const definitions = settings.operatorProfiles.definitions.map((definition) =>
+    definition.id === profileId
+      ? {
+          ...definition,
+          snapshot: operatorProfileSnapshotFromSettings(settings),
+          updatedAt: Math.floor(now),
+        }
+      : definition,
+  );
+  return {
+    ...settings,
+    operatorProfiles: {
+      activeProfileId: profileId,
+      definitions,
+    },
+  };
+}
+
+export function applyOperatorProfile(settings: KviewUserSettingsV2, profileId: string): KviewUserSettingsV2 {
+  const profile = settings.operatorProfiles.definitions.find((definition) => definition.id === profileId);
+  if (!profile) return settings;
+  return {
+    v: 2,
+    ...cloneSettingsValue(profile.snapshot),
+    operatorProfiles: {
+      ...settings.operatorProfiles,
+      activeProfileId: profileId,
+    },
+  };
+}
+
+export function removeOperatorProfile(settings: KviewUserSettingsV2, profileId: string): KviewUserSettingsV2 {
+  const definitions = settings.operatorProfiles.definitions.filter((definition) => definition.id !== profileId);
+  return {
+    ...settings,
+    operatorProfiles: {
+      activeProfileId: settings.operatorProfiles.activeProfileId === profileId ? "" : settings.operatorProfiles.activeProfileId,
+      definitions,
+    },
+  };
 }
 
 export function defaultDataplaneSettings(): DataplaneSettings {
@@ -1248,6 +1384,59 @@ function normalizeSavedResourceViews(input: unknown): SavedResourceViewDefinitio
     out.push(normalized);
   });
   return out.slice(0, 50);
+}
+
+function normalizeOperatorProfileSnapshot(input: unknown): OperatorProfileSnapshot | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const normalized = validateUserSettings({
+    v: 2,
+    ...(input as Record<string, unknown>),
+    operatorProfiles: defaultOperatorProfilesSettings(),
+  });
+  return normalized ? operatorProfileSnapshotFromSettings(normalized) : null;
+}
+
+function normalizeOperatorProfileDefinition(input: unknown, fallbackId: string): OperatorProfileDefinition | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<OperatorProfileDefinition>;
+  const name = typeof raw.name === "string" ? normalizeOperatorProfileName(raw.name) : "";
+  const snapshot = normalizeOperatorProfileSnapshot(raw.snapshot);
+  if (!name || !snapshot) return null;
+  const createdAt = typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) && raw.createdAt > 0
+    ? Math.floor(raw.createdAt)
+    : Date.now();
+  const updatedAt = typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) && raw.updatedAt > 0
+    ? Math.floor(raw.updatedAt)
+    : createdAt;
+  return {
+    id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim().slice(0, 96) : fallbackId,
+    name,
+    description: typeof raw.description === "string" ? raw.description.trim().slice(0, 280) : "",
+    snapshot,
+    createdAt,
+    updatedAt,
+  };
+}
+
+function normalizeOperatorProfilesSettings(input: unknown): OperatorProfilesSettings {
+  const defaults = defaultOperatorProfilesSettings();
+  if (!input || typeof input !== "object" || Array.isArray(input)) return defaults;
+  const raw = input as Partial<OperatorProfilesSettings>;
+  const seen = new Set<string>();
+  const definitions: OperatorProfileDefinition[] = [];
+  (Array.isArray(raw.definitions) ? raw.definitions : []).forEach((definition, index) => {
+    const normalized = normalizeOperatorProfileDefinition(definition, `profile-${index + 1}`);
+    if (!normalized || seen.has(normalized.id)) return;
+    seen.add(normalized.id);
+    definitions.push(normalized);
+  });
+  const activeProfileId = typeof raw.activeProfileId === "string" && seen.has(raw.activeProfileId)
+    ? raw.activeProfileId
+    : "";
+  return {
+    activeProfileId,
+    definitions: definitions.slice(0, 25),
+  };
 }
 
 function normalizeContextSignalOverrides(input: unknown): Record<string, Record<string, SignalOverride>> {
@@ -1982,6 +2171,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     resourceMacros: normalizeResourceMacrosSettings(root.resourceMacros),
     dynamicLinks: normalizeDynamicLinksSettings(root.dynamicLinks),
     savedViews: normalizeSavedResourceViews(root.savedViews),
+    operatorProfiles: normalizeOperatorProfilesSettings(root.operatorProfiles),
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,

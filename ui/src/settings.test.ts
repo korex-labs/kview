@@ -2,7 +2,9 @@
 
 import { describe, expect, it, beforeEach } from "vitest";
 import {
+  addOperatorProfile,
   applyDataplaneProfile,
+  applyOperatorProfile,
   applySettingsTransferBundle,
   defaultDataplaneSettings,
   defaultUserSettings,
@@ -13,10 +15,12 @@ import {
   dataplaneSettingsForContext,
   labelForSmartFilterRules,
   loadUserSettings,
+  removeOperatorProfile,
   parseSettingsTransferJSON,
   parseUserSettingsJSON,
   settingsTransferSectionIds,
   smartFilterResourceKeysForScope,
+  updateOperatorProfileSnapshot,
   validateUserSettings,
   USER_SETTINGS_KEY,
 } from "./settings";
@@ -98,7 +102,90 @@ describe("user settings", () => {
 
   it("keeps saved views empty by default", () => {
     expect(defaultUserSettings().savedViews).toEqual([]);
+    expect(defaultUserSettings().operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
     expect(validateUserSettings({ v: 1 })?.savedViews).toEqual([]);
+    expect(validateUserSettings({ v: 1 })?.operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
+  });
+
+  it("captures, applies, updates, and removes operator profiles", () => {
+    const initial = {
+      ...defaultUserSettings(),
+      keyboard: {
+        ...defaultUserSettings().keyboard,
+        singleLetterGlobalSearch: false,
+      },
+    };
+    const profiled = addOperatorProfile(initial, {
+      name: "  Incident triage  ",
+      description: "Fast triage settings",
+      now: 100,
+    });
+    const profile = profiled.operatorProfiles.definitions[0];
+
+    expect(profile).toMatchObject({
+      name: "Incident triage",
+      description: "Fast triage settings",
+      createdAt: 100,
+      updatedAt: 100,
+    });
+    expect(profiled.operatorProfiles.activeProfileId).toBe(profile.id);
+
+    const drifted = {
+      ...profiled,
+      keyboard: {
+        ...profiled.keyboard,
+        singleLetterGlobalSearch: true,
+      },
+    };
+    expect(applyOperatorProfile(drifted, profile.id).keyboard.singleLetterGlobalSearch).toBe(false);
+
+    const updated = updateOperatorProfileSnapshot(drifted, profile.id, 200);
+    expect(updated.operatorProfiles.definitions[0].updatedAt).toBe(200);
+    expect(applyOperatorProfile(updated, profile.id).keyboard.singleLetterGlobalSearch).toBe(true);
+
+    expect(removeOperatorProfile(updated, profile.id).operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
+  });
+
+  it("validates imported operator profiles and drops invalid active ids", () => {
+    const base = defaultUserSettings();
+    const parsed = validateUserSettings({
+      ...base,
+      operatorProfiles: {
+        activeProfileId: "missing",
+        definitions: [
+          {
+            id: "ops",
+            name: " Ops ",
+            description: "x".repeat(400),
+            snapshot: {
+              ...base,
+              keyboard: {
+                ...base.keyboard,
+                vimTableNavigation: false,
+              },
+            },
+            createdAt: 10,
+            updatedAt: 20,
+          },
+          {
+            id: "bad",
+            name: "",
+            snapshot: {},
+          },
+        ],
+      },
+    });
+
+    expect(parsed?.operatorProfiles.activeProfileId).toBe("");
+    expect(parsed?.operatorProfiles.definitions).toHaveLength(1);
+    expect(parsed?.operatorProfiles.definitions[0]).toMatchObject({
+      id: "ops",
+      name: "Ops",
+      createdAt: 10,
+      updatedAt: 20,
+    });
+    expect(parsed?.operatorProfiles.definitions[0].description).toHaveLength(280);
+    expect(parsed?.operatorProfiles.definitions[0].snapshot.keyboard.vimTableNavigation).toBe(false);
   });
 
   it("validates saved resource views", () => {
