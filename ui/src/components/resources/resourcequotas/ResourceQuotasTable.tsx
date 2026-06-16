@@ -6,7 +6,6 @@ import type { ApiDataplaneListResponse, NamespaceResourceQuota } from "../../../
 import { dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import GaugeBar from "../../shared/GaugeBar";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ResourceQuotaDrawer from "./ResourceQuotaDrawer";
@@ -17,8 +16,6 @@ type Row = NamespaceResourceQuota & {
   maxRatio?: number;
   maxEntry?: string;
 };
-
-const resourceLabel = getResourceLabel("resourcequotas");
 
 function maxEntry(row: NamespaceResourceQuota): { ratio?: number; key?: string } {
   return (row.entries || []).reduce<{ ratio?: number; key?: string }>((best, entry) => {
@@ -90,13 +87,11 @@ export default function ResourceQuotasTable({ token, namespace }: { token: strin
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "resourcequotas", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="resourcequotas"
       namespace={namespace}
       renderDrawer={({ selectedRow, open, onClose }) => (

@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import RoleDrawer from "./RoleDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
@@ -25,8 +24,6 @@ type Role = {
 };
 
 type Row = Role & { id: string };
-
-const resourceLabel = getResourceLabel("roles");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -84,7 +81,6 @@ export default function RolesTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -93,7 +89,6 @@ export default function RolesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="roles"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ConfigMapDrawer from "./ConfigMapDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import ListSignalChip from "../../shared/ListSignalChip";
@@ -23,8 +22,6 @@ type ConfigMap = {
 };
 
 type Row = ConfigMap & { id: string };
-
-const resourceLabel = getResourceLabel("configmaps");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -91,7 +88,6 @@ export default function ConfigMapsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -100,7 +96,6 @@ export default function ConfigMapsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="configmaps"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

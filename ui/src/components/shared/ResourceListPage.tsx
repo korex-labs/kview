@@ -22,7 +22,7 @@ import useListQuery from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
-import { getResourceIcon, getResourceViewPolicy, listResourceAccess, type AccessReviewResource } from "../../utils/k8sResources";
+import { getResourceIcon, getResourceLabel, getResourceViewPolicy, listResourceAccess, type AccessReviewResource } from "../../utils/k8sResources";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import type { DataplaneListMeta, ResourceListFetchResult } from "../../types/api";
 import ListStateOverlay from "./ListStateOverlay";
@@ -248,7 +248,7 @@ export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: stri
 
 export type ResourceListPageProps<TRow extends { id: string }> = {
   token: string;
-  title: React.ReactNode;
+  title?: React.ReactNode;
   columns: GridColDef<TRow>[];
   getResourceTagTarget?: (row: TRow, contextName: string) => ResourceTagTarget | null;
   /** Return rows plus optional dataplane list metadata for the shared meta strip. */
@@ -263,7 +263,7 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   filterLabel?: string;
   filterIntent?: { value: string; nonce: number } | null;
   onFilterIntentApplied?: (nonce: number) => void;
-  resourceLabel: string;
+  resourceLabel?: string;
   resourceKey: ListResourceKey;
   accessResource?: AccessReviewResource;
   namespace?: string | null;
@@ -333,6 +333,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const { registerTableControls, keyboardSettings } = useKeyboardControls();
   const offline = health === "unhealthy";
   const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
+  const effectiveResourceLabel = resourceLabel || getResourceLabel(resourceKey);
+  const effectiveTitle = title ?? (namespace ? <>{effectiveResourceLabel} — {namespace}</> : effectiveResourceLabel);
   const effectiveAccessResource = accessResource || listResourceAccess[resourceKey];
   const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
     if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
@@ -494,7 +496,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const { items: rows, dataplaneMeta, error, loading, lastRefresh, refetch } = useListQuery<TRow>({
     enabled,
-    queryKey: [activeContext, namespace ?? "", resourceLabel, fetchRows],
+    queryKey: [activeContext, namespace ?? "", effectiveResourceLabel, fetchRows],
     refreshSec,
     fetchItems: fetchRowsStable,
     onInitialResult: () => setSelectionModel(emptyRowSelectionModel),
@@ -683,8 +685,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
     });
   }, [handleFocusGrid, handleOpenSelectedRow, handlePageBy, registerTableControls]);
 
-  const emptyMessage = `No ${resourceLabel} found.`;
-  const filteredEmptyMessage = `No ${resourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
+  const emptyMessage = `No ${effectiveResourceLabel} found.`;
+  const filteredEmptyMessage = `No ${effectiveResourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
 
   const savedViews = useMemo(
     () => [...settings.savedViews].sort((a, b) => a.name.localeCompare(b.name)),
@@ -787,7 +789,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     keepFilterFocusRef.current = false;
     const existing = selectedSavedView;
     const fallbackName = existing?.name || defaultSavedResourceViewName({
-      resourceLabel,
+      resourceLabel: effectiveResourceLabel,
       namespace,
       filter,
       filterLabel: savedViewDefaultFilterName,
@@ -795,7 +797,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setSaveViewExistingId(existing?.id || null);
     setSaveViewName(fallbackName);
     setSaveViewDialogOpen(true);
-  }, [filter, namespace, resourceLabel, savedViewDefaultFilterName, selectedSavedView]);
+  }, [effectiveResourceLabel, filter, namespace, savedViewDefaultFilterName, selectedSavedView]);
   const handleSaveViewDialogClose = useCallback(() => {
     keepFilterFocusRef.current = false;
     setSaveViewDialogOpen(false);
@@ -860,7 +862,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     <Paper sx={{ p: 2 }} data-testid={`resource-list-${resourceKey}`}>
       <Typography variant="h6" sx={{ mb: 0.5, flexShrink: 0, display: "flex", alignItems: "center", gap: 1 }}>
         <ResourceIcon name={getResourceIcon(resourceKey)} size={21} sx={{ color: "primary.main" }} />
-        {title}
+        {effectiveTitle}
       </Typography>
       <Box sx={{ flexShrink: 0 }}>
         <DataplaneListMetaStrip meta={dataplaneMeta} prefix={dataplaneMetaPrefix} />
@@ -968,7 +970,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
               filteredEmptyMessage,
               rowCount: rows.length,
               filter,
-              resourceLabel,
+              resourceLabel: effectiveResourceLabel,
             } as Record<string, unknown>,
           }}
         />

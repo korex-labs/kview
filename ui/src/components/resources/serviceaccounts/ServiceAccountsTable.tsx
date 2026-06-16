@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceAccountDrawer from "./ServiceAccountDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
@@ -29,8 +28,6 @@ type ServiceAccount = {
 };
 
 type Row = ServiceAccount & { id: string };
-
-const resourceLabel = getResourceLabel("serviceaccounts");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -119,7 +116,6 @@ export default function ServiceAccountsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -128,7 +124,6 @@ export default function ServiceAccountsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="serviceaccounts"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

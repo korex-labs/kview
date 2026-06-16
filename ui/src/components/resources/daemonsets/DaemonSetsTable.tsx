@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import DaemonSetDrawer from "./DaemonSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -29,8 +28,6 @@ type DaemonSet = {
 };
 
 type Row = DaemonSet & { id: string };
-
-const resourceLabel = getResourceLabel("daemonsets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -113,7 +110,6 @@ export default function DaemonSetsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -122,7 +118,6 @@ export default function DaemonSetsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="daemonsets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

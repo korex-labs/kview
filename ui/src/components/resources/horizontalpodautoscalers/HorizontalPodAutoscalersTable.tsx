@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -29,8 +28,6 @@ type HPA = {
 };
 
 type Row = HPA & { id: string };
-
-const resourceLabel = getResourceLabel("horizontalpodautoscalers");
 
 function targetRef(row: HPA): string {
   const ref = row.scaleTargetRef;
@@ -152,7 +149,6 @@ export default function HorizontalPodAutoscalersTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} - {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -161,7 +157,6 @@ export default function HorizontalPodAutoscalersTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="horizontalpodautoscalers"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

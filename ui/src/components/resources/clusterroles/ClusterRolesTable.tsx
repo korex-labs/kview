@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ClusterRoleDrawer from "./ClusterRoleDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -21,8 +20,6 @@ type ClusterRole = {
 };
 
 type Row = ClusterRole & { id: string };
-
-const resourceLabel = getResourceLabel("clusterroles");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -71,7 +68,6 @@ export default function ClusterRolesTable({ token }: { token: string }) {
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -79,7 +75,6 @@ export default function ClusterRolesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="clusterroles"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

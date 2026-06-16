@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import StatefulSetDrawer from "./StatefulSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -29,8 +28,6 @@ type StatefulSet = {
 };
 
 type Row = StatefulSet & { id: string };
-
-const resourceLabel = getResourceLabel("statefulsets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -100,7 +97,6 @@ export default function StatefulSetsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -109,7 +105,6 @@ export default function StatefulSetsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="statefulsets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

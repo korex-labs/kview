@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import RoleBindingDrawer from "./RoleBindingDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import {
   dataplaneListMetaFromResponse,
@@ -28,8 +27,6 @@ type RoleBinding = {
 };
 
 type Row = RoleBinding & { id: string };
-
-const resourceLabel = getResourceLabel("rolebindings");
 
 function formatRoleRef(kind?: string, name?: string) {
   return `${kind || "-"}/${name || "-"}`;
@@ -102,7 +99,6 @@ export default function RoleBindingsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -111,7 +107,6 @@ export default function RoleBindingsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="rolebindings"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

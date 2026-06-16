@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { valueOrDash } from "../../../utils/format";
 import HelmChartDrawer from "./HelmChartDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type DataplaneListMeta } from "../../../types/api";
 import ScopedCountChip from "../../shared/ScopedCountChip";
@@ -33,8 +32,6 @@ type HelmChart = {
 };
 
 type Row = HelmChart & { id: string };
-
-const resourceLabel = getResourceLabel("helmcharts");
 
 const columns: GridColDef<Row>[] = [
   { field: "chartName", headerName: "Chart", flex: 1, minWidth: 200 },
@@ -114,11 +111,9 @@ export default function HelmChartsTable({ token }: { token: string }) {
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="helmcharts"
       namespace={null}
       skipEmptyAccessCheck

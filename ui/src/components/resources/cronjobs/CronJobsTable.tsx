@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import CronJobDrawer from "./CronJobDrawer";
 import { fmtAge, fmtTimeAgo } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -33,8 +32,6 @@ type CronJob = {
 };
 
 type Row = CronJob & { id: string };
-
-const resourceLabel = getResourceLabel("cronjobs");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -145,7 +142,6 @@ export default function CronJobsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -154,7 +150,6 @@ export default function CronJobsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="cronjobs"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

@@ -13,7 +13,6 @@ import NamespaceDrawer from "./NamespaceDrawer";
 import { AppIconButton } from "../../shared/AppActions";
 import { fmtAge } from "../../../utils/format";
 import { dataplaneCoarseStateChipColor, namespacePhaseChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import { useActiveContext } from "../../../activeContext";
@@ -28,8 +27,6 @@ type Namespace = NonNullable<ApiNamespacesListResponse["items"]>[number];
 type NamespaceProjectionUpdate = ApiNamespacesEnrichmentPoll["updates"][number];
 
 type Row = Namespace & { id: string; isFavourite: boolean; smartNamespaceSortKey: string };
-
-const resourceLabel = getResourceLabel("namespaces");
 
 function titleCase(value: string): string {
   if (!value) return "";
@@ -404,8 +401,6 @@ export default function NamespacesTable({
     );
   }, []);
 
-  const title = useMemo(() => <span>{resourceLabel}</span>, []);
-
   const listStatusPrefix = useMemo(() => {
     const total = rowProjection?.totalRows ?? 0;
     if (total <= 0) return null;
@@ -447,7 +442,6 @@ export default function NamespacesTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={title}
       dataplaneMetaPrefix={listStatusPrefix}
       mapRows={mapRows}
       mapRowsDeps={[
@@ -468,7 +462,6 @@ export default function NamespacesTable({
       }}
       dataplaneRefreshSec={0}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="namespaces"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

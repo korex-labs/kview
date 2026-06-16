@@ -125,7 +125,6 @@ export default function CustomResourcesTable({
       filterPredicate={filterPredicate}
       filterIntent={filterIntent}
       onFilterIntentApplied={onFilterIntentApplied}
-      resourceLabel={resourceLabel}
       resourceKey="customresources"
       namespace={namespace}
       skipEmptyAccessCheck

@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import SecretDrawer from "./SecretDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import ListSignalChip from "../../shared/ListSignalChip";
@@ -25,8 +24,6 @@ type Secret = {
 };
 
 type Row = Secret & { id: string };
-
-const resourceLabel = getResourceLabel("secrets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -103,7 +100,6 @@ export default function SecretsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -112,7 +108,6 @@ export default function SecretsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="secrets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

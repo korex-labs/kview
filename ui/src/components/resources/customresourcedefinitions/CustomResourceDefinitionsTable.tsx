@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import CustomResourceDefinitionDrawer from "./CustomResourceDefinitionDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -25,8 +24,6 @@ type CRDItem = {
 };
 
 type Row = CRDItem & { id: string };
-
-const resourceLabel = getResourceLabel("customresourcedefinitions");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 300 },
@@ -115,7 +112,6 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -123,7 +119,6 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="customresourcedefinitions"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

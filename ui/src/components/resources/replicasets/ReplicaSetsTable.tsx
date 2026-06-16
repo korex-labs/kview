@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import ReplicaSetDrawer from "./ReplicaSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -26,8 +25,6 @@ type ReplicaSet = {
 };
 
 type Row = ReplicaSet & { id: string };
-
-const resourceLabel = getResourceLabel("replicasets");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -105,7 +102,6 @@ export default function ReplicaSetsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -114,7 +110,6 @@ export default function ReplicaSetsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="replicasets"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

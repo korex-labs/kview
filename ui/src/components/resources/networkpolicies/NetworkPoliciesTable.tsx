@@ -6,13 +6,10 @@ import type { ApiDataplaneListResponse, NetworkPolicy } from "../../../types/api
 import { dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import NetworkPolicyDrawer from "./NetworkPolicyDrawer";
 
 type Row = NetworkPolicy & { id: string };
-
-const resourceLabel = getResourceLabel("networkpolicies");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -56,13 +53,11 @@ export default function NetworkPoliciesTable({ token, namespace }: { token: stri
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "networkpolicies", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="networkpolicies"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

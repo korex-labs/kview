@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import NodeDrawer from "./NodeDrawer";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { deploymentHealthBucketColor, nodeStatusChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -44,8 +43,6 @@ type Node = NodeListItemUsage & {
 };
 
 type Row = Node & { id: string };
-
-const resourceLabel = getResourceLabel("nodes");
 
 function nodeUsageTone(pct: number | undefined): GaugeTone {
   switch (severityForPct(pct, 70, 85)) {
@@ -229,7 +226,6 @@ export default function NodesTable({ token }: { token: string }) {
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -237,7 +233,6 @@ export default function NodesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="nodes"
       namespace={null}
       skipEmptyAccessCheck

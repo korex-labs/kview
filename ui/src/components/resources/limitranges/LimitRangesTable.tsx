@@ -5,7 +5,6 @@ import type { ApiDataplaneListResponse, NamespaceLimitRange } from "../../../typ
 import { dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import LimitRangeDrawer from "./LimitRangeDrawer";
 
@@ -14,8 +13,6 @@ type Row = NamespaceLimitRange & {
   itemCount: number;
   types: string;
 };
-
-const resourceLabel = getResourceLabel("limitranges");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -50,13 +47,11 @@ export default function LimitRangesTable({ token, namespace }: { token: string; 
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{ fetchRevision: dataplaneRevisionFetcher(token, "limitranges", namespace), pollSec: defaultRevisionPollSec }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="limitranges"
       namespace={namespace}
       renderDrawer={({ selectedRow, open, onClose }) => (

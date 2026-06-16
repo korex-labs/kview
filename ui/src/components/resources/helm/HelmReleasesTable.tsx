@@ -6,7 +6,6 @@ import { fmtTs, valueOrDash } from "../../../utils/format";
 import { helmStatusChipColor } from "../../../utils/k8sUi";
 import HelmReleaseDrawer from "./HelmReleaseDrawer";
 import { HelmInstallButton } from "./HelmActions";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -36,8 +35,6 @@ type HelmRelease = {
 };
 
 type Row = HelmRelease & { id: string };
-
-const resourceLabel = getResourceLabel("helm");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
@@ -123,7 +120,6 @@ export default function HelmReleasesTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -132,7 +128,6 @@ export default function HelmReleasesTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="helm"
       namespace={namespace}
       renderFooterExtra={(refetch) => (

@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import DeploymentDrawer from "./DeploymentDrawer";
 import { fmtAge, fmtTimeAgo } from "../../../utils/format";
 import { deploymentHealthBucketColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
@@ -29,8 +28,6 @@ type Deployment = {
 };
 
 type Row = Deployment & { id: string };
-
-const resourceLabel = getResourceLabel("deployments");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -105,7 +102,6 @@ export default function DeploymentsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -114,7 +110,6 @@ export default function DeploymentsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="deployments"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

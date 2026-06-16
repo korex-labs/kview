@@ -4,7 +4,6 @@ import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import { fmtAge } from "../../../utils/format";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import CustomResourceDrawer, { type CRRef } from "./CustomResourceDrawer";
 import CustomResourceStatusCell from "./CustomResourceStatusCell";
@@ -30,8 +29,6 @@ type AggregationMeta = {
 };
 
 type Row = CRInstanceItem & { id: string };
-
-const resourceLabel = getResourceLabel("clusterresources");
 
 const columns: GridColDef<Row>[] = [
   {
@@ -105,7 +102,6 @@ export default function ClusterCustomResourcesTable({ token }: { token: string }
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -113,7 +109,6 @@ export default function ClusterCustomResourcesTable({ token }: { token: string }
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="clusterresources"
       namespace={null}
       skipEmptyAccessCheck

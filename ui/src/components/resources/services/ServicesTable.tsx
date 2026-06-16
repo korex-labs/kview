@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import ServiceDrawer from "./ServiceDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -28,8 +27,6 @@ type Service = {
 };
 
 type Row = Service & { id: string };
-
-const resourceLabel = getResourceLabel("services");
 
 function formatEndpointsSummary(ready?: number, notReady?: number) {
   const r = ready || 0;
@@ -120,7 +117,6 @@ export default function ServicesTable({ token, namespace }: { token: string; nam
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -129,7 +125,6 @@ export default function ServicesTable({ token, namespace }: { token: string; nam
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="services"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

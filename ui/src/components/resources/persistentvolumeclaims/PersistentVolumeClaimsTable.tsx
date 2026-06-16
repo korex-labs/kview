@@ -6,7 +6,6 @@ import { type ApiDataplaneListResponse, dataplaneListMetaFromResponse } from "..
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { pvcPhaseChipColor } from "../../../utils/k8sUi";
 import PersistentVolumeClaimDrawer from "./PersistentVolumeClaimDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import ListSignalChip from "../../shared/ListSignalChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -29,8 +28,6 @@ type PersistentVolumeClaim = {
 };
 
 type Row = PersistentVolumeClaim & { id: string };
-
-const resourceLabel = getResourceLabel("persistentvolumeclaims");
 
 function formatSize(requested?: string, capacity?: string) {
   if (!requested && !capacity) return "-";
@@ -135,7 +132,6 @@ export default function PersistentVolumeClaimsTable({
   return (
     <ResourceListPage<Row>
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -144,7 +140,6 @@ export default function PersistentVolumeClaimsTable({
       }}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="persistentvolumeclaims"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {

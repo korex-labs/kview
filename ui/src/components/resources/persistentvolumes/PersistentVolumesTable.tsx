@@ -5,7 +5,6 @@ import { apiGetWithContext } from "../../../api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import { pvPhaseChipColor } from "../../../utils/k8sUi";
 import PersistentVolumeDrawer from "./PersistentVolumeDrawer";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneListMetaFromResponse, type ApiDataplaneListResponse } from "../../../types/api";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
@@ -29,8 +28,6 @@ type PersistentVolume = {
 };
 
 type Row = PersistentVolume & { id: string };
-
-const resourceLabel = getResourceLabel("persistentvolumes");
 
 const columns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -120,7 +117,6 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
   return (
     <ResourceListPage<Row>
       token={token}
-      title={resourceLabel}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -128,7 +124,6 @@ export default function PersistentVolumesTable({ token }: { token: string }) {
         pollSec: defaultRevisionPollSec,
       }}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="persistentvolumes"
       namespace={null}
       renderDrawer={({ selectedId, open, onClose }) => (

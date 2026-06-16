@@ -11,7 +11,6 @@ import {
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
-import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 import GaugeBar, { type GaugeTone } from "../../shared/GaugeBar";
@@ -68,8 +67,6 @@ export function renderUsageCell(
     </Box>
   );
 }
-
-const resourceLabel = getResourceLabel("pods");
 
 const baseColumns: GridColDef<Row>[] = [
   { field: "name", headerName: "Name", flex: 1, minWidth: 240 },
@@ -220,7 +217,6 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
     <ResourceListPage<Row>
       key={`${namespace}:${metricsUsable ? "metrics" : "base"}`}
       token={token}
-      title={<>{resourceLabel} — {namespace}</>}
       columns={columns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
@@ -230,7 +226,6 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
       dataplaneRefreshSec={metricsUsable ? podMetricsRefreshSec : undefined}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
-      resourceLabel={resourceLabel}
       resourceKey="pods"
       namespace={namespace}
       renderDrawer={({ selectedId, open, onClose }) => {
