@@ -3,6 +3,14 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: [
+      {
+        find: /^react-transition-group\/(TransitionGroupContext|Transition|TransitionGroup|SwitchTransition|CSSTransition)$/,
+        replacement: "react-transition-group/esm/$1.js",
+      },
+    ],
+  },
   server: {
     proxy: process.env.KVIEW_E2E_API_TARGET
       ? {
