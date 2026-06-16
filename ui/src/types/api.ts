@@ -68,6 +68,30 @@ export type ResourceListFetchResult<TRow> = {
   dataplaneMeta?: DataplaneListMeta | null;
 };
 
+/** GET /api/view/resources */
+export type ApiViewResourceDescriptor = {
+  key: string;
+  label: string;
+  clusterScoped: boolean;
+  icon: string;
+  access: {
+    group: string;
+    resource: string;
+  };
+};
+
+export type ApiViewSidebarGroup = {
+  id: string;
+  label: string;
+  icon: string;
+  items: string[];
+};
+
+export type ApiViewResourcesResponse = {
+  resources?: ApiViewResourceDescriptor[];
+  sidebarGroups?: ApiViewSidebarGroup[];
+};
+
 /** GET /api/namespaces/enrichment?revision= */
 export type ApiNamespacesEnrichmentPoll = {
   revision: number;

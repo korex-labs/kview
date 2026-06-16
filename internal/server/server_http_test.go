@@ -19,6 +19,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/kube/jobdebug"
 	"github.com/korex-labs/kview/v5/internal/runtime"
 	"github.com/korex-labs/kview/v5/internal/session"
+	"github.com/korex-labs/kview/v5/internal/viewmeta"
 )
 
 // ── test helpers ─────────────────────────────────────────────────────────────
@@ -1143,6 +1144,47 @@ func TestCustomResourcesResolve_MissingParams(t *testing.T) {
 				t.Errorf("status: got %d, want %d (body=%s)", rec.Code, tc.wantStatus, rec.Body.String())
 			}
 		})
+	}
+}
+
+// ── GET /api/view/resources ──────────────────────────────────────────────────
+
+func TestGetViewResources(t *testing.T) {
+	_, h := newTestServer(t)
+
+	rec := doReq(t, h, http.MethodGet, "/api/view/resources", testToken, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body viewmeta.DescriptorBundle
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Resources) == 0 {
+		t.Fatal("expected resources")
+	}
+	if len(body.SidebarGroups) == 0 {
+		t.Fatal("expected sidebar groups")
+	}
+
+	byKey := map[string]viewmeta.ResourceDescriptor{}
+	for _, resource := range body.Resources {
+		byKey[resource.Key] = resource
+	}
+	pods, ok := byKey["pods"]
+	if !ok {
+		t.Fatal("missing pods descriptor")
+	}
+	if pods.Label != "Pods" || pods.Access.Resource != "pods" {
+		t.Fatalf("unexpected pods descriptor: %#v", pods)
+	}
+	helmCharts, ok := byKey["helmcharts"]
+	if !ok {
+		t.Fatal("missing helmcharts descriptor")
+	}
+	if !helmCharts.ClusterScoped {
+		t.Fatalf("expected helmcharts to be cluster scoped: %#v", helmCharts)
 	}
 }
 

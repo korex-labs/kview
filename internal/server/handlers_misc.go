@@ -10,9 +10,14 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube"
+	"github.com/korex-labs/kview/v5/internal/viewmeta"
 )
 
 func (s *Server) registerCapabilitiesAndActionsRoutes(api chi.Router) {
+	api.Get("/view/resources", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, viewmeta.Bundle())
+	})
+
 	api.Post("/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		ctxName := r.Header.Get("X-Kview-Context")
 		if ctxName == "" {

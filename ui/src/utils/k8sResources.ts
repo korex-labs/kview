@@ -1,5 +1,6 @@
 import type { Section } from "../state";
 import type { ResourceIconName } from "../components/icons/resources/types";
+import type { ApiViewResourcesResponse } from "../types/api";
 
 export type AccessReviewResource = {
   group: string;
@@ -50,6 +51,51 @@ export type SidebarGroup = {
   icon: ResourceIconName;
   items: Section[];
 };
+
+const validResourceIcons = new Set<ResourceIconName>([
+  "dashboard",
+  "workloads",
+  "networking",
+  "policy",
+  "configuration",
+  "access-control",
+  "storage",
+  "helm",
+  "extensions",
+  "cluster",
+  "pods",
+  "deployments",
+  "daemonsets",
+  "statefulsets",
+  "replicasets",
+  "services",
+  "ingresses",
+  "networkpolicies",
+  "jobs",
+  "cronjobs",
+  "horizontalpodautoscalers",
+  "configmaps",
+  "secrets",
+  "serviceaccounts",
+  "roles",
+  "rolebindings",
+  "clusterroles",
+  "clusterrolebindings",
+  "persistentvolumeclaims",
+  "persistentvolumes",
+  "nodes",
+  "namespaces",
+  "customresourcedefinitions",
+  "customresources",
+  "clusterresources",
+  "helmcharts",
+  "resourcequotas",
+  "limitranges",
+]);
+
+function isResourceIconName(value: unknown): value is ResourceIconName {
+  return typeof value === "string" && validResourceIcons.has(value as ResourceIconName);
+}
 
 export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
   dashboard: { label: "Dashboard", clusterScoped: true, icon: "dashboard" },
@@ -192,3 +238,89 @@ export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> =
   resourcequotas: { group: "", resource: "resourcequotas" },
   limitranges: { group: "", resource: "limitranges" },
 };
+
+const listResourceKeys = new Set<string>(Object.keys(resourceMeta));
+
+function isListResourceKey(value: unknown): value is ListResourceKey {
+  return typeof value === "string" && listResourceKeys.has(value);
+}
+
+const defaultResourceMeta: Record<ListResourceKey, ResourceMeta> = Object.fromEntries(
+  Object.entries(resourceMeta).map(([key, meta]) => [key, { ...meta }]),
+) as Record<ListResourceKey, ResourceMeta>;
+
+const defaultListResourceAccess: Record<ListResourceKey, AccessReviewResource> = Object.fromEntries(
+  Object.entries(listResourceAccess).map(([key, access]) => [key, { ...access }]),
+) as Record<ListResourceKey, AccessReviewResource>;
+
+const defaultSidebarGroups: SidebarGroup[] = sidebarGroups.map((group) => ({
+  ...group,
+  items: [...group.items],
+}));
+
+export function resetViewResourceDescriptorsForTest(): void {
+  for (const key of Object.keys(resourceMeta) as ListResourceKey[]) {
+    resourceMeta[key] = { ...defaultResourceMeta[key] };
+    listResourceAccess[key] = { ...defaultListResourceAccess[key] };
+  }
+  sidebarGroups.splice(
+    0,
+    sidebarGroups.length,
+    ...defaultSidebarGroups.map((group) => ({ ...group, items: [...group.items] })),
+  );
+}
+
+export function applyViewResourceDescriptors(response: ApiViewResourcesResponse | null | undefined): boolean {
+  let changed = false;
+
+  for (const descriptor of response?.resources || []) {
+    if (!isListResourceKey(descriptor.key)) continue;
+    if (!descriptor.label || !isResourceIconName(descriptor.icon) || !descriptor.access?.resource) continue;
+
+    const nextMeta: ResourceMeta = {
+      label: descriptor.label,
+      clusterScoped: Boolean(descriptor.clusterScoped),
+      icon: descriptor.icon,
+    };
+    const currentMeta = resourceMeta[descriptor.key];
+    if (
+      currentMeta.label !== nextMeta.label ||
+      currentMeta.clusterScoped !== nextMeta.clusterScoped ||
+      currentMeta.icon !== nextMeta.icon
+    ) {
+      resourceMeta[descriptor.key] = nextMeta;
+      changed = true;
+    }
+
+    const nextAccess: AccessReviewResource = {
+      group: descriptor.access.group || "",
+      resource: descriptor.access.resource,
+    };
+    const currentAccess = listResourceAccess[descriptor.key];
+    if (currentAccess.group !== nextAccess.group || currentAccess.resource !== nextAccess.resource) {
+      listResourceAccess[descriptor.key] = nextAccess;
+      changed = true;
+    }
+  }
+
+  const nextGroups = (response?.sidebarGroups || [])
+    .filter((group) => group.id && group.label && isResourceIconName(group.icon))
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      icon: group.icon as ResourceIconName,
+      items: (group.items || []).filter(isListResourceKey),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  if (nextGroups.length > 0) {
+    const current = JSON.stringify(sidebarGroups);
+    const next = JSON.stringify(nextGroups);
+    if (current !== next) {
+      sidebarGroups.splice(0, sidebarGroups.length, ...nextGroups);
+      changed = true;
+    }
+  }
+
+  return changed;
+}

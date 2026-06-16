@@ -8,7 +8,7 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
 import logoUrl from "./assets/logo.svg";
 import Sidebar from "./components/Sidebar";
 import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext, toApiError } from "./api";
-import type { ApiContextsResponse, ApiNamespacesListResponse } from "./types/api";
+import type { ApiContextsResponse, ApiNamespacesListResponse, ApiViewResourcesResponse } from "./types/api";
 import {
   loadState,
   isSection,
@@ -41,6 +41,7 @@ import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from ".
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
 import { APPLY_SAVED_RESOURCE_VIEW_EVENT } from "./savedViews";
 import usePageVisible from "./utils/usePageVisible";
+import { applyViewResourceDescriptors } from "./utils/k8sResources";
 import {
   performanceDiagnosticsEnabled,
   recordApiTiming,
@@ -179,6 +180,7 @@ function AppInner() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchDrawerItem, setSearchDrawerItem] = useState<ApiDataplaneSearchItem | null>(null);
   const [searchFocusRequest, setSearchFocusRequest] = useState<GlobalSearchFocusRequest>({ nonce: 0, query: "" });
+  const [viewDescriptorRevision, setViewDescriptorRevision] = useState(0);
 
   const [favourites, setFavourites] = useState<string[]>([]);
 
@@ -188,6 +190,23 @@ function AppInner() {
   useEffect(() => {
     setApiDefaultContext(activeContext);
   }, [activeContext]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void apiGet<ApiViewResourcesResponse>("/api/view/resources", token, { useDefaultContext: false })
+      .then((response) => {
+        if (cancelled) return;
+        if (applyViewResourceDescriptors(response)) {
+          setViewDescriptorRevision((revision) => revision + 1);
+        }
+      })
+      .catch(() => {
+        // Local resource metadata remains the fallback when an older backend does not expose descriptors.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const namespacesListPath = useMemo(
     () =>
@@ -711,6 +730,7 @@ function AppInner() {
 
           {resourcesOpen ? (
             <Sidebar
+              key={viewDescriptorRevision}
               contexts={contexts}
               activeContext={activeContext}
               onSelectContext={onSelectContext}

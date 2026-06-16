@@ -1,0 +1,81 @@
+package viewmeta
+
+type AccessReviewResource struct {
+	Group    string `json:"group"`
+	Resource string `json:"resource"`
+}
+
+type ResourceDescriptor struct {
+	Key           string               `json:"key"`
+	Label         string               `json:"label"`
+	ClusterScoped bool                 `json:"clusterScoped"`
+	Icon          string               `json:"icon"`
+	Access        AccessReviewResource `json:"access"`
+}
+
+type SidebarGroup struct {
+	ID    string   `json:"id"`
+	Label string   `json:"label"`
+	Icon  string   `json:"icon"`
+	Items []string `json:"items"`
+}
+
+type DescriptorBundle struct {
+	Resources     []ResourceDescriptor `json:"resources"`
+	SidebarGroups []SidebarGroup       `json:"sidebarGroups"`
+}
+
+var resources = []ResourceDescriptor{
+	{Key: "dashboard", Label: "Dashboard", ClusterScoped: true, Icon: "dashboard", Access: AccessReviewResource{Group: "", Resource: "namespaces"}},
+	{Key: "pods", Label: "Pods", ClusterScoped: false, Icon: "pods", Access: AccessReviewResource{Group: "", Resource: "pods"}},
+	{Key: "deployments", Label: "Deployments", ClusterScoped: false, Icon: "deployments", Access: AccessReviewResource{Group: "apps", Resource: "deployments"}},
+	{Key: "daemonsets", Label: "Daemon Sets", ClusterScoped: false, Icon: "daemonsets", Access: AccessReviewResource{Group: "apps", Resource: "daemonsets"}},
+	{Key: "statefulsets", Label: "Stateful Sets", ClusterScoped: false, Icon: "statefulsets", Access: AccessReviewResource{Group: "apps", Resource: "statefulsets"}},
+	{Key: "replicasets", Label: "Replica Sets", ClusterScoped: false, Icon: "replicasets", Access: AccessReviewResource{Group: "apps", Resource: "replicasets"}},
+	{Key: "services", Label: "Services", ClusterScoped: false, Icon: "services", Access: AccessReviewResource{Group: "", Resource: "services"}},
+	{Key: "ingresses", Label: "Ingresses", ClusterScoped: false, Icon: "ingresses", Access: AccessReviewResource{Group: "networking.k8s.io", Resource: "ingresses"}},
+	{Key: "networkpolicies", Label: "Network Policies", ClusterScoped: false, Icon: "networkpolicies", Access: AccessReviewResource{Group: "networking.k8s.io", Resource: "networkpolicies"}},
+	{Key: "jobs", Label: "Jobs", ClusterScoped: false, Icon: "jobs", Access: AccessReviewResource{Group: "batch", Resource: "jobs"}},
+	{Key: "cronjobs", Label: "Cron Jobs", ClusterScoped: false, Icon: "cronjobs", Access: AccessReviewResource{Group: "batch", Resource: "cronjobs"}},
+	{Key: "horizontalpodautoscalers", Label: "HPA", ClusterScoped: false, Icon: "horizontalpodautoscalers", Access: AccessReviewResource{Group: "autoscaling", Resource: "horizontalpodautoscalers"}},
+	{Key: "configmaps", Label: "Config Maps", ClusterScoped: false, Icon: "configmaps", Access: AccessReviewResource{Group: "", Resource: "configmaps"}},
+	{Key: "secrets", Label: "Secrets", ClusterScoped: false, Icon: "secrets", Access: AccessReviewResource{Group: "", Resource: "secrets"}},
+	{Key: "serviceaccounts", Label: "Service Accounts", ClusterScoped: false, Icon: "serviceaccounts", Access: AccessReviewResource{Group: "", Resource: "serviceaccounts"}},
+	{Key: "roles", Label: "Roles", ClusterScoped: false, Icon: "roles", Access: AccessReviewResource{Group: "rbac.authorization.k8s.io", Resource: "roles"}},
+	{Key: "rolebindings", Label: "Role Bindings", ClusterScoped: false, Icon: "rolebindings", Access: AccessReviewResource{Group: "rbac.authorization.k8s.io", Resource: "rolebindings"}},
+	{Key: "clusterroles", Label: "Cluster Roles", ClusterScoped: true, Icon: "clusterroles", Access: AccessReviewResource{Group: "rbac.authorization.k8s.io", Resource: "clusterroles"}},
+	{Key: "clusterrolebindings", Label: "Cluster Role Bindings", ClusterScoped: true, Icon: "clusterrolebindings", Access: AccessReviewResource{Group: "rbac.authorization.k8s.io", Resource: "clusterrolebindings"}},
+	{Key: "persistentvolumeclaims", Label: "Persistent Volume Claims", ClusterScoped: false, Icon: "persistentvolumeclaims", Access: AccessReviewResource{Group: "", Resource: "persistentvolumeclaims"}},
+	{Key: "persistentvolumes", Label: "Persistent Volumes", ClusterScoped: true, Icon: "persistentvolumes", Access: AccessReviewResource{Group: "", Resource: "persistentvolumes"}},
+	{Key: "nodes", Label: "Nodes", ClusterScoped: true, Icon: "nodes", Access: AccessReviewResource{Group: "", Resource: "nodes"}},
+	{Key: "namespaces", Label: "Namespaces", ClusterScoped: true, Icon: "namespaces", Access: AccessReviewResource{Group: "", Resource: "namespaces"}},
+	{Key: "customresourcedefinitions", Label: "Custom Resource Definitions", ClusterScoped: true, Icon: "customresourcedefinitions", Access: AccessReviewResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}},
+	{Key: "customresources", Label: "Custom Namespace Resources", ClusterScoped: false, Icon: "customresources", Access: AccessReviewResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}},
+	{Key: "clusterresources", Label: "Custom Cluster Resources", ClusterScoped: true, Icon: "clusterresources", Access: AccessReviewResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}},
+	{Key: "helm", Label: "Helm Releases", ClusterScoped: false, Icon: "helm", Access: AccessReviewResource{Group: "", Resource: "secrets"}},
+	{Key: "helmcharts", Label: "Helm Charts", ClusterScoped: true, Icon: "helmcharts", Access: AccessReviewResource{Group: "", Resource: "secrets"}},
+	{Key: "resourcequotas", Label: "Resource Quotas", ClusterScoped: false, Icon: "resourcequotas", Access: AccessReviewResource{Group: "", Resource: "resourcequotas"}},
+	{Key: "limitranges", Label: "Limit Ranges", ClusterScoped: false, Icon: "limitranges", Access: AccessReviewResource{Group: "", Resource: "limitranges"}},
+}
+
+var sidebarGroups = []SidebarGroup{
+	{ID: "workloads", Label: "Workloads", Icon: "workloads", Items: []string{"pods", "deployments", "statefulsets", "daemonsets", "jobs", "cronjobs", "horizontalpodautoscalers"}},
+	{ID: "networking", Label: "Networking", Icon: "networking", Items: []string{"services", "ingresses"}},
+	{ID: "policy", Label: "Policy", Icon: "policy", Items: []string{"networkpolicies", "resourcequotas", "limitranges"}},
+	{ID: "configuration", Label: "Configuration", Icon: "configuration", Items: []string{"configmaps", "secrets"}},
+	{ID: "rbac", Label: "Access Control", Icon: "access-control", Items: []string{"serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"}},
+	{ID: "storage", Label: "Storage", Icon: "storage", Items: []string{"persistentvolumeclaims", "persistentvolumes"}},
+	{ID: "helm", Label: "Helm", Icon: "helm", Items: []string{"helm", "helmcharts"}},
+	{ID: "extensions", Label: "Extensions", Icon: "extensions", Items: []string{"customresources", "clusterresources", "customresourcedefinitions"}},
+	{ID: "cluster", Label: "Cluster", Icon: "cluster", Items: []string{"dashboard", "nodes", "namespaces"}},
+}
+
+func Bundle() DescriptorBundle {
+	resourceCopy := append([]ResourceDescriptor(nil), resources...)
+	groupCopy := make([]SidebarGroup, 0, len(sidebarGroups))
+	for _, group := range sidebarGroups {
+		group.Items = append([]string(nil), group.Items...)
+		groupCopy = append(groupCopy, group)
+	}
+	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy}
+}
