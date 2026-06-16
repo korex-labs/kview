@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   applyViewResourceDescriptors,
+  getDashboardSignalFilterCategoryPolicy,
+  getDashboardViewPolicy,
   getResourceIcon,
   getResourceLabel,
   getResourceViewPolicy,
@@ -29,6 +31,12 @@ describe("view resource descriptors", () => {
             filterLabel: "Filter pods",
             identity: ["namespace", "name"],
             searchFields: ["name", "phase"],
+            savedViews: {
+              enabled: true,
+              namePrefix: "Runtime Pods",
+              location: ["context", "namespace", "resource"],
+              state: ["filter", "sort"],
+            },
           },
         },
       ],
@@ -40,6 +48,17 @@ describe("view resource descriptors", () => {
           items: ["pods", "deployments"],
         },
       ],
+      dashboard: {
+        signalViews: {
+          enabled: true,
+          namePrefix: "Signal preset",
+          state: ["filters", "query"],
+        },
+        signalFilterCategories: [
+          { key: "priority", label: "Primary", order: 2, compact: false },
+          { key: "custom", label: "Custom", order: 11, compact: true },
+        ],
+      },
     });
 
     expect(changed).toBe(true);
@@ -52,6 +71,12 @@ describe("view resource descriptors", () => {
       filterLabel: "Filter pods",
       identity: ["namespace", "name"],
       searchFields: ["name", "phase"],
+      savedViews: {
+        enabled: true,
+        namePrefix: "Runtime Pods",
+        location: ["context", "namespace", "resource"],
+        state: ["filter", "sort"],
+      },
     });
     expect(sidebarGroups).toEqual([
       {
@@ -61,6 +86,21 @@ describe("view resource descriptors", () => {
         items: ["pods", "deployments"],
       },
     ]);
+    expect(getDashboardViewPolicy().signalViews).toEqual({
+      enabled: true,
+      namePrefix: "Signal preset",
+      state: ["filters", "query"],
+    });
+    expect(getDashboardSignalFilterCategoryPolicy("priority")).toEqual({
+      label: "Primary",
+      order: 2,
+      compact: false,
+    });
+    expect(getDashboardSignalFilterCategoryPolicy("custom")).toEqual({
+      label: "Custom",
+      order: 11,
+      compact: true,
+    });
   });
 
   it("ignores unknown resource keys and invalid icons", () => {
@@ -99,7 +139,19 @@ describe("view resource descriptors", () => {
       filterLabel: "Filter (name/node/status)",
       identity: ["name"],
       searchFields: ["name", "nodeName", "phase", "status", "signalSeverity", "listSignalSeverity"],
+      savedViews: {
+        enabled: true,
+        namePrefix: "Pods",
+        location: ["context", "namespace", "resource"],
+        state: ["filter", "sort", "columns"],
+      },
     });
     expect(sidebarGroups.some((group) => group.id === "invalid")).toBe(false);
+    expect(getDashboardViewPolicy().signalViews.namePrefix).toBe("Signal view");
+    expect(getDashboardSignalFilterCategoryPolicy("priority")).toEqual({
+      label: "Priority",
+      order: 0,
+      compact: true,
+    });
   });
 });

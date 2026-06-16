@@ -46,6 +46,7 @@ export type ResourceTableToolbarProps = {
   onRefreshChange: (value: number) => void;
   quickFilters: QuickFilter[];
   savedViews?: SavedResourceViewDefinition[];
+  showSavedViews?: boolean;
   selectedSavedViewId?: string;
   selectedSavedViewDirty?: boolean;
   onSavedViewApply?: (id: string) => void;
@@ -69,6 +70,7 @@ export default function ResourceTableToolbar({
   onRefreshChange,
   quickFilters,
   savedViews = [],
+  showSavedViews = true,
   selectedSavedViewId = "",
   selectedSavedViewDirty = false,
   onSavedViewApply,
@@ -121,33 +123,35 @@ export default function ResourceTableToolbar({
             </Select>
           </FormControl>
         ) : null}
-        <FormControl size="small" sx={{ minWidth: 190 }}>
-          <InputLabel id="saved-view-label">Saved view</InputLabel>
-          <Select
-            labelId="saved-view-label"
-            label="Saved view"
-            value={selectedSavedViewId}
-            onChange={(e) => {
-              const value = String(e.target.value);
-              if (!value) {
-                onSavedViewClear?.();
-                return;
-              }
-              onSavedViewApply?.(value);
-            }}
-            disabled={disabled || savedViews.length === 0}
-          >
-            <MenuItem value="">
-              {savedViews.length === 0 ? "No saved views" : "No saved view"}
-            </MenuItem>
-            {savedViews.map((view) => (
-              <MenuItem key={view.id} value={view.id}>
-                {view.name}
+        {showSavedViews ? (
+          <FormControl size="small" sx={{ minWidth: 190 }}>
+            <InputLabel id="saved-view-label">Saved view</InputLabel>
+            <Select
+              labelId="saved-view-label"
+              label="Saved view"
+              value={selectedSavedViewId}
+              onChange={(e) => {
+                const value = String(e.target.value);
+                if (!value) {
+                  onSavedViewClear?.();
+                  return;
+                }
+                onSavedViewApply?.(value);
+              }}
+              disabled={disabled || savedViews.length === 0}
+            >
+              <MenuItem value="">
+                {savedViews.length === 0 ? "No saved views" : "No saved view"}
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        {selectedSavedViewId ? (
+              {savedViews.map((view) => (
+                <MenuItem key={view.id} value={view.id}>
+                  {view.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        ) : null}
+        {showSavedViews && selectedSavedViewId ? (
           <AppIconButton
             tooltip="Clear saved view and reset table"
             label="Clear saved view and reset table"
@@ -157,7 +161,7 @@ export default function ResourceTableToolbar({
             <CloseIcon fontSize="small" />
           </AppIconButton>
         ) : null}
-        {selectedSavedViewDirty ? (
+        {showSavedViews && selectedSavedViewDirty ? (
           <Chip
             size="small"
             color="warning"
@@ -167,23 +171,27 @@ export default function ResourceTableToolbar({
             sx={{ height: 24 }}
           />
         ) : null}
-        <AppIconButton
-          tooltip={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
-          label={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
-          onClick={onSavedViewSave}
-          disabled={disabled}
-        >
-          <BookmarkAddOutlinedIcon fontSize="small" />
-        </AppIconButton>
-        <AppIconButton
-          tooltip="Delete selected saved view"
-          label="Delete selected saved view"
-          onClick={() => selectedSavedViewId && onSavedViewDelete?.(selectedSavedViewId)}
-          disabled={disabled || !selectedSavedViewId}
-          intent="destructive"
-        >
-          <DeleteOutlineIcon fontSize="small" />
-        </AppIconButton>
+        {showSavedViews ? (
+          <AppIconButton
+            tooltip={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
+            label={selectedSavedViewId ? "Update selected saved view" : "Save current view"}
+            onClick={onSavedViewSave}
+            disabled={disabled}
+          >
+            <BookmarkAddOutlinedIcon fontSize="small" />
+          </AppIconButton>
+        ) : null}
+        {showSavedViews ? (
+          <AppIconButton
+            tooltip="Delete selected saved view"
+            label="Delete selected saved view"
+            onClick={() => selectedSavedViewId && onSavedViewDelete?.(selectedSavedViewId)}
+            disabled={disabled || !selectedSavedViewId}
+            intent="destructive"
+          >
+            <DeleteOutlineIcon fontSize="small" />
+          </AppIconButton>
+        ) : null}
         <Box sx={{ flexGrow: 1 }} />
       </Box>
       {quickFilters.length > 0 && (

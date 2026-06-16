@@ -5,6 +5,7 @@ import { AppIconButton } from "../shared/AppActions";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
+import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 
 type SessionSummary = {
   id: string;
@@ -32,6 +33,7 @@ export default function TerminalSessionView({
   active = true,
   focusNonce = 0,
 }: Props) {
+  const { requestKeyboardFocus } = useKeyboardControls();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -45,6 +47,7 @@ export default function TerminalSessionView({
       ".xterm-helper-textarea"
     ) as HTMLTextAreaElement | null;
     input?.focus();
+    return document.activeElement === input;
   }, []);
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export default function TerminalSessionView({
       term.open(containerRef.current);
       window.requestAnimationFrame(() => {
         tryFit();
-        focusTerminal();
+        requestKeyboardFocus({ id: "terminal.session", focus: focusTerminal });
       });
     }
 
@@ -156,15 +159,12 @@ export default function TerminalSessionView({
       term.dispose();
       fitRef.current = null;
     };
-  }, [id, token, focusTerminal]);
+  }, [id, token, focusTerminal, requestKeyboardFocus]);
 
   useEffect(() => {
     if (!active) return;
-    const timer = window.setTimeout(() => {
-      focusTerminal();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [active, focusNonce, focusTerminal]);
+    requestKeyboardFocus({ id: "terminal.session.active", focus: focusTerminal });
+  }, [active, focusNonce, focusTerminal, requestKeyboardFocus]);
 
   return (
     <Box

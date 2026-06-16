@@ -90,6 +90,12 @@ export type ApiViewResourceDescriptor = {
     filterLabel?: string;
     identity?: string[];
     searchFields?: string[];
+    savedViews?: {
+      enabled?: boolean;
+      namePrefix?: string;
+      location?: string[];
+      state?: string[];
+    };
   };
 };
 
@@ -100,9 +106,24 @@ export type ApiViewSidebarGroup = {
   items: string[];
 };
 
+export type ApiDashboardViewDescriptor = {
+  signalViews?: {
+    enabled?: boolean;
+    namePrefix?: string;
+    state?: string[];
+  };
+  signalFilterCategories?: Array<{
+    key?: string;
+    label?: string;
+    order?: number;
+    compact?: boolean;
+  }>;
+};
+
 export type ApiViewResourcesResponse = {
   resources?: ApiViewResourceDescriptor[];
   sidebarGroups?: ApiViewSidebarGroup[];
+  dashboard?: ApiDashboardViewDescriptor;
 };
 
 /** GET /api/namespaces/enrichment?revision= */

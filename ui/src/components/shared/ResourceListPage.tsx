@@ -30,7 +30,7 @@ import ResourceTableToolbar, { type ResourceTableToolbarProps } from "./Resource
 import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
-import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
+import { useKeyboardControls, useTableKeyboardControls } from "../../keyboard/KeyboardProvider";
 import { useUserSettings } from "../../settingsContext";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import { recordListSnapshot } from "../../utils/performanceDiagnostics";
@@ -47,6 +47,12 @@ import {
   defaultSavedResourceViewName,
   dispatchApplySavedResourceView,
   loadPendingSavedResourceView,
+  recordsEqual,
+  savedResourceViewsEnabled,
+  savedSortModelFromGrid,
+  savedViewMatchesCurrentState,
+  savedViewMatchesLocation,
+  sortModelsEqual,
 } from "../../savedViews";
 import { DialogActionButton } from "./AppActions";
 
@@ -141,67 +147,8 @@ function newSavedViewId(): string {
   return `saved-view-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function recordsEqual<T extends string | number | boolean>(a: Record<string, T>, b: Record<string, T>): boolean {
-  const aEntries = Object.entries(a);
-  const bEntries = Object.entries(b);
-  if (aEntries.length !== bEntries.length) return false;
-  return aEntries.every(([key, value]) => b[key] === value);
-}
-
-function sortModelsEqual(
-  a: ReadonlyArray<{ field: string; sort?: unknown }>,
-  b: ReadonlyArray<{ field: string; sort?: unknown }>,
-): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((item, index) => item.field === b[index]?.field && item.sort === b[index]?.sort);
-}
-
-function savedSortModelFromGrid(sortModel: GridSortModel): SavedResourceViewDefinition["sortModel"] {
-  return sortModel
-    .filter((item) => item.field && (item.sort === "asc" || item.sort === "desc"))
-    .map((item) => ({ field: item.field, sort: item.sort === "desc" ? "desc" : "asc" }));
-}
-
 function visibilityModelsEqual(a: GridColumnVisibilityModel, b: GridColumnVisibilityModel): boolean {
   return recordsEqual(a as Record<string, boolean>, b as Record<string, boolean>);
-}
-
-function savedViewMatchesCurrentState(
-  view: SavedResourceViewDefinition,
-  input: {
-    context: string;
-    namespace: string;
-    resource: ListResourceKey;
-    filter: string;
-    sortModel: GridSortModel;
-    columnVisibilityModel: GridColumnVisibilityModel;
-    columnWidths: Record<string, number>;
-  },
-): boolean {
-  return (
-    view.context === input.context &&
-    view.namespace === input.namespace &&
-    view.resource === input.resource &&
-    view.filter === input.filter &&
-    sortModelsEqual(view.sortModel, savedSortModelFromGrid(input.sortModel)) &&
-    recordsEqual(view.columnVisibilityModel, input.columnVisibilityModel as Record<string, boolean>) &&
-    recordsEqual(view.columnWidths, input.columnWidths)
-  );
-}
-
-function savedViewMatchesLocation(
-  view: SavedResourceViewDefinition,
-  input: {
-    context: string;
-    namespace: string;
-    resource: ListResourceKey;
-  },
-): boolean {
-  return (
-    view.context === input.context &&
-    view.namespace === input.namespace &&
-    view.resource === input.resource
-  );
 }
 
 function valueMatchesQuery(value: unknown, query: string): boolean {
@@ -342,7 +289,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const resourceTagsIndex = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
   const activeContext = useActiveContext();
   const { health } = useConnectionState();
-  const { registerTableControls, keyboardSettings } = useKeyboardControls();
+  const { keyboardSettings, requestKeyboardFocus } = useKeyboardControls();
   const offline = health === "unhealthy";
   const diagnosticsLabel = `${resourceKey}${namespace ? `/${namespace}` : ""}`;
   const effectiveResourceLabel = resourceLabel || getResourceLabel(resourceKey);
@@ -609,12 +556,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
         .find((el) => el.getAttribute("data-id") === rowId);
       const cell = row?.querySelector<HTMLElement>(`[role="gridcell"][data-field="${escapeAttributeValue(field)}"]`);
       cell?.focus();
+      return !!cell;
     };
-    window.requestAnimationFrame(focusCell);
-    window.setTimeout(focusCell, 0);
-    window.setTimeout(focusCell, 50);
+    requestKeyboardFocus({ id: "resource-table.cell", focus: focusCell });
     return true;
-  }, [apiRef]);
+  }, [apiRef, requestKeyboardFocus]);
 
   const handleOpenSelectedRow = useCallback(() => {
     const focusedId = apiRef.current?.state?.focus?.cell?.id;
@@ -652,10 +598,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const returnId = drawerSelectedId;
     setDrawerOpen(false);
     setDrawerSelectedId(null);
-    window.setTimeout(() => {
-      handleFocusGrid(returnId);
-    }, 0);
-  }, [drawerSelectedId, handleFocusGrid]);
+    requestKeyboardFocus({ id: "resource-table.restore-after-drawer", focus: () => handleFocusGrid(returnId) });
+  }, [drawerSelectedId, handleFocusGrid, requestKeyboardFocus]);
 
   const handlePageBy = useCallback((delta: number) => {
     const pagination = apiRef.current?.state?.pagination;
@@ -667,42 +611,51 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const nextPage = Math.max(0, Math.min(pageCount - 1, page + delta));
     if (nextPage === page) return false;
     apiRef.current?.setPage(nextPage);
-    window.setTimeout(() => {
-      const rowIds = apiRef.current?.getAllRowIds?.() || [];
-      const targetId = String(rowIds[nextPage * pageSize] ?? rowIds[0] ?? "");
-      handleFocusGrid(targetId);
-    }, 0);
+    requestKeyboardFocus({
+      id: "resource-table.page",
+      focus: () => {
+        const rowIds = apiRef.current?.getAllRowIds?.() || [];
+        const targetId = String(rowIds[nextPage * pageSize] ?? rowIds[0] ?? "");
+        return handleFocusGrid(targetId);
+      },
+    });
     return true;
-  }, [apiRef, filteredRows.length, handleFocusGrid]);
+  }, [apiRef, filteredRows.length, handleFocusGrid, requestKeyboardFocus]);
 
   useEffect(() => {
     if (saveViewDialogOpen || Boolean(deleteViewId)) return;
     if (!keepFilterFocusRef.current) return;
     if (!filterInputRef.current) return;
     if (document.activeElement === filterInputRef.current) return;
-    filterInputRef.current.focus();
-  }, [deleteViewId, filter, filteredRows, saveViewDialogOpen]);
-
-  useEffect(() => {
-    return registerTableControls({
-      focusFilter: () => {
+    requestKeyboardFocus({
+      id: "resource-table.filter",
+      focus: () => {
         filterInputRef.current?.focus();
-        filterInputRef.current?.select();
-        return !!filterInputRef.current;
+        return document.activeElement === filterInputRef.current;
       },
-      focusGrid: handleFocusGrid,
-      pagePrevious: () => handlePageBy(-1),
-      pageNext: () => handlePageBy(1),
-      openSelectedRow: handleOpenSelectedRow,
     });
-  }, [handleFocusGrid, handleOpenSelectedRow, handlePageBy, registerTableControls]);
+  }, [deleteViewId, filter, filteredRows, requestKeyboardFocus, saveViewDialogOpen]);
+
+  const tableKeyboardControls = useMemo(() => ({
+    focusFilter: () => {
+      filterInputRef.current?.focus();
+      filterInputRef.current?.select();
+      return !!filterInputRef.current;
+    },
+    focusGrid: handleFocusGrid,
+    pagePrevious: () => handlePageBy(-1),
+    pageNext: () => handlePageBy(1),
+    openSelectedRow: handleOpenSelectedRow,
+  }), [handleFocusGrid, handleOpenSelectedRow, handlePageBy]);
+  useTableKeyboardControls(tableKeyboardControls);
 
   const emptyMessage = `No ${effectiveResourceLabel} found.`;
   const filteredEmptyMessage = `No ${effectiveResourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
 
+  const savedViewsEnabled = savedResourceViewsEnabled(resourceKey);
   const savedViews = useMemo(
-    () => [...settings.savedViews].sort((a, b) => a.name.localeCompare(b.name)),
-    [settings.savedViews],
+    () => savedViewsEnabled ? [...settings.savedViews].sort((a, b) => a.name.localeCompare(b.name)) : [],
+    [savedViewsEnabled, settings.savedViews],
   );
   const handleSortModelChange = useCallback((next: GridSortModel) => {
     setSortModel((prev) => sortModelsEqual(prev, next) ? prev : next);
@@ -711,11 +664,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setColumnVisibilityModel((prev) => visibilityModelsEqual(prev, next) ? prev : next);
   }, []);
   const applySavedViewState = useCallback((view: SavedResourceViewDefinition) => {
-    if (
-      view.context !== activeContext ||
-      view.namespace !== (namespace || "") ||
-      view.resource !== resourceKey
-    ) {
+    if (!savedViewsEnabled) return false;
+    if (!savedViewMatchesLocation(view, {
+      context: activeContext,
+      namespace: namespace || "",
+      resource: resourceKey,
+    })) {
       return false;
     }
     setActiveSavedViewId(view.id);
@@ -731,7 +685,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setColumnWidths((prev) => recordsEqual(prev, nextColumnWidths) ? prev : nextColumnWidths);
     savePersistedColumnWidths(columnWidthsKey, nextColumnWidths);
     return true;
-  }, [activeContext, columnWidthsKey, defaultColumnVisibilityModel, defaultSortModel, namespace, resourceKey, setFilter]);
+  }, [activeContext, columnWidthsKey, defaultColumnVisibilityModel, defaultSortModel, namespace, resourceKey, savedViewsEnabled, setFilter]);
   useEffect(() => {
     const pendingView = loadPendingSavedResourceView();
     if (!pendingView) return;
@@ -739,7 +693,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     clearPendingSavedResourceView();
   }, [applySavedViewState]);
   const selectedSavedView = useMemo(() => {
-    if (!activeSavedViewId) return null;
+    if (!savedViewsEnabled || !activeSavedViewId) return null;
     const view = settings.savedViews.find((item) => item.id === activeSavedViewId);
     if (!view) return null;
     return savedViewMatchesLocation(view, {
@@ -747,7 +701,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
       namespace: namespace || "",
       resource: resourceKey,
     }) ? view : null;
-  }, [activeContext, activeSavedViewId, namespace, resourceKey, settings.savedViews]);
+  }, [activeContext, activeSavedViewId, namespace, resourceKey, savedViewsEnabled, settings.savedViews]);
   useEffect(() => {
     if (!activeSavedViewId || selectedSavedView) return;
     setActiveSavedViewId("");
@@ -798,9 +752,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
     }
   }, [applySavedViewState, handleClearSavedView, settings.savedViews]);
   const handleSaveCurrentView = useCallback(() => {
+    if (!savedViewsEnabled) return;
     keepFilterFocusRef.current = false;
     const existing = selectedSavedView;
     const fallbackName = existing?.name || defaultSavedResourceViewName({
+      resource: resourceKey,
       resourceLabel: effectiveResourceLabel,
       namespace,
       filter,
@@ -809,7 +765,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setSaveViewExistingId(existing?.id || null);
     setSaveViewName(fallbackName);
     setSaveViewDialogOpen(true);
-  }, [effectiveResourceLabel, filter, namespace, savedViewDefaultFilterName, selectedSavedView]);
+  }, [effectiveResourceLabel, filter, namespace, resourceKey, savedViewDefaultFilterName, savedViewsEnabled, selectedSavedView]);
   const handleSaveViewDialogClose = useCallback(() => {
     keepFilterFocusRef.current = false;
     setSaveViewDialogOpen(false);
@@ -817,6 +773,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setSaveViewName("");
   }, []);
   const handleSaveViewConfirm = useCallback(() => {
+    if (!savedViewsEnabled) return;
     const name = saveViewName.trim();
     if (!name) return;
     const now = Date.now();
@@ -845,7 +802,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
       ].slice(0, 50),
     }));
     handleSaveViewDialogClose();
-  }, [activeContext, columnVisibilityModel, columnWidths, filter, handleSaveViewDialogClose, namespace, resourceKey, saveViewExistingId, saveViewName, setSettings, settings.savedViews, sortModel]);
+  }, [activeContext, columnVisibilityModel, columnWidths, filter, handleSaveViewDialogClose, namespace, resourceKey, saveViewExistingId, saveViewName, savedViewsEnabled, setSettings, settings.savedViews, sortModel]);
   const handleDeleteSavedView = useCallback((id: string) => {
     const view = settings.savedViews.find((item) => item.id === id);
     if (!view) return;
@@ -966,6 +923,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
               onRefreshChange: setRefreshSec,
               quickFilters,
               savedViews,
+              showSavedViews: savedViewsEnabled,
               selectedSavedViewId,
               selectedSavedViewDirty,
               onSavedViewApply: handleApplySavedView,

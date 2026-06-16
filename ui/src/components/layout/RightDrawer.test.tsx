@@ -1,31 +1,36 @@
 // @vitest-environment jsdom
 
 import React, { useState } from "react";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RightDrawer from "./RightDrawer";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
+import ResourceDrawerShell from "../shared/ResourceDrawerShell";
+import { UserSettingsProvider } from "../../settingsContext";
 
 function KeyboardHarness({ children }: { children: React.ReactNode }) {
   return (
-    <KeyboardProvider
-      settingsOpen={false}
-      keyboardSettings={{
-        vimTableNavigation: true,
-        homeRowTableNavigation: true,
-        singleLetterGlobalSearch: true,
-      }}
-      onFocusGlobalSearch={vi.fn()}
-      onSelectSection={vi.fn()}
-      onOpenSettings={vi.fn()}
-    >
-      {children}
-    </KeyboardProvider>
+    <UserSettingsProvider>
+      <KeyboardProvider
+        settingsOpen={false}
+        keyboardSettings={{
+          vimTableNavigation: true,
+          homeRowTableNavigation: true,
+          singleLetterGlobalSearch: true,
+        }}
+        onFocusGlobalSearch={vi.fn()}
+        onSelectSection={vi.fn()}
+        onOpenSettings={vi.fn()}
+      >
+        {children}
+      </KeyboardProvider>
+    </UserSettingsProvider>
   );
 }
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
 
 describe("RightDrawer", () => {
@@ -88,5 +93,37 @@ describe("RightDrawer", () => {
     fireEvent.keyDown(dialogButton!, { key: "Escape" });
 
     expect(closed).toEqual([]);
+  });
+
+  it("closes from the native MUI Escape close event", async () => {
+    const closed: string[] = [];
+    render(
+      <KeyboardHarness>
+        <RightDrawer open onClose={() => closed.push("drawer")}>
+          <div>Drawer</div>
+        </RightDrawer>
+      </KeyboardHarness>,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(closed).toEqual(["drawer"]));
+  });
+
+  it("opens keyboard help while a resource drawer has focus", async () => {
+    render(
+      <KeyboardHarness>
+        <RightDrawer open onClose={vi.fn()}>
+          <ResourceDrawerShell title="Namespace: default" resourceIcon="namespaces" onClose={vi.fn()}>
+            <button type="button" role="tab">Overview</button>
+          </ResourceDrawerShell>
+        </RightDrawer>
+      </KeyboardHarness>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("drawer-namespaces")).toBeTruthy());
+    fireEvent.keyDown(window, { key: "?" });
+
+    expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
   });
 });

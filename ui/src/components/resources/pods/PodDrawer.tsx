@@ -99,7 +99,7 @@ import { createTerminalSession, createPortForwardSession, runContainerCommand, t
 import { emitFocusPortForwardsTab, emitOpenTerminalSession } from "../../../activityEvents";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
-import { useKeyboardControls } from "../../../keyboard/KeyboardProvider";
+import { useContextualKeyboardActions } from "../../../keyboard/KeyboardProvider";
 import { customCommandsForContainer, type CustomCommandDefinition } from "../../../settings";
 import { useMutationDialog } from "../../mutations/useMutationDialog";
 import type { ExecuteActionResult } from "../../../lib/actions/types";
@@ -537,7 +537,6 @@ export default function PodDrawer(props: {
   const { health, retryNonce } = useConnectionState();
   const activeContext = useActiveContext();
   const { settings } = useUserSettings();
-  const { registerContextActions } = useKeyboardControls();
   const { open: openMutationDialog } = useMutationDialog();
   const offline = health === "unhealthy";
   const offlineReason = "Cluster connection is unavailable";
@@ -1138,7 +1137,7 @@ export default function PodDrawer(props: {
     setPortForwardDialogOpen(true);
   }, [actionableContainers.length, knownPodPortOptions, offline]);
 
-  useEffect(() => registerContextActions([
+  const podKeyboardActions = useMemo(() => [
     {
       id: "pod.logs",
       label: "Open logs and follow",
@@ -1162,15 +1161,6 @@ export default function PodDrawer(props: {
       },
     },
     {
-      id: "drawer.close",
-      label: "Close drawer",
-      binding: ["escape"],
-      run: () => {
-        props.onClose();
-        return true;
-      },
-    },
-    {
       id: "drawer.yaml",
       label: "Open YAML tab",
       binding: ["y"],
@@ -1179,7 +1169,8 @@ export default function PodDrawer(props: {
         return true;
       },
     },
-  ]), [actionableContainers.length, creatingPortForward, handleOpenPortForwardDialog, name, offline, props, registerContextActions, startLogsFollow]);
+  ], [actionableContainers.length, creatingPortForward, handleOpenPortForwardDialog, name, offline, startLogsFollow]);
+  useContextualKeyboardActions(podKeyboardActions);
 
   const eventContainers = (details?.containers || []).map((c) => c.name).filter((n): n is string => !!n);
   const openContainerFromEvent = (containerName: string) => {

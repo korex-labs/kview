@@ -3,8 +3,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addDashboardSignalViewProfile,
+  dashboardSignalViewSnapshotsEqual,
   dashboardSignalViewSnapshot,
   DASHBOARD_SIGNAL_VIEW_PROFILES_KEY,
+  defaultDashboardSignalViewName,
   loadDashboardSignalViewInitialState,
   loadDashboardSignalViewProfiles,
   normalizeDashboardSignalViewProfiles,
@@ -13,6 +15,7 @@ import {
   updateDashboardSignalViewProfile,
   type DashboardSignalViewProfilesState,
 } from "./dashboardProfiles";
+import { applyViewResourceDescriptors, resetViewResourceDescriptorsForTest } from "./utils/k8sResources";
 
 const snapshot = {
   signalFilter: "severity:high",
@@ -24,6 +27,7 @@ const snapshot = {
 
 afterEach(() => {
   window.localStorage.clear();
+  resetViewResourceDescriptorsForTest();
   vi.restoreAllMocks();
 });
 
@@ -109,6 +113,30 @@ describe("dashboard signal view profiles", () => {
       profiles: state,
       snapshot,
     });
+  });
+
+  it("uses descriptor-owned signal view naming and drift fields", () => {
+    applyViewResourceDescriptors({
+      dashboard: {
+        signalViews: {
+          enabled: true,
+          namePrefix: "Triage view",
+          state: ["filters"],
+        },
+      },
+    });
+
+    expect(defaultDashboardSignalViewName()).toBe("Triage view");
+    expect(dashboardSignalViewSnapshotsEqual(snapshot, {
+      ...snapshot,
+      signalsQuery: "changed",
+      signalsSort: "severity_desc",
+      signalsRowsPerPage: 100,
+    })).toBe(true);
+    expect(dashboardSignalViewSnapshotsEqual(snapshot, {
+      ...snapshot,
+      signalFilters: ["severity:high"],
+    })).toBe(false);
   });
 
   it("drops invalid imports and inactive ids", () => {

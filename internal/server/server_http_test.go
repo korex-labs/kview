@@ -1167,6 +1167,12 @@ func TestGetViewResources(t *testing.T) {
 	if len(body.SidebarGroups) == 0 {
 		t.Fatal("expected sidebar groups")
 	}
+	if !body.Dashboard.SignalViews.Enabled ||
+		body.Dashboard.SignalViews.NamePrefix == "" ||
+		len(body.Dashboard.SignalViews.State) == 0 ||
+		len(body.Dashboard.SignalFilterCategories) == 0 {
+		t.Fatalf("expected dashboard view policy: %#v", body.Dashboard)
+	}
 
 	byKey := map[string]viewmeta.ResourceDescriptor{}
 	for _, resource := range body.Resources {
@@ -1187,6 +1193,12 @@ func TestGetViewResources(t *testing.T) {
 	}
 	if pods.ListView.FilterLabel == "" || len(pods.ListView.Identity) == 0 || len(pods.ListView.SearchFields) == 0 {
 		t.Fatalf("expected pods list view defaults: %#v", pods.ListView)
+	}
+	if !pods.ListView.SavedViews.Enabled ||
+		pods.ListView.SavedViews.NamePrefix != "Pods" ||
+		len(pods.ListView.SavedViews.Location) == 0 ||
+		len(pods.ListView.SavedViews.State) == 0 {
+		t.Fatalf("expected pods saved view policy: %#v", pods.ListView.SavedViews)
 	}
 	helmCharts, ok := byKey["helmcharts"]
 	if !ok {

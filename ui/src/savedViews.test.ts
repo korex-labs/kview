@@ -7,6 +7,8 @@ import {
   defaultSavedResourceViewName,
   dispatchApplySavedResourceView,
   loadPendingSavedResourceView,
+  savedViewMatchesCurrentState,
+  savedViewMatchesLocation,
   storePendingSavedResourceView,
 } from "./savedViews";
 import type { SavedResourceViewDefinition } from "./settings";
@@ -33,19 +35,50 @@ afterEach(() => {
 describe("saved view helpers", () => {
   it("builds concise default names from resource and filter labels", () => {
     expect(defaultSavedResourceViewName({
-      resourceLabel: "Namespaces",
+      resource: "namespaces",
       filter: "tag:team-a-id",
       filterLabel: "tag:team-a",
     })).toBe("Namespaces: tag:team-a");
 
     expect(defaultSavedResourceViewName({
-      resourceLabel: "  Pods  ",
+      resource: "pods",
       filter: "  app = api  ",
     })).toBe("Pods: app = api");
 
     expect(defaultSavedResourceViewName({
-      resourceLabel: "Cluster Roles",
+      resource: "clusterroles",
     })).toBe("Cluster Roles");
+  });
+
+  it("matches saved views using descriptor-owned compatibility policy", () => {
+    expect(savedViewMatchesLocation(view, {
+      context: "prod",
+      namespace: "",
+      resource: "namespaces",
+    })).toBe(true);
+    expect(savedViewMatchesLocation(view, {
+      context: "stage",
+      namespace: "",
+      resource: "namespaces",
+    })).toBe(false);
+    expect(savedViewMatchesCurrentState(view, {
+      context: "prod",
+      namespace: "",
+      resource: "namespaces",
+      filter: "tag:prod-id",
+      sortModel: [{ field: "name", sort: "asc" }],
+      columnVisibilityModel: { phase: true, internal: false },
+      columnWidths: { name: 260 },
+    })).toBe(true);
+    expect(savedViewMatchesCurrentState(view, {
+      context: "prod",
+      namespace: "",
+      resource: "namespaces",
+      filter: "tag:other",
+      sortModel: [{ field: "name", sort: "asc" }],
+      columnVisibilityModel: { phase: true, internal: false },
+      columnWidths: { name: 260 },
+    })).toBe(false);
   });
 
   it("stores, loads, and clears pending saved views", () => {

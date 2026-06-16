@@ -14,6 +14,7 @@ import { apiGetWithContext } from "../../api";
 import type { Section } from "../../state";
 import type { ApiDataplaneSearchItem, ApiDataplaneSearchResponse } from "../../types/api";
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "../../keyboard/commands";
+import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
 
 const searchLimit = 10;
@@ -82,6 +83,7 @@ export default function GlobalSearchInput({
   onOpenResource,
   onOpenSettings,
 }: Props) {
+  const { requestKeyboardFocus } = useKeyboardControls();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -107,12 +109,16 @@ export default function GlobalSearchInput({
     if (!focusRequest?.nonce || disabled || !activeContext) return;
     setQuery(focusRequest.query);
     setOpen(true);
-    window.setTimeout(() => {
+    requestKeyboardFocus({
+      id: "global-search.input",
+      focus: () => {
       const input = rootRef.current?.querySelector<HTMLInputElement>("input");
       input?.focus();
       input?.setSelectionRange(focusRequest.query.length, focusRequest.query.length);
-    }, 0);
-  }, [activeContext, disabled, focusRequest]);
+        return document.activeElement === input;
+      },
+    });
+  }, [activeContext, disabled, focusRequest, requestKeyboardFocus]);
 
   const suggestions = useMemo<PaletteSuggestion[]>(() => {
     const resourceSuggestions = resourceItems.map((item) => ({

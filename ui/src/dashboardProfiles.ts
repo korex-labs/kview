@@ -1,3 +1,5 @@
+import { getDashboardViewPolicy } from "./utils/k8sResources";
+
 export type DashboardSignalViewSnapshot = {
   signalFilter: string;
   signalFilters: string[];
@@ -119,7 +121,11 @@ export function saveDashboardSignalViewProfiles(state: DashboardSignalViewProfil
 }
 
 export function dashboardSignalViewSnapshot(input: DashboardSignalViewSnapshot): DashboardSignalViewSnapshot {
-  return normalizeSnapshot(input) || {
+  return normalizeSnapshot(input) || defaultDashboardSignalViewSnapshot();
+}
+
+export function defaultDashboardSignalViewSnapshot(): DashboardSignalViewSnapshot {
+  return {
     signalFilter: "top",
     signalFilters: ["top"],
     signalsQuery: "",
@@ -128,18 +134,34 @@ export function dashboardSignalViewSnapshot(input: DashboardSignalViewSnapshot):
   };
 }
 
+function stringArraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
+}
+
+export function dashboardSignalViewSnapshotsEqual(a: DashboardSignalViewSnapshot, b: DashboardSignalViewSnapshot): boolean {
+  const state = new Set(getDashboardViewPolicy().signalViews.state);
+  return (
+    (!state.has("filters") || (
+      a.signalFilter === b.signalFilter &&
+      stringArraysEqual(a.signalFilters, b.signalFilters)
+    )) &&
+    (!state.has("query") || a.signalsQuery === b.signalsQuery) &&
+    (!state.has("sort") || a.signalsSort === b.signalsSort) &&
+    (!state.has("rowsPerPage") || a.signalsRowsPerPage === b.signalsRowsPerPage)
+  );
+}
+
+export function defaultDashboardSignalViewName(): string {
+  return getDashboardViewPolicy().signalViews.namePrefix || "Signal view";
+}
+
 export function loadDashboardSignalViewInitialState(): DashboardSignalViewInitialState {
   const profiles = loadDashboardSignalViewProfiles();
   const activeProfile = profiles.definitions.find((profile) => profile.id === profiles.activeProfileId);
   return {
     profiles,
-    snapshot: activeProfile ? activeProfile.snapshot : dashboardSignalViewSnapshot({
-      signalFilter: "top",
-      signalFilters: ["top"],
-      signalsQuery: "",
-      signalsSort: "priority",
-      signalsRowsPerPage: 10,
-    }),
+    snapshot: activeProfile ? activeProfile.snapshot : defaultDashboardSignalViewSnapshot(),
   };
 }
 

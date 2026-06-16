@@ -36,6 +36,7 @@ import {
 } from "../../shared/signalFormat";
 import type { InspectTarget } from "./dashboardTypes";
 import type { SxProps, Theme } from "@mui/material/styles";
+import { getDashboardSignalFilterCategoryPolicy } from "../../../utils/k8sResources";
 
 type DerivedData = NonNullable<NonNullable<ApiDashboardClusterResponse["item"]>["derived"]>;
 
@@ -144,35 +145,11 @@ function signalFilterLabel(filter: string): string {
 }
 
 function signalFilterGroupLabel(category?: string): string {
-  switch (category) {
-    case "severity": return "By Severity";
-    case "acknowledgement": return "By Acknowledgement";
-    case "tag": return "By Tags";
-    case "kind": return "By Kind";
-    case "signal_type": return "By Signal Reason";
-    case "namespace": return "Top 5 Namespaces With Problems";
-    case "namespace_favourite": return "Favourite Namespaces";
-    case "namespace_recent": return "Recent Namespaces";
-    case "derived": return "Derived";
-    case "priority": return "Priority";
-    default: return "Other";
-  }
+  return getDashboardSignalFilterCategoryPolicy(category).label;
 }
 
 function signalFilterGroupOrder(category?: string): number {
-  switch (category) {
-    case "priority": return 0;
-    case "severity": return 1;
-    case "acknowledgement": return 2;
-    case "tag": return 3;
-    case "kind": return 4;
-    case "signal_type": return 5;
-    case "namespace": return 6;
-    case "namespace_favourite": return 7;
-    case "namespace_recent": return 8;
-    case "derived": return 9;
-    default: return 10;
-  }
+  return getDashboardSignalFilterCategoryPolicy(category).order;
 }
 
 function groupedSignalFilters(
@@ -298,8 +275,6 @@ const filterRowSx = {
   gap: 0.75,
   maxWidth: "100%",
 };
-
-const compactFilterCategories = new Set(["priority", "severity", "acknowledgement", "tag"]);
 
 const compactFilterGridSx = {
   display: "grid",
@@ -639,8 +614,8 @@ export default function DashboardSignalsPanel({
       : []),
   ];
   const filterGroups = groupedSignalFilters(quickFilters);
-  const compactFilterGroups = filterGroups.filter((group) => compactFilterCategories.has(group.category));
-  const stackedFilterGroups = filterGroups.filter((group) => !compactFilterCategories.has(group.category));
+  const compactFilterGroups = filterGroups.filter((group) => getDashboardSignalFilterCategoryPolicy(group.category).compact);
+  const stackedFilterGroups = filterGroups.filter((group) => !getDashboardSignalFilterCategoryPolicy(group.category).compact);
   const selectedFilterLabel =
     activeDirectSignalFilters.length > 0
       ? activeDirectSignalFilters

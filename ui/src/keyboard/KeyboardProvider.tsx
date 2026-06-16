@@ -48,7 +48,7 @@ export type KeyboardFocusScope = {
   onEscape?: (event: KeyboardEvent) => boolean | void;
 };
 
-type TableKeyboardControls = {
+export type TableKeyboardControls = {
   focusFilter: () => boolean;
   focusGrid: () => boolean;
   pagePrevious: () => boolean;
@@ -56,10 +56,16 @@ type TableKeyboardControls = {
   openSelectedRow: () => boolean;
 };
 
+export type KeyboardFocusRequest = {
+  id: string;
+  focus: () => boolean | void;
+};
+
 type KeyboardContextValue = {
   registerTableControls: (controls: TableKeyboardControls) => () => void;
   registerContextActions: (actions: ContextualKeyboardAction[]) => () => void;
   registerKeyboardScope: (scope: KeyboardFocusScope) => () => void;
+  requestKeyboardFocus: (request: KeyboardFocusRequest) => void;
   activeKeyboardScope: KeyboardFocusScope | null;
   keyboardSettings: KeyboardSettings;
 };
@@ -68,6 +74,7 @@ const KeyboardContext = createContext<KeyboardContextValue>({
   registerTableControls: () => () => undefined,
   registerContextActions: () => () => undefined,
   registerKeyboardScope: () => () => undefined,
+  requestKeyboardFocus: () => undefined,
   activeKeyboardScope: null,
   keyboardSettings: {
     vimTableNavigation: true,
@@ -103,6 +110,30 @@ function effectiveEscapeScope(stack: KeyboardFocusScope[]): KeyboardFocusScope |
 
 export function useKeyboardControls() {
   return useContext(KeyboardContext);
+}
+
+export function useKeyboardScope(scope: KeyboardFocusScope | null | undefined) {
+  const { registerKeyboardScope } = useKeyboardControls();
+  useEffect(() => {
+    if (!scope) return undefined;
+    return registerKeyboardScope(scope);
+  }, [registerKeyboardScope, scope]);
+}
+
+export function useContextualKeyboardActions(actions: ContextualKeyboardAction[] | null | undefined) {
+  const { registerContextActions } = useKeyboardControls();
+  useEffect(() => {
+    if (!actions?.length) return undefined;
+    return registerContextActions(actions);
+  }, [actions, registerContextActions]);
+}
+
+export function useTableKeyboardControls(controls: TableKeyboardControls | null | undefined) {
+  const { registerTableControls } = useKeyboardControls();
+  useEffect(() => {
+    if (!controls) return undefined;
+    return registerTableControls(controls);
+  }, [controls, registerTableControls]);
 }
 
 type KeyboardProviderProps = {
@@ -229,9 +260,16 @@ export default function KeyboardProvider({
       }
       if (helpOpen || settingsOpen) return;
       const activeScope = effectiveKeyboardScope(keyboardScopeStackRef.current);
+      const key = eventToBinding(event);
+      if (key === "?" && !activeScope?.suppressContextShortcuts && !shouldIgnoreContextShortcut(event.target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setHelpOpen(true);
+        clearSequence();
+        return;
+      }
       const contextActions = effectiveContextActions(contextActionStackRef.current);
       if (contextActions.length && !activeScope?.suppressContextShortcuts && !shouldIgnoreContextShortcut(event.target)) {
-        const key = eventToBinding(event);
         const action = contextActions.find((item) => !item.disabled && matchKeySequence(item.binding, [key]) === "matched");
         if (action) {
           const handled = action.run();
@@ -242,18 +280,10 @@ export default function KeyboardProvider({
           clearSequence();
           return;
         }
-        if (key === "?") {
-          event.preventDefault();
-          event.stopPropagation();
-          setHelpOpen(true);
-          clearSequence();
-          return;
-        }
       }
       if (activeScope?.suppressGlobalShortcuts) return;
       if (shouldIgnoreGlobalShortcut(event.target)) return;
 
-      const key = eventToBinding(event);
       const pressed = [...sequenceRef.current, key];
       const exact = activeShortcutCommands.find((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
       if (exact) {
@@ -311,15 +341,28 @@ export default function KeyboardProvider({
     };
   }, []);
 
+  const requestKeyboardFocus = useCallback((request: KeyboardFocusRequest) => {
+    const run = () => request.focus();
+    if (run() !== false) return;
+    window.requestAnimationFrame(() => {
+      if (run() !== false) return;
+      window.setTimeout(() => {
+        if (run() !== false) return;
+        window.setTimeout(run, 50);
+      }, 0);
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       registerTableControls,
       registerContextActions,
       registerKeyboardScope,
+      requestKeyboardFocus,
       activeKeyboardScope,
       keyboardSettings,
     }),
-    [activeKeyboardScope, keyboardSettings, registerContextActions, registerKeyboardScope, registerTableControls],
+    [activeKeyboardScope, keyboardSettings, registerContextActions, registerKeyboardScope, registerTableControls, requestKeyboardFocus],
   );
 
   return (

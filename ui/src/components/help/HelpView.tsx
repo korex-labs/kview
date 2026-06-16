@@ -21,7 +21,7 @@ import { AppIconButton } from "../shared/AppActions";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import MarkdownContent from "./MarkdownContent";
 import { featuredHelpPages, helpManifest, helpPages, helpPagesByCategory, type HelpPage } from "../../help/content";
-import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
+import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
 
 const changelogUrl = "https://github.com/korex-labs/kview/blob/main/CHANGELOG.md";
 const whatsNewHighlightLimit = 10;
@@ -114,7 +114,6 @@ const helpMainSurfaceSx = {
 };
 
 export default function HelpView({ onClose }: { onClose: () => void }) {
-  const { registerKeyboardScope } = useKeyboardControls();
   const [query, setQuery] = useState("");
   const [activePageId, setActivePageId] = useState(featuredHelpPages[0]?.id || helpPages[0]?.id || "");
   const filteredPages = useMemo(
@@ -130,14 +129,14 @@ export default function HelpView({ onClose }: { onClose: () => void }) {
     links.patreon ? { id: "patreon", label: "Patreon", href: links.patreon, icon: <FavoriteBorderIcon fontSize="small" /> } : null,
   ].filter((item): item is ProjectLink => Boolean(item));
 
-  useEffect(() => registerKeyboardScope({
+  useKeyboardScope(useMemo(() => ({
     id: "help-view",
     label: "Help",
     kind: "dialog",
     suppressGlobalShortcuts: true,
     suppressContextShortcuts: true,
     onEscape: onClose,
-  }), [onClose, registerKeyboardScope]);
+  }), [onClose]));
 
   return (
     <Box data-testid="help-view" sx={helpShellSx}>

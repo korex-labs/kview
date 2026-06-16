@@ -9,6 +9,10 @@ grouped into controlled packs.
 - **Saved resource views**: resource list views can be saved, restored globally,
   marked as modified when drifted, updated, deleted, and cleared back to normal
   list state.
+- **Keyboard and focus registry stabilization**: app-owned shortcut
+  registration, focus scopes, Escape ownership, contextual actions, table
+  controls, and focus retry requests now go through `KeyboardProvider`; see
+  `docs/KEYBOARD_FOCUS.md`.
 
 ## Primary Feature Track
 
@@ -67,21 +71,21 @@ Current shortcut and focus behavior is split across components. This should move
 toward a central registry that decides which keyboard handlers are active for the
 current application state.
 
-- Define focus scopes: app shell, list, drawer, dialog, settings, terminal, and
-  embedded Monaco/code views.
-- Add priority rules so modal surfaces and text inputs suppress list/global
-  shortcuts predictably.
-- Centralize shortcut registration, help metadata, conflict detection, and active
-  scope debugging.
-- Make focus restoration explicit, not component-local best effort.
-- Audit all `keydown`/focus listeners and route app-owned shortcuts and Escape
-  behavior through `KeyboardProvider`; keep direct window listeners only for
-  low-level integration cases with documented justification.
-- Document keyboard/focus best practices for new surfaces: scope registration,
-  Escape ownership, editable-field suppression, contextual action registration,
-  and focus restoration.
-- Add regression tests for dialogs, drawers, settings, help, global search,
-  terminals, and nested overlays so shortcut ownership remains stable.
+Completed stabilization slice:
+
+- Focus scopes, contextual actions, table controls, Escape ownership, and focus
+  retry requests are centralized through `KeyboardProvider`.
+- Resource drawers, settings, help, table focus restoration, global search, and
+  terminal focus now use the provider APIs for app-owned behavior.
+- Direct component key handlers remain only for input-local behavior such as
+  text-field submit/clear.
+- Keyboard/focus best practices are documented in `docs/KEYBOARD_FOCUS.md`.
+
+Future candidates:
+
+- Add active-scope diagnostics in the UI for development builds.
+- Add conflict reporting for duplicate contextual shortcut bindings.
+- Extend coverage when new modal or terminal-like surfaces are added.
 
 ### 2. Kview Memory Bank
 
@@ -105,8 +109,12 @@ Reduce frontend-only business logic so the project can later split cleanly into
   scope, sidebar grouping, list access targets, list view filter labels,
   default sort, quick-filter source policy, quick-filter identity, and baseline
   searchable fields. See `docs/VIEW_DESCRIPTOR_CONTRACT.md`.
-- Next candidates: saved-view compatibility rules, dashboard signal
-  definitions, and action capability presentation hints.
+- Completed second slice: descriptors now own saved resource view enablement,
+  naming, compatibility/drift policy, plus dashboard signal-view defaults and
+  signal filter category presentation. Signal definitions remain backend-owned
+  in dataplane signal catalog APIs.
+- Next candidates: action capability presentation hints and deeper
+  investigation/search navigation contracts.
 - Keep React responsible for rendering and interaction state, not authoritative
   product rules.
 - Maintain `API_READ_OWNERSHIP.md` whenever read ownership moves from UI or

@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import KeyboardProvider, { useKeyboardControls, type KeyboardFocusScope } from "./KeyboardProvider";
+import KeyboardProvider, {
+  useContextualKeyboardActions,
+  useKeyboardControls,
+  useKeyboardScope,
+  type KeyboardFocusScope,
+} from "./KeyboardProvider";
 import type { Section } from "../state";
 
 const keyboardSettings = {
@@ -33,14 +38,12 @@ function renderKeyboard(children?: React.ReactNode) {
 }
 
 function ScopeRegistrar({ scope }: { scope: KeyboardFocusScope }) {
-  const { registerKeyboardScope } = useKeyboardControls();
-  useEffect(() => registerKeyboardScope(scope), [registerKeyboardScope, scope]);
+  useKeyboardScope(scope);
   return null;
 }
 
 function ContextActionRegistrar({ onRun }: { onRun: () => void }) {
-  const { registerContextActions } = useKeyboardControls();
-  useEffect(() => registerContextActions([
+  const actions = useMemo(() => [
     {
       id: "test.context",
       label: "Test context action",
@@ -50,8 +53,24 @@ function ContextActionRegistrar({ onRun }: { onRun: () => void }) {
         return true;
       },
     },
-  ]), [onRun, registerContextActions]);
+  ], [onRun]);
+  useContextualKeyboardActions(actions);
   return null;
+}
+
+function FocusRequester({ ready }: { ready: boolean }) {
+  const { requestKeyboardFocus } = useKeyboardControls();
+  useEffect(() => {
+    requestKeyboardFocus({
+      id: "test.focus",
+      focus: () => {
+        const el = document.querySelector<HTMLInputElement>("[data-focus-target='true']");
+        el?.focus();
+        return document.activeElement === el;
+      },
+    });
+  }, [requestKeyboardFocus, ready]);
+  return ready ? <input data-focus-target="true" aria-label="Managed focus" /> : null;
 }
 
 afterEach(() => {
@@ -131,5 +150,37 @@ describe("KeyboardProvider", () => {
     fireEvent.keyDown(document.querySelector("button")!, { key: "Escape" });
 
     expect(onEscape).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries managed focus requests until the target exists", async () => {
+    vi.useFakeTimers();
+
+    const { rerender } = render(
+      <KeyboardProvider
+        settingsOpen={false}
+        keyboardSettings={keyboardSettings}
+        onFocusGlobalSearch={vi.fn()}
+        onSelectSection={vi.fn()}
+        onOpenSettings={vi.fn()}
+      >
+        <FocusRequester ready={false} />
+      </KeyboardProvider>,
+    );
+
+    rerender(
+      <KeyboardProvider
+        settingsOpen={false}
+        keyboardSettings={keyboardSettings}
+        onFocusGlobalSearch={vi.fn()}
+        onSelectSection={vi.fn()}
+        onOpenSettings={vi.fn()}
+      >
+        <FocusRequester ready />
+      </KeyboardProvider>,
+    );
+    vi.runOnlyPendingTimers();
+
+    expect(document.activeElement).toBe(document.querySelector("[data-focus-target='true']"));
+    vi.useRealTimers();
   });
 });

@@ -20,6 +20,7 @@ type ListViewDescriptor struct {
 	FilterLabel  string            `json:"filterLabel"`
 	Identity     []string          `json:"identity"`
 	SearchFields []string          `json:"searchFields"`
+	SavedViews   SavedViewPolicy   `json:"savedViews"`
 }
 
 type QuickFilterPolicy struct {
@@ -32,6 +33,13 @@ type SortPolicy struct {
 	Direction string `json:"direction"`
 }
 
+type SavedViewPolicy struct {
+	Enabled    bool     `json:"enabled"`
+	NamePrefix string   `json:"namePrefix"`
+	Location   []string `json:"location"`
+	State      []string `json:"state"`
+}
+
 type SidebarGroup struct {
 	ID    string   `json:"id"`
 	Label string   `json:"label"`
@@ -42,6 +50,25 @@ type SidebarGroup struct {
 type DescriptorBundle struct {
 	Resources     []ResourceDescriptor `json:"resources"`
 	SidebarGroups []SidebarGroup       `json:"sidebarGroups"`
+	Dashboard     DashboardDescriptor  `json:"dashboard"`
+}
+
+type DashboardDescriptor struct {
+	SignalViews            DashboardSignalViewPolicy             `json:"signalViews"`
+	SignalFilterCategories []DashboardSignalFilterCategoryPolicy `json:"signalFilterCategories"`
+}
+
+type DashboardSignalViewPolicy struct {
+	Enabled    bool     `json:"enabled"`
+	NamePrefix string   `json:"namePrefix"`
+	State      []string `json:"state"`
+}
+
+type DashboardSignalFilterCategoryPolicy struct {
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Order   int    `json:"order"`
+	Compact bool   `json:"compact"`
 }
 
 var resources = []ResourceDescriptor{
@@ -98,6 +125,7 @@ func Bundle() DescriptorBundle {
 			FilterLabel:  filterLabelForResource(resourceCopy[i].Key),
 			Identity:     identityFieldsForResource(resourceCopy[i].Key),
 			SearchFields: searchFieldsForResource(resourceCopy[i].Key),
+			SavedViews:   savedViewPolicyForResource(resourceCopy[i]),
 		}
 	}
 	groupCopy := make([]SidebarGroup, 0, len(sidebarGroups))
@@ -105,7 +133,42 @@ func Bundle() DescriptorBundle {
 		group.Items = append([]string(nil), group.Items...)
 		groupCopy = append(groupCopy, group)
 	}
-	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy}
+	return DescriptorBundle{Resources: resourceCopy, SidebarGroups: groupCopy, Dashboard: dashboardDescriptor()}
+}
+
+func dashboardDescriptor() DashboardDescriptor {
+	return DashboardDescriptor{
+		SignalViews: DashboardSignalViewPolicy{
+			Enabled:    true,
+			NamePrefix: "Signal view",
+			State:      []string{"filters", "query", "sort", "rowsPerPage"},
+		},
+		SignalFilterCategories: []DashboardSignalFilterCategoryPolicy{
+			{Key: "priority", Label: "Priority", Order: 0, Compact: true},
+			{Key: "severity", Label: "By Severity", Order: 1, Compact: true},
+			{Key: "acknowledgement", Label: "By Acknowledgement", Order: 2, Compact: true},
+			{Key: "tag", Label: "By Tags", Order: 3, Compact: true},
+			{Key: "kind", Label: "By Kind", Order: 4},
+			{Key: "signal_type", Label: "By Signal Reason", Order: 5},
+			{Key: "namespace", Label: "Top 5 Namespaces With Problems", Order: 6},
+			{Key: "namespace_favourite", Label: "Favourite Namespaces", Order: 7},
+			{Key: "namespace_recent", Label: "Recent Namespaces", Order: 8},
+			{Key: "derived", Label: "Derived", Order: 9},
+			{Key: "other", Label: "Other", Order: 10},
+		},
+	}
+}
+
+func savedViewPolicyForResource(resource ResourceDescriptor) SavedViewPolicy {
+	if resource.Key == "dashboard" {
+		return SavedViewPolicy{Enabled: false}
+	}
+	return SavedViewPolicy{
+		Enabled:    true,
+		NamePrefix: resource.Label,
+		Location:   []string{"context", "namespace", "resource"},
+		State:      []string{"filter", "sort", "columns"},
+	}
 }
 
 func identityFieldsForResource(key string) []string {

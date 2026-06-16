@@ -68,7 +68,10 @@ import ResourceQuotaDrawer from "../resourcequotas/ResourceQuotaDrawer";
 import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
 import {
   addDashboardSignalViewProfile,
+  dashboardSignalViewSnapshotsEqual,
   dashboardSignalViewSnapshot,
+  defaultDashboardSignalViewName,
+  defaultDashboardSignalViewSnapshot,
   loadDashboardSignalViewInitialState,
   removeDashboardSignalViewProfile,
   saveDashboardSignalViewProfiles,
@@ -382,7 +385,7 @@ export default function DashboardView(props: Props) {
   });
   const activeDashboardProfile = dashboardProfiles.definitions.find((profile) => profile.id === dashboardProfiles.activeProfileId);
   const dashboardProfileDirty = activeDashboardProfile
-    ? JSON.stringify(activeDashboardProfile.snapshot) !== JSON.stringify(currentDashboardProfileSnapshot)
+    ? !dashboardSignalViewSnapshotsEqual(activeDashboardProfile.snapshot, currentDashboardProfileSnapshot)
     : false;
 
   useEffect(() => {
@@ -400,11 +403,12 @@ export default function DashboardView(props: Props) {
   };
 
   const clearDashboardSignalProfile = () => {
-    setSignalFilter("top");
-    setSignalFilters(["top"]);
-    setSignalsQuery("");
-    setSignalsSort("priority");
-    setSignalsRowsPerPage(10);
+    const defaults = defaultDashboardSignalViewSnapshot();
+    setSignalFilter(defaults.signalFilter);
+    setSignalFilters(defaults.signalFilters);
+    setSignalsQuery(defaults.signalsQuery);
+    setSignalsSort(defaults.signalsSort);
+    setSignalsRowsPerPage(defaults.signalsRowsPerPage);
     setSignalsPage(0);
     setDashboardProfiles((prev) => ({ ...prev, activeProfileId: "" }));
   };
@@ -430,7 +434,7 @@ export default function DashboardView(props: Props) {
 
   const openDashboardProfileDialog = () => {
     setDashboardProfileExistingId(activeDashboardProfile?.id || null);
-    setDashboardProfileName(activeDashboardProfile?.name || "Signal view");
+    setDashboardProfileName(activeDashboardProfile?.name || defaultDashboardSignalViewName());
     setDashboardProfileDialogOpen(true);
   };
 

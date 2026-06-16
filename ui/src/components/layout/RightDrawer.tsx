@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer, type DrawerProps } from "@mui/material";
-import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
+import { useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
 
 type Props = DrawerProps;
 
@@ -14,8 +14,8 @@ const rightDrawerStack: RightDrawerStackEntry[] = [];
 
 export default function RightDrawer(props: Props) {
   const { ModalProps, slotProps, onClose, ...rest } = props;
-  const { registerKeyboardScope } = useKeyboardControls();
   const [drawerDepth, setDrawerDepth] = useState(0);
+  const [keyboardScopeId, setKeyboardScopeId] = useState("");
   const onCloseRef = useRef(props.onClose);
   const hasOnClose = !!props.onClose;
 
@@ -30,32 +30,38 @@ export default function RightDrawer(props: Props) {
     nextRightDrawerId += 1;
     rightDrawerStack.push(entry);
     setDrawerDepth(rightDrawerStack.length);
-    const unregisterKeyboardScope = registerKeyboardScope({
-      id: `right-drawer-${entry.id}`,
-      label: "Right drawer",
-      kind: "drawer",
-      suppressGlobalShortcuts: true,
-      onEscape: (event) => {
-        const onClose = onCloseRef.current;
-        if (!onClose) return false;
-        onClose(event, "escapeKeyDown");
-        return true;
-      },
-    });
+    setKeyboardScopeId(`right-drawer-${entry.id}`);
     return () => {
-      unregisterKeyboardScope();
       const index = rightDrawerStack.findIndex((item) => item.id === entry.id);
       if (index >= 0) rightDrawerStack.splice(index, 1);
       setDrawerDepth(0);
+      setKeyboardScopeId("");
     };
-  }, [hasOnClose, props.open, registerKeyboardScope]);
+  }, [hasOnClose, props.open]);
+
+  const keyboardScope: KeyboardFocusScope | null = useMemo(() => (
+    props.open && hasOnClose && keyboardScopeId
+      ? {
+          id: keyboardScopeId,
+          label: "Right drawer",
+          kind: "drawer",
+          suppressGlobalShortcuts: true,
+          onEscape: (event) => {
+            const onClose = onCloseRef.current;
+            if (!onClose) return false;
+            onClose(event, "escapeKeyDown");
+            return true;
+          },
+        }
+      : null
+  ), [hasOnClose, keyboardScopeId, props.open]);
+  useKeyboardScope(keyboardScope);
 
   return (
     <Drawer
       anchor="right"
       {...rest}
       onClose={(event, reason) => {
-        if (reason === "escapeKeyDown") return;
         onClose?.(event, reason);
       }}
       ModalProps={{

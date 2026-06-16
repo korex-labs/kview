@@ -249,6 +249,7 @@ If you are an AI coding agent using this README as context, read these files bef
 - [docs/DATAPLANE.md](docs/DATAPLANE.md)
 - [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md)
 - [docs/UI_UX_GUIDE.md](docs/UI_UX_GUIDE.md)
+- [docs/KEYBOARD_FOCUS.md](docs/KEYBOARD_FOCUS.md)
 
 | Document | Purpose |
 |----------|---------|
@@ -257,6 +258,7 @@ If you are an AI coding agent using this README as context, read these files bef
 | [docs/DATAPLANE.md](docs/DATAPLANE.md) | Read-side dataplane, snapshots, projections, metadata |
 | [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md) | Route-by-route read ownership map |
 | [docs/UI_UX_GUIDE.md](docs/UI_UX_GUIDE.md) | UI architecture and UX contracts |
+| [docs/KEYBOARD_FOCUS.md](docs/KEYBOARD_FOCUS.md) | Keyboard shortcut, Escape, and focus ownership rules |
 | [docs/user/](docs/user/) | End-user documentation consumed by in-app Help |
 | [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md) | Review checklist for changes |
 | [AGENTS.md](AGENTS.md) | Canonical execution rules for AI-assisted development |

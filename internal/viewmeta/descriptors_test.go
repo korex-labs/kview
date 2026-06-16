@@ -10,6 +10,15 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 	if len(bundle.SidebarGroups) == 0 {
 		t.Fatal("expected sidebar groups")
 	}
+	if !bundle.Dashboard.SignalViews.Enabled || bundle.Dashboard.SignalViews.NamePrefix == "" {
+		t.Fatalf("expected dashboard signal view policy: %#v", bundle.Dashboard.SignalViews)
+	}
+	if len(bundle.Dashboard.SignalViews.State) == 0 {
+		t.Fatalf("expected dashboard signal view state policy: %#v", bundle.Dashboard.SignalViews)
+	}
+	if len(bundle.Dashboard.SignalFilterCategories) == 0 {
+		t.Fatal("expected dashboard signal filter category policy")
+	}
 
 	byKey := map[string]ResourceDescriptor{}
 	for _, resource := range bundle.Resources {
@@ -39,6 +48,21 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 		}
 		if len(resource.ListView.SearchFields) == 0 {
 			t.Fatalf("%s: expected search fields", resource.Key)
+		}
+		if resource.Key == "dashboard" {
+			if resource.ListView.SavedViews.Enabled {
+				t.Fatalf("%s: dashboard should not expose saved resource views", resource.Key)
+			}
+		} else {
+			if !resource.ListView.SavedViews.Enabled {
+				t.Fatalf("%s: expected saved view policy", resource.Key)
+			}
+			if resource.ListView.SavedViews.NamePrefix == "" {
+				t.Fatalf("%s: expected saved view name prefix", resource.Key)
+			}
+			if len(resource.ListView.SavedViews.Location) == 0 || len(resource.ListView.SavedViews.State) == 0 {
+				t.Fatalf("%s: expected saved view compatibility dimensions", resource.Key)
+			}
 		}
 		if _, exists := byKey[resource.Key]; exists {
 			t.Fatalf("%s: duplicate descriptor", resource.Key)
@@ -71,7 +95,10 @@ func TestBundleReturnsCopies(t *testing.T) {
 	first := Bundle()
 	first.Resources[0].Label = "changed"
 	first.Resources[0].ListView.Identity[0] = "changed"
+	first.Resources[1].ListView.SavedViews.Location[0] = "changed"
 	first.SidebarGroups[0].Items[0] = "changed"
+	first.Dashboard.SignalViews.State[0] = "changed"
+	first.Dashboard.SignalFilterCategories[0].Label = "changed"
 
 	second := Bundle()
 	if second.Resources[0].Label == "changed" {
@@ -86,7 +113,16 @@ func TestBundleReturnsCopies(t *testing.T) {
 	if second.Resources[0].ListView.Identity[0] != "name" {
 		t.Fatal("identity fields were not copied")
 	}
+	if second.Resources[1].ListView.SavedViews.Location[0] != "context" {
+		t.Fatal("saved view policy was not copied")
+	}
 	if second.SidebarGroups[0].Items[0] == "changed" {
 		t.Fatal("sidebar group items were not copied")
+	}
+	if second.Dashboard.SignalViews.State[0] != "filters" {
+		t.Fatal("dashboard signal view policy was not copied")
+	}
+	if second.Dashboard.SignalFilterCategories[0].Label == "changed" {
+		t.Fatal("dashboard signal filter categories were not copied")
 	}
 }

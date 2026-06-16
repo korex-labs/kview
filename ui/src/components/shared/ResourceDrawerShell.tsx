@@ -9,7 +9,12 @@ import {
   RESOURCE_DRAWER_HEADER_DIVIDER_MY,
 } from "../../constants/drawerTokens";
 import { useUserSettings } from "../../settingsContext";
-import { useKeyboardControls, type ContextualKeyboardAction } from "../../keyboard/KeyboardProvider";
+import {
+  useContextualKeyboardActions,
+  useKeyboardControls,
+  useKeyboardScope,
+  type ContextualKeyboardAction,
+} from "../../keyboard/KeyboardProvider";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import type { ResourceIconName } from "../icons/resources/types";
 import { AppIconButton } from "./AppActions";
@@ -94,7 +99,7 @@ export default function ResourceDrawerShell({
   contentWidth = RESOURCE_DRAWER_WIDTH,
 }: ResourceDrawerShellProps) {
   const { settings, setSettings } = useUserSettings();
-  const { registerContextActions, registerKeyboardScope } = useKeyboardControls();
+  const { requestKeyboardFocus } = useKeyboardControls();
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
   const dragStartXRef = useRef(0);
@@ -163,18 +168,21 @@ export default function ResourceDrawerShell({
   }, [clampWidth, isResizing, setSettings]);
 
   useEffect(() => {
-    const focusShell = () => shellRef.current?.focus();
-    focusShell();
-    window.requestAnimationFrame(focusShell);
-    window.setTimeout(focusShell, 0);
-  }, []);
+    requestKeyboardFocus({
+      id: "resource-drawer.shell",
+      focus: () => {
+        shellRef.current?.focus();
+        return document.activeElement === shellRef.current;
+      },
+    });
+  }, [requestKeyboardFocus]);
 
-  useEffect(() => registerKeyboardScope({
+  useKeyboardScope(useMemo(() => ({
     id: "resource-drawer",
     label: "Resource drawer",
     kind: "drawer",
     suppressGlobalShortcuts: true,
-  }), [registerKeyboardScope]);
+  }), []));
 
   const clickDrawerControl = useCallback((predicate: (el: HTMLElement) => boolean) => {
     const root = shellRef.current;
@@ -199,19 +207,10 @@ export default function ResourceDrawerShell({
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
+  const contextualActions = useMemo(() => {
+    void actionRevision;
     const root = shellRef.current;
     const actions: ContextualKeyboardAction[] = [];
-
-    actions.push({
-      id: "drawer.close",
-      label: "Close drawer",
-      binding: ["escape"],
-      run: () => {
-        onClose();
-        return true;
-      },
-    });
 
     const tabs = Array.from(root?.querySelectorAll<HTMLElement>("[role='tab']") || [])
       .filter(isUsableControl)
@@ -232,24 +231,26 @@ export default function ResourceDrawerShell({
 
     if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => isUsableControl(el) && normalizedControlText(el) === "edit")) {
       actions.push({
-      id: "drawer.editYaml",
-      label: "Edit YAML when available",
-      binding: ["e"],
+        id: "drawer.editYaml",
+        label: "Edit YAML when available",
+        binding: ["e"],
         run: () => clickDrawerControl((el) => normalizedControlText(el) === "edit"),
       });
     }
 
     if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => isUsableControl(el) && normalizedControlText(el) === "refresh")) {
       actions.push({
-      id: "drawer.refresh",
-      label: "Refresh current resource when available",
-      binding: ["r"],
+        id: "drawer.refresh",
+        label: "Refresh current resource when available",
+        binding: ["r"],
         run: () => clickDrawerControl((el) => normalizedControlText(el) === "refresh"),
       });
     }
 
-    return registerContextActions(actions);
-  }, [actionRevision, clickDrawerControl, onClose, registerContextActions]);
+    return actions;
+  }, [actionRevision, clickDrawerControl]);
+
+  useContextualKeyboardActions(contextualActions);
 
   return (
     <Box

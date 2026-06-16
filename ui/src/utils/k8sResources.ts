@@ -57,6 +57,12 @@ export type ResourceViewPolicy = {
   filterLabel: string;
   identity: string[];
   searchFields: string[];
+  savedViews: {
+    enabled: boolean;
+    namePrefix: string;
+    location: string[];
+    state: string[];
+  };
 };
 
 export type SidebarGroup = {
@@ -64,6 +70,19 @@ export type SidebarGroup = {
   label: string;
   icon: ResourceIconName;
   items: Section[];
+};
+
+export type DashboardViewPolicy = {
+  signalViews: {
+    enabled: boolean;
+    namePrefix: string;
+    state: string[];
+  };
+  signalFilterCategories: Record<string, {
+    label: string;
+    order: number;
+    compact: boolean;
+  }>;
 };
 
 const validResourceIcons = new Set<ResourceIconName>([
@@ -159,9 +178,27 @@ export const resourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> =
       filterLabel: defaultFilterLabel(key as ListResourceKey),
       identity: defaultIdentityFields(key as ListResourceKey),
       searchFields: defaultSearchFields(key as ListResourceKey),
+      savedViews: defaultSavedViewPolicy(key as ListResourceKey),
     },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
+
+function defaultSavedViewPolicy(key: ListResourceKey): ResourceViewPolicy["savedViews"] {
+  if (key === "dashboard") {
+    return {
+      enabled: false,
+      namePrefix: "",
+      location: [],
+      state: [],
+    };
+  }
+  return {
+    enabled: true,
+    namePrefix: resourceMeta[key].label,
+    location: ["context", "namespace", "resource"],
+    state: ["filter", "sort", "columns"],
+  };
+}
 
 function defaultIdentityFields(key: ListResourceKey): string[] {
   if (key === "helmcharts") return ["chartName"];
@@ -367,6 +404,12 @@ export function getResourceViewPolicy(key?: ListResourceKey | null): ResourceVie
       filterLabel: "Filter",
       identity: ["name"],
       searchFields: ["name"],
+      savedViews: {
+        enabled: true,
+        namePrefix: "Resources",
+        location: ["context", "namespace", "resource"],
+        state: ["filter", "sort", "columns"],
+      },
     };
   }
   return resourceViewPolicies[key] ?? {
@@ -375,6 +418,12 @@ export function getResourceViewPolicy(key?: ListResourceKey | null): ResourceVie
     filterLabel: "Filter",
     identity: ["name"],
     searchFields: ["name"],
+    savedViews: {
+      enabled: true,
+      namePrefix: "Resources",
+      location: ["context", "namespace", "resource"],
+      state: ["filter", "sort", "columns"],
+    },
   };
 }
 
@@ -434,6 +483,11 @@ const defaultResourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> =
       filterLabel: policy.filterLabel,
       identity: [...policy.identity],
       searchFields: [...policy.searchFields],
+      savedViews: {
+        ...policy.savedViews,
+        location: [...policy.savedViews.location],
+        state: [...policy.savedViews.state],
+      },
     },
   ]),
 ) as Record<ListResourceKey, ResourceViewPolicy>;
@@ -442,6 +496,54 @@ const defaultSidebarGroups: SidebarGroup[] = sidebarGroups.map((group) => ({
   ...group,
   items: [...group.items],
 }));
+
+const defaultDashboardViewPolicy: DashboardViewPolicy = {
+  signalViews: {
+    enabled: true,
+    namePrefix: "Signal view",
+    state: ["filters", "query", "sort", "rowsPerPage"],
+  },
+  signalFilterCategories: {
+    priority: { label: "Priority", order: 0, compact: true },
+    severity: { label: "By Severity", order: 1, compact: true },
+    acknowledgement: { label: "By Acknowledgement", order: 2, compact: true },
+    tag: { label: "By Tags", order: 3, compact: true },
+    kind: { label: "By Kind", order: 4, compact: false },
+    signal_type: { label: "By Signal Reason", order: 5, compact: false },
+    namespace: { label: "Top 5 Namespaces With Problems", order: 6, compact: false },
+    namespace_favourite: { label: "Favourite Namespaces", order: 7, compact: false },
+    namespace_recent: { label: "Recent Namespaces", order: 8, compact: false },
+    derived: { label: "Derived", order: 9, compact: false },
+    other: { label: "Other", order: 10, compact: false },
+  },
+};
+
+const dashboardViewPolicy: DashboardViewPolicy = {
+  signalViews: {
+    ...defaultDashboardViewPolicy.signalViews,
+    state: [...defaultDashboardViewPolicy.signalViews.state],
+  },
+  signalFilterCategories: Object.fromEntries(
+    Object.entries(defaultDashboardViewPolicy.signalFilterCategories).map(([key, policy]) => [key, { ...policy }]),
+  ),
+};
+
+export function getDashboardViewPolicy(): DashboardViewPolicy {
+  return {
+    signalViews: {
+      ...dashboardViewPolicy.signalViews,
+      state: [...dashboardViewPolicy.signalViews.state],
+    },
+    signalFilterCategories: Object.fromEntries(
+      Object.entries(dashboardViewPolicy.signalFilterCategories).map(([key, policy]) => [key, { ...policy }]),
+    ),
+  };
+}
+
+export function getDashboardSignalFilterCategoryPolicy(category?: string): { label: string; order: number; compact: boolean } {
+  const key = category || "other";
+  return dashboardViewPolicy.signalFilterCategories[key] || dashboardViewPolicy.signalFilterCategories.other;
+}
 
 export function resetViewResourceDescriptorsForTest(): void {
   for (const key of Object.keys(resourceMeta) as ListResourceKey[]) {
@@ -453,12 +555,24 @@ export function resetViewResourceDescriptorsForTest(): void {
       filterLabel: defaultResourceViewPolicies[key].filterLabel,
       identity: [...defaultResourceViewPolicies[key].identity],
       searchFields: [...defaultResourceViewPolicies[key].searchFields],
+      savedViews: {
+        ...defaultResourceViewPolicies[key].savedViews,
+        location: [...defaultResourceViewPolicies[key].savedViews.location],
+        state: [...defaultResourceViewPolicies[key].savedViews.state],
+      },
     };
   }
   sidebarGroups.splice(
     0,
     sidebarGroups.length,
     ...defaultSidebarGroups.map((group) => ({ ...group, items: [...group.items] })),
+  );
+  dashboardViewPolicy.signalViews = {
+    ...defaultDashboardViewPolicy.signalViews,
+    state: [...defaultDashboardViewPolicy.signalViews.state],
+  };
+  dashboardViewPolicy.signalFilterCategories = Object.fromEntries(
+    Object.entries(defaultDashboardViewPolicy.signalFilterCategories).map(([key, policy]) => [key, { ...policy }]),
   );
 }
 
@@ -551,6 +665,29 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
         changed = true;
       }
     }
+
+    const savedViews = listView?.savedViews;
+    if (savedViews) {
+      const currentPolicy = resourceViewPolicies[descriptor.key];
+      const nextPolicy: ResourceViewPolicy = {
+        ...currentPolicy,
+        savedViews: {
+          enabled: savedViews.enabled !== false,
+          namePrefix: savedViews.namePrefix?.trim() || currentPolicy.savedViews.namePrefix || descriptor.label,
+          location: normalizeFieldList(savedViews.location) || currentPolicy.savedViews.location,
+          state: normalizeFieldList(savedViews.state) || currentPolicy.savedViews.state,
+        },
+      };
+      if (
+        currentPolicy.savedViews.enabled !== nextPolicy.savedViews.enabled ||
+        currentPolicy.savedViews.namePrefix !== nextPolicy.savedViews.namePrefix ||
+        currentPolicy.savedViews.location.join("\u0000") !== nextPolicy.savedViews.location.join("\u0000") ||
+        currentPolicy.savedViews.state.join("\u0000") !== nextPolicy.savedViews.state.join("\u0000")
+      ) {
+        resourceViewPolicies[descriptor.key] = nextPolicy;
+        changed = true;
+      }
+    }
   }
 
   const nextGroups = (response?.sidebarGroups || [])
@@ -568,6 +705,51 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
     const next = JSON.stringify(nextGroups);
     if (current !== next) {
       sidebarGroups.splice(0, sidebarGroups.length, ...nextGroups);
+      changed = true;
+    }
+  }
+
+  const dashboard = response?.dashboard;
+  if (dashboard?.signalViews) {
+    const nextSignalViews = {
+      enabled: dashboard.signalViews.enabled !== false,
+      namePrefix: dashboard.signalViews.namePrefix?.trim() || defaultDashboardViewPolicy.signalViews.namePrefix,
+      state: normalizeFieldList(dashboard.signalViews.state) || defaultDashboardViewPolicy.signalViews.state,
+    };
+    if (
+      dashboardViewPolicy.signalViews.enabled !== nextSignalViews.enabled ||
+      dashboardViewPolicy.signalViews.namePrefix !== nextSignalViews.namePrefix ||
+      dashboardViewPolicy.signalViews.state.join("\u0000") !== nextSignalViews.state.join("\u0000")
+    ) {
+      dashboardViewPolicy.signalViews = {
+        ...nextSignalViews,
+        state: [...nextSignalViews.state],
+      };
+      changed = true;
+    }
+  }
+
+  const nextSignalFilterCategories = (dashboard?.signalFilterCategories || [])
+    .filter((category) => category.key?.trim() && category.label?.trim() && typeof category.order === "number")
+    .map((category) => ({
+      key: category.key?.trim() || "",
+      label: category.label?.trim() || "",
+      order: Number.isFinite(category.order) ? Math.round(category.order as number) : 10,
+      compact: category.compact === true,
+    }));
+  if (nextSignalFilterCategories.length > 0) {
+    const merged = Object.fromEntries(
+      Object.entries(defaultDashboardViewPolicy.signalFilterCategories).map(([key, policy]) => [key, { ...policy }]),
+    ) as DashboardViewPolicy["signalFilterCategories"];
+    for (const category of nextSignalFilterCategories) {
+      merged[category.key] = {
+        label: category.label,
+        order: category.order,
+        compact: category.compact,
+      };
+    }
+    if (JSON.stringify(dashboardViewPolicy.signalFilterCategories) !== JSON.stringify(merged)) {
+      dashboardViewPolicy.signalFilterCategories = merged;
       changed = true;
     }
   }
