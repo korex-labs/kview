@@ -262,6 +262,12 @@ export type DashboardSignalItem = {
   resourceName?: string;
   scope?: string;
   scopeLocation?: string;
+  focus?: {
+    resource: string;
+    namespace?: string;
+    filter?: string;
+    label?: string;
+  };
   actualData?: string;
   calculatedData?: string;
   firstSeenAt?: number;

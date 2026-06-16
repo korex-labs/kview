@@ -12,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import type {
   DashboardSignalItem,
   NamespacePodHealth,
@@ -32,6 +33,9 @@ import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
 import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
+import { useActiveContext } from "../../../activeContext";
+import { dispatchApplyFocusedResourceView } from "../../../focusedResourceViews";
+import type { ListResourceKey } from "../../../utils/k8sResources";
 import {
   signalCalculatedText,
   signalFirstSeenText,
@@ -71,6 +75,10 @@ function podHealthSummary(podHealth?: NamespacePodHealth): string {
 function workloadSignalSummary(rollup?: WorkloadKindHealthRollup): string {
   if (!rollup || rollup.total === 0) return "-";
   return `${rollup.healthy} ok · ${rollup.progressing} prog · ${rollup.degraded} deg / ${rollup.total}`;
+}
+
+function signalHasFocusHint(signal: DashboardSignalItem): signal is DashboardSignalItem & { focus: NonNullable<DashboardSignalItem["focus"]> } {
+  return !!signal.focus?.resource;
 }
 
 
@@ -130,6 +138,7 @@ export default function NamespaceSignalsTab({
   onJumpToEvents,
   onJumpToConditions,
 }: Props) {
+  const activeContext = useActiveContext();
   const [seenSortMode, setSeenSortMode] = useState<SeenSortMode>("priority");
   const [seenSortAnchor, setSeenSortAnchor] = useState<null | HTMLElement>(null);
   const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
@@ -181,6 +190,18 @@ export default function NamespaceSignalsTab({
       case "CronJob": onNavigate("cronJobs"); return;
     }
     if (signal.name) onNavigate("customresources", signal.name);
+  }
+
+  function focusSignalList(signal: DashboardSignalItem) {
+    if (!signalHasFocusHint(signal)) return;
+    dispatchApplyFocusedResourceView({
+      context: activeContext,
+      namespace: signal.focus.namespace || namespaceName,
+      resource: signal.focus.resource as ListResourceKey,
+      filter: signal.focus.filter || signal.resourceName || signal.name || signal.namespace || "",
+      label: signal.focus.label || signal.resourceName || signal.name || signal.namespace || "",
+      source: "namespace-signal",
+    });
   }
 
   const sortedSignals = useMemo(() => {
@@ -403,6 +424,20 @@ export default function NamespaceSignalsTab({
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
                         <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                        {signalHasFocusHint(signal) ? (
+                          <AppIconButton
+                            label="Open focused resource list"
+                            tooltip="Open focused resource list"
+                            size="small"
+                            sx={{ p: 0.25 }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              focusSignalList(signal);
+                            }}
+                          >
+                            <SearchOutlinedIcon fontSize="inherit" />
+                          </AppIconButton>
+                        ) : null}
                       </Box>
                     </TableCell>
                     <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>

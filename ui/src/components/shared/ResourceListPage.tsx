@@ -54,6 +54,10 @@ import {
   savedViewMatchesLocation,
   sortModelsEqual,
 } from "../../savedViews";
+import {
+  clearPendingFocusedResourceView,
+  loadPendingFocusedResourceView,
+} from "../../focusedResourceViews";
 import { DialogActionButton } from "./AppActions";
 
 const defaultDataplaneRefreshSec = 0;
@@ -508,6 +512,18 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setFilter(filterIntent.value);
     onFilterIntentApplied?.(filterIntent.nonce);
   }, [filterIntent, onFilterIntentApplied, setFilter]);
+
+  useEffect(() => {
+    const intent = loadPendingFocusedResourceView();
+    if (!intent || intent.resource !== resourceKey) return;
+    if (intent.context && intent.context !== activeContext) return;
+    if (intent.namespace && intent.namespace !== (namespace || "")) return;
+    keepFilterFocusRef.current = false;
+    setActiveSavedViewId("");
+    clearPendingSavedResourceView();
+    setFilter(intent.filter || "");
+    clearPendingFocusedResourceView();
+  }, [activeContext, namespace, resourceKey, setFilter]);
 
   useEffect(() => {
     if (!settings.resourceTags.enabled || loading || error) return;

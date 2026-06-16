@@ -35,6 +35,8 @@ Use the dashboard to answer:
   so the same signal can be either parked as known or investigated further.
 - **Inspect actions**: open the relevant resource drawer or navigate to a
   related list when kview can map the signal to a target.
+- **Open focused resource list**: jumps from a signal to the matching resource
+  list and applies the signal's resource name as a one-time table filter.
 
 ## Optional Behavior
 
@@ -87,6 +89,11 @@ Signals are backend-produced and designed for triage. A signal can include:
 Signals are heuristics over visible data. They are useful for prioritization,
 but should be confirmed from resource details, events, logs, and YAML before
 making risky changes.
+
+Opening a focused resource list from a dashboard or namespace signal is
+transient navigation. It changes the active list, namespace, and text filter,
+and clears stale quick-filter chips, but it does not select or modify a saved
+view. Use saved views when you want to preserve the resulting list layout.
 
 ## Signal Investigation
 

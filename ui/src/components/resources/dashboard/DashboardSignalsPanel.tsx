@@ -15,6 +15,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import type {
   ApiDashboardClusterResponse,
   DashboardSignalFilter,
@@ -27,6 +28,7 @@ import StatusChip from "../../shared/StatusChip";
 import OverflowTooltip from "../../shared/OverflowTooltip";
 import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
   signalCalculatedText,
@@ -37,6 +39,9 @@ import {
 import type { InspectTarget } from "./dashboardTypes";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { getDashboardSignalFilterCategoryPolicy } from "../../../utils/k8sResources";
+import type { ListResourceKey } from "../../../utils/k8sResources";
+import { useActiveContext } from "../../../activeContext";
+import { dispatchApplyFocusedResourceView } from "../../../focusedResourceViews";
 
 type DerivedData = NonNullable<NonNullable<ApiDashboardClusterResponse["item"]>["derived"]>;
 
@@ -113,6 +118,10 @@ export function inspectTargetFromSignal(f: DashboardSignalItem): InspectTarget |
     default:
       return null;
   }
+}
+
+function signalHasFocusHint(signal: DashboardSignalItem): signal is DashboardSignalItem & { focus: NonNullable<DashboardSignalItem["focus"]> } {
+  return !!signal.focus?.resource;
 }
 
 function signalFilterLabel(filter: string): string {
@@ -518,6 +527,7 @@ export default function DashboardSignalsPanel({
   derived,
   loading = false,
 }: Props) {
+  const activeContext = useActiveContext();
   const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
   const topSignals = useMemo(() => signalPanel?.top || [], [signalPanel?.top]);
   const visibleSignals = useMemo(() => signalPanel?.items || [], [signalPanel?.items]);
@@ -599,6 +609,17 @@ export default function DashboardSignalsPanel({
   const visibleSignalsTotal = derivedFilter
     ? visibleDerivedRows.length
     : signalPanel?.itemsTotal ?? visibleSignals.length;
+  function focusSignalList(signal: DashboardSignalItem) {
+    if (!signalHasFocusHint(signal)) return;
+    dispatchApplyFocusedResourceView({
+      context: activeContext,
+      namespace: signal.focus.namespace,
+      resource: signal.focus.resource as ListResourceKey,
+      filter: signal.focus.filter || signal.resourceName || signal.name || signal.namespace || "",
+      label: signal.focus.label || signal.resourceName || signal.name || signal.namespace || "",
+      source: "dashboard-signal",
+    });
+  }
   const derivedProblemRows = derivedRows.filter((row) => row.signals > 0).length;
   const quickFilters: DashboardSignalFilter[] = [
     ...(signalPanel?.filters && signalPanel.filters.length > 0
@@ -829,6 +850,20 @@ export default function DashboardSignalsPanel({
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap", whiteSpace: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
                         <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                        {signalHasFocusHint(f) ? (
+                          <AppIconButton
+                            label="Open focused resource list"
+                            tooltip="Open focused resource list"
+                            size="small"
+                            sx={{ p: 0.25 }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              focusSignalList(f);
+                            }}
+                          >
+                            <SearchOutlinedIcon fontSize="inherit" />
+                          </AppIconButton>
+                        ) : null}
                       </Box>
                     </TableCell>
                     <TableCell sx={kindCellSx}>

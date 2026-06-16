@@ -364,9 +364,30 @@ func dashboardSignalItem(signalType, kind, namespace, name, severity string, sco
 		ResourceName:    resourceName,
 		Scope:           scope,
 		ScopeLocation:   scopeLocation,
+		Focus:           dashboardSignalFocusHint(kind, namespace, resourceName),
 		ActualData:      def.ActualData,
 		CalculatedData:  def.CalculatedData,
 	}
+}
+
+func dashboardSignalFocusHint(kind, namespace, name string) *ClusterDashboardSignalFocus {
+	resource, ok := dashboardSignalKindResourceKey(kind)
+	if !ok || resource == "" {
+		return nil
+	}
+	filter := strings.TrimSpace(name)
+	if filter == "" {
+		filter = strings.TrimSpace(namespace)
+	}
+	hint := &ClusterDashboardSignalFocus{
+		Resource: resource,
+		Filter:   filter,
+		Label:    filter,
+	}
+	if !dashboardResourceTagClusterScoped(resource) {
+		hint.Namespace = namespace
+	}
+	return hint
 }
 
 func dashboardPodRestartSignal(namespace string, pod dto.PodListItemDTO, threshold int32) ClusterDashboardSignal {

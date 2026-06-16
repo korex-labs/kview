@@ -20,6 +20,10 @@ drawers for detail, and start resource-specific actions when available.
   widths captured when the view was saved. Saved views are global across list
   pages, so choosing one can move you back to the saved context, namespace, and
   resource list.
+- **Focused navigation**: dashboard signals, namespace signals, and global
+  search can open a matching resource list with a one-time text filter applied.
+  This clears stale quick-filter chips and leaves saved-view mode unless you
+  explicitly choose a saved view.
 - **Save current view**: stores the current list layout and filter as a named
   local view. If a saved view is selected, saving updates that view. Use the
   delete button next to the selector to remove the selected saved view.

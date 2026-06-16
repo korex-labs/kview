@@ -39,6 +39,24 @@ func TestVisibleNamespacesWithCachedDataplaneLists(t *testing.T) {
 	}
 }
 
+func TestDashboardSignalItemIncludesFocusedListHint(t *testing.T) {
+	job := dashboardSignalItem("abnormal_job", "Job", "team-a", "migrate", "high", 90, "Job failed.", "high", "jobs")
+	if job.Focus == nil {
+		t.Fatal("expected namespaced signal focus hint")
+	}
+	if job.Focus.Resource != "jobs" || job.Focus.Namespace != "team-a" || job.Focus.Filter != "migrate" || job.Focus.Label != "migrate" {
+		t.Fatalf("job focus hint = %+v", job.Focus)
+	}
+
+	ns := dashboardSignalItem("empty_namespace", "Namespace", "empty", "", "medium", 70, "Namespace is empty.", "medium", "namespaces")
+	if ns.Focus == nil {
+		t.Fatal("expected namespace signal focus hint")
+	}
+	if ns.Focus.Resource != "namespaces" || ns.Focus.Namespace != "" || ns.Focus.Filter != "empty" || ns.Focus.Label != "empty" {
+		t.Fatalf("namespace focus hint = %+v", ns.Focus)
+	}
+}
+
 func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	dm := NewManager(ManagerConfig{})
 	mm := dm.(*manager)

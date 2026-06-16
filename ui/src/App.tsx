@@ -40,6 +40,11 @@ import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
 import { APPLY_SAVED_RESOURCE_VIEW_EVENT } from "./savedViews";
+import {
+  APPLY_FOCUSED_RESOURCE_VIEW_EVENT,
+  dispatchApplyFocusedResourceView,
+  type FocusedResourceViewIntent,
+} from "./focusedResourceViews";
 import usePageVisible from "./utils/usePageVisible";
 import { applyViewResourceDescriptors } from "./utils/k8sResources";
 import {
@@ -606,6 +611,23 @@ function AppInner() {
     return () => window.removeEventListener(APPLY_SAVED_RESOURCE_VIEW_EVENT, handleApplySavedView);
   });
 
+  useEffect(() => {
+    const handleApplyFocusedView = (event: Event) => {
+      const intent = (event as CustomEvent<FocusedResourceViewIntent>).detail;
+      if (!intent || !isSection(intent.resource)) return;
+      saveListTextFilter(intent.filter || "");
+      saveQuickFilterSelection([]);
+      if (intent.context && intent.context !== activeContext) {
+        void onSelectContext(intent.context, intent.namespace);
+      } else if (intent.namespace) {
+        onSelectNamespace(intent.namespace);
+      }
+      onSelectSection(intent.resource);
+    };
+    window.addEventListener(APPLY_FOCUSED_RESOURCE_VIEW_EVENT, handleApplyFocusedView);
+    return () => window.removeEventListener(APPLY_FOCUSED_RESOURCE_VIEW_EVENT, handleApplyFocusedView);
+  });
+
   function onToggleSidebarGroup(groupId: string) {
     setAppState((s) => {
       const nextCollapsed = !s.sidebarCollapsedGroups?.[groupId];
@@ -615,9 +637,19 @@ function AppInner() {
 
   function onOpenSearchResult(item: ApiDataplaneSearchItem) {
     const targetSection = dataplaneSearchSectionByKind[item.kind];
-    if (item.namespace) onSelectNamespace(item.namespace);
-    if (item.kind === "namespaces") onSelectNamespace(item.name);
-    if (targetSection) onSelectSection(targetSection);
+    if (targetSection) {
+      dispatchApplyFocusedResourceView({
+        context: item.cluster,
+        namespace: item.kind === "namespaces" ? undefined : item.namespace,
+        resource: targetSection,
+        filter: item.name,
+        label: item.name,
+        source: "search",
+      });
+    } else {
+      if (item.namespace) onSelectNamespace(item.namespace);
+      if (item.kind === "namespaces") onSelectNamespace(item.name);
+    }
     setSettingsOpen(false);
     setSearchDrawerItem(item);
   }
