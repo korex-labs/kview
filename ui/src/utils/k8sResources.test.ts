@@ -3,6 +3,7 @@ import {
   applyViewResourceDescriptors,
   getResourceIcon,
   getResourceLabel,
+  getResourceViewPolicy,
   listResourceAccess,
   resetViewResourceDescriptorsForTest,
   sidebarGroups,
@@ -22,6 +23,7 @@ describe("view resource descriptors", () => {
           clusterScoped: false,
           icon: "pods",
           access: { group: "", resource: "pods" },
+          listView: { quickFilters: { search: false, tag: true } },
         },
       ],
       sidebarGroups: [
@@ -38,6 +40,7 @@ describe("view resource descriptors", () => {
     expect(getResourceLabel("pods")).toBe("Runtime Pods");
     expect(getResourceIcon("pods")).toBe("pods");
     expect(listResourceAccess.pods).toEqual({ group: "", resource: "pods" });
+    expect(getResourceViewPolicy("pods").quickFilters).toEqual({ search: false, tag: true });
     expect(sidebarGroups).toEqual([
       {
         id: "runtime",
@@ -78,6 +81,7 @@ describe("view resource descriptors", () => {
 
     expect(changed).toBe(false);
     expect(getResourceLabel("pods")).toBe("Pods");
+    expect(getResourceViewPolicy("pods").quickFilters).toEqual({ search: true, tag: true });
     expect(sidebarGroups.some((group) => group.id === "invalid")).toBe(false);
   });
 });

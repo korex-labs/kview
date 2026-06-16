@@ -45,6 +45,13 @@ export type ResourceMeta = {
   icon: ResourceIconName;
 };
 
+export type ResourceViewPolicy = {
+  quickFilters: {
+    search: boolean;
+    tag: boolean;
+  };
+};
+
 export type SidebarGroup = {
   id: string;
   label: string;
@@ -130,6 +137,18 @@ export const resourceMeta: Record<ListResourceKey, ResourceMeta> = {
   limitranges: { label: "Limit Ranges", clusterScoped: false, icon: "limitranges" },
 };
 
+export const resourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> = Object.fromEntries(
+  Object.keys(resourceMeta).map((key) => [
+    key,
+    {
+      quickFilters: {
+        search: key !== "dashboard",
+        tag: key !== "dashboard",
+      },
+    },
+  ]),
+) as Record<ListResourceKey, ResourceViewPolicy>;
+
 export const sidebarGroups: SidebarGroup[] = [
   {
     id: "workloads",
@@ -206,6 +225,13 @@ export function isClusterScopedSection(section: Section): boolean {
   return false;
 }
 
+export function getResourceViewPolicy(key?: ListResourceKey | null): ResourceViewPolicy {
+  if (!key || !isListResourceKey(key)) {
+    return { quickFilters: { search: true, tag: true } };
+  }
+  return resourceViewPolicies[key] ?? { quickFilters: { search: true, tag: true } };
+}
+
 export const listResourceAccess: Record<ListResourceKey, AccessReviewResource> = {
   dashboard: { group: "", resource: "namespaces" },
   pods: { group: "", resource: "pods" },
@@ -253,6 +279,13 @@ const defaultListResourceAccess: Record<ListResourceKey, AccessReviewResource> =
   Object.entries(listResourceAccess).map(([key, access]) => [key, { ...access }]),
 ) as Record<ListResourceKey, AccessReviewResource>;
 
+const defaultResourceViewPolicies: Record<ListResourceKey, ResourceViewPolicy> = Object.fromEntries(
+  Object.entries(resourceViewPolicies).map(([key, policy]) => [
+    key,
+    { quickFilters: { ...policy.quickFilters } },
+  ]),
+) as Record<ListResourceKey, ResourceViewPolicy>;
+
 const defaultSidebarGroups: SidebarGroup[] = sidebarGroups.map((group) => ({
   ...group,
   items: [...group.items],
@@ -262,6 +295,7 @@ export function resetViewResourceDescriptorsForTest(): void {
   for (const key of Object.keys(resourceMeta) as ListResourceKey[]) {
     resourceMeta[key] = { ...defaultResourceMeta[key] };
     listResourceAccess[key] = { ...defaultListResourceAccess[key] };
+    resourceViewPolicies[key] = { quickFilters: { ...defaultResourceViewPolicies[key].quickFilters } };
   }
   sidebarGroups.splice(
     0,
@@ -300,6 +334,24 @@ export function applyViewResourceDescriptors(response: ApiViewResourcesResponse 
     if (currentAccess.group !== nextAccess.group || currentAccess.resource !== nextAccess.resource) {
       listResourceAccess[descriptor.key] = nextAccess;
       changed = true;
+    }
+
+    const quickFilters = descriptor.listView?.quickFilters;
+    if (quickFilters) {
+      const nextPolicy: ResourceViewPolicy = {
+        quickFilters: {
+          search: quickFilters.search !== false,
+          tag: quickFilters.tag !== false,
+        },
+      };
+      const currentPolicy = resourceViewPolicies[descriptor.key];
+      if (
+        currentPolicy.quickFilters.search !== nextPolicy.quickFilters.search ||
+        currentPolicy.quickFilters.tag !== nextPolicy.quickFilters.tag
+      ) {
+        resourceViewPolicies[descriptor.key] = nextPolicy;
+        changed = true;
+      }
     }
   }
 

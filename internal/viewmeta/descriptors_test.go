@@ -25,6 +25,9 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 		if resource.Access.Resource == "" {
 			t.Fatalf("%s: access resource is empty", resource.Key)
 		}
+		if resource.Key != "dashboard" && (!resource.ListView.QuickFilters.Search || !resource.ListView.QuickFilters.Tag) {
+			t.Fatalf("%s: expected list quick filter policy", resource.Key)
+		}
 		if _, exists := byKey[resource.Key]; exists {
 			t.Fatalf("%s: duplicate descriptor", resource.Key)
 		}
@@ -60,6 +63,9 @@ func TestBundleReturnsCopies(t *testing.T) {
 	second := Bundle()
 	if second.Resources[0].Label == "changed" {
 		t.Fatal("resource descriptors were not copied")
+	}
+	if second.Resources[0].ListView.QuickFilters.Search {
+		t.Fatal("dashboard list view policy was not preserved")
 	}
 	if second.SidebarGroups[0].Items[0] == "changed" {
 		t.Fatal("sidebar group items were not copied")

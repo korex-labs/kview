@@ -11,6 +11,16 @@ type ResourceDescriptor struct {
 	ClusterScoped bool                 `json:"clusterScoped"`
 	Icon          string               `json:"icon"`
 	Access        AccessReviewResource `json:"access"`
+	ListView      ListViewDescriptor   `json:"listView"`
+}
+
+type ListViewDescriptor struct {
+	QuickFilters QuickFilterPolicy `json:"quickFilters"`
+}
+
+type QuickFilterPolicy struct {
+	Search bool `json:"search"`
+	Tag    bool `json:"tag"`
 }
 
 type SidebarGroup struct {
@@ -72,6 +82,9 @@ var sidebarGroups = []SidebarGroup{
 
 func Bundle() DescriptorBundle {
 	resourceCopy := append([]ResourceDescriptor(nil), resources...)
+	for i := range resourceCopy {
+		resourceCopy[i].ListView.QuickFilters = QuickFilterPolicy{Search: resourceCopy[i].Key != "dashboard", Tag: resourceCopy[i].Key != "dashboard"}
+	}
 	groupCopy := make([]SidebarGroup, 0, len(sidebarGroups))
 	for _, group := range sidebarGroups {
 		group.Items = append([]string(nil), group.Items...)

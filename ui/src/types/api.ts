@@ -78,6 +78,12 @@ export type ApiViewResourceDescriptor = {
     group: string;
     resource: string;
   };
+  listView?: {
+    quickFilters?: {
+      search?: boolean;
+      tag?: boolean;
+    };
+  };
 };
 
 export type ApiViewSidebarGroup = {

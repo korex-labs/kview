@@ -1179,6 +1179,9 @@ func TestGetViewResources(t *testing.T) {
 	if pods.Label != "Pods" || pods.Access.Resource != "pods" {
 		t.Fatalf("unexpected pods descriptor: %#v", pods)
 	}
+	if !pods.ListView.QuickFilters.Search || !pods.ListView.QuickFilters.Tag {
+		t.Fatalf("expected pods quick filter policy: %#v", pods.ListView.QuickFilters)
+	}
 	helmCharts, ok := byKey["helmcharts"]
 	if !ok {
 		t.Fatal("missing helmcharts descriptor")

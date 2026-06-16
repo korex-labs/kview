@@ -6,6 +6,7 @@ import type { QuickFilter } from "./listFilters";
 import { buildQuickFilters, buildTagQuickFilters } from "./listFilters";
 import { performanceDiagnosticsEnabled, recordListTiming } from "./performanceDiagnostics";
 import type { ResourceTagTarget } from "../resourceTags";
+import { getResourceViewPolicy } from "./k8sResources";
 
 type UseListFiltersOptions<T> = {
   rows: T[];
@@ -44,16 +45,19 @@ export default function useListFilters<T>({
   const { settings } = useUserSettings();
 
   const quickFilters = useMemo(() => {
+    const viewPolicy = getResourceViewPolicy(smartFilterContext.resourceKey);
     if (!settings.appearance.smartFiltersEnabled) return [];
     const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
-    const next = buildQuickFilters(
-      rows,
-      getQuickFilterKey,
-      settings.smartFilters.rules,
-      smartFilterContext,
-      settings.smartFilters.minCount,
-    );
-    if (settings.resourceTags.enabled && settings.resourceTags.quickFiltersEnabled && getResourceTagTarget) {
+    const next = viewPolicy.quickFilters.search
+      ? buildQuickFilters(
+          rows,
+          getQuickFilterKey,
+          settings.smartFilters.rules,
+          smartFilterContext,
+          settings.smartFilters.minCount,
+        )
+      : [];
+    if (viewPolicy.quickFilters.tag && settings.resourceTags.enabled && settings.resourceTags.quickFiltersEnabled && getResourceTagTarget) {
       next.push(...buildTagQuickFilters(rows, settings.resourceTags, getResourceTagTarget));
     }
     if (startedAt && diagnosticsLabel) {
