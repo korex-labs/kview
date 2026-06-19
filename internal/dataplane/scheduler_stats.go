@@ -11,6 +11,7 @@ type SchedulerRunStatsSnapshot struct {
 	ByPriority  []PriorityRunStats
 	ByKind      []KindRunStats
 	Preemptions uint64
+	Health      []SchedulerHealthSnapshot
 }
 
 // PriorityRunStats aggregates run durations for one priority band.

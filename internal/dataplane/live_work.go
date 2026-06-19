@@ -7,9 +7,10 @@ import (
 
 // SchedulerLiveWork is a point-in-time view of dataplane scheduler slots for operators.
 type SchedulerLiveWork struct {
-	MaxSlotsPerCluster int                `json:"maxSlotsPerCluster"`
-	Running            []SchedulerWorkRow `json:"running"`
-	Queued             []SchedulerWorkRow `json:"queued"`
+	MaxSlotsPerCluster int                       `json:"maxSlotsPerCluster"`
+	Running            []SchedulerWorkRow        `json:"running"`
+	Queued             []SchedulerWorkRow        `json:"queued"`
+	Health             []SchedulerHealthSnapshot `json:"health,omitempty"`
 }
 
 // SchedulerWorkRow describes one running or queued snapshot execution.
@@ -55,6 +56,7 @@ func (s *workScheduler) LiveWorkSnapshot(now time.Time) SchedulerLiveWork {
 		MaxSlotsPerCluster: s.maxPerCluster,
 		Running:            []SchedulerWorkRow{},
 		Queued:             []SchedulerWorkRow{},
+		Health:             s.health.allSnapshots(),
 	}
 	for _, lane := range s.lanes {
 		for _, r := range lane.runners {

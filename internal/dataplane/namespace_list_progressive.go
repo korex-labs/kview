@@ -43,6 +43,9 @@ func (m *manager) selectNamespaceSweepNames(cluster string, order []string, focu
 	if sweep.PauseWhenSchedulerBusy && m.schedulerHasWork(cluster) {
 		return nil
 	}
+	if m.scheduler != nil && m.scheduler.BackgroundAdmission(cluster) != SchedulerBackgroundAdmissionOpen {
+		return nil
+	}
 	if sweep.PauseOnRateLimitOrConnectivity && m.clusterHasSweepBlockingIssue(cluster) {
 		return nil
 	}
@@ -557,6 +560,9 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 		return nil
 	}
 	if maxParallel <= 0 {
+		maxParallel = 1
+	}
+	if m.scheduler != nil && m.scheduler.BackgroundAdmission(cluster) != SchedulerBackgroundAdmissionOpen && maxParallel > 1 {
 		maxParallel = 1
 	}
 	policy := m.EffectivePolicy(cluster).NamespaceEnrichment

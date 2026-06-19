@@ -565,6 +565,10 @@ func (m *manager) WarmClusterBackground(ctx context.Context, clusterName string)
 	if strings.TrimSpace(clusterName) == "" || m.clients == nil {
 		return nil
 	}
+	admission := m.scheduler.BackgroundAdmission(clusterName)
+	if admission == SchedulerBackgroundAdmissionPaused {
+		return nil
+	}
 	policy := m.EffectivePolicy(clusterName)
 	allContexts := policy.AllContextEnrichment
 	if policy.Profile == DataplaneProfileManual || !allContexts.Enabled {
@@ -590,7 +594,9 @@ func (m *manager) WarmClusterBackground(ctx context.Context, clusterName string)
 	if policy.Observers.Enabled && policy.Observers.NodesEnabled {
 		_, _ = plane.NodesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
 	}
-	_, _ = plane.ClusterCustomResourcesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
+	if admission == SchedulerBackgroundAdmissionOpen {
+		_, _ = plane.ClusterCustomResourcesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
+	}
 	if err != nil {
 		return err
 	}

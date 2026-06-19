@@ -201,6 +201,7 @@ type workScheduler struct {
 	lanes         map[string]*clusterLane
 	maxPerCluster int
 	stats         *runStats
+	health        *schedulerHealthTracker
 
 	// Optional: record very slow snapshot runs into the activity registry (set from NewManager).
 	longRunMin time.Duration
@@ -220,6 +221,7 @@ func newWorkScheduler(maxPerCluster int) *workScheduler {
 		lanes:          make(map[string]*clusterLane),
 		maxPerCluster:  maxPerCluster,
 		stats:          newRunStats(),
+		health:         newSchedulerHealthTracker(),
 		retries:        3,
 		initialBackoff: 100 * time.Millisecond,
 		maxBackoff:     1500 * time.Millisecond,
@@ -266,7 +268,23 @@ func (s *workScheduler) setMaxPerCluster(maxPerCluster int) {
 }
 
 func (s *workScheduler) StatsSnapshot() SchedulerRunStatsSnapshot {
-	return s.stats.snapshot()
+	out := s.stats.snapshot()
+	out.Health = s.health.allSnapshots()
+	return out
+}
+
+func (s *workScheduler) BackgroundAdmission(cluster string) SchedulerBackgroundAdmission {
+	if s == nil || s.health == nil {
+		return SchedulerBackgroundAdmissionOpen
+	}
+	return s.health.snapshot(cluster).BackgroundAdmission
+}
+
+func (s *workScheduler) HealthSnapshot(cluster string) SchedulerHealthSnapshot {
+	if s == nil || s.health == nil {
+		return SchedulerHealthSnapshot{Cluster: cluster, State: SchedulerHealthHealthy, BackgroundAdmission: SchedulerBackgroundAdmissionOpen}
+	}
+	return s.health.snapshot(cluster)
 }
 
 func (s *workScheduler) laneLocked(cluster string) *clusterLane {
@@ -463,6 +481,7 @@ func (s *workScheduler) Run(ctx context.Context, priority WorkPriority, key work
 	maxBackoff := s.maxBackoff
 	s.mu.Unlock()
 
+	lastPressureClass := NormalizedErrorClassUnknown
 	for attempt := 0; attempt < retries; attempt++ {
 		if attempt > 0 {
 			select {
@@ -485,6 +504,7 @@ func (s *workScheduler) Run(ctx context.Context, priority WorkPriority, key work
 		err := fn(runCtx)
 		fnErr = err
 		if err == nil {
+			s.health.recordSuccess(key.Cluster)
 			inf.err = nil
 			return nil
 		}
@@ -496,13 +516,19 @@ func (s *workScheduler) Run(ctx context.Context, priority WorkPriority, key work
 			NormalizedErrorClassTransient,
 			NormalizedErrorClassProxyFailure,
 			NormalizedErrorClassConnectivity:
+			lastPressureClass = norm.Class
 			continue
 		default:
+			s.health.recordError(key.Cluster, norm.Class)
 			inf.err = err
 			return err
 		}
 	}
 
+	if lastPressureClass == NormalizedErrorClassUnknown {
+		lastPressureClass = NormalizedErrorClassTimeout
+	}
+	s.health.recordError(key.Cluster, lastPressureClass)
 	inf.err = context.DeadlineExceeded
 	fnErr = context.DeadlineExceeded
 	return inf.err
