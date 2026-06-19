@@ -37,9 +37,9 @@ Snapshot persistence is optional and enabled by default unless the user has expl
 
 ## Scheduler
 
-A shared **work scheduler** limits concurrent snapshot work per cluster, **deduplicates** in-flight work by key, applies **priorities** (user-facing API vs dashboard vs observers vs enrichment), and retries transient failures with backoff.
+A shared **work scheduler** limits concurrent snapshot work per cluster, **deduplicates** in-flight work by key, applies **priorities** (user-facing API vs dashboard vs observers vs enrichment), and retries transient failures with backoff. It also maintains per-cluster adaptive health from recent pressure signals (rate limits, timeouts, transient upstream/proxy/connectivity failures) so background work can slow down before it starves foreground/user-facing reads.
 
-Operators can inspect **running and queued** snapshot work via `GET /api/dataplane/work/live` (authenticated like other `/api` routes). Work rows include cluster, kind, namespace (if any), priority, source label (e.g. api, observer, enrichment), and queue/run timing.
+Operators can inspect **running and queued** snapshot work plus scheduler health via `GET /api/dataplane/work/live` (authenticated like other `/api` routes). Work rows include cluster, kind, namespace (if any), priority, source label (e.g. api, observer, enrichment), and queue/run timing. Health rows include state (`healthy`, `limited`, `throttled`, `recovering`), background admission (`open`, `limited`, `paused`), recent failure/success counts, last pressure class, and a human-readable paused/limited reason. The Activity panel surfaces the same health/admission chips so operators can see when background sweep/enrichment has intentionally slowed down.
 
 ---
 

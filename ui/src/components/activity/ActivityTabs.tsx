@@ -63,10 +63,24 @@ type LiveWorkRow = {
   runningMs: number;
 };
 
+type SchedulerHealthSnapshot = {
+  cluster: string;
+  state: "healthy" | "limited" | "throttled" | "recovering" | string;
+  backgroundAdmission: "open" | "limited" | "paused" | string;
+  consecutiveFailures: number;
+  recentFailures: number;
+  recentSuccesses: number;
+  lastErrorClass?: string;
+  lastTransition?: string;
+  lastEvent?: string;
+  reason?: string;
+};
+
 type LiveWork = {
   maxSlotsPerCluster: number;
   running: LiveWorkRow[];
   queued: LiveWorkRow[];
+  health?: SchedulerHealthSnapshot[];
 };
 
 type Activity = {
@@ -153,6 +167,47 @@ function useFadingRows<T>(
   }, []);
 
   return displayRows;
+}
+
+function schedulerHealthColor(state?: string) {
+  switch (state) {
+    case "throttled":
+      return "error" as const;
+    case "limited":
+      return "warning" as const;
+    case "recovering":
+      return "info" as const;
+    case "healthy":
+      return "success" as const;
+    default:
+      return "default" as const;
+  }
+}
+
+function backgroundAdmissionColor(admission?: string) {
+  switch (admission) {
+    case "paused":
+      return "error" as const;
+    case "limited":
+      return "warning" as const;
+    case "open":
+      return "success" as const;
+    default:
+      return "default" as const;
+  }
+}
+
+function formatSchedulerHealthDetail(snapshot: SchedulerHealthSnapshot) {
+  const bits = [
+    `state=${snapshot.state}`,
+    `background=${snapshot.backgroundAdmission}`,
+    `recent failures=${snapshot.recentFailures}`,
+    `recent successes=${snapshot.recentSuccesses}`,
+    `consecutive failures=${snapshot.consecutiveFailures}`,
+  ];
+  if (snapshot.lastErrorClass) bits.push(`last error=${snapshot.lastErrorClass}`);
+  if (snapshot.reason) bits.push(`reason=${snapshot.reason}`);
+  return bits.join(" · ");
 }
 
 export default function ActivityTabs({
@@ -351,6 +406,22 @@ export default function ActivityTabs({
   );
   const liveWorkRunning = useMemo(() => liveWork?.running ?? [], [liveWork]);
   const liveWorkQueued = useMemo(() => liveWork?.queued ?? [], [liveWork]);
+  const liveWorkHealth = useMemo(() => liveWork?.health ?? [], [liveWork]);
+  const limitedHealthCount = useMemo(
+    () => liveWorkHealth.filter((snapshot) => snapshot.backgroundAdmission !== "open").length,
+    [liveWorkHealth],
+  );
+  const pausedHealthCount = useMemo(
+    () => liveWorkHealth.filter((snapshot) => snapshot.backgroundAdmission === "paused").length,
+    [liveWorkHealth],
+  );
+  const displayHealthRows = useMemo(
+    () => [
+      ...liveWorkHealth.filter((snapshot) => snapshot.backgroundAdmission !== "open"),
+      ...liveWorkHealth.filter((snapshot) => snapshot.backgroundAdmission === "open").slice(0, 3),
+    ],
+    [liveWorkHealth],
+  );
   const displayActivities = useFadingRows(
     activities,
     useCallback((activity: Activity) => activity.id, []),
@@ -496,7 +567,33 @@ export default function ActivityTabs({
               <KeyValueChip chipKey="slots/cluster" value={String(liveWork?.maxSlotsPerCluster ?? "-")} color="primary" maxKeyLen={16} />
               <KeyValueChip chipKey="running" value={String(liveWork?.running?.length ?? 0)} color="success" />
               <KeyValueChip chipKey="queued" value={String(liveWork?.queued?.length ?? 0)} color="info" />
+              <KeyValueChip chipKey="health" value={String(liveWorkHealth.length)} color="default" />
+              {limitedHealthCount > 0 ? <KeyValueChip chipKey="limited" value={String(limitedHealthCount)} color="warning" /> : null}
+              {pausedHealthCount > 0 ? <KeyValueChip chipKey="paused" value={String(pausedHealthCount)} color="error" /> : null}
             </Box>
+            {displayHealthRows.length > 0 ? (
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5, pb: 0.5 }}>
+                {displayHealthRows.map((snapshot) => (
+                  <Tooltip key={snapshot.cluster} title={formatSchedulerHealthDetail(snapshot)}>
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.35, minWidth: 0 }}>
+                      <Typography variant="caption" noWrap sx={{ maxWidth: 120, color: "text.secondary" }}>
+                        {snapshot.cluster}
+                      </Typography>
+                      <StatusChip size="small" label={snapshot.state} color={schedulerHealthColor(snapshot.state)} sx={activityChipSx} />
+                      <StatusChip
+                        size="small"
+                        label={`bg ${snapshot.backgroundAdmission}`}
+                        color={backgroundAdmissionColor(snapshot.backgroundAdmission)}
+                        sx={activityChipSx}
+                      />
+                      {snapshot.lastErrorClass ? (
+                        <StatusChip size="small" label={snapshot.lastErrorClass} color="default" variant="outlined" sx={activityChipSx} />
+                      ) : null}
+                    </Box>
+                  </Tooltip>
+                ))}
+              </Box>
+            ) : null}
             <Table size="small" stickyHeader sx={compactTableSx}>
               <TableHead>
                 <TableRow>
