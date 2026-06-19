@@ -49,6 +49,12 @@ kview
 
 This starts the local server and opens the UI in your default browser.
 
+To print the kview version and exit:
+
+```bash
+kview --version
+```
+
 To point kview at a specific kubeconfig file or directory:
 
 ```bash

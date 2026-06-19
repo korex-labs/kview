@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/korex-labs/kview/v5/internal/buildinfo"
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	kubeactions "github.com/korex-labs/kview/v5/internal/kube/actions"
 	kubehelm "github.com/korex-labs/kview/v5/internal/kube/resource/helm"
@@ -31,7 +32,12 @@ func main() {
 	modeFlag := flag.String("mode", "", "launch mode: browser|webview|server")
 	configPath := flag.String("config", "", "path to kubeconfig file or directory (overrides KUBECONFIG)")
 	readOnly := flag.Bool("read-only", false, "block backend endpoints that can mutate cluster state")
+	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *version {
+		fmt.Println(buildinfo.ResolvedVersion())
+		return
+	}
 
 	// Initialize runtime manager first so we can capture startup logs including kubeconfig discovery.
 	rt := runtime.NewManager()
