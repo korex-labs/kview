@@ -82,6 +82,11 @@ func executeClusterSnapshot[I any](
 		p.stats.recordRequest(source, desc.kind, false)
 	}
 
+	var staleCached Snapshot[I]
+	var haveStaleCached bool
+	if desc.skipPersistence {
+		staleCached, haveStaleCached = peekClusterSnapshot(store)
+	}
 	var persisted Snapshot[I]
 	var havePersisted bool
 	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
@@ -148,6 +153,11 @@ func executeClusterSnapshot[I any](
 		return nil
 	})
 
+	if runErr != nil && len(out.Items) == 0 && haveStaleCached {
+		fallback := staleCachedSnapshotFallback(staleCached, out)
+		setClusterSnapshot(store, fallback)
+		return fallback, runErr
+	}
 	if runErr != nil && len(out.Items) == 0 && havePersisted {
 		fallback := persistedSnapshotFallback(persisted, out)
 		setClusterSnapshot(store, fallback)
@@ -183,6 +193,11 @@ func executeNamespacedSnapshot[I any](
 		p.stats.recordRequest(source, desc.kind, false)
 	}
 
+	var staleCached Snapshot[I]
+	var haveStaleCached bool
+	if desc.skipPersistence {
+		staleCached, haveStaleCached = peekNamespacedSnapshot(store, namespace)
+	}
 	var persisted Snapshot[I]
 	var havePersisted bool
 	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
@@ -249,6 +264,11 @@ func executeNamespacedSnapshot[I any](
 		return nil
 	})
 
+	if runErr != nil && len(out.Items) == 0 && haveStaleCached {
+		fallback := staleCachedSnapshotFallback(staleCached, out)
+		setNamespacedSnapshot(store, namespace, fallback)
+		return fallback, runErr
+	}
 	if runErr != nil && len(out.Items) == 0 && havePersisted {
 		fallback := persistedSnapshotFallback(persisted, out)
 		setNamespacedSnapshot(store, namespace, fallback)

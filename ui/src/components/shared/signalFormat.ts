@@ -30,7 +30,8 @@ export function signalFirstSeenText(signal: DashboardSignalItem): string {
 }
 
 export function signalLastSeenText(signal: DashboardSignalItem): string {
-  return signal.lastSeenAt ? fmtTimeAgo(signal.lastSeenAt) : "-";
+  const lastSeenAt = signal.lastSeenAt || signal.firstSeenAt;
+  return lastSeenAt ? fmtTimeAgo(lastSeenAt) : "-";
 }
 
 export function signalTooltipText(signal: DashboardSignalItem): string {

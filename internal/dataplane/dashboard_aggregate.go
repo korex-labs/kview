@@ -473,6 +473,7 @@ func isTransitionalHelmStatus(status string) bool {
 }
 
 func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts ClusterDashboardListOptions) ClusterDashboardSignalsPanel {
+	signals = normalizeDashboardSignalSeenTimestamps(signals)
 	opts = normalizeClusterDashboardListOptions(opts)
 	if limit <= 0 {
 		limit = 10
@@ -517,6 +518,23 @@ func summarizeDashboardSignals(signals []ClusterDashboardSignal, limit int, opts
 	sortDashboardSignalsForItems(pageSource, itemSort)
 	out.Items = append(out.Items, paginateDashboardSignals(pageSource, opts.SignalsOffset, opts.SignalsLimit)...)
 	out.ItemsHasMore = out.ItemsOffset+len(out.Items) < out.ItemsTotal
+	return out
+}
+
+func normalizeDashboardSignalSeenTimestamps(signals []ClusterDashboardSignal) []ClusterDashboardSignal {
+	if len(signals) == 0 {
+		return signals
+	}
+	out := make([]ClusterDashboardSignal, len(signals))
+	copy(out, signals)
+	for i := range out {
+		if out[i].FirstSeenAt <= 0 && out[i].LastSeenAt > 0 {
+			out[i].FirstSeenAt = out[i].LastSeenAt
+		}
+		if out[i].LastSeenAt <= 0 && out[i].FirstSeenAt > 0 {
+			out[i].LastSeenAt = out[i].FirstSeenAt
+		}
+	}
 	return out
 }
 

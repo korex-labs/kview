@@ -1,5 +1,5 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
-import type { AppStateV1 } from "./state";
+import { isSection, type AppStateV1 } from "./state";
 
 export type SettingsScopeMode = "all" | "cluster" | "namespace";
 export type SettingsResourceScopeMode = "any" | "selected";
@@ -2267,9 +2267,67 @@ export function parseUserSettingsJSON(text: string): KviewUserSettingsV2 {
   }
   return settings;
 }
-
 export function exportUserSettingsJSON(settings: KviewUserSettingsV2): string {
-  return `${JSON.stringify(serializeUserSettingsV2(settings), null, 2)}\n`;
+  return `${JSON.stringify(serializeUserSettingsV2(settings), null, 2)}
+`;
+}
+
+export type FullProfileBackupV1 = {
+  kind: "kview.fullProfile";
+  version: 1;
+  exportedAt: string;
+  settings: KviewUserSettingsV2;
+  appState: AppStateV1;
+};
+
+export function exportFullProfileJSON(input: { settings: KviewUserSettingsV2; appState: AppStateV1 }): string {
+  const backup: FullProfileBackupV1 = {
+    kind: "kview.fullProfile",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: serializeUserSettingsV2(input.settings),
+    appState: normalizeFullProfileAppState(input.appState),
+  };
+  return `${JSON.stringify(backup, null, 2)}
+`;
+}
+
+export function parseFullProfileJSON(text: string): { settings: KviewUserSettingsV2; appState: AppStateV1 } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const root = parsed as { kind?: unknown; settings?: unknown; appState?: unknown };
+  if (root.kind !== "kview.fullProfile") return null;
+  const settings = validateUserSettings(root.settings);
+  if (!settings) throw new Error("Full profile backup does not contain valid user settings.");
+  return { settings, appState: normalizeFullProfileAppState(root.appState) };
+}
+
+function normalizeFullProfileAppState(input: unknown): AppStateV1 {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? input as Partial<AppStateV1> : {};
+  const out: AppStateV1 = {
+    v: 1,
+    favouriteNamespacesByContext: normalizeStringArrayRecord(raw.favouriteNamespacesByContext),
+    recentNamespacesByContext: normalizeStringArrayRecord(raw.recentNamespacesByContext),
+  };
+  if (typeof raw.activeContext === "string" && raw.activeContext.trim()) out.activeContext = raw.activeContext.trim();
+  if (typeof raw.activeNamespace === "string" && raw.activeNamespace.trim()) out.activeNamespace = raw.activeNamespace.trim();
+  if (isSection(raw.activeSection)) out.activeSection = raw.activeSection;
+  if (Array.isArray(raw.recentSections)) out.recentSections = raw.recentSections.filter(isSection);
+  if (raw.sidebarCollapsedGroups && typeof raw.sidebarCollapsedGroups === "object" && !Array.isArray(raw.sidebarCollapsedGroups)) {
+    const collapsed: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(raw.sidebarCollapsedGroups)) {
+      if (typeof value === "boolean") collapsed[key] = value;
+    }
+    out.sidebarCollapsedGroups = collapsed;
+  }
+  if (typeof raw.activityPanelOpen === "boolean") out.activityPanelOpen = raw.activityPanelOpen;
+  if (typeof raw.activityPanelHeightPx === "number" && Number.isFinite(raw.activityPanelHeightPx)) out.activityPanelHeightPx = raw.activityPanelHeightPx;
+  return out;
 }
 
 export const settingsTransferSections: Array<{ id: SettingsTransferSection; label: string }> = [

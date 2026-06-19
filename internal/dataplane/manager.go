@@ -1706,8 +1706,8 @@ func (m *manager) MergeCachedNamespaceRowProjection(ctx context.Context, cluster
 	enriched := 0
 	for _, item := range items {
 		next := item
-		if cached, ok := buildCachedNamespaceListRowProjection(plane, item.Name); ok {
-			mergeNamespaceRowInto(&next, cached)
+		if patch, ok := buildCachedNamespaceListRowProjection(plane, item.Name, m.EffectivePolicy(clusterName)); ok {
+			mergeNamespaceRowInto(&next, patch)
 			if next.RowEnriched {
 				enriched++
 			}

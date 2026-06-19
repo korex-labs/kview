@@ -108,7 +108,7 @@ func TestBuildCachedNamespaceListRowProjection_QuotaAndLimits(t *testing.T) {
 		Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: "app"}},
 	})
 
-	got, ok := buildCachedNamespaceListRowProjection(plane, "app")
+	got, ok := buildCachedNamespaceListRowProjection(plane, "app", DefaultDataplanePolicy())
 	if !ok || !got.RowEnriched {
 		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
 	}
@@ -131,7 +131,7 @@ func TestBuildCachedNamespaceListRowProjection_SupportingResourcesDoNotMakeWorkl
 		Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: "support-only"}},
 	})
 
-	got, ok := buildCachedNamespaceListRowProjection(plane, "support-only")
+	got, ok := buildCachedNamespaceListRowProjection(plane, "support-only", DefaultDataplanePolicy())
 	if !ok || !got.RowEnriched {
 		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
 	}
@@ -150,7 +150,7 @@ func TestBuildCachedNamespaceListRowProjection_SupportingErrorsDoNotDriveWorkloa
 		Err:  &NormalizedError{Class: NormalizedErrorClassAccessDenied},
 	})
 
-	got, ok := buildCachedNamespaceListRowProjection(plane, "support-error")
+	got, ok := buildCachedNamespaceListRowProjection(plane, "support-error", DefaultDataplanePolicy())
 	if !ok || !got.RowEnriched {
 		t.Fatalf("expected cached projection, ok=%v got=%+v", ok, got)
 	}

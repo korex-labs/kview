@@ -625,7 +625,7 @@ func (m *manager) runNamespaceEnrichmentBatch(ctx context.Context, cluster strin
 			if sess.shouldWarmFavouriteInsights(name) {
 				m.warmNamespaceInsightsResourceKinds(workCtx, plane, name)
 			}
-			metrics, ok := buildCachedNamespaceListRowProjection(plane, name)
+			metrics, ok := buildCachedNamespaceListRowProjection(plane, name, m.EffectivePolicy(cluster))
 			if !ok {
 				metrics = buildNamespaceListRowProjection(podsSnap, depsSnap)
 			}
@@ -803,7 +803,7 @@ func (m *manager) namespaceListEnrichmentPoll(cluster string, revision uint64, s
 	updates := make([]dto.NamespaceListItemDTO, 0, len(sess.order))
 	for _, name := range sess.order {
 		row := sess.merged[name]
-		if cached, ok := buildCachedNamespaceListRowProjection(plane, name); ok {
+		if cached, ok := buildCachedNamespaceListRowProjection(plane, name, m.EffectivePolicy(cluster)); ok {
 			mergeNamespaceRowInto(&row, cached)
 			sess.merged[name] = row
 		}

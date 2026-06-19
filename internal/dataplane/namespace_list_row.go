@@ -1,6 +1,8 @@
 package dataplane
 
 import (
+	"time"
+
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
@@ -61,7 +63,7 @@ func buildNamespaceListRowProjection(podsSnap PodsSnapshot, depsSnap Deployments
 	return out
 }
 
-func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string) (dto.NamespaceListItemDTO, bool) {
+func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string, policy DataplanePolicy) (dto.NamespaceListItemDTO, bool) {
 	if plane == nil || namespace == "" {
 		return dto.NamespaceListItemDTO{}, false
 	}
@@ -83,8 +85,6 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 		if podsSnap.Err == nil {
 			out.PodCount = len(podsSnap.Items)
 			workloadMeaningful += out.PodCount
-			severity, count := podSignalsFromList(podsSnap.Items)
-			addNamespaceListSignals(&out, severity, count)
 		}
 	}
 	if depsOK {
@@ -92,8 +92,6 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 		if depsSnap.Err == nil {
 			out.DeploymentCount = len(depsSnap.Items)
 			workloadMeaningful += out.DeploymentCount
-			severity, count := deploymentSignalsFromList(depsSnap.Items)
-			addNamespaceListSignals(&out, severity, count)
 		}
 	}
 	if rqOK {
@@ -114,8 +112,24 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 		}
 	}
 	out.SummaryState = ProjectionCoarseState(workloadErr, workloadMeaningful)
+	if severity, count := namespaceDashboardSignalSummary(plane, namespace, policy); count > 0 {
+		out.ListSignalSeverity = severity
+		out.ListSignalCount = count
+	}
 	finalizeNamespaceListSignals(&out)
 	return out, true
+}
+
+func namespaceDashboardSignalSummary(plane *clusterPlane, namespace string, policy DataplanePolicy) (string, int) {
+	thresholds := signalThresholdsFromPolicy(policy)
+	set := buildSnapshotSetForNamespace(plane, namespace, thresholds)
+	signals := applySignalPolicy(detectDashboardSignals(time.Now(), namespace, set), policy, plane.name)
+	severity := listSignalOK
+	count := 0
+	for _, signal := range signals {
+		addSeverityCount(&severity, &count, signal.Severity, 1)
+	}
+	return severity, count
 }
 
 func quotaRiskFromSnapshot(snap ResourceQuotasSnapshot) (maxRatio float64, warning bool, critical bool) {

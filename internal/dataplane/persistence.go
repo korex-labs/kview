@@ -876,6 +876,19 @@ func persistedSnapshotFallback[I any](persisted Snapshot[I], live Snapshot[I]) S
 	return persisted
 }
 
+func staleCachedSnapshotFallback[I any](cached Snapshot[I], live Snapshot[I]) Snapshot[I] {
+	if live.Err != nil {
+		cached.Err = live.Err
+	}
+	if cached.Err == nil {
+		n := NormalizeError(errors.New("live refresh failed; using cached dataplane snapshot"))
+		cached.Err = &n
+	}
+	cached.Meta.Freshness = FreshnessClassStale
+	cached.Meta.Degradation = WorstDegradation(cached.Meta.Degradation, DegradationClassMinor)
+	return cached
+}
+
 func persistenceOpenError(err error) error {
 	if err == nil {
 		return nil

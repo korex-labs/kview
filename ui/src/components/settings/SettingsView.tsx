@@ -47,11 +47,12 @@ import {
   defaultDataplaneSettings,
   dataplaneNamespaceWarmResourceKeys,
   dataplaneTTLResourceKeys,
-  exportUserSettingsJSON,
+  exportFullProfileJSON,
   exportSettingsTransferJSON,
   newCustomActionDefinition,
   newCustomCommandDefinition,
   newSmartFilterRule,
+  parseFullProfileJSON,
   parseSettingsTransferJSON,
   parseUserSettingsJSON,
   sanitizeRegexFlags,
@@ -1348,6 +1349,15 @@ export default function SettingsView({
       return;
     }
     try {
+      const fullProfile = parseFullProfileJSON(text);
+      if (fullProfile) {
+        if (!window.confirm("Import full profile backup and overwrite current settings plus app state?")) return;
+        replaceSettings(fullProfile.settings);
+        setAppState(fullProfile.appState);
+        setImportText(text);
+        setImportMessage({ severity: "success", text: "Full profile imported." });
+        return;
+      }
       const imported = parseUserSettingsJSON(text);
       if (!window.confirm("Import settings and overwrite the current settings profile?")) return;
       replaceSettings(imported);
@@ -3583,11 +3593,11 @@ export default function SettingsView({
     <SettingSection
       title="Import / Export"
       icon={<SettingsIcon name="importExport" />}
-      hint="Full profile export is for backup. Transfer bundles are section-based and safer for sharing with a team."
+      hint="Full profile backup includes settings and local app state (favourite/recent namespaces, sidebar state). Transfer bundles are section-based and safer for sharing with a team."
     >
       <Typography variant="subtitle2">Transfer bundle</Typography>
       <Typography variant="body2" color="text.secondary">
-        Export only the sections another operator should import.
+        Export only selected shared sections. Use this for team hand-off or partial restore.
       </Typography>
       <List dense disablePadding sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.25 }}>
         {settingsTransferSections.map((item) => (
@@ -3617,15 +3627,18 @@ export default function SettingsView({
       </Box>
       <Divider />
       <Typography variant="subtitle2">Full profile backup</Typography>
+      <Typography variant="body2" color="text.secondary">
+        Exports the complete local profile: all user settings plus app state such as favourite namespaces, recent namespaces, recent sections, and sidebar/activity layout.
+      </Typography>
       <Box sx={actionRowSx}>
         <AppButton
           intent="secondary"
           onClick={() => {
-            const blob = new Blob([exportUserSettingsJSON(settings)], { type: "application/json" });
+            const blob = new Blob([exportFullProfileJSON({ settings, appState })], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = "kview-user-settings.json";
+            a.download = "kview-full-profile.json";
             a.click();
             URL.revokeObjectURL(url);
           }}
