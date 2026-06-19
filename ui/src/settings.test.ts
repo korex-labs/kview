@@ -785,6 +785,44 @@ describe("user settings", () => {
     expect(next.signals).toEqual(current.signals);
   });
 
+  it("applies adaptive dataplane profile presets by breadth", () => {
+    const focused = applyDataplaneProfile(defaultUserSettings().dataplane.global, "focused");
+    const balanced = applyDataplaneProfile(defaultUserSettings().dataplane.global, "balanced");
+    const wide = applyDataplaneProfile(defaultUserSettings().dataplane.global, "wide");
+    const diagnostic = applyDataplaneProfile(defaultUserSettings().dataplane.global, "diagnostic");
+
+    expect(focused.namespaceEnrichment.sweep.enabled).toBe(false);
+    expect(balanced.namespaceEnrichment.sweep).toMatchObject({
+      enabled: true,
+      maxNamespacesPerCycle: 1,
+      maxNamespacesPerHour: 12,
+      minReenrichIntervalMinutes: 720,
+    });
+    expect(wide.namespaceEnrichment.maxTargets).toBeGreaterThan(balanced.namespaceEnrichment.maxTargets);
+    expect(wide.backgroundBudget.maxBackgroundConcurrentPerCluster).toBe(3);
+    expect(diagnostic.namespaceEnrichment.maxTargets).toBeGreaterThan(wide.namespaceEnrichment.maxTargets);
+    expect(diagnostic.namespaceEnrichment.sweep.includeSystemNamespaces).toBe(true);
+    expect(diagnostic.backgroundBudget.maxBackgroundConcurrentPerCluster).toBe(4);
+  });
+
+  it("applies profile defaults to context profile overrides", () => {
+    const settings = defaultUserSettings();
+    const next = dataplaneSettingsForContext(
+      {
+        global: settings.dataplane.global,
+        contextOverrides: {
+          prod: { profile: "wide" },
+        },
+      },
+      "prod",
+    );
+
+    expect(next.profile).toBe("wide");
+    expect(next.namespaceEnrichment.maxTargets).toBe(80);
+    expect(next.namespaceEnrichment.sweep.enabled).toBe(true);
+    expect(next.backgroundBudget.maxBackgroundConcurrentPerCluster).toBe(3);
+  });
+
   it("provides and matches default custom commands", () => {
     const settings = defaultUserSettings();
     expect(settings.customCommands.commands[0]).toMatchObject({

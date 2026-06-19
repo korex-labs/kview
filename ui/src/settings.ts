@@ -913,22 +913,27 @@ export function dataplaneSettingsForProfile(profile: DataplaneProfile): Dataplan
       break;
     case "balanced":
       next.namespaceEnrichment.maxTargets = 48;
-      next.namespaceEnrichment.maxParallel = 3;
+      next.namespaceEnrichment.maxParallel = 2;
       next.namespaceEnrichment.warmResourceKinds = ["pods", "deployments", "services", "ingresses", "resourcequotas", "limitranges"];
-      next.backgroundBudget.maxConcurrentPerCluster = 5;
+      next.namespaceEnrichment.sweep.enabled = true;
+      next.namespaceEnrichment.sweep.idleQuietMs = 60000;
+      next.namespaceEnrichment.sweep.maxNamespacesPerCycle = 1;
+      next.namespaceEnrichment.sweep.maxNamespacesPerHour = 12;
+      next.namespaceEnrichment.sweep.minReenrichIntervalMinutes = 720;
       break;
     case "wide":
-      next.namespaceEnrichment.maxTargets = 64;
+      next.namespaceEnrichment.maxTargets = 80;
       next.namespaceEnrichment.maxParallel = 3;
       next.namespaceEnrichment.warmResourceKinds = [...dataplaneNamespaceWarmResourceKeys];
       next.namespaceEnrichment.sweep.enabled = true;
       next.namespaceEnrichment.sweep.maxNamespacesPerCycle = 3;
       next.namespaceEnrichment.sweep.maxNamespacesPerHour = 60;
       next.backgroundBudget.maxConcurrentPerCluster = 6;
+      next.backgroundBudget.maxBackgroundConcurrentPerCluster = 3;
       next.dashboard.refreshSec = 30;
       break;
     case "diagnostic":
-      next.namespaceEnrichment.maxTargets = 100;
+      next.namespaceEnrichment.maxTargets = 120;
       next.namespaceEnrichment.maxParallel = 4;
       next.namespaceEnrichment.idleQuietMs = 1000;
       next.namespaceEnrichment.warmResourceKinds = [...dataplaneNamespaceWarmResourceKeys];
@@ -937,7 +942,9 @@ export function dataplaneSettingsForProfile(profile: DataplaneProfile): Dataplan
       next.namespaceEnrichment.sweep.maxNamespacesPerCycle = 5;
       next.namespaceEnrichment.sweep.maxNamespacesPerHour = 120;
       next.namespaceEnrichment.sweep.minReenrichIntervalMinutes = 60;
+      next.namespaceEnrichment.sweep.includeSystemNamespaces = true;
       next.backgroundBudget.maxConcurrentPerCluster = 8;
+      next.backgroundBudget.maxBackgroundConcurrentPerCluster = 4;
       next.backgroundBudget.longRunNoticeSec = 1;
       next.dashboard.refreshSec = 30;
       break;
@@ -2122,71 +2129,71 @@ function mergeDataplaneContextOverride(
   override: DataplaneContextOverrideSettings | undefined,
 ): DataplaneSettings {
   if (!override) return global;
+  const profileBase = override.profile ? applyDataplaneProfile(global, override.profile) : global;
   const overrideDetectors = override.signals?.detectors;
   const mergedSignals = override.signals
     ? {
-      ...global.signals,
+      ...profileBase.signals,
       ...override.signals,
       detectors: {
-        ...global.signals.detectors,
+        ...profileBase.signals.detectors,
         ...(overrideDetectors || {}),
         pod_restarts: {
-          ...global.signals.detectors.pod_restarts,
+          ...profileBase.signals.detectors.pod_restarts,
           ...(overrideDetectors?.pod_restarts || {}),
         },
         container_near_limit: {
-          ...global.signals.detectors.container_near_limit,
+          ...profileBase.signals.detectors.container_near_limit,
           ...(overrideDetectors?.container_near_limit || {}),
         },
         node_resource_pressure: {
-          ...global.signals.detectors.node_resource_pressure,
+          ...profileBase.signals.detectors.node_resource_pressure,
           ...(overrideDetectors?.node_resource_pressure || {}),
         },
         resource_quota_pressure: {
-          ...global.signals.detectors.resource_quota_pressure,
+          ...profileBase.signals.detectors.resource_quota_pressure,
           ...(overrideDetectors?.resource_quota_pressure || {}),
         },
       },
-      overrides: { ...global.signals.overrides, ...(override.signals.overrides || {}) },
+      overrides: { ...profileBase.signals.overrides, ...(override.signals.overrides || {}) },
     }
-    : global.signals;
+    : profileBase.signals;
   const mergedMetrics = override.metrics
-    ? { ...global.metrics, ...override.metrics }
-    : global.metrics;
+    ? { ...profileBase.metrics, ...override.metrics }
+    : profileBase.metrics;
   return {
-    ...global,
-    ...(override.profile ? { profile: override.profile } : {}),
+    ...profileBase,
     ...(override.snapshots
       ? {
         snapshots: {
-          ...global.snapshots,
+          ...profileBase.snapshots,
           ...override.snapshots,
           ...(override.snapshots.ttlSec
-            ? { ttlSec: { ...global.snapshots.ttlSec, ...override.snapshots.ttlSec } }
+            ? { ttlSec: { ...profileBase.snapshots.ttlSec, ...override.snapshots.ttlSec } }
             : {}),
         },
       }
       : {}),
-    ...(override.persistence ? { persistence: { ...global.persistence, ...override.persistence } } : {}),
-    ...(override.observers ? { observers: { ...global.observers, ...override.observers } } : {}),
+    ...(override.persistence ? { persistence: { ...profileBase.persistence, ...override.persistence } } : {}),
+    ...(override.observers ? { observers: { ...profileBase.observers, ...override.observers } } : {}),
     ...(override.namespaceEnrichment
       ? {
         namespaceEnrichment: {
-          ...global.namespaceEnrichment,
+          ...profileBase.namespaceEnrichment,
           ...override.namespaceEnrichment,
           ...(override.namespaceEnrichment.sweep
-            ? { sweep: { ...global.namespaceEnrichment.sweep, ...override.namespaceEnrichment.sweep } }
+            ? { sweep: { ...profileBase.namespaceEnrichment.sweep, ...override.namespaceEnrichment.sweep } }
             : {}),
         },
       }
       : {}),
     ...(override.allContextEnrichment
-      ? { allContextEnrichment: { ...global.allContextEnrichment, ...override.allContextEnrichment } }
+      ? { allContextEnrichment: { ...profileBase.allContextEnrichment, ...override.allContextEnrichment } }
       : {}),
     ...(override.backgroundBudget
-      ? { backgroundBudget: { ...global.backgroundBudget, ...override.backgroundBudget } }
+      ? { backgroundBudget: { ...profileBase.backgroundBudget, ...override.backgroundBudget } }
       : {}),
-    ...(override.dashboard ? { dashboard: { ...global.dashboard, ...override.dashboard } } : {}),
+    ...(override.dashboard ? { dashboard: { ...profileBase.dashboard, ...override.dashboard } } : {}),
     metrics: mergedMetrics,
     signals: mergedSignals,
   };

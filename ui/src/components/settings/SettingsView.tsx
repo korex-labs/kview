@@ -154,16 +154,16 @@ function dataplaneProfileLabel(profile: DataplaneProfile): string {
 function dataplaneProfileEnrichmentText(profile: DataplaneProfile): string {
   switch (profile) {
     case "manual":
-      return "Manual mode disables automatic namespace enrichment and background sweep; live reads still populate snapshots when you open lists.";
+      return "Manual mode disables automatic background work; live reads still populate snapshots when you open lists.";
     case "balanced":
-      return "Balanced enrichment warms more namespace targets and key resource lists while keeping background work modest.";
+      return "Balanced warms more active/recent/favourite namespace targets and runs a very slow idle sweep, with adaptive pressure protection keeping foreground reads first.";
     case "wide":
-      return "Wide enrichment warms all namespaced dataplane list kinds and enables a measured idle sweep across more namespaces.";
+      return "Wide warms all namespaced dataplane list kinds and enables broader idle sweep coverage; adaptive health can limit or pause background work under API pressure.";
     case "diagnostic":
-      return "Diagnostic enrichment is the most aggressive profile for troubleshooting broad cluster state and stale signal coverage.";
+      return "Diagnostic is intentionally high-load for troubleshooting broad cluster state, including system namespaces during sweep; use when API budget allows it.";
     case "focused":
     default:
-      return "Focused enrichment keeps high-value data warm for the active namespace, recent namespaces, and favourites.";
+      return "Focused keeps high-value data warm for the active namespace, recent namespaces, and favourites, with sweep off by default.";
   }
 }
 
@@ -3056,11 +3056,11 @@ export default function SettingsView({
                       if (isContextEditing && nextProfile === gbl.profile) resetOverridePath(["profile"]);
                     }}
                   >
-                    <MenuItem value="manual">Manual: user interaction only</MenuItem>
-                    <MenuItem value="focused">Focused: current, recent, favourites</MenuItem>
-                    <MenuItem value="balanced">Balanced</MenuItem>
-                    <MenuItem value="wide">Wide</MenuItem>
-                    <MenuItem value="diagnostic">Diagnostic</MenuItem>
+                    <MenuItem value="manual">Manual: direct reads only</MenuItem>
+                    <MenuItem value="focused">Focused: active/recent/favourites</MenuItem>
+                    <MenuItem value="balanced">Balanced: modest idle sweep</MenuItem>
+                    <MenuItem value="wide">Wide: broad adaptive coverage</MenuItem>
+                    <MenuItem value="diagnostic">Diagnostic: high-load troubleshooting</MenuItem>
                   </TextField>
                 </SettingField>
                 <SettingField

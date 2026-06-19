@@ -364,7 +364,7 @@ func DefaultDataplanePolicy() DataplanePolicy {
 			EnrichDetails:     true,
 			EnrichPods:        true,
 			EnrichDeployments: true,
-			WarmResourceKinds: []string{string(ResourceKindPods), string(ResourceKindCustomResources), string(ResourceKindDeployments), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)},
+			WarmResourceKinds: []string{string(ResourceKindPods), string(ResourceKindDeployments), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)},
 			PollMs:            1500,
 			Sweep: NamespaceSweepPolicy{
 				Enabled:                        false,
@@ -440,6 +440,65 @@ func DefaultDataplanePolicyBundle() DataplanePolicyBundle {
 		Version: "v1",
 		Global:  DefaultDataplanePolicy(),
 	}
+}
+
+func DataplanePolicyForProfile(profile DataplaneProfile) DataplanePolicy {
+	next := DefaultDataplanePolicy()
+	next.Profile = profile
+	switch profile {
+	case DataplaneProfileManual:
+		next.Observers.Enabled = false
+		next.NamespaceEnrichment.Enabled = false
+		next.NamespaceEnrichment.Sweep.Enabled = false
+	case DataplaneProfileBalanced:
+		next.NamespaceEnrichment.MaxTargets = 48
+		next.NamespaceEnrichment.MaxParallel = 2
+		next.NamespaceEnrichment.WarmResourceKinds = []string{string(ResourceKindPods), string(ResourceKindDeployments), string(ResourceKindServices), string(ResourceKindIngresses), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)}
+		next.NamespaceEnrichment.Sweep.Enabled = true
+		next.NamespaceEnrichment.Sweep.IdleQuietMs = 60000
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerCycle = 1
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 12
+		next.NamespaceEnrichment.Sweep.MinReenrichIntervalMinutes = 720
+	case DataplaneProfileWide:
+		next.NamespaceEnrichment.MaxTargets = 80
+		next.NamespaceEnrichment.MaxParallel = 3
+		next.NamespaceEnrichment.WarmResourceKinds = []string{string(ResourceKindPods), string(ResourceKindDeployments), string(ResourceKindDaemonSets), string(ResourceKindStatefulSets), string(ResourceKindReplicaSets), string(ResourceKindJobs), string(ResourceKindCronJobs), string(ResourceKindHPAs), string(ResourceKindServices), string(ResourceKindIngresses), string(ResourceKindNetworkPolicies), string(ResourceKindPVCs), string(ResourceKindConfigMaps), string(ResourceKindSecrets), string(ResourceKindServiceAccounts), string(ResourceKindRoles), string(ResourceKindRoleBindings), string(ResourceKindHelmReleases), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)}
+		next.NamespaceEnrichment.Sweep.Enabled = true
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerCycle = 3
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 60
+		next.BackgroundBudget.MaxConcurrentPerCluster = 6
+		next.BackgroundBudget.MaxBackgroundConcurrentPerCluster = 3
+		next.Dashboard.RefreshSec = 30
+	case DataplaneProfileDiagnostic:
+		next.NamespaceEnrichment.MaxTargets = 120
+		next.NamespaceEnrichment.MaxParallel = 4
+		next.NamespaceEnrichment.IdleQuietMs = 1000
+		next.NamespaceEnrichment.WarmResourceKinds = []string{string(ResourceKindPods), string(ResourceKindDeployments), string(ResourceKindDaemonSets), string(ResourceKindStatefulSets), string(ResourceKindReplicaSets), string(ResourceKindJobs), string(ResourceKindCronJobs), string(ResourceKindHPAs), string(ResourceKindServices), string(ResourceKindIngresses), string(ResourceKindNetworkPolicies), string(ResourceKindPVCs), string(ResourceKindConfigMaps), string(ResourceKindSecrets), string(ResourceKindServiceAccounts), string(ResourceKindRoles), string(ResourceKindRoleBindings), string(ResourceKindHelmReleases), string(ResourceKindResourceQuotas), string(ResourceKindLimitRanges)}
+		next.NamespaceEnrichment.Sweep.Enabled = true
+		next.NamespaceEnrichment.Sweep.IdleQuietMs = 10000
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerCycle = 5
+		next.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 120
+		next.NamespaceEnrichment.Sweep.MinReenrichIntervalMinutes = 60
+		next.NamespaceEnrichment.Sweep.IncludeSystemNamespaces = true
+		next.BackgroundBudget.MaxConcurrentPerCluster = 8
+		next.BackgroundBudget.MaxBackgroundConcurrentPerCluster = 4
+		next.BackgroundBudget.LongRunNoticeSec = 1
+		next.Dashboard.RefreshSec = 30
+	case DataplaneProfileFocused:
+		fallthrough
+	default:
+		next.Profile = DataplaneProfileFocused
+	}
+	return next
+}
+
+func ApplyDataplaneProfile(current DataplanePolicy, profile DataplaneProfile) DataplanePolicy {
+	next := DataplanePolicyForProfile(profile)
+	next.Persistence = current.Persistence
+	next.AllContextEnrichment = current.AllContextEnrichment
+	next.Metrics = current.Metrics
+	next.Signals = current.Signals
+	return next
 }
 
 func ValidateDataplanePolicy(in DataplanePolicy) DataplanePolicy {
@@ -635,7 +694,7 @@ func CloneDataplanePolicyBundle(in DataplanePolicyBundle) DataplanePolicyBundle 
 func applyDataplanePolicyOverride(global DataplanePolicy, override DataplanePolicyOverride) DataplanePolicy {
 	out := CloneDataplanePolicy(global)
 	if override.Profile != nil {
-		out.Profile = *override.Profile
+		out = ApplyDataplaneProfile(global, *override.Profile)
 	}
 	if ov := override.Snapshots; ov != nil {
 		if ov.TTLSeconds != nil {

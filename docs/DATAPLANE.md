@@ -132,7 +132,7 @@ List rows for **pods**, **deployments**, and workload controllers can include sm
 
 Current policy knobs include:
 
-- profile: manual, focused, balanced, wide, diagnostic
+- profile: manual, focused, balanced, wide, diagnostic. Profiles are breadth/load presets over the same knobs rather than separate scanning systems: manual disables automatic work; focused keeps active/recent/favourite namespaces warm with sweep off; balanced adds a very slow idle sweep; wide broadens namespace coverage and background budget; diagnostic is intentionally high-load and may include system namespaces during sweep.
 - snapshot TTLs per dataplane-owned list kind
 - optional local persisted snapshot cache and max persisted age
 - namespace and node observer intervals/backoff
