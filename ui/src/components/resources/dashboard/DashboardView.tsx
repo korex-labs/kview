@@ -7,11 +7,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -19,9 +15,6 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import BookmarkAddOutlinedIcon from "@mui/icons-material/BookmarkAddOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import { apiGet, apiGetWithContext, apiPost } from "../../../api";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dataplaneCoarseStateChipColor } from "../../../utils/k8sUi";
@@ -42,7 +35,8 @@ import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
-import { AppIconButton, DialogActionButton } from "../../shared/AppActions";
+import { DialogActionButton } from "../../shared/AppActions";
+import SavedViewPicker from "../../shared/SavedViewPicker";
 import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
@@ -746,77 +740,29 @@ export default function DashboardView(props: Props) {
       </Box>
 
       <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 220 } }}>
-          <InputLabel id="dashboard-signal-profile-label">Saved view</InputLabel>
-          <Select
-            labelId="dashboard-signal-profile-label"
-            label="Saved view"
-            value={activeDashboardProfile ? activeDashboardSavedViewId : ""}
-            onChange={(event) => {
-              const id = event.target.value;
-              if (!id) {
-                clearDashboardSignalProfile();
-                return;
-              }
-              const view = savedViews.find((item) => item.id === id);
-              if (!view) return;
-              if (isDashboardSavedView(view)) {
-                applyDashboardSavedView(view);
-                return;
-              }
-              if (isResourceSavedView(view)) {
-                dispatchApplySavedResourceView(view);
-              }
-            }}
-          >
-            <MenuItem value="">
-              {savedViews.length === 0 ? "No saved views" : "No saved view"}
-            </MenuItem>
-            {savedViews.map((view) => (
-              <MenuItem key={view.id} value={view.id}>
-                {isDashboardSavedView(view) ? "Dashboard" : "Resource"}: {view.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        {activeDashboardSavedViewId ? (
-          <AppIconButton
-            tooltip="Clear saved view and reset dashboard"
-            label="Clear saved view and reset dashboard"
-            onClick={clearDashboardSignalProfile}
-          >
-            <CloseIcon fontSize="small" />
-          </AppIconButton>
-        ) : null}
-        {activeDashboardProfile && dashboardProfileDirty ? (
-          <Chip
-            size="small"
-            color="warning"
-            variant="outlined"
-            label="Modified"
-            title="The current dashboard signal filters differ from the selected saved view. Save to update it or reselect the view to restore it."
-            sx={{ height: 24 }}
-          />
-        ) : null}
-        <AppIconButton
-          tooltip={activeDashboardProfile ? "Update selected saved view" : "Save current dashboard view"}
-          label={activeDashboardProfile ? "Update selected saved view" : "Save current dashboard view"}
-          onClick={openDashboardProfileDialog}
-        >
-          <BookmarkAddOutlinedIcon fontSize="small" />
-        </AppIconButton>
-        <AppIconButton
-          tooltip="Delete selected saved view"
-          label="Delete selected saved view"
-          intent="destructive"
-          disabled={!activeDashboardProfile}
-          onClick={() => {
-            if (!activeDashboardProfile) return;
-            setDeleteDashboardProfileId(activeDashboardProfile.id);
+        <SavedViewPicker
+          savedViews={savedViews}
+          selectedSavedViewId={activeDashboardProfile ? activeDashboardSavedViewId : ""}
+          selectedSavedViewDirty={!!activeDashboardProfile && dashboardProfileDirty}
+          onSavedViewApply={(id) => {
+            const view = savedViews.find((item) => item.id === id);
+            if (!view) return;
+            if (isDashboardSavedView(view)) {
+              applyDashboardSavedView(view);
+              return;
+            }
+            if (isResourceSavedView(view)) {
+              dispatchApplySavedResourceView(view);
+            }
           }}
-        >
-          <DeleteOutlineIcon fontSize="inherit" />
-        </AppIconButton>
+          onSavedViewClear={clearDashboardSignalProfile}
+          onSavedViewSave={openDashboardProfileDialog}
+          onSavedViewDelete={(id) => setDeleteDashboardProfileId(id)}
+          clearTooltip="Clear saved view and reset dashboard"
+          saveTooltip="Save current dashboard view"
+          saveSelectedTooltip="Update selected saved view"
+          modifiedTooltip="The current dashboard signal filters differ from the selected saved view. Save to update it or reselect the view to restore it."
+        />
       </Box>
 
       {loading && (
