@@ -5,6 +5,14 @@ import { getResourceLabel, getResourceViewPolicy, type ListResourceKey } from ".
 export const APPLY_SAVED_RESOURCE_VIEW_EVENT = "kview:applySavedResourceView";
 const PENDING_SAVED_RESOURCE_VIEW_KEY = "kview:savedResourceView:pending";
 
+export function isDashboardSavedView(view: SavedResourceViewDefinition | null | undefined): boolean {
+  return view?.viewType === "dashboard" && !!view.dashboardSnapshot;
+}
+
+export function isResourceSavedView(view: SavedResourceViewDefinition | null | undefined): boolean {
+  return !isDashboardSavedView(view);
+}
+
 export function dispatchApplySavedResourceView(view: SavedResourceViewDefinition) {
   storePendingSavedResourceView(view);
   window.dispatchEvent(new CustomEvent<SavedResourceViewDefinition>(APPLY_SAVED_RESOURCE_VIEW_EVENT, {
@@ -85,6 +93,7 @@ export function savedViewMatchesLocation(
     resource: ListResourceKey;
   },
 ): boolean {
+  if (!isResourceSavedView(view)) return false;
   const policy = getResourceViewPolicy(input.resource).savedViews;
   if (!policy.enabled || view.resource !== input.resource) return false;
   const location = new Set(policy.location);

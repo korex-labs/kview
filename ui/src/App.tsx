@@ -39,7 +39,7 @@ import { POLL_STATUS_INTERVAL_MS } from "./constants/pollIntervals";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
-import { APPLY_SAVED_RESOURCE_VIEW_EVENT } from "./savedViews";
+import { APPLY_SAVED_RESOURCE_VIEW_EVENT, isDashboardSavedView } from "./savedViews";
 import {
   APPLY_FOCUSED_RESOURCE_VIEW_EVENT,
   dispatchApplyFocusedResourceView,
@@ -597,7 +597,12 @@ function AppInner() {
   useEffect(() => {
     const handleApplySavedView = (event: Event) => {
       const view = (event as CustomEvent<SavedResourceViewDefinition>).detail;
-      if (!view || !isSection(view.resource)) return;
+      if (!view) return;
+      if (isDashboardSavedView(view)) {
+        onSelectSection("dashboard");
+        return;
+      }
+      if (!isSection(view.resource)) return;
       saveListTextFilter(view.filter || "");
       saveQuickFilterSelection([]);
       if (view.context && view.context !== activeContext) {

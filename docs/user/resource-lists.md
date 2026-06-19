@@ -15,10 +15,12 @@ drawers for detail, and start resource-specific actions when available.
   as name, namespace, status, labels, images, selectors, or related targets.
 - **Quick filter chips**: generated chips that apply common text filters when
   Smart Filters produce matches.
-- **Saved view**: opens a saved list view. Saved views restore the context,
-  namespace, resource list, filter, sort order, visible columns, and column
-  widths captured when the view was saved. Saved views are global across list
-  pages, so choosing one can move you back to the saved context, namespace, and
+- **Saved view**: opens a saved list or dashboard view. Resource list saved
+  views restore the context, namespace, resource list, filter, sort order,
+  visible columns, and column widths captured when the view was saved.
+  Dashboard saved views restore dashboard signal filters, search, sort order,
+  and rows per page. Saved views are global across dashboard and list pages, so
+  choosing one can move you back to its saved dashboard, context, namespace, and
   resource list.
 - **Focused navigation**: dashboard signals, namespace signals, and global
   search can open a matching resource list with a one-time text filter applied.
@@ -65,7 +67,7 @@ degraded fallback.
 - Save a filtered or customized list when you frequently return to the same
   context, namespace, resource type, filter, sort order, or column layout.
 - Select a saved view from any resource list to return to its saved location
-  and table layout.
+  and table layout, or to jump back to a saved dashboard signal view.
 - Resize dense columns when values are clipped.
 - Hover tag overflow indicators when the Tags column has a `+N` marker.
 - Open a row drawer to inspect status, events, metadata, and YAML.
@@ -95,8 +97,8 @@ the current table happens to match a saved definition.
 
 Navigation rules:
 
-- Selecting a saved view can move you to another context, namespace, or resource
-  list.
+- Selecting a saved view can move you to the dashboard, another context,
+  namespace, or resource list.
 - Navigating away from the saved view's context, namespace, or resource list
   leaves saved-view mode.
 - Filtering, quick-filter chips, sorting, hiding columns, or resizing columns

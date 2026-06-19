@@ -19,6 +19,7 @@ export type SettingsTransferSection =
   | "customCommands"
   | "customActions"
   | "favourites"
+  | "savedViews"
   | "signalSettings"
   | "signalAcknowledgements";
 
@@ -56,9 +57,20 @@ export type ResourceTagsSettings = {
   assignments: Record<string, string[]>;
 };
 
+export type SavedViewType = "resource" | "dashboard";
+
+export type SavedDashboardViewSnapshot = {
+  signalFilter: string;
+  signalFilters: string[];
+  signalsQuery: string;
+  signalsSort: string;
+  signalsRowsPerPage: number;
+};
+
 export type SavedResourceViewDefinition = {
   id: string;
   name: string;
+  viewType?: SavedViewType;
   context: string;
   namespace: string;
   resource: ListResourceKey;
@@ -66,6 +78,7 @@ export type SavedResourceViewDefinition = {
   sortModel: Array<{ field: string; sort: "asc" | "desc" }>;
   columnVisibilityModel: Record<string, boolean>;
   columnWidths: Record<string, number>;
+  dashboardSnapshot?: SavedDashboardViewSnapshot;
   createdAt: number;
   updatedAt: number;
 };
@@ -262,6 +275,7 @@ export type SettingsTransferBundleV1 = {
     customCommands: KviewUserSettingsV2["customCommands"];
     customActions: KviewUserSettingsV2["customActions"];
     favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
+    savedViews: KviewUserSettingsV2["savedViews"];
     signalSettings: {
       global: DataplaneSettings["signals"];
       contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>>;
@@ -1307,22 +1321,65 @@ function normalizeDynamicLinksSettings(input: unknown): DynamicLinksSettings {
   };
 }
 
-function normalizeSavedResourceView(input: unknown, fallbackId: string): SavedResourceViewDefinition | null {
-  if (!input || typeof input !== "object") return null;
-  const raw = input as Partial<SavedResourceViewDefinition>;
-  const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  const context = typeof raw.context === "string" ? raw.context.trim() : "";
-  const namespace = typeof raw.namespace === "string" ? raw.namespace.trim() : "";
-  const filter = typeof raw.filter === "string" ? raw.filter : "";
-  if (!name || !context || !isListResourceKey(raw.resource)) return null;
+function normalizeSavedDashboardViewSnapshot(input: unknown): SavedDashboardViewSnapshot | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<SavedDashboardViewSnapshot>;
+  const signalFilter = typeof raw.signalFilter === "string" && raw.signalFilter.trim() ? raw.signalFilter.trim() : "top";
+  const signalFilters = Array.isArray(raw.signalFilters)
+    ? Array.from(new Set(raw.signalFilters.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))).slice(0, 12)
+    : [];
+  const signalsRowsPerPage = validNumber(raw.signalsRowsPerPage, 10, 100, 10);
+  return {
+    signalFilter,
+    signalFilters: signalFilters.length ? signalFilters : [signalFilter],
+    signalsQuery: typeof raw.signalsQuery === "string" ? raw.signalsQuery.trim().slice(0, 256) : "",
+    signalsSort: typeof raw.signalsSort === "string" && raw.signalsSort.trim() ? raw.signalsSort.trim() : "priority",
+    signalsRowsPerPage: [10, 25, 50, 100].includes(signalsRowsPerPage) ? signalsRowsPerPage : 10,
+  };
+}
+
+function savedViewTimestamps(raw: Partial<SavedResourceViewDefinition>): { createdAt: number; updatedAt: number } {
   const createdAt = typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) && raw.createdAt > 0
     ? Math.floor(raw.createdAt)
     : Date.now();
   const updatedAt = typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) && raw.updatedAt > 0
     ? Math.floor(raw.updatedAt)
     : createdAt;
+  return { createdAt, updatedAt };
+}
+
+function normalizeSavedResourceView(input: unknown, fallbackId: string): SavedResourceViewDefinition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<SavedResourceViewDefinition>;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const { createdAt, updatedAt } = savedViewTimestamps(raw);
+  const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackId;
+  const dashboardSnapshot = normalizeSavedDashboardViewSnapshot(raw.dashboardSnapshot);
+  if (raw.viewType === "dashboard" || dashboardSnapshot) {
+    if (!dashboardSnapshot) return null;
+    return {
+      id,
+      name,
+      viewType: "dashboard",
+      context: typeof raw.context === "string" ? raw.context.trim() : "",
+      namespace: "",
+      resource: isListResourceKey(raw.resource) ? raw.resource : "pods",
+      filter: "",
+      sortModel: [],
+      columnVisibilityModel: {},
+      columnWidths: {},
+      dashboardSnapshot,
+      createdAt,
+      updatedAt,
+    };
+  }
+  const context = typeof raw.context === "string" ? raw.context.trim() : "";
+  const namespace = typeof raw.namespace === "string" ? raw.namespace.trim() : "";
+  const filter = typeof raw.filter === "string" ? raw.filter : "";
+  if (!context || !isListResourceKey(raw.resource)) return null;
   return {
-    id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackId,
+    id,
     name,
     context,
     namespace,
@@ -2220,6 +2277,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "resourceMacros", label: "Resource macros" },
   { id: "dynamicLinks", label: "Dynamic links" },
   { id: "favourites", label: "Favourite namespaces" },
+  { id: "savedViews", label: "Saved views" },
   { id: "smartFilters", label: "Smart filters" },
   { id: "customCommands", label: "Custom commands" },
   { id: "customActions", label: "Custom actions" },
@@ -2253,6 +2311,7 @@ export function exportSettingsTransferJSON(input: {
   if (selected.has("dynamicLinks")) bundle.sections.dynamicLinks = serialized.dynamicLinks;
   if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
   if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
+  if (selected.has("savedViews")) bundle.sections.savedViews = serialized.savedViews;
   if (selected.has("favourites")) {
     bundle.sections.favourites = {
       favouriteNamespacesByContext: normalizeStringArrayRecord(input.appState.favouriteNamespacesByContext),
@@ -2320,6 +2379,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   if ("customActions" in sections) {
     out.sections.customActions = validateUserSettings({ ...defaults, customActions: sections.customActions })?.customActions;
   }
+  if ("savedViews" in sections) {
+    out.sections.savedViews = validateUserSettings({ ...defaults, savedViews: sections.savedViews })?.savedViews;
+  }
   if ("favourites" in sections) {
     out.sections.favourites = {
       favouriteNamespacesByContext: normalizeStringArrayRecord(
@@ -2371,6 +2433,9 @@ export function applySettingsTransferBundle(input: {
   if (selected.has("customActions") && input.bundle.sections.customActions) {
     nextSettings = mergeSettingsSection(nextSettings, "customActions", input.bundle.sections.customActions, input.strategy);
   }
+  if (selected.has("savedViews") && input.bundle.sections.savedViews) {
+    nextSettings = mergeSettingsSection(nextSettings, "savedViews", input.bundle.sections.savedViews, input.strategy);
+  }
   if (selected.has("favourites") && input.bundle.sections.favourites) {
     nextAppState = mergeFavouriteNamespaces(nextAppState, input.bundle.sections.favourites, input.strategy);
   }
@@ -2380,7 +2445,7 @@ export function applySettingsTransferBundle(input: {
   return { settings: nextSettings, appState: nextAppState };
 }
 
-function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resourceMacros" | "dynamicLinks" | "customCommands" | "customActions">(
+function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resourceMacros" | "dynamicLinks" | "customCommands" | "customActions" | "savedViews">(
   settings: KviewUserSettingsV2,
   section: K,
   incoming: KviewUserSettingsV2[K],
@@ -2412,6 +2477,12 @@ function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resou
         minCount: strategy === "useImported" ? (incoming as KviewUserSettingsV2["smartFilters"]).minCount : settings.smartFilters.minCount,
         rules: mergeById(settings.smartFilters.rules, (incoming as KviewUserSettingsV2["smartFilters"]).rules, strategy),
       },
+    };
+  }
+  if (section === "savedViews") {
+    return {
+      ...settings,
+      savedViews: mergeById(settings.savedViews, incoming as KviewUserSettingsV2["savedViews"], strategy).slice(0, 50),
     };
   }
   if (section === "customCommands") {

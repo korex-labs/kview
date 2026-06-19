@@ -261,6 +261,52 @@ describe("user settings", () => {
     ]);
   });
 
+  it("validates dashboard saved views with signal state", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      savedViews: [
+        {
+          id: "dash-prod",
+          name: "  Prod incidents  ",
+          viewType: "dashboard",
+          dashboardSnapshot: {
+            signalFilter: "severity:high",
+            signalFilters: ["severity:high", "namespace:prod", "severity:high"],
+            signalsQuery: " api ",
+            signalsSort: "last_seen_desc",
+            signalsRowsPerPage: 25,
+          },
+          createdAt: 10,
+          updatedAt: 20,
+        },
+      ],
+    });
+
+    expect(parsed?.savedViews).toEqual([
+      {
+        id: "dash-prod",
+        name: "Prod incidents",
+        viewType: "dashboard",
+        context: "",
+        namespace: "",
+        resource: "pods",
+        filter: "",
+        sortModel: [],
+        columnVisibilityModel: {},
+        columnWidths: {},
+        dashboardSnapshot: {
+          signalFilter: "severity:high",
+          signalFilters: ["severity:high", "namespace:prod"],
+          signalsQuery: "api",
+          signalsSort: "last_seen_desc",
+          signalsRowsPerPage: 25,
+        },
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ]);
+  });
+
   it("validates resource tag definitions and assignments", () => {
     const parsed = validateUserSettings({
       ...defaultUserSettings(),
@@ -466,17 +512,41 @@ describe("user settings", () => {
         },
       ],
     };
+    settings.savedViews = [
+      {
+        id: "dash-prod",
+        name: "Prod incidents",
+        viewType: "dashboard",
+        context: "ctx",
+        namespace: "",
+        resource: "pods",
+        filter: "",
+        sortModel: [],
+        columnVisibilityModel: {},
+        columnWidths: {},
+        dashboardSnapshot: {
+          signalFilter: "severity:high",
+          signalFilters: ["severity:high"],
+          signalsQuery: "api",
+          signalsSort: "priority",
+          signalsRowsPerPage: 10,
+        },
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ];
     const exported = exportSettingsTransferJSON({
       settings,
       appState: { v: 1, favouriteNamespacesByContext: { ctx: ["apps"] } },
-      sections: ["resourceTags", "resourceMacros", "dynamicLinks", "favourites"],
+      sections: ["resourceTags", "resourceMacros", "dynamicLinks", "savedViews", "favourites"],
     });
 
     const parsed = parseSettingsTransferJSON(exported);
-    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "resourceMacros", "dynamicLinks", "favourites"]);
+    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "resourceMacros", "dynamicLinks", "favourites", "savedViews"]);
     expect(parsed.sections.resourceTags?.definitions[0].id).toBe("handoff");
     expect(parsed.sections.resourceMacros?.definitions[0].macroName).toBe("JIRA_URL");
     expect(parsed.sections.dynamicLinks?.definitions[0].label).toBe("Jira Issue");
+    expect(parsed.sections.savedViews?.[0].dashboardSnapshot?.signalsQuery).toBe("api");
     expect(parsed.sections.favourites?.favouriteNamespacesByContext.ctx).toEqual(["apps"]);
   });
 
