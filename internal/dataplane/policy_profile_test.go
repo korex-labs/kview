@@ -29,6 +29,9 @@ func TestDataplanePolicyForProfile_TunesAdaptiveBackground(t *testing.T) {
 	if wide.BackgroundBudget.MaxBackgroundConcurrentPerCluster != 3 {
 		t.Fatalf("wide background concurrency = %d", wide.BackgroundBudget.MaxBackgroundConcurrentPerCluster)
 	}
+	if shouldWarmClusterCustomResources(wide) {
+		t.Fatalf("wide all-context warmup should not scan cluster-scoped custom resources")
+	}
 
 	diagnostic := DataplanePolicyForProfile(DataplaneProfileDiagnostic)
 	if !diagnostic.NamespaceEnrichment.Sweep.IncludeSystemNamespaces {
@@ -36,6 +39,9 @@ func TestDataplanePolicyForProfile_TunesAdaptiveBackground(t *testing.T) {
 	}
 	if diagnostic.BackgroundBudget.MaxBackgroundConcurrentPerCluster <= wide.BackgroundBudget.MaxBackgroundConcurrentPerCluster {
 		t.Fatalf("diagnostic should allow more background work than wide: diagnostic=%d wide=%d", diagnostic.BackgroundBudget.MaxBackgroundConcurrentPerCluster, wide.BackgroundBudget.MaxBackgroundConcurrentPerCluster)
+	}
+	if !shouldWarmClusterCustomResources(diagnostic) {
+		t.Fatalf("diagnostic all-context warmup should scan cluster-scoped custom resources")
 	}
 }
 

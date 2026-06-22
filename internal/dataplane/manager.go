@@ -594,7 +594,7 @@ func (m *manager) WarmClusterBackground(ctx context.Context, clusterName string)
 	if policy.Observers.Enabled && policy.Observers.NodesEnabled {
 		_, _ = plane.NodesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
 	}
-	if admission == SchedulerBackgroundAdmissionOpen {
+	if admission == SchedulerBackgroundAdmissionOpen && shouldWarmClusterCustomResources(policy) {
 		_, _ = plane.ClusterCustomResourcesSnapshot(ctx, m.scheduler, m.clients, WorkPriorityLow)
 	}
 	if err != nil {
@@ -604,6 +604,10 @@ func (m *manager) WarmClusterBackground(ctx context.Context, clusterName string)
 		m.BeginNamespaceListProgressiveEnrichment(clusterName, nsSnap.Items, NamespaceEnrichHints{})
 	}
 	return nil
+}
+
+func shouldWarmClusterCustomResources(policy DataplanePolicy) bool {
+	return policy.Profile == DataplaneProfileDiagnostic
 }
 
 type clusterPlane struct {
