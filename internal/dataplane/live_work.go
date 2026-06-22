@@ -12,6 +12,26 @@ type SchedulerLiveWork struct {
 	Queued             []SchedulerWorkRow                 `json:"queued"`
 	Health             []SchedulerHealthSnapshot          `json:"health,omitempty"`
 	Pressure           []SchedulerClusterPressureSnapshot `json:"pressure,omitempty"`
+	NamespaceSweep     []NamespaceSweepCoverageSnapshot   `json:"namespaceSweep,omitempty"`
+}
+
+// NamespaceSweepCoverageSnapshot describes namespace radar sweep coverage for operator visibility.
+type NamespaceSweepCoverageSnapshot struct {
+	Cluster                 string `json:"cluster"`
+	Enabled                 bool   `json:"enabled"`
+	TotalNamespaces         int    `json:"totalNamespaces"`
+	EnrichedNamespaces      int    `json:"enrichedNamespaces"`
+	StaleNamespaces         int    `json:"staleNamespaces"`
+	NeverScannedNamespaces  int    `json:"neverScannedNamespaces"`
+	SystemNamespacesSkipped int    `json:"systemNamespacesSkipped"`
+	InFlight                bool   `json:"inFlight,omitempty"`
+	Stage                   string `json:"stage,omitempty"`
+	DetailDone              int    `json:"detailDone,omitempty"`
+	RelatedDone             int    `json:"relatedDone,omitempty"`
+	EnrichTargets           int    `json:"enrichTargets,omitempty"`
+	HourUsed                int    `json:"hourUsed,omitempty"`
+	HourLimit               int    `json:"hourLimit,omitempty"`
+	PausedReason            string `json:"pausedReason,omitempty"`
 }
 
 // SchedulerWorkRow describes one running or queued snapshot execution.

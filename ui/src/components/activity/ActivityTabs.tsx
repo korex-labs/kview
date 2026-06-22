@@ -76,11 +76,30 @@ type SchedulerHealthSnapshot = {
   reason?: string;
 };
 
+type NamespaceSweepCoverage = {
+  cluster: string;
+  enabled: boolean;
+  totalNamespaces: number;
+  enrichedNamespaces: number;
+  staleNamespaces: number;
+  neverScannedNamespaces: number;
+  systemNamespacesSkipped: number;
+  inFlight?: boolean;
+  stage?: string;
+  detailDone?: number;
+  relatedDone?: number;
+  enrichTargets?: number;
+  hourUsed?: number;
+  hourLimit?: number;
+  pausedReason?: string;
+};
+
 type LiveWork = {
   maxSlotsPerCluster: number;
   running: LiveWorkRow[];
   queued: LiveWorkRow[];
   health?: SchedulerHealthSnapshot[];
+  namespaceSweep?: NamespaceSweepCoverage[];
 };
 
 type Activity = {
@@ -195,6 +214,62 @@ function backgroundAdmissionColor(admission?: string) {
     default:
       return "default" as const;
   }
+}
+
+function formatNamespaceSweepDetail(row: NamespaceSweepCoverage) {
+  const bucketTotal = row.enrichedNamespaces + row.neverScannedNamespaces + row.systemNamespacesSkipped;
+  const bits = [
+    `total=${row.totalNamespaces}`,
+    `scanned=${row.enrichedNamespaces}`,
+    `never eligible=${row.neverScannedNamespaces}`,
+    `system skipped=${row.systemNamespacesSkipped}`,
+    `buckets=${bucketTotal}/${row.totalNamespaces}`,
+    `stale scanned=${row.staleNamespaces}`,
+    `hour=${row.hourUsed ?? 0}/${row.hourLimit ?? 0}`,
+  ];
+  if (row.stage) bits.push(`stage=${row.stage}`);
+  if (row.enrichTargets) bits.push(`progress=${row.relatedDone ?? 0}/${row.enrichTargets}`);
+  if (row.systemNamespacesSkipped) bits.push(`system skipped=${row.systemNamespacesSkipped}`);
+  if (row.pausedReason) bits.push(`reason=${row.pausedReason}`);
+  return bits.join(" · ");
+}
+
+function namespaceSweepColor(row: NamespaceSweepCoverage) {
+  if (!row.enabled || row.pausedReason === "coverage fresh") return "default" as const;
+  if (row.inFlight) return "info" as const;
+  if (row.neverScannedNamespaces > 0) return "warning" as const;
+  if (row.staleNamespaces > 0) return "info" as const;
+  return "success" as const;
+}
+
+function namespaceSweepStateLabel(row: NamespaceSweepCoverage) {
+  if (!row.enabled) return "Disabled";
+  switch (row.stage) {
+    case "focused_idle_wait":
+      return "Waiting for idle (focused)";
+    case "sweep_idle_wait":
+      return "Waiting for idle";
+    case "focused_enriching":
+      return "Scanning focused";
+    case "sweep_enriching":
+      return `Scanning sweep ${row.relatedDone ?? 0}/${row.enrichTargets ?? 0}`;
+    case "complete":
+      return "Fresh";
+    default:
+      break;
+  }
+  if (row.inFlight) return "Running";
+  if (row.pausedReason === "coverage fresh") return "Fresh";
+  if (row.pausedReason === "eligible when idle") return "Idle; will scan when triggered";
+  if (row.pausedReason) return row.pausedReason;
+  return "Idle";
+}
+
+function namespaceSweepStateColor(row: NamespaceSweepCoverage) {
+  if (row.stage?.endsWith("idle_wait")) return "warning" as const;
+  if (row.stage?.endsWith("enriching")) return "info" as const;
+  if (row.inFlight) return "info" as const;
+  return "default" as const;
 }
 
 function formatSchedulerHealthDetail(snapshot: SchedulerHealthSnapshot) {
@@ -407,6 +482,7 @@ export default function ActivityTabs({
   const liveWorkRunning = useMemo(() => liveWork?.running ?? [], [liveWork]);
   const liveWorkQueued = useMemo(() => liveWork?.queued ?? [], [liveWork]);
   const liveWorkHealth = useMemo(() => liveWork?.health ?? [], [liveWork]);
+  const namespaceSweepRows = useMemo(() => liveWork?.namespaceSweep ?? [], [liveWork]);
   const limitedHealthCount = useMemo(
     () => liveWorkHealth.filter((snapshot) => snapshot.backgroundAdmission !== "open").length,
     [liveWorkHealth],
@@ -563,26 +639,86 @@ export default function ActivityTabs({
                 {liveWorkErr}
               </Typography>
             ) : null}
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5, py: 0.5 }}>
-              <KeyValueChip chipKey="slots/cluster" value={String(liveWork?.maxSlotsPerCluster ?? "-")} color="primary" maxKeyLen={16} />
-              <KeyValueChip chipKey="running" value={String(liveWork?.running?.length ?? 0)} color="success" />
-              <KeyValueChip chipKey="queued" value={String(liveWork?.queued?.length ?? 0)} color="info" />
-              <KeyValueChip chipKey="health" value={String(liveWorkHealth.length)} color="default" />
-              {limitedHealthCount > 0 ? <KeyValueChip chipKey="limited" value={String(limitedHealthCount)} color="warning" /> : null}
-              {pausedHealthCount > 0 ? <KeyValueChip chipKey="paused" value={String(pausedHealthCount)} color="error" /> : null}
-            </Box>
-            {displayHealthRows.length > 0 ? (
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5, pb: 0.5 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 160px) 1fr",
+                gap: 0.75,
+                px: 0.75,
+                py: 0.75,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                bgcolor: "action.hover",
+              }}
+            >
+              <Box>
+                <Typography variant="caption" sx={{ display: "block", fontWeight: 700 }}>
+                  Scheduler work
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Queue and slot usage
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+                <KeyValueChip chipKey="slots/cluster" value={String(liveWork?.maxSlotsPerCluster ?? "-")} color="primary" maxKeyLen={16} />
+                <KeyValueChip chipKey="running" value={String(liveWork?.running?.length ?? 0)} color="success" />
+                <KeyValueChip chipKey="queued" value={String(liveWork?.queued?.length ?? 0)} color="info" />
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ display: "block", fontWeight: 700 }}>
+                  Namespace sweep
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Background coverage radar
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center", minWidth: 0 }}>
+                {namespaceSweepRows.length === 0 ? (
+                  <Typography variant="caption" color="text.secondary">
+                    No coverage data yet.
+                  </Typography>
+                ) : null}
+                {namespaceSweepRows.map((row) => (
+                  <Tooltip key={`sweep-${row.cluster}`} title={formatNamespaceSweepDetail(row)}>
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.35, minWidth: 0, mr: 0.5 }}>
+                      <Typography variant="caption" noWrap sx={{ maxWidth: 180, color: "text.secondary" }}>
+                        {row.cluster}
+                      </Typography>
+                      <StatusChip size="small" label={`${row.enrichedNamespaces}/${row.totalNamespaces} scanned`} color={namespaceSweepColor(row)} sx={activityChipSx} />
+                      {row.neverScannedNamespaces > 0 ? <StatusChip size="small" label={`${row.neverScannedNamespaces} never eligible`} color="warning" variant="outlined" sx={activityChipSx} /> : null}
+                      {row.systemNamespacesSkipped > 0 ? <StatusChip size="small" label={`${row.systemNamespacesSkipped} system skipped`} color="default" variant="outlined" sx={activityChipSx} /> : null}
+                      {row.staleNamespaces > 0 ? <StatusChip size="small" label={`${row.staleNamespaces} stale`} color="info" variant="outlined" sx={activityChipSx} /> : null}
+                      <StatusChip size="small" label={namespaceSweepStateLabel(row)} color={namespaceSweepStateColor(row)} variant="outlined" sx={activityChipSx} />
+                    </Box>
+                  </Tooltip>
+                ))}
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ display: "block", fontWeight: 700 }}>
+                  Cluster health
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Adaptive background admission
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center", minWidth: 0 }}>
+                {displayHealthRows.length === 0 ? (
+                  <Typography variant="caption" color="text.secondary">
+                    No scheduler health rows yet.
+                  </Typography>
+                ) : null}
                 {displayHealthRows.map((snapshot) => (
                   <Tooltip key={snapshot.cluster} title={formatSchedulerHealthDetail(snapshot)}>
-                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.35, minWidth: 0 }}>
-                      <Typography variant="caption" noWrap sx={{ maxWidth: 120, color: "text.secondary" }}>
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.35, minWidth: 0, mr: 0.5 }}>
+                      <Typography variant="caption" noWrap sx={{ maxWidth: 180, color: "text.secondary" }}>
                         {snapshot.cluster}
                       </Typography>
                       <StatusChip size="small" label={snapshot.state} color={schedulerHealthColor(snapshot.state)} sx={activityChipSx} />
                       <StatusChip
                         size="small"
-                        label={`bg ${snapshot.backgroundAdmission}`}
+                        label={`background ${snapshot.backgroundAdmission}`}
                         color={backgroundAdmissionColor(snapshot.backgroundAdmission)}
                         sx={activityChipSx}
                       />
@@ -592,8 +728,10 @@ export default function ActivityTabs({
                     </Box>
                   </Tooltip>
                 ))}
+                {limitedHealthCount > 0 ? <StatusChip size="small" label={`${limitedHealthCount} limited`} color="warning" variant="outlined" sx={activityChipSx} /> : null}
+                {pausedHealthCount > 0 ? <StatusChip size="small" label={`${pausedHealthCount} paused`} color="error" variant="outlined" sx={activityChipSx} /> : null}
               </Box>
-            ) : null}
+            </Box>
             <Table size="small" stickyHeader sx={compactTableSx}>
               <TableHead>
                 <TableRow>

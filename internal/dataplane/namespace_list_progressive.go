@@ -182,6 +182,109 @@ func (m *manager) markNamespaceSwept(cluster, namespace string) {
 	m.nsSweepLast[cluster][namespace] = time.Now().UTC()
 }
 
+func (m *manager) NamespaceSweepCoverageSnapshot(now time.Time) []NamespaceSweepCoverageSnapshot {
+	m.mu.RLock()
+	planes := make([]*clusterPlane, 0, len(m.planes))
+	for _, plane := range m.planes {
+		if plane != nil {
+			planes = append(planes, plane)
+		}
+	}
+	m.mu.RUnlock()
+
+	out := make([]NamespaceSweepCoverageSnapshot, 0, len(planes))
+	for _, plane := range planes {
+		cluster := plane.name
+		policy := m.EffectivePolicy(cluster).NamespaceEnrichment
+		row := NamespaceSweepCoverageSnapshot{
+			Cluster:   cluster,
+			Enabled:   policy.Enabled && policy.Sweep.Enabled,
+			HourLimit: policy.Sweep.MaxNamespacesPerHour,
+		}
+		row.InFlight, row.Stage, row.DetailDone, row.RelatedDone, row.EnrichTargets = m.namespaceEnrichmentProgress(cluster)
+
+		if nsSnap, ok := peekClusterSnapshot(&plane.nsStore); ok {
+			row.TotalNamespaces = len(nsSnap.Items)
+			minAge := time.Duration(policy.Sweep.MinReenrichIntervalMinutes) * time.Minute
+			m.nsSweepMu.Lock()
+			lastByNS := make(map[string]time.Time, len(m.nsSweepLast[cluster]))
+			for name, last := range m.nsSweepLast[cluster] {
+				lastByNS[name] = last
+			}
+			row.HourUsed = m.nsSweepHourCount[cluster]
+			m.nsSweepMu.Unlock()
+			for _, item := range nsSnap.Items {
+				if item.Name == "" {
+					continue
+				}
+				if !policy.Sweep.IncludeSystemNamespaces && isSystemNamespace(item.Name) {
+					row.SystemNamespacesSkipped++
+					continue
+				}
+				last := lastByNS[item.Name]
+				if last.IsZero() {
+					row.NeverScannedNamespaces++
+				} else {
+					row.EnrichedNamespaces++
+					if minAge > 0 && now.Sub(last) >= minAge {
+						row.StaleNamespaces++
+					}
+				}
+			}
+		} else {
+			m.nsSweepMu.Lock()
+			row.HourUsed = m.nsSweepHourCount[cluster]
+			m.nsSweepMu.Unlock()
+		}
+
+		row.PausedReason = m.namespaceSweepPausedReason(cluster, row, policy)
+		out = append(out, row)
+	}
+	return out
+}
+
+func (m *manager) namespaceEnrichmentProgress(cluster string) (bool, string, int, int, int) {
+	m.nsEnrich.mu.Lock()
+	sess, ok := m.nsEnrich.byCluster[cluster]
+	m.nsEnrich.mu.Unlock()
+	if !ok || sess == nil {
+		return false, "", 0, 0, 0
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.complete {
+		return false, sess.stage, sess.detailDone, sess.relatedDone, sess.total
+	}
+	return true, sess.stage, sess.detailDone, sess.relatedDone, sess.total
+}
+
+func (m *manager) namespaceSweepPausedReason(cluster string, row NamespaceSweepCoverageSnapshot, policy NamespaceEnrichmentPolicy) string {
+	switch {
+	case !policy.Enabled:
+		return "namespace enrichment disabled"
+	case !policy.Sweep.Enabled:
+		return "sweep disabled"
+	case row.TotalNamespaces == 0:
+		return "waiting for namespace snapshot"
+	case row.InFlight:
+		return "enrichment already running"
+	case policy.Sweep.MaxNamespacesPerCycle <= 0 || policy.Sweep.MaxNamespacesPerHour <= 0:
+		return "sweep budget disabled"
+	case row.HourLimit > 0 && row.HourUsed >= row.HourLimit:
+		return "hourly sweep budget exhausted"
+	case policy.Sweep.PauseWhenSchedulerBusy && m.schedulerHasWork(cluster):
+		return "scheduler busy"
+	case m.scheduler != nil && m.scheduler.BackgroundAdmission(cluster) != SchedulerBackgroundAdmissionOpen:
+		return "background admission " + string(m.scheduler.BackgroundAdmission(cluster))
+	case policy.Sweep.PauseOnRateLimitOrConnectivity && m.clusterHasSweepBlockingIssue(cluster):
+		return "rate limit or connectivity pressure"
+	case row.NeverScannedNamespaces == 0 && row.StaleNamespaces == 0:
+		return "coverage fresh"
+	default:
+		return "eligible when idle"
+	}
+}
+
 func isSystemNamespace(name string) bool {
 	return name == "default" ||
 		name == "kube-system" ||
@@ -212,6 +315,7 @@ type nsEnrichSession struct {
 	favouriteInsightNames []string
 	// sweepNames is the optional cold trickle subset outside focused/recent/favourite hints.
 	sweepNames []string
+	stage      string
 	// merged holds list row + progressive patches (detail then related).
 	merged  map[string]dto.NamespaceListItemDTO
 	seq     map[string]uint64
@@ -456,6 +560,7 @@ func (m *manager) patchNsEnrichActivityProgress(actID string, sess *nsEnrichSess
 			a.Metadata = map[string]string{}
 		}
 		sess.mu.Lock()
+		sess.stage = stage
 		d, r, tot := sess.detailDone, sess.relatedDone, sess.total
 		sess.mu.Unlock()
 		a.Metadata["stage"] = stage

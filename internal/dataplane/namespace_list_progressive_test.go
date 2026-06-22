@@ -216,3 +216,75 @@ func TestNamespaceEnrichActivityIDIsStableAndSafe(t *testing.T) {
 		t.Fatalf("activity id should be stable, got %q and %q", got, want)
 	}
 }
+
+func TestNamespaceSweepCoverageSnapshotCountsFreshStaleAndNeverScanned(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	cluster := "ctx-sweep-coverage"
+	planeAny, _ := mm.PlaneForCluster(t.Context(), cluster)
+	plane := planeAny.(*clusterPlane)
+	setClusterSnapshot(&plane.nsStore, NamespaceSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.NamespaceListItemDTO{{Name: "app"}, {Name: "stale"}, {Name: "never"}, {Name: "kube-system"}},
+	})
+	policy := mm.Policy()
+	policy.NamespaceEnrichment.Enabled = true
+	policy.NamespaceEnrichment.Sweep.Enabled = true
+	policy.NamespaceEnrichment.Sweep.MaxNamespacesPerCycle = 2
+	policy.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 8
+	policy.NamespaceEnrichment.Sweep.MinReenrichIntervalMinutes = 30
+	policy.NamespaceEnrichment.Sweep.IncludeSystemNamespaces = false
+	mm.SetPolicy(policy)
+
+	now := time.Now().UTC()
+	mm.nsSweepMu.Lock()
+	mm.nsSweepLast[cluster] = map[string]time.Time{
+		"app":   now.Add(-5 * time.Minute),
+		"stale": now.Add(-45 * time.Minute),
+	}
+	mm.nsSweepHourCount[cluster] = 2
+	mm.nsSweepMu.Unlock()
+
+	rows := mm.NamespaceSweepCoverageSnapshot(now)
+	if len(rows) != 1 {
+		t.Fatalf("rows: got %d", len(rows))
+	}
+	got := rows[0]
+	if !got.Enabled || got.TotalNamespaces != 4 || got.EnrichedNamespaces != 2 || got.StaleNamespaces != 1 || got.NeverScannedNamespaces != 1 || got.SystemNamespacesSkipped != 1 {
+		t.Fatalf("unexpected coverage: %+v", got)
+	}
+	if got.EnrichedNamespaces+got.NeverScannedNamespaces+got.SystemNamespacesSkipped != got.TotalNamespaces {
+		t.Fatalf("coverage buckets should add up to total: %+v", got)
+	}
+	if got.HourUsed != 2 || got.HourLimit != 8 {
+		t.Fatalf("unexpected hourly budget: %+v", got)
+	}
+	if got.PausedReason != "eligible when idle" {
+		t.Fatalf("paused reason: got %q", got.PausedReason)
+	}
+}
+
+func TestSchedulerLiveWorkIncludesNamespaceSweepCoverage(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	cluster := "ctx-live-sweep"
+	planeAny, _ := mm.PlaneForCluster(t.Context(), cluster)
+	plane := planeAny.(*clusterPlane)
+	setClusterSnapshot(&plane.nsStore, NamespaceSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.NamespaceListItemDTO{{Name: "app"}},
+	})
+	policy := mm.Policy()
+	policy.NamespaceEnrichment.Enabled = true
+	policy.NamespaceEnrichment.Sweep.Enabled = true
+	policy.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 4
+	mm.SetPolicy(policy)
+
+	got := mm.SchedulerLiveWork()
+	if len(got.NamespaceSweep) != 1 {
+		t.Fatalf("namespaceSweep rows: got %d", len(got.NamespaceSweep))
+	}
+	if got.NamespaceSweep[0].Cluster != cluster || got.NamespaceSweep[0].TotalNamespaces != 1 {
+		t.Fatalf("unexpected namespaceSweep row: %+v", got.NamespaceSweep[0])
+	}
+}

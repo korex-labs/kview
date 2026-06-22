@@ -1728,7 +1728,9 @@ func (m *manager) SchedulerRunStats() SchedulerRunStatsSnapshot {
 }
 
 func (m *manager) SchedulerLiveWork() SchedulerLiveWork {
-	return m.scheduler.LiveWorkSnapshot(time.Now())
+	out := m.scheduler.LiveWorkSnapshot(time.Now())
+	out.NamespaceSweep = m.NamespaceSweepCoverageSnapshot(time.Now().UTC())
+	return out
 }
 
 func (m *manager) SearchCachedResources(_ context.Context, clusterName string, query string, limit int, offset int) (CachedResourceSearch, error) {
