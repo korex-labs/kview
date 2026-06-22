@@ -287,6 +287,36 @@ func (s *workScheduler) HealthSnapshot(cluster string) SchedulerHealthSnapshot {
 	return s.health.snapshot(cluster)
 }
 
+func (s *workScheduler) ClusterPressureSnapshot(cluster string) SchedulerClusterPressureSnapshot {
+	out := SchedulerClusterPressureSnapshot{Cluster: cluster}
+	if s == nil {
+		return out
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out.MaxSlots = s.maxPerCluster
+	lane := s.lanes[cluster]
+	if lane == nil {
+		return out
+	}
+	out.Running = len(lane.runners)
+	out.Queued = len(lane.waiters)
+	now := time.Now()
+	for _, w := range lane.waiters {
+		if w == nil || w.abandoned {
+			continue
+		}
+		if w.priority >= WorkPriorityLow {
+			out.LowPriorityQueued++
+		}
+		waitMs := now.Sub(w.enqueuedAt).Milliseconds()
+		if waitMs > out.LongestQueueWaitMs {
+			out.LongestQueueWaitMs = waitMs
+		}
+	}
+	return out
+}
+
 func (s *workScheduler) laneLocked(cluster string) *clusterLane {
 	l, ok := s.lanes[cluster]
 	if !ok {

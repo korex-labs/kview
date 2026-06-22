@@ -7,10 +7,11 @@ import (
 
 // SchedulerLiveWork is a point-in-time view of dataplane scheduler slots for operators.
 type SchedulerLiveWork struct {
-	MaxSlotsPerCluster int                       `json:"maxSlotsPerCluster"`
-	Running            []SchedulerWorkRow        `json:"running"`
-	Queued             []SchedulerWorkRow        `json:"queued"`
-	Health             []SchedulerHealthSnapshot `json:"health,omitempty"`
+	MaxSlotsPerCluster int                                `json:"maxSlotsPerCluster"`
+	Running            []SchedulerWorkRow                 `json:"running"`
+	Queued             []SchedulerWorkRow                 `json:"queued"`
+	Health             []SchedulerHealthSnapshot          `json:"health,omitempty"`
+	Pressure           []SchedulerClusterPressureSnapshot `json:"pressure,omitempty"`
 }
 
 // SchedulerWorkRow describes one running or queued snapshot execution.
@@ -57,8 +58,30 @@ func (s *workScheduler) LiveWorkSnapshot(now time.Time) SchedulerLiveWork {
 		Running:            []SchedulerWorkRow{},
 		Queued:             []SchedulerWorkRow{},
 		Health:             s.health.allSnapshots(),
+		Pressure:           []SchedulerClusterPressureSnapshot{},
 	}
-	for _, lane := range s.lanes {
+	for cluster, lane := range s.lanes {
+		pressure := SchedulerClusterPressureSnapshot{
+			Cluster:  cluster,
+			Running:  len(lane.runners),
+			Queued:   len(lane.waiters),
+			MaxSlots: s.maxPerCluster,
+		}
+		for _, w := range lane.waiters {
+			if w == nil || w.abandoned {
+				continue
+			}
+			if w.priority >= WorkPriorityLow {
+				pressure.LowPriorityQueued++
+			}
+			waitMs := now.Sub(w.enqueuedAt).Milliseconds()
+			if waitMs > pressure.LongestQueueWaitMs {
+				pressure.LongestQueueWaitMs = waitMs
+			}
+		}
+		if pressure.Running > 0 || pressure.Queued > 0 {
+			out.Pressure = append(out.Pressure, pressure)
+		}
 		for _, r := range lane.runners {
 			rm := now.Sub(r.startedAt).Milliseconds()
 			if rm < 0 {

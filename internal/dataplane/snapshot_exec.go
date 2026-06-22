@@ -72,7 +72,11 @@ func executeClusterSnapshot[I any](
 	desc clusterSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
 	source := workSourceOrAPI(ctx)
-	if cached, ok := store.getFresh(desc.ttl); ok {
+	ttl := desc.ttl
+	if sched != nil {
+		ttl = effectiveSnapshotTTL(desc.ttl, source, prio, desc.kind, sched.HealthSnapshot(p.name), sched.ClusterPressureSnapshot(p.name))
+	}
+	if cached, ok := store.getFresh(ttl); ok {
 		if p.stats != nil {
 			p.stats.recordRequest(source, desc.kind, true)
 		}
@@ -183,7 +187,11 @@ func executeNamespacedSnapshot[I any](
 	desc namespacedSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
 	source := workSourceOrAPI(ctx)
-	if cached, ok := store.getFresh(namespace, desc.ttl); ok {
+	ttl := desc.ttl
+	if sched != nil {
+		ttl = effectiveSnapshotTTL(desc.ttl, source, prio, desc.kind, sched.HealthSnapshot(p.name), sched.ClusterPressureSnapshot(p.name))
+	}
+	if cached, ok := store.getFresh(namespace, ttl); ok {
 		if p.stats != nil {
 			p.stats.recordRequest(source, desc.kind, true)
 		}
