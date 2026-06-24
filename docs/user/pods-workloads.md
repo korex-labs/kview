@@ -62,7 +62,8 @@ CronJob action succeeded without checking the final Job state.
 
 ## Common Workflows
 
-- Open **Dashboard** signals for pod restarts or workload availability.
+- Open **Dashboard** signals for pod restarts, CrashLoopBackOff, image pull
+  failures, unschedulable pods, or workload availability.
 - Navigate to the workload list and filter by namespace, name, image, status,
   or tag.
 - Open a drawer and review **Overview**, **Conditions**, **Events**, and

@@ -181,6 +181,108 @@ func TestAggregateClusterDashboard_PodRestartsAreSignals(t *testing.T) {
 	}
 }
 
+func TestDetectPodWaitingReasonSignals(t *testing.T) {
+	ns := "app"
+	set := dashboardSnapshotSet{
+		podsOK: true,
+		pods: PodsSnapshot{Items: []dto.PodListItemDTO{
+			{Name: "pull", Namespace: ns, Phase: "Pending", ContainerWaitingReasons: []string{"ImagePullBackOff", "ErrImagePull"}},
+			{Name: "crash", Namespace: ns, Phase: "Running", Restarts: 7, ContainerWaitingReasons: []string{"CrashLoopBackOff"}},
+			{Name: "wait", Namespace: ns, Phase: "Pending", ContainerWaitingReasons: []string{"ContainerCreating"}},
+		}},
+	}
+
+	pullSignals := detectPodImagePullFailureSignals(time.Now(), ns, set)
+	if len(pullSignals) != 1 || pullSignals[0].SignalType != "pod_image_pull_failure" || pullSignals[0].ResourceName != "pull" || pullSignals[0].Severity != "high" {
+		t.Fatalf("image pull signals = %+v", pullSignals)
+	}
+	if !strings.Contains(pullSignals[0].ActualData, "ErrImagePull") || !strings.Contains(pullSignals[0].ActualData, "ImagePullBackOff") {
+		t.Fatalf("image pull signal missing waiting reasons: %+v", pullSignals[0])
+	}
+
+	crashSignals := detectPodCrashLoopWaitingSignals(time.Now(), ns, set)
+	if len(crashSignals) != 1 || crashSignals[0].SignalType != "pod_crash_loop_waiting" || crashSignals[0].ResourceName != "crash" || crashSignals[0].Severity != "high" {
+		t.Fatalf("crash loop signals = %+v", crashSignals)
+	}
+}
+
+func TestDetectPodUnschedulableSignals(t *testing.T) {
+	ns := "app"
+	set := dashboardSnapshotSet{
+		podsOK: true,
+		pods: PodsSnapshot{Items: []dto.PodListItemDTO{
+			{Name: "new", Namespace: ns, Phase: "Pending", HealthReason: "Unschedulable", AgeSec: int64((5 * time.Minute).Seconds())},
+			{Name: "old", Namespace: ns, Phase: "Pending", HealthReason: "Unschedulable", AgeSec: int64((45 * time.Minute).Seconds())},
+			{Name: "other", Namespace: ns, Phase: "Pending", HealthReason: "ContainersNotReady", AgeSec: int64((45 * time.Minute).Seconds())},
+		}},
+	}
+	got := detectPodUnschedulableSignals(time.Now(), ns, set)
+	if len(got) != 2 {
+		t.Fatalf("expected two unschedulable signals, got %+v", got)
+	}
+	if got[0].ResourceName != "new" || got[0].Severity != "medium" {
+		t.Fatalf("new pod signal = %+v", got[0])
+	}
+	if got[1].ResourceName != "old" || got[1].Severity != "high" {
+		t.Fatalf("old pod signal = %+v", got[1])
+	}
+}
+
+func TestDetectDeploymentUnavailableSignalsFromList(t *testing.T) {
+	ns := "app"
+	set := dashboardSnapshotSet{
+		depsOK: true,
+		deps: DeploymentsSnapshot{Items: []dto.DeploymentListItemDTO{
+			{Name: "stuck", Namespace: ns, Ready: "0/3", Available: 0, AgeSec: int64((20 * time.Minute).Seconds()), HealthBucket: deployBucketDegraded, RolloutNeedsAttention: true, Status: "Unavailable"},
+			{Name: "young", Namespace: ns, Ready: "0/2", Available: 0, AgeSec: int64((2 * time.Minute).Seconds()), Status: "Progressing"},
+			{Name: "healthy", Namespace: ns, Ready: "2/2", Available: 2, AgeSec: int64((30 * time.Minute).Seconds()), Status: "Available"},
+			{Name: "scaled-zero", Namespace: ns, Ready: "0/0", Available: 0, AgeSec: int64((30 * time.Minute).Seconds())},
+		}},
+	}
+	got := detectDeploymentUnavailableSignals(time.Now(), ns, set)
+	if len(got) != 1 {
+		t.Fatalf("expected one deployment signal, got %+v", got)
+	}
+	if got[0].SignalType != "deployment_unavailable" || got[0].ResourceName != "stuck" || got[0].Severity != "high" {
+		t.Fatalf("deployment signal = %+v", got[0])
+	}
+}
+
+func TestAggregateClusterDashboard_PodAndDeploymentFailureSignals(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx-failure-signals")
+	plane := planeAny.(*clusterPlane)
+	ns := "app"
+	meta := SnapshotMetadata{ObservedAt: time.Now().UTC()}
+	setNamespacedSnapshot(&plane.podsStore, ns, PodsSnapshot{Meta: meta, Items: []dto.PodListItemDTO{
+		{Name: "pull", Namespace: ns, Phase: "Pending", ContainerWaitingReasons: []string{"ImagePullBackOff"}},
+		{Name: "crash", Namespace: ns, Phase: "Running", Restarts: 6, ContainerWaitingReasons: []string{"CrashLoopBackOff"}},
+		{Name: "pending", Namespace: ns, Phase: "Pending", HealthReason: "Unschedulable", AgeSec: int64((40 * time.Minute).Seconds())},
+	}})
+	setNamespacedSnapshot(&plane.depsStore, ns, DeploymentsSnapshot{Meta: meta, Items: []dto.DeploymentListItemDTO{
+		{Name: "api", Namespace: ns, Ready: "0/3", Available: 0, AgeSec: int64((20 * time.Minute).Seconds()), HealthBucket: deployBucketDegraded, RolloutNeedsAttention: true, Status: "Unavailable"},
+	}})
+
+	_, signalPanel, _, _ := mm.aggregateClusterDashboard(plane, []string{ns}, 10, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	wantTypes := map[string]bool{
+		"pod_image_pull_failure": false,
+		"pod_crash_loop_waiting": false,
+		"pod_unschedulable":      false,
+		"deployment_unavailable": false,
+	}
+	for _, item := range signalPanel.Items {
+		if _, ok := wantTypes[item.SignalType]; ok {
+			wantTypes[item.SignalType] = true
+		}
+	}
+	for typ, found := range wantTypes {
+		if !found {
+			t.Fatalf("missing %s in dashboard signals: %+v", typ, signalPanel.Items)
+		}
+	}
+}
+
 func TestDetectHPASignalsPinnedMaxIsLowSeverity(t *testing.T) {
 	items := detectHPANeedsAttentionSignals(time.Now(), "app", dashboardSnapshotSet{
 		hpasOK: true,

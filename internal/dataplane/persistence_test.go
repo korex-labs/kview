@@ -28,7 +28,14 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 
 	observed := time.Now().UTC().Add(-time.Minute)
 	snap := PodsSnapshot{
-		Items: []dto.PodListItemDTO{{Name: "api-7f", Namespace: "app"}},
+		Items: []dto.PodListItemDTO{{
+			Name:               "api-7f",
+			Namespace:          "app",
+			ListHealthHint:     "problem",
+			ListStatus:         "CrashLoopBackOff",
+			ListSignalSeverity: "high",
+			ListSignalCount:    2,
+		}},
 		Meta: SnapshotMetadata{
 			ObservedAt:   observed,
 			Freshness:    FreshnessClassHot,
@@ -51,7 +58,7 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 	}
 
 	rows := searchRowsFromSnapshot("ctx", ResourceKindPods, "app", got)
-	if len(rows) != 1 || rows[0].Name != "api-7f" || rows[0].Namespace != "app" {
+	if len(rows) != 1 || rows[0].Name != "api-7f" || rows[0].Namespace != "app" || rows[0].SignalSeverity != "high" || rows[0].SignalCount != 2 || !rows[0].NeedsAttention {
 		t.Fatalf("search rows = %+v", rows)
 	}
 
@@ -68,6 +75,13 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 	}
 	if len(containsRows) != 1 || containsRows[0].Name != "api-7f" {
 		t.Fatalf("contains rows = %+v", containsRows)
+	}
+	namespaceRows, err := store.SearchName("ctx", "app high", 10, 0)
+	if err != nil {
+		t.Fatalf("search enriched fields: %v", err)
+	}
+	if len(namespaceRows) != 1 || namespaceRows[0].Name != "api-7f" || namespaceRows[0].MatchReason != "namespace" {
+		t.Fatalf("enriched rows = %+v", namespaceRows)
 	}
 }
 
@@ -573,15 +587,35 @@ func TestManagerSearchCachedResourcesUsesInMemorySnapshotsWithoutPersistence(t *
 		Meta:  meta,
 	})
 	setNamespacedSnapshot(&plane.podsStore, "app-prod", PodsSnapshot{
-		Items: []dto.PodListItemDTO{{Name: "api-7f", Namespace: "app-prod"}},
-		Meta:  meta,
+		Items: []dto.PodListItemDTO{{
+			Name:               "api-7f",
+			Namespace:          "app-prod",
+			ListHealthHint:     "problem",
+			ListStatus:         "CrashLoopBackOff",
+			ListSignalSeverity: "high",
+			ListSignalCount:    2,
+		}},
+		Meta: meta,
 	})
 
 	got, err := m.SearchCachedResources(context.Background(), "ctx", "app-prod", 10, 0)
 	if err != nil {
 		t.Fatalf("search namespace from memory: %v", err)
 	}
-	if len(got.Items) != 1 || got.Items[0].Kind != string(ResourceKindNamespaces) || got.Items[0].Name != "app-prod" {
+	if len(got.Items) != 2 {
+		t.Fatalf("namespace search from memory = %+v", got)
+	}
+	foundNamespace := false
+	foundPodByNamespace := false
+	for _, item := range got.Items {
+		if item.Kind == string(ResourceKindNamespaces) && item.Name == "app-prod" {
+			foundNamespace = true
+		}
+		if item.Kind == string(ResourceKindPods) && item.Namespace == "app-prod" && item.Name == "api-7f" && item.MatchReason == "namespace" {
+			foundPodByNamespace = true
+		}
+	}
+	if !foundNamespace || !foundPodByNamespace {
 		t.Fatalf("namespace search from memory = %+v", got)
 	}
 
@@ -591,5 +625,16 @@ func TestManagerSearchCachedResourcesUsesInMemorySnapshotsWithoutPersistence(t *
 	}
 	if len(got.Items) != 1 || got.Items[0].Kind != string(ResourceKindPods) || got.Items[0].Namespace != "app-prod" || got.Items[0].Name != "api-7f" {
 		t.Fatalf("pod search from memory = %+v", got)
+	}
+	if got.Items[0].HealthBucket != "problem" || got.Items[0].SignalSeverity != "high" || got.Items[0].SignalCount != 2 || !got.Items[0].NeedsAttention {
+		t.Fatalf("pod search enrichment = %+v", got.Items[0])
+	}
+
+	got, err = m.SearchCachedResources(context.Background(), "ctx", "app-prod high", 10, 0)
+	if err != nil {
+		t.Fatalf("search pod by namespace/signal from memory: %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Name != "api-7f" || got.Items[0].MatchReason != "namespace" {
+		t.Fatalf("pod search by enriched fields = %+v", got)
 	}
 }

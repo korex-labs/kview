@@ -70,6 +70,11 @@ function paletteSuggestionCategory(option: PaletteSuggestion): string {
   return option.kind === "cached-resource" ? "Cached Resources" : option.suggestion.category;
 }
 
+function optionToAction(option: PaletteSuggestion): KeyboardCommandAction {
+  if (option.kind === "cached-resource") return { type: "resource", item: option.item };
+  return option.suggestion.action;
+}
+
 export default function GlobalSearchInput({
   token,
   activeContext,
@@ -206,8 +211,7 @@ export default function GlobalSearchInput({
       onChange={(_, value) => {
         if (!value) return;
         if (typeof value === "string") runQuery(value);
-        else if (value.kind === "cached-resource") runAction({ type: "resource", item: value.item });
-        else runAction(value.suggestion.action);
+        else runAction(optionToAction(value));
       }}
       ref={rootRef}
       sx={{ width: { xs: 220, sm: 320, md: 420 }, mx: 1.25 }}
@@ -265,7 +269,19 @@ export default function GlobalSearchInput({
         );
       }}
       renderOption={(props, option) => (
-        <li {...props} key={option.key}>
+        <li
+          {...props}
+          key={option.key}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            runAction(optionToAction(option));
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           {option.kind === "cached-resource" ? (
             <ResourceOption item={option.item} />
           ) : (
@@ -415,12 +431,81 @@ function useDataplaneSearch({
   return { items, loading: loading || loadingMore, error, hasMore, loadMore };
 }
 
-function ResourceOption({ item }: { item: ApiDataplaneSearchItem }) {
+function severityChipColor(severity?: string): "default" | "error" | "warning" | "info" | "success" {
+  switch ((severity || "").toLowerCase()) {
+    case "high":
+      return "error";
+    case "medium":
+      return "warning";
+    case "low":
+      return "info";
+    case "ok":
+      return "success";
+    default:
+      return "default";
+  }
+}
+
+export function ResourceOption({ item }: { item: ApiDataplaneSearchItem }) {
+  const signalCount = item.signalCount || 0;
+  const kindLabel = labelForSearchKind(item.kind);
+  const matchLabel = item.matchReason ? `${item.matchReason} match` : "cached match";
   return (
-    <Box sx={{ minWidth: 0, width: "100%" }}>
-      <Typography variant="body2" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-        {item.name}
-      </Typography>
+    <Box sx={{ minWidth: 0, width: "100%", py: 0.25 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, mb: 0.35 }}>
+        <Typography variant="body2" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {item.name}
+        </Typography>
+        <Chip
+          size="small"
+          color="info"
+          variant="outlined"
+          label={kindLabel}
+          sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+        />
+        <Chip
+          size="small"
+          variant="outlined"
+          label={matchLabel}
+          sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+        />
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, flexWrap: "wrap" }}>
+        {item.namespace ? (
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`ns: ${item.namespace}`}
+            sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+          />
+        ) : null}
+        {item.needsAttention || signalCount > 0 ? (
+          <Chip
+            size="small"
+            color={severityChipColor(item.signalSeverity)}
+            variant="outlined"
+            label={signalCount > 0 ? `${signalCount} signal${signalCount === 1 ? "" : "s"}` : "attention"}
+            sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+          />
+        ) : null}
+        {item.healthBucket ? (
+          <Chip
+            size="small"
+            variant="outlined"
+            label={item.healthBucket}
+            sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+          />
+        ) : null}
+        {item.listStatus ? (
+          <Chip
+            size="small"
+            color={item.needsAttention ? severityChipColor(item.signalSeverity) : "default"}
+            variant="outlined"
+            label={item.listStatus}
+            sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }}
+          />
+        ) : null}
+      </Box>
       <Typography variant="caption" color="text.secondary" noWrap>
         {resourceSuggestionDescription(item)}
       </Typography>

@@ -192,6 +192,12 @@ export type ApiDataplaneSearchItem = {
   namespace?: string;
   name: string;
   observedAt?: string;
+  healthBucket?: string;
+  listStatus?: string;
+  signalSeverity?: string;
+  signalCount?: number;
+  needsAttention?: boolean;
+  matchReason?: string;
 };
 
 export type ApiDataplaneSearchResponse = {
@@ -386,6 +392,7 @@ export type DashboardSignalsPanel = {
   potentiallyUnusedServiceAccounts: number;
   quotaWarnings: number;
   podRestartSignals: number;
+  workloadWarnings: number;
   serviceWarnings: number;
   ingressWarnings: number;
   pvcWarnings: number;

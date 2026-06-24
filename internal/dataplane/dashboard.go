@@ -144,6 +144,7 @@ type ClusterDashboardSignalsPanel struct {
 	PotentiallyUnusedSAs  int                            `json:"potentiallyUnusedServiceAccounts"`
 	QuotaWarnings         int                            `json:"quotaWarnings"`
 	PodRestartSignals     int                            `json:"podRestartSignals"`
+	WorkloadWarnings      int                            `json:"workloadWarnings"`
 	ServiceWarnings       int                            `json:"serviceWarnings"`
 	IngressWarnings       int                            `json:"ingressWarnings"`
 	PVCWarnings           int                            `json:"pvcWarnings"`

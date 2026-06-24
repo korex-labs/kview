@@ -15,11 +15,17 @@ type CachedResourceSearch struct {
 }
 
 type CachedResourceSearchItem struct {
-	Cluster    string `json:"cluster"`
-	Kind       string `json:"kind"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name"`
-	ObservedAt string `json:"observedAt,omitempty"`
+	Cluster        string `json:"cluster"`
+	Kind           string `json:"kind"`
+	Namespace      string `json:"namespace,omitempty"`
+	Name           string `json:"name"`
+	ObservedAt     string `json:"observedAt,omitempty"`
+	HealthBucket   string `json:"healthBucket,omitempty"`
+	ListStatus     string `json:"listStatus,omitempty"`
+	SignalSeverity string `json:"signalSeverity,omitempty"`
+	SignalCount    int    `json:"signalCount,omitempty"`
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
+	MatchReason    string `json:"matchReason,omitempty"`
 }
 
 func (m *manager) cachedResourceSearchRows(clusterName, query string, limit, offset int) ([]dataplaneSearchRow, error) {
@@ -116,8 +122,8 @@ func appendNamespacedSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, clust
 }
 
 func searchRowsMatching(rows []dataplaneSearchRow, clusterName, query string) []dataplaneSearchRow {
-	needle := strings.ToLower(strings.TrimSpace(query))
-	if needle == "" {
+	terms := searchQueryTerms(query)
+	if len(terms) == 0 {
 		return nil
 	}
 	out := make([]dataplaneSearchRow, 0, len(rows))
@@ -125,12 +131,58 @@ func searchRowsMatching(rows []dataplaneSearchRow, clusterName, query string) []
 		if clusterName != "" && row.Cluster != clusterName {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(row.Name), needle) {
+		matchReason, ok := searchRowMatchReason(row, terms)
+		if !ok {
 			continue
 		}
+		row.MatchReason = matchReason
 		out = append(out, row)
 	}
 	return out
+}
+
+func searchQueryTerms(query string) []string {
+	parts := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	if len(parts) == 0 {
+		return nil
+	}
+	return parts
+}
+
+func searchRowMatchReason(row dataplaneSearchRow, terms []string) (string, bool) {
+	fields := []struct {
+		label string
+		value string
+	}{
+		{label: "name", value: row.Name},
+		{label: "namespace", value: row.Namespace},
+		{label: "kind", value: row.Kind},
+		{label: "cluster", value: row.Cluster},
+		{label: "health", value: row.HealthBucket},
+		{label: "status", value: row.ListStatus},
+		{label: "signal", value: row.SignalSeverity},
+	}
+	firstReason := ""
+	for _, term := range terms {
+		matched := false
+		for _, field := range fields {
+			if field.value == "" || !strings.Contains(strings.ToLower(field.value), term) {
+				continue
+			}
+			if firstReason == "" {
+				firstReason = field.label
+			}
+			matched = true
+			break
+		}
+		if !matched {
+			return "", false
+		}
+	}
+	if firstReason == "" {
+		firstReason = "name"
+	}
+	return firstReason, true
 }
 
 func appendUniqueSearchRows(rows []dataplaneSearchRow, extra []dataplaneSearchRow) []dataplaneSearchRow {

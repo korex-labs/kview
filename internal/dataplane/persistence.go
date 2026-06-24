@@ -642,9 +642,11 @@ func (p *boltSnapshotPersistence) SearchName(cluster string, query string, limit
 			if cluster != "" && row.Cluster != cluster {
 				continue
 			}
-			if !strings.Contains(strings.ToLower(row.Name), needle) {
+			matchReason, ok := searchRowMatchReason(row, searchQueryTerms(needle))
+			if !ok {
 				continue
 			}
+			row.MatchReason = matchReason
 			rows = append(rows, row)
 		}
 		return nil
@@ -678,11 +680,17 @@ func (p *boltSnapshotPersistence) SearchName(cluster string, query string, limit
 }
 
 type dataplaneSearchRow struct {
-	Cluster    string `json:"cluster"`
-	Kind       string `json:"kind"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name"`
-	ObservedAt string `json:"observedAt,omitempty"`
+	Cluster        string `json:"cluster"`
+	Kind           string `json:"kind"`
+	Namespace      string `json:"namespace,omitempty"`
+	Name           string `json:"name"`
+	ObservedAt     string `json:"observedAt,omitempty"`
+	HealthBucket   string `json:"healthBucket,omitempty"`
+	ListStatus     string `json:"listStatus,omitempty"`
+	SignalSeverity string `json:"signalSeverity,omitempty"`
+	SignalCount    int    `json:"signalCount,omitempty"`
+	NeedsAttention bool   `json:"needsAttention,omitempty"`
+	MatchReason    string `json:"matchReason,omitempty"`
 }
 
 func searchKindPriority(kind string) int {
@@ -763,11 +771,16 @@ func searchRowsFromSnapshot(cluster string, kind ResourceKind, namespace string,
 			ns = namespace
 		}
 		rows = append(rows, dataplaneSearchRow{
-			Cluster:    cluster,
-			Kind:       string(kind),
-			Namespace:  ns,
-			Name:       name,
-			ObservedAt: observedAt,
+			Cluster:        cluster,
+			Kind:           string(kind),
+			Namespace:      ns,
+			Name:           name,
+			ObservedAt:     observedAt,
+			HealthBucket:   firstNonEmptyStringField(item, "HealthBucket", "ListHealthHint", "HealthReason"),
+			ListStatus:     stringField(item, "ListStatus"),
+			SignalSeverity: stringField(item, "ListSignalSeverity"),
+			SignalCount:    intField(item, "ListSignalCount"),
+			NeedsAttention: searchRowNeedsAttention(item),
 		})
 	}
 	return rows
@@ -794,6 +807,53 @@ func stringField(v reflect.Value, name string) string {
 		return ""
 	}
 	return f.String()
+}
+
+func firstNonEmptyStringField(v reflect.Value, names ...string) string {
+	for _, name := range names {
+		if value := stringField(v, name); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func intField(v reflect.Value, name string) int {
+	f := v.FieldByName(name)
+	if !f.IsValid() {
+		return 0
+	}
+	switch f.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return int(f.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return int(f.Uint())
+	default:
+		return 0
+	}
+}
+
+func boolField(v reflect.Value, name string) bool {
+	f := v.FieldByName(name)
+	if !f.IsValid() || f.Kind() != reflect.Bool {
+		return false
+	}
+	return f.Bool()
+}
+
+func searchRowNeedsAttention(v reflect.Value) bool {
+	if boolField(v, "NeedsAttention") {
+		return true
+	}
+	if intField(v, "ListSignalCount") > 0 {
+		return true
+	}
+	switch strings.ToLower(firstNonEmptyStringField(v, "HealthBucket", "ListHealthHint")) {
+	case "degraded", "problem", "attention", "warning", "critical":
+		return true
+	default:
+		return false
+	}
 }
 
 func snapshotKey(cluster string, kind ResourceKind, namespace string) []byte {

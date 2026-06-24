@@ -560,6 +560,8 @@ func (p *ClusterDashboardSignalsPanel) incrementSignalCounter(counter string) {
 		p.QuotaWarnings++
 	case "pod_restart_signals":
 		p.PodRestartSignals++
+	case "workload_warnings":
+		p.WorkloadWarnings++
 	case "service_warnings":
 		p.ServiceWarnings++
 	case "ingress_warnings":

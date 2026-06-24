@@ -83,6 +83,28 @@ func TestPodHealthReason(t *testing.T) {
 	}
 }
 
+func TestPodContainerWaitingReasons(t *testing.T) {
+	got := podContainerWaitingReasons(
+		[]corev1.ContainerStatus{
+			{Name: "init", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+			{Name: "init-side", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: ""}}},
+		},
+		[]corev1.ContainerStatus{
+			{Name: "app", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}},
+			{Name: "sidecar", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+		},
+	)
+	want := []string{"ImagePullBackOff", "CrashLoopBackOff"}
+	if len(got) != len(want) {
+		t.Fatalf("podContainerWaitingReasons len = %d (%v), want %d", len(got), got, len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("podContainerWaitingReasons[%d] = %q, want %q (all %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
 func TestSumContainerResources(t *testing.T) {
 	mustCPU := func(s string) resource.Quantity { return resource.MustParse(s) }
 	mustMem := func(s string) resource.Quantity { return resource.MustParse(s) }

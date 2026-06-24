@@ -293,9 +293,9 @@ func DashboardSignalCatalog(policy DataplanePolicy, contextName string) []Signal
 
 func defaultDashboardSignalSeverity(signalType string) string {
 	switch signalType {
-	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference":
+	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference", "pod_image_pull_failure", "pod_crash_loop_waiting":
 		return "high"
-	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference", "daemonset_missing_template_reference", "statefulset_missing_template_reference", "replicaset_missing_template_reference", "job_missing_template_reference", "cronjob_missing_template_reference":
+	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "pod_unschedulable", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference", "daemonset_missing_template_reference", "statefulset_missing_template_reference", "replicaset_missing_template_reference", "job_missing_template_reference", "cronjob_missing_template_reference":
 		return "medium"
 	default:
 		return "low"
@@ -310,6 +310,33 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		CalculatedData:  "restart count exceeds configured threshold",
 		LikelyCause:     "The pod may be repeatedly crashing, failing health checks, or restarting after node/runtime interruptions.",
 		SuggestedAction: "Open pod logs and events, inspect container restart reasons, and check whether the owning workload recently rolled out or is failing probes.",
+		Priority:        0,
+	},
+	"pod_image_pull_failure": {
+		Type:            "pod_image_pull_failure",
+		Label:           "Pod image pull failures",
+		SummaryCounter:  "pod_restart_signals",
+		CalculatedData:  "container status waiting reason indicates image pull or registry access failure",
+		LikelyCause:     "The image name, tag, registry credentials, image pull secret, network path, or registry availability may be wrong or unavailable.",
+		SuggestedAction: "Inspect pod events and imagePullSecrets, verify the image reference and registry credentials, then restart or roll out the owning workload after fixing the reference.",
+		Priority:        0,
+	},
+	"pod_crash_loop_waiting": {
+		Type:            "pod_crash_loop_waiting",
+		Label:           "Pods in CrashLoopBackOff",
+		SummaryCounter:  "pod_restart_signals",
+		CalculatedData:  "container status waiting reason is CrashLoopBackOff",
+		LikelyCause:     "A container is repeatedly exiting during startup or probe execution and Kubernetes is backing off restarts.",
+		SuggestedAction: "Open current and previous logs, inspect last termination reason and probes, and verify config/secrets/dependencies needed at startup.",
+		Priority:        0,
+	},
+	"pod_unschedulable": {
+		Type:            "pod_unschedulable",
+		Label:           "Pods unschedulable",
+		SummaryCounter:  "pod_restart_signals",
+		CalculatedData:  "PodScheduled condition is False with reason Unschedulable",
+		LikelyCause:     "The pod may not fit available nodes because of resource requests, node selectors, affinity, taints/tolerations, PVC node affinity, or quota constraints.",
+		SuggestedAction: "Inspect pod events and scheduling constraints, compare requests with node capacity, and check taints, affinity, PVC binding, and namespace quota before changing replicas.",
 		Priority:        0,
 	},
 	"stale_transitional_helm_release": {
@@ -538,6 +565,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"deployment_unavailable": {
 		Type:            "deployment_unavailable",
 		Label:           "Deployments unavailable for extended time",
+		SummaryCounter:  "workload_warnings",
 		CalculatedData:  "Available=False longer than configured threshold, or no available replicas for a mature deployment",
 		LikelyCause:     "The rollout may be stuck on failing pods, image or config errors, unschedulable replicas, or a bad probe/template change that prevents any replica from becoming available.",
 		SuggestedAction: "Inspect the latest rollout, the active ReplicaSet, pod events, and probe configuration. Roll back or fix the failing template/dependency to restore available replicas.",

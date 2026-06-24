@@ -184,7 +184,10 @@ This runs `golangci-lint` with a practical baseline (`govet`, `staticcheck`, `er
 ### Cluster dashboard and signals
 
 - Cluster-wide summary with namespace and node snapshot blocks, resource totals, and attention signals
-- Signals cover elevated pod restarts, stale Helm releases, abnormal jobs, quota pressure, empty ConfigMaps/Secrets, and low-confidence potentially unused PVCs and service accounts
+- Signals cover elevated pod restarts, pod image pull failures, CrashLoopBackOff
+  waiting states, unschedulable pods, unavailable Deployments, stale Helm
+  releases, abnormal jobs, quota pressure, empty ConfigMaps/Secrets, and
+  low-confidence potentially unused PVCs and service accounts
 - Each signal carries stable identity, severity, advisory text (`likelyCause`, `suggestedAction`), and backend-provided quick-filter keys
 - Derived node workload rollups and Helm chart catalog rows from cached snapshots when direct reads are limited
 

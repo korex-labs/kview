@@ -800,10 +800,16 @@ export default function DashboardView(props: Props) {
                     hint="Namespaces included in resource totals and signals."
                   />
                   <MetricCard
-                    label="Pod restart signals"
+                    label="Pod failure signals"
                     value={signalPanel?.podRestartSignals ?? 0}
                     color={(signalPanel?.podRestartSignals || 0) > 0 ? "warning" : "success"}
-                    hint={`Pods above ${settings.dataplane.global.signals.detectors.pod_restarts.restartCount} restarts in cached scope.`}
+                    hint={`Pod restart, CrashLoopBackOff, image pull, and unschedulable signals in cached scope; restart threshold is ${settings.dataplane.global.signals.detectors.pod_restarts.restartCount}.`}
+                  />
+                  <MetricCard
+                    label="Workload warnings"
+                    value={signalPanel?.workloadWarnings ?? 0}
+                    color={(signalPanel?.workloadWarnings || 0) > 0 ? "warning" : "success"}
+                    hint="Workload-level rollout or availability signals, such as deployments with no available replicas."
                   />
                   <MetricCard
                     label="Quota pressure"

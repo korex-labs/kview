@@ -16,7 +16,11 @@ type dashboardSignalDetector struct {
 
 var dashboardSignalDetectors = []dashboardSignalDetector{
 	{Type: "empty_namespace", Detect: detectEmptyNamespaceSignals},
+	{Type: "pod_image_pull_failure", Detect: detectPodImagePullFailureSignals},
+	{Type: "pod_crash_loop_waiting", Detect: detectPodCrashLoopWaitingSignals},
+	{Type: "pod_unschedulable", Detect: detectPodUnschedulableSignals},
 	{Type: "pod_restarts", Detect: detectPodRestartSignals},
+	{Type: "deployment_unavailable", Detect: detectDeploymentUnavailableSignals},
 	{Type: "abnormal_job", Detect: detectAbnormalJobSignals},
 	{Type: "long_running_job", Detect: detectLongRunningJobSignals},
 	{Type: "abnormal_cronjob", Detect: detectAbnormalCronJobSignals},
@@ -62,6 +66,145 @@ func detectPodRestartSignals(_ time.Time, ns string, s dashboardSnapshotSet) []C
 		}
 	}
 	return out
+}
+
+func detectPodImagePullFailureSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.podsOK {
+		return nil
+	}
+	var out []ClusterDashboardSignal
+	for _, p := range s.pods.Items {
+		reasons := podWaitingReasonsMatching(p.ContainerWaitingReasons, isImagePullFailureReason)
+		if len(reasons) == 0 {
+			continue
+		}
+		f := dashboardSignalItem("pod_image_pull_failure", "Pod", ns, p.Name, "high", 91, "Pod has containers waiting on image pull failures.", "high", "pods")
+		f.ActualData = "waiting reason(s): " + strings.Join(reasons, ", ")
+		f.CalculatedData = "container status waiting reason indicates image pull or registry access failure"
+		out = append(out, f)
+	}
+	return out
+}
+
+func detectPodCrashLoopWaitingSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.podsOK {
+		return nil
+	}
+	var out []ClusterDashboardSignal
+	for _, p := range s.pods.Items {
+		if !podHasWaitingReason(p.ContainerWaitingReasons, "CrashLoopBackOff") {
+			continue
+		}
+		f := dashboardSignalItem("pod_crash_loop_waiting", "Pod", ns, p.Name, "high", 89, "Pod has containers waiting in CrashLoopBackOff.", "high", "pods")
+		f.ActualData = fmt.Sprintf("waiting reason CrashLoopBackOff, %d restart%s", p.Restarts, pluralSuffix(int(p.Restarts)))
+		f.CalculatedData = "container status waiting reason is CrashLoopBackOff"
+		out = append(out, f)
+	}
+	return out
+}
+
+func detectPodUnschedulableSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.podsOK {
+		return nil
+	}
+	var out []ClusterDashboardSignal
+	for _, p := range s.pods.Items {
+		if !strings.EqualFold(p.HealthReason, "Unschedulable") {
+			continue
+		}
+		severity := "medium"
+		score := 74
+		if p.AgeSec >= int64((30 * time.Minute).Seconds()) {
+			severity = "high"
+			score = 87
+		}
+		f := dashboardSignalItem("pod_unschedulable", "Pod", ns, p.Name, severity, score, "Pod is unschedulable.", "high", "pods")
+		f.ActualData = fmt.Sprintf("phase %s, reason %s", valueOrUnknown(p.Phase), p.HealthReason)
+		if p.AgeSec > 0 {
+			f.CalculatedData = fmt.Sprintf("pod has been pending/not scheduled for %s", humanizeSignalDuration(time.Duration(p.AgeSec)*time.Second))
+		} else {
+			f.CalculatedData = "PodScheduled condition is False with reason Unschedulable"
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func detectDeploymentUnavailableSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.depsOK {
+		return nil
+	}
+	var out []ClusterDashboardSignal
+	for _, d := range s.deps.Items {
+		desired, ready := parseReadyPair(d.Ready)
+		if desired <= 0 || ready > 0 || d.Available > 0 {
+			continue
+		}
+		minAge := signalDeploymentUnavailableDuration
+		if minAge <= 0 {
+			minAge = 10 * time.Minute
+		}
+		if d.AgeSec > 0 && d.AgeSec < int64(minAge.Seconds()) {
+			continue
+		}
+		severity := "medium"
+		score := 73
+		if strings.EqualFold(d.HealthBucket, deployBucketDegraded) || d.RolloutNeedsAttention {
+			severity = "high"
+			score = 88
+		}
+		f := dashboardSignalItem("deployment_unavailable", "Deployment", ns, d.Name, severity, score, "Deployment has desired replicas but no available pods.", "medium", "deployments")
+		f.ActualData = fmt.Sprintf("ready %s, available %d, status %s", valueOrUnknown(d.Ready), d.Available, valueOrUnknown(d.Status))
+		f.CalculatedData = fmt.Sprintf("no ready/available replicas for at least %s", humanizeSignalDuration(minAge))
+		out = append(out, f)
+	}
+	return out
+}
+
+func podHasWaitingReason(reasons []string, want string) bool {
+	for _, reason := range reasons {
+		if strings.EqualFold(reason, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func podWaitingReasonsMatching(reasons []string, match func(string) bool) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, reason := range reasons {
+		if !match(reason) {
+			continue
+		}
+		key := strings.ToLower(reason)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, reason)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func isImagePullFailureReason(reason string) bool {
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "imagepullbackoff", "errimagepull", "invalidimagename", "registryunavailable":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseReadyPair(value string) (desired, ready int) {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	_, _ = fmt.Sscanf(parts[0], "%d", &ready)
+	_, _ = fmt.Sscanf(parts[1], "%d", &desired)
+	return desired, ready
 }
 
 func detectAbnormalJobSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {

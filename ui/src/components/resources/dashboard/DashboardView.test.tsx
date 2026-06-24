@@ -120,6 +120,7 @@ function dashboardResponse(): ApiDashboardClusterResponse {
         potentiallyUnusedServiceAccounts: 0,
         quotaWarnings: 0,
         podRestartSignals: 0,
+        workloadWarnings: 0,
         serviceWarnings: 0,
         ingressWarnings: 0,
         pvcWarnings: 0,

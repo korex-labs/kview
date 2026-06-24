@@ -32,6 +32,7 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		var readyCount, totalCount int
 		var restarts int32
 
+		waitingReasons := podContainerWaitingReasons(p.Status.InitContainerStatuses, p.Status.ContainerStatuses)
 		for _, cs := range p.Status.ContainerStatuses {
 			totalCount++
 			if cs.Ready {
@@ -47,19 +48,20 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 
 		cpuReq, cpuLim, memReq, memLim := sumContainerResources(p.Spec.Containers)
 		out = append(out, dto.PodListItemDTO{
-			Name:               p.Name,
-			Namespace:          p.Namespace,
-			Node:               p.Spec.NodeName,
-			Phase:              string(p.Status.Phase),
-			Ready:              FmtReady(readyCount, totalCount),
-			Restarts:           restarts,
-			AgeSec:             age,
-			LastEvent:          lastEvent,
-			HealthReason:       podHealthReason(p.Status.Conditions),
-			CPURequestMilli:    cpuReq,
-			CPULimitMilli:      cpuLim,
-			MemoryRequestBytes: memReq,
-			MemoryLimitBytes:   memLim,
+			Name:                    p.Name,
+			Namespace:               p.Namespace,
+			Node:                    p.Spec.NodeName,
+			Phase:                   string(p.Status.Phase),
+			Ready:                   FmtReady(readyCount, totalCount),
+			Restarts:                restarts,
+			AgeSec:                  age,
+			LastEvent:               lastEvent,
+			ContainerWaitingReasons: waitingReasons,
+			HealthReason:            podHealthReason(p.Status.Conditions),
+			CPURequestMilli:         cpuReq,
+			CPULimitMilli:           cpuLim,
+			MemoryRequestBytes:      memReq,
+			MemoryLimitBytes:        memLim,
 		})
 	}
 	return out, nil
@@ -72,6 +74,25 @@ func podHealthReason(conditions []corev1.PodCondition) string {
 		}
 	}
 	return ""
+}
+
+func podContainerWaitingReasons(statusGroups ...[]corev1.ContainerStatus) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, statuses := range statusGroups {
+		for _, cs := range statuses {
+			if cs.State.Waiting == nil || cs.State.Waiting.Reason == "" {
+				continue
+			}
+			reason := cs.State.Waiting.Reason
+			if _, ok := seen[reason]; ok {
+				continue
+			}
+			seen[reason] = struct{}{}
+			out = append(out, reason)
+		}
+	}
+	return out
 }
 
 // sumContainerResources aggregates CPU (milli) and memory (bytes) requests and

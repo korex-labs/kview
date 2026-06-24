@@ -9,6 +9,11 @@ type PodListItemDTO struct {
 	Restarts  int32          `json:"restarts"`
 	AgeSec    int64          `json:"ageSec"`
 	LastEvent *EventBriefDTO `json:"lastEvent,omitempty"`
+	// ContainerWaitingReasons carries distinct waiting reasons from init and regular
+	// container status, such as CrashLoopBackOff, ImagePullBackOff, or ErrImagePull.
+	// It is populated by the list layer so dashboard detectors can surface
+	// high-signal pod failures without fetching pod details.
+	ContainerWaitingReasons []string `json:"containerWaitingReasons,omitempty"`
 	// List enrichment (Stage 5C): derived from snapshot row only, no extra kube reads.
 	HealthReason       string `json:"healthReason,omitempty"`
 	RestartSeverity    string `json:"restartSeverity,omitempty"` // none | low | medium | high

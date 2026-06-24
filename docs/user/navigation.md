@@ -112,8 +112,11 @@ through <kbd>g 5</kbd> provide command-style alternatives.
 
 Use the header **Search or command** input to find resources from cached
 dataplane snapshots or jump to resource views, namespaces, contexts, and
-settings. Press <kbd>Ctrl+K</kbd> to focus it. Type <kbd>:</kbd> to show
-command suggestions first.
+settings. Cached resource results can match by name, namespace, kind, or
+cached health/signal context. Result rows show kind and match-reason chips,
+namespace scope, and any cached health, status, or signal chips so failing
+resources stand out before you open the drawer. Press <kbd>Ctrl+K</kbd> to
+focus it. Type <kbd>:</kbd> to show command suggestions.
 
 Use <kbd>/</kbd> to focus the current table filter. Table filters narrow the
 visible list and are separate from cached dataplane search.
