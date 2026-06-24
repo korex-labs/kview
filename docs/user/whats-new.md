@@ -6,25 +6,21 @@ repository.
 
 ## Recent Highlights
 
-- Saved resource views let operators return to frequently used list setups
-  quickly, while backend-driven view policies keep sorting, filters, labels,
-  and actions more consistent across resource types.
-- Resource drawers now surface tags and Resource Macros together, with tag
-  automation support to speed up repeated tagging workflows on live resources.
-- Operator and dashboard settings profiles make it easier to switch between
-  different browsing and signal-triage setups.
-- Keyboard workflows are more predictable across drawers and Help surfaces,
-  with shared focus scopes improving escape handling and layered navigation.
-- Policy resources now have a dedicated sidebar group and richer drawers for
-  NetworkPolicies, ResourceQuotas, and LimitRanges, making namespace traffic
-  and capacity policy easier to inspect.
-- Custom resource browsing is more polished, with stronger list and drawer
-  workflows and Helm chart version manifests shown when available for related
-  releases.
-- YAML apply flows now use guarded patching so live changes are reviewed and
-  confirmed more safely before being sent to the cluster.
-- Header search and command entry now share one unified workflow, with updated
-  autocomplete behavior for faster navigation and action discovery.
+- Saved views now work across both the dashboard and resource lists, so one
+  shared saved view can move you between signal triage and list workflows.
+- Local resource notes can now be added and reviewed directly in kview, with
+  note state surfaced in drawers, activity tabs, and resource lists.
+- The Activity view now shows adaptive scheduler health and namespace sweep
+  coverage, making background dataplane behavior easier to understand when the
+  cluster is under pressure.
+- Dataplane freshness now adapts under load, reducing unnecessary background
+  churn while keeping operators informed when polling and enrichment slow down.
+- Failure signals now do a better job surfacing image pull problems,
+  CrashLoopBackOff states, unschedulable pods, and unavailable deployments.
+- Global search results now carry richer status and signal context, making it
+  easier to spot why a matching resource needs attention.
+- `kview --version` and `kview -version` now print the resolved build version
+  without starting the application.
 
 ## Full History
 

@@ -3,6 +3,32 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.13.0 - 2026-06-24
+
+- Unified saved views across the dashboard and resource lists so operators can
+  move between signal triage and list workflows with one shared saved-view
+  collection, consistent picker controls, and inclusion in settings transfer
+  bundles and full profile backups.
+- Added local resource notes surfaced in drawers, activity tabs, and resource
+  lists, making it easier to keep per-resource operational context visible
+  while browsing the cluster.
+- Expanded dataplane visibility with adaptive scheduler health, namespace sweep
+  coverage, and pressure-aware polling and snapshot freshness, helping
+  operators understand when background enrichment intentionally slows down
+  under load.
+- Improved failure triage and search context by surfacing stronger signals for
+  image pull failures, CrashLoopBackOff states, unschedulable pods, unavailable
+  deployments, and richer cached search matches.
+- Added `--version` and `-version` CLI flags so packaged binaries can print the
+  resolved build version without starting cluster initialization.
+- Fixed dataplane and profile reliability by keeping signal timestamps and
+  short-TTL metrics snapshots steadier, aligning namespace signal summaries with
+  dashboard detectors, preserving app state in full profile backups, and
+  avoiding routine custom-resource warmup churn.
+- Refreshed the audited npm lockfile and added targeted dataplane and frontend
+  test coverage around adaptive TTLs, scheduler health, namespace sweep
+  progress, search, notes, saved views, and settings persistence.
+
 ## v5.12.0 - 2026-06-16
 
 - Added saved resource views so operators can return to frequently used list
