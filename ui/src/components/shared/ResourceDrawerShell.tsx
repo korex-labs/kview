@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Typography, Divider } from "@mui/material";
+import { Box, Typography, Divider, Tab, Tabs } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   RESOURCE_DRAWER_WIDTH,
@@ -22,6 +22,8 @@ import ResourceDynamicLinks from "./ResourceDynamicLinks";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import { ResourceDrawerTags } from "./ResourceTags";
 import { ResourceDrawerMacros } from "./ResourceMacros";
+import { ResourceMemoryPanel } from "./ResourceMemory";
+import DetailTabIcon from "./DetailTabIcon";
 
 type ResourceDrawerIdentity = {
   resource: ListResourceKey;
@@ -50,6 +52,7 @@ export type ResourceDrawerShellProps = {
 };
 
 const tabShortcutBindings: Record<string, string> = {
+  notes: "n",
   overview: "o",
   signals: "s",
   containers: "c",
@@ -74,6 +77,8 @@ const tabShortcutBindings: Record<string, string> = {
   "role ref": "f",
   jobs: "j",
 };
+
+const resourceNotesTabValue = "__kview_resource_notes__";
 
 function normalizedControlText(el: HTMLElement): string {
   return (el.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
@@ -102,6 +107,7 @@ export default function ResourceDrawerShell({
   const { requestKeyboardFocus } = useKeyboardControls();
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
+  const [showResourceNotes, setShowResourceNotes] = useState(false);
   const dragStartXRef = useRef(0);
   const dragStartWidthRef = useRef(contentWidth);
   const nextWidthRef = useRef(contentWidth);
@@ -128,11 +134,16 @@ export default function ResourceDrawerShell({
     (settings.resourceMacros.enabled || settings.resourceTags.enabled),
   );
   const showHeaderActions = Boolean(headerActions || showAutoHeaderActions);
+  const showOperatorNotesTab = Boolean(drawerIdentity?.name);
 
   useEffect(() => {
     if (isResizing) return;
     setDrawerWidth(clampWidth(settings.appearance.resourceDrawerWidthPx || contentWidth));
   }, [clampWidth, contentWidth, isResizing, settings.appearance.resourceDrawerWidthPx]);
+
+  useEffect(() => {
+    setShowResourceNotes(false);
+  }, [drawerIdentity?.resource, drawerIdentity?.namespace, drawerIdentity?.name]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -252,6 +263,69 @@ export default function ResourceDrawerShell({
 
   useContextualKeyboardActions(contextualActions);
 
+  const notesPanel = useMemo(() => (
+    showOperatorNotesTab && drawerIdentity?.name ? (
+      <ResourceMemoryPanel
+        resource={drawerIdentity.resource}
+        namespace={drawerIdentity.namespace}
+        name={drawerIdentity.name}
+      />
+    ) : null
+  ), [drawerIdentity?.name, drawerIdentity?.namespace, drawerIdentity?.resource, showOperatorNotesTab]);
+
+  const renderChildrenWithNotesTab = useCallback((node: React.ReactNode): React.ReactNode => {
+    if (!showOperatorNotesTab || !notesPanel || !React.isValidElement(node)) return node;
+    const element = node as React.ReactElement<{ children?: React.ReactNode }>;
+    if (element.type !== React.Fragment) return node;
+
+    let injected = false;
+    const nextChildren: React.ReactNode[] = [];
+    for (const child of React.Children.toArray(element.props.children)) {
+      if (!injected && React.isValidElement(child) && child.type === Tabs) {
+        injected = true;
+        const tabsElement = child as React.ReactElement<{
+          children?: React.ReactNode;
+          onChange?: (event: React.SyntheticEvent, value: unknown) => void;
+          value?: unknown;
+        }>;
+        const existingTabLabels = React.Children.toArray(tabsElement.props.children)
+          .filter(React.isValidElement)
+          .map((tabChild) => String((tabChild as React.ReactElement<{ label?: React.ReactNode }>).props.label || "").trim().toLowerCase());
+        if (existingTabLabels.includes("notes")) {
+          nextChildren.push(child);
+          continue;
+        }
+        nextChildren.push(React.cloneElement(tabsElement, {
+          value: showResourceNotes ? resourceNotesTabValue : tabsElement.props.value,
+          onChange: (event: React.SyntheticEvent, value: unknown) => {
+            if (value === resourceNotesTabValue) {
+              setShowResourceNotes(true);
+              return;
+            }
+            setShowResourceNotes(false);
+            tabsElement.props.onChange?.(event, value);
+          },
+          children: [
+            ...React.Children.toArray(tabsElement.props.children),
+            <Tab
+              key="resource-notes"
+              icon={<DetailTabIcon label="Notes" />}
+              iconPosition="start"
+              label="Notes"
+              value={resourceNotesTabValue}
+            />,
+          ],
+        }));
+        if (showResourceNotes) nextChildren.push(React.cloneElement(notesPanel, { key: "resource-notes-panel" }));
+        continue;
+      }
+      if (!showResourceNotes || !injected) nextChildren.push(child);
+    }
+
+    if (!injected) return node;
+    return React.cloneElement(element, undefined, nextChildren);
+  }, [notesPanel, showOperatorNotesTab, showResourceNotes]);
+
   return (
     <Box
       ref={shellRef}
@@ -365,7 +439,7 @@ export default function ResourceDrawerShell({
 
       <Divider sx={{ my: RESOURCE_DRAWER_HEADER_DIVIDER_MY }} />
 
-      {children}
+      {renderChildrenWithNotesTab(children)}
     </Box>
   );
 }
