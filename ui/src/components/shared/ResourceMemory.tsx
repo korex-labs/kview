@@ -25,6 +25,7 @@ import {
   RESOURCE_MEMORY_CHANGED_EVENT,
   saveResourceMemoryStore,
   upsertResourceMemoryRecord,
+  resourceMemoryStatusLabel,
   type ResourceMemoryRecord,
   type ResourceMemoryStatus,
   type ResourceMemoryTarget,
@@ -38,11 +39,7 @@ const statusOptions: Array<{ value: ResourceMemoryStatus; label: string; color: 
   { value: "resolved", label: "Resolved", color: "success" },
 ];
 
-export function resourceMemoryStatusLabel(status: ResourceMemoryStatus): string {
-  return statusOptions.find((item) => item.value === status)?.label || status;
-}
-
-function statusColor(status: ResourceMemoryStatus): "default" | "info" | "warning" | "error" | "success" {
+export function statusColor(status: ResourceMemoryStatus): "default" | "info" | "warning" | "error" | "success" {
   return statusOptions.find((item) => item.value === status)?.color || "default";
 }
 

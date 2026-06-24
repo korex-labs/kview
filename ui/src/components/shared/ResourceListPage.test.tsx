@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   loadPersistedColumnWidths,
+  resourceMemoryTargetForListRow,
   resourceListRowMatchesSearchFields,
   savePersistedColumnWidths,
   shouldCleanupResourceTagAssignments,
@@ -75,5 +76,29 @@ describe("ResourceListPage descriptor search fields", () => {
     expect(resourceListRowMatchesSearchFields(row, ["clusterIPs"], "10.0.0.11")).toBe(true);
     expect(resourceListRowMatchesSearchFields(row, ["entries.key"], "limits.memory")).toBe(true);
     expect(resourceListRowMatchesSearchFields(row, ["entries.used"], "500m")).toBe(false);
+  });
+});
+
+describe("ResourceListPage resource notes target", () => {
+  it("keys list rows the same way as resource drawer notes", () => {
+    expect(resourceMemoryTargetForListRow({
+      id: "pod-id",
+      name: "api-7f",
+      namespace: "app-prod",
+    }, "kind-dev", "pods")).toEqual({
+      context: "kind-dev",
+      resource: "pods",
+      namespace: "app-prod",
+      name: "api-7f",
+    });
+  });
+
+  it("falls back to chartName or id for non-standard resource rows", () => {
+    expect(resourceMemoryTargetForListRow({ id: "release-a", chartName: "chart-a" }, "kind-dev", "helm", "ops")).toEqual({
+      context: "kind-dev",
+      resource: "helm",
+      namespace: "ops",
+      name: "chart-a",
+    });
   });
 });

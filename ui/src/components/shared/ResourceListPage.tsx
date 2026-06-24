@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -58,6 +59,14 @@ import {
   clearPendingFocusedResourceView,
   loadPendingFocusedResourceView,
 } from "../../focusedResourceViews";
+import {
+  getResourceMemoryRecord,
+  loadResourceMemoryStore,
+  RESOURCE_MEMORY_CHANGED_EVENT,
+  resourceMemoryStatusLabel,
+  type ResourceMemoryStatus,
+  type ResourceMemoryTarget,
+} from "../../resourceMemory";
 import { DialogActionButton } from "./AppActions";
 
 const defaultDataplaneRefreshSec = 0;
@@ -187,6 +196,50 @@ export function resourceListRowMatchesSearchFields(row: unknown, fields: string[
   return fields.some((field) => valueMatchesQuery(rowFieldValue(row, field), query));
 }
 
+export function resourceMemoryTargetForListRow<TRow extends { id: string }>(
+  row: TRow,
+  contextName: string,
+  resourceKey: ListResourceKey,
+  namespace?: string | null,
+): ResourceMemoryTarget | null {
+  const shaped = row as TRow & {
+    id?: unknown;
+    name?: unknown;
+    chartName?: unknown;
+    namespace?: unknown;
+  };
+  const name = typeof shaped.name === "string" && shaped.name
+    ? shaped.name
+    : typeof shaped.chartName === "string" && shaped.chartName
+      ? shaped.chartName
+      : typeof shaped.id === "string" && shaped.id
+        ? shaped.id
+        : "";
+  if (!contextName || !name) return null;
+  const rowNamespace = typeof shaped.namespace === "string" ? shaped.namespace : namespace;
+  return {
+    context: contextName,
+    resource: resourceKey,
+    namespace: rowNamespace || "",
+    name,
+  };
+}
+
+function resourceMemoryListStatusColor(status: ResourceMemoryStatus): "default" | "info" | "warning" | "error" | "success" {
+  switch (status) {
+    case "watch":
+      return "info";
+    case "do-not-touch":
+      return "error";
+    case "investigating":
+      return "warning";
+    case "resolved":
+      return "success";
+    default:
+      return "default";
+  }
+}
+
 function rowIdentityValue(row: unknown, fields: string[]): string {
   return fields
     .map((field) => rowFieldValue(row, field))
@@ -292,6 +345,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const { settings, setSettings } = useUserSettings();
   const resourceTagsIndex = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
   const activeContext = useActiveContext();
+  const [resourceMemoryStore, setResourceMemoryStore] = useState(() => loadResourceMemoryStore());
   const { health } = useConnectionState();
   const { keyboardSettings, requestKeyboardFocus } = useKeyboardControls();
   const offline = health === "unhealthy";
@@ -299,6 +353,17 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const effectiveResourceLabel = resourceLabel || getResourceLabel(resourceKey);
   const effectiveTitle = title ?? (namespace ? <>{effectiveResourceLabel} — {namespace}</> : effectiveResourceLabel);
   const effectiveAccessResource = accessResource || listResourceAccess[resourceKey];
+
+  useEffect(() => {
+    const refreshResourceMemory = () => setResourceMemoryStore(loadResourceMemoryStore());
+    window.addEventListener(RESOURCE_MEMORY_CHANGED_EVENT, refreshResourceMemory);
+    window.addEventListener("storage", refreshResourceMemory);
+    return () => {
+      window.removeEventListener(RESOURCE_MEMORY_CHANGED_EVENT, refreshResourceMemory);
+      window.removeEventListener("storage", refreshResourceMemory);
+    };
+  }, []);
+
   const resourceTagTargetForRow = useCallback((row: TRow, contextName: string): ResourceTagTarget | null => {
     if (getResourceTagTarget) return getResourceTagTarget(row, contextName);
     const shaped = row as TRow & {
@@ -352,26 +417,56 @@ export default function ResourceListPage<TRow extends { id: string }>({
     return [...columns.slice(0, nameIndex + 1), tagColumn, ...columns.slice(nameIndex + 1)];
   }, [activeContext, columns, resourceTagTargetForRow, settings.resourceTags.enabled]);
 
+  const columnsWithResourceNotes = useMemo(() => {
+    if (columnsWithTags.some((col) => col.field === "resourceNotes")) return columnsWithTags;
+    const notesColumn: GridColDef<TRow> = {
+      field: "resourceNotes",
+      headerName: "Notes",
+      width: 150,
+      minWidth: 120,
+      sortable: false,
+      filterable: false,
+      renderCell: (p) => {
+        const target = resourceMemoryTargetForListRow(p.row, activeContext, resourceKey, namespace);
+        const record = target ? getResourceMemoryRecord(resourceMemoryStore, target) : null;
+        return record ? (
+          <Chip
+            size="small"
+            variant="outlined"
+            color={resourceMemoryListStatusColor(record.status)}
+            label={resourceMemoryStatusLabel(record.status)}
+            title="Local operator notes saved"
+          />
+        ) : null;
+      },
+    };
+    const nameIndex = columnsWithTags.findIndex((col) => col.field === "name" || col.field === "chartName");
+    const tagIndex = columnsWithTags.findIndex((col) => col.field === "resourceTags");
+    const insertAfter = tagIndex >= 0 ? tagIndex : nameIndex;
+    if (insertAfter < 0) return [notesColumn, ...columnsWithTags];
+    return [...columnsWithTags.slice(0, insertAfter + 1), notesColumn, ...columnsWithTags.slice(insertAfter + 1)];
+  }, [activeContext, columnsWithTags, namespace, resourceKey, resourceMemoryStore]);
+
   const orderedColumns = useMemo(() => {
-    if (!columnsWithTags.some((col) => col.field === "listSignalSeverity")) return columnsWithTags;
+    if (!columnsWithResourceNotes.some((col) => col.field === "listSignalSeverity")) return columnsWithResourceNotes;
     const fieldPriority = (field: string): number => {
       const f = field.toLowerCase();
       if (f === "isfavourite") return 0;
       if (f === "name") return 1;
-      if (f === "resourcetags") return 2;
+      if (f === "resourcetags" || f === "resourcenotes") return 2;
       if (f === "listsignalseverity") return 2;
       if (f === "liststatus" || f === "status" || f === "phase" || f === "health") return 3;
       if (f.includes("age")) return 6;
       if (f.includes("time") || f.includes("last") || f.includes("seen") || f.includes("updated")) return 5;
       return 4;
     };
-    return [...columnsWithTags].sort((a, b) => {
+    return [...columnsWithResourceNotes].sort((a, b) => {
       const pa = fieldPriority(String(a.field));
       const pb = fieldPriority(String(b.field));
       if (pa !== pb) return pa - pb;
       return 0;
     });
-  }, [columnsWithTags]);
+  }, [columnsWithResourceNotes]);
   const columnWidthsKey = useMemo(
     () => columnWidthsStorageKey(activeContext, resourceKey, namespace),
     [activeContext, namespace, resourceKey],

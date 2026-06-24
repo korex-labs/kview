@@ -2,6 +2,14 @@ import type { ListResourceKey } from "./utils/k8sResources";
 
 export type ResourceMemoryStatus = "watch" | "known" | "do-not-touch" | "investigating" | "resolved";
 
+const resourceMemoryStatusLabels: Record<ResourceMemoryStatus, string> = {
+  watch: "Watch item",
+  known: "Known behavior",
+  "do-not-touch": "Do not touch",
+  investigating: "Investigating",
+  resolved: "Resolved",
+};
+
 export type ResourceMemoryTarget = {
   context: string;
   resource: ListResourceKey;
@@ -28,6 +36,10 @@ export const RESOURCE_MEMORY_STORAGE_KEY = "kview:resourceMemory:v1";
 export const RESOURCE_MEMORY_CHANGED_EVENT = "kview:resource-memory-changed";
 
 const allowedStatuses = new Set<ResourceMemoryStatus>(["watch", "known", "do-not-touch", "investigating", "resolved"]);
+
+export function resourceMemoryStatusLabel(status: ResourceMemoryStatus): string {
+  return resourceMemoryStatusLabels[status] || status;
+}
 
 function cleanText(value: unknown, maxLength: number): string {
   if (typeof value !== "string") return "";

@@ -70,15 +70,15 @@ focuses on operational state first: actions, attention signals, unhealthy
 conditions, current state, and recent warnings.
 
 Resource drawers also add **Notes** to the same tab strip as Overview, Events,
-Metadata, and YAML. When a resource already has saved notes, the Notes tab shows
-its current triage state as a small chip. This tab stores local operator
-knowledge about the selected object. Use **Triage state** to record how
-operators should treat the object: **Watch item**, **Known behavior**, **Do not
-touch**, **Investigating**, or **Resolved**. Use **Operator note** for the short
-context or decision, and **Reference link** for an optional runbook, ticket,
-dashboard, or docs URL. Notes are keyed by context, resource kind, namespace,
-and name; they stay local to the browser and are not written back to Kubernetes
-annotations.
+Metadata, and YAML. When a resource already has saved notes, the resource list
+shows a **Notes** triage chip on that row and the Notes tab shows the same
+triage state. This tab stores local operator knowledge about the selected
+object. Use **Triage state** to record how operators should treat the object:
+**Watch item**, **Known behavior**, **Do not touch**, **Investigating**, or
+**Resolved**. Use **Operator note** for the short context or decision, and
+**Reference link** for an optional runbook, ticket, dashboard, or docs URL.
+Notes are keyed by context, resource kind, namespace, and name; they stay local
+to the browser and are not written back to Kubernetes annotations.
 
 The trailing tabs usually contain Events, Metadata, and YAML. Supported
 resources may expose guarded YAML editing from the YAML tab.
