@@ -22,7 +22,7 @@ import ResourceDynamicLinks from "./ResourceDynamicLinks";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import { ResourceDrawerTags } from "./ResourceTags";
 import { ResourceDrawerMacros } from "./ResourceMacros";
-import { ResourceMemoryPanel } from "./ResourceMemory";
+import { ResourceMemoryPanel, ResourceMemoryTabLabel } from "./ResourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 
 type ResourceDrawerIdentity = {
@@ -81,7 +81,7 @@ const tabShortcutBindings: Record<string, string> = {
 const resourceNotesTabValue = "__kview_resource_notes__";
 
 function normalizedControlText(el: HTMLElement): string {
-  return (el.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
+  return (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function isUsableControl(el: HTMLElement): boolean {
@@ -311,7 +311,14 @@ export default function ResourceDrawerShell({
               key="resource-notes"
               icon={<DetailTabIcon label="Notes" />}
               iconPosition="start"
-              label="Notes"
+              label={(
+                <ResourceMemoryTabLabel
+                  resource={drawerIdentity!.resource}
+                  namespace={drawerIdentity!.namespace}
+                  name={drawerIdentity!.name}
+                />
+              )}
+              aria-label="Notes"
               value={resourceNotesTabValue}
             />,
           ],
@@ -324,7 +331,7 @@ export default function ResourceDrawerShell({
 
     if (!injected) return node;
     return React.cloneElement(element, undefined, nextChildren);
-  }, [notesPanel, showOperatorNotesTab, showResourceNotes]);
+  }, [drawerIdentity, notesPanel, showOperatorNotesTab, showResourceNotes]);
 
   return (
     <Box

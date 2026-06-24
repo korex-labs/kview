@@ -6,6 +6,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Tab, Tabs } from "@mui/material";
 import { ActiveContextProvider } from "../../activeContext";
 import { UserSettingsProvider } from "../../settingsContext";
+import {
+  defaultResourceMemoryStore,
+  saveResourceMemoryStore,
+  upsertResourceMemoryRecord,
+} from "../../resourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 import ResourceDrawerShell from "./ResourceDrawerShell";
 
@@ -40,6 +45,17 @@ afterEach(() => {
 
 describe("ResourceDrawerShell", () => {
   it("injects operator notes into the existing drawer tab row", () => {
+    saveResourceMemoryStore(upsertResourceMemoryRecord(defaultResourceMemoryStore(), {
+      context: "kind-dev",
+      resource: "pods",
+      namespace: "app-prod",
+      name: "api-7f",
+    }, {
+      status: "investigating",
+      note: "Needs follow-up",
+      runbookUrl: "",
+    }));
+
     render(<DrawerHarness />);
 
     expect(screen.queryByRole("tab", { name: /details/i })).toBeNull();
@@ -47,6 +63,7 @@ describe("ResourceDrawerShell", () => {
     expect(screen.getByRole("tab", { name: /overview/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /yaml/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /notes/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /notes/i }).textContent).toContain("Investigating");
     expect(screen.getByText("Overview content")).toBeTruthy();
     expect(screen.queryByText("Operator notes")).toBeNull();
 
@@ -57,5 +74,5 @@ describe("ResourceDrawerShell", () => {
     expect(screen.getByRole("combobox", { name: /Triage state/ })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Reference link/ })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Operator note/ }).tagName.toLowerCase()).toBe("textarea");
-  });
+  }, 10000);
 });

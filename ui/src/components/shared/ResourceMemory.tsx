@@ -38,7 +38,7 @@ const statusOptions: Array<{ value: ResourceMemoryStatus; label: string; color: 
   { value: "resolved", label: "Resolved", color: "success" },
 ];
 
-function statusLabel(status: ResourceMemoryStatus): string {
+export function resourceMemoryStatusLabel(status: ResourceMemoryStatus): string {
   return statusOptions.find((item) => item.value === status)?.label || status;
 }
 
@@ -123,7 +123,7 @@ export function ResourceMemoryPanel({
     <Section
       title="Operator notes"
       dividerPlacement="content"
-      actions={record ? <Chip size="small" color={statusColor(record.status)} variant="outlined" label={statusLabel(record.status)} /> : null}
+      actions={record ? <Chip size="small" color={statusColor(record.status)} variant="outlined" label={resourceMemoryStatusLabel(record.status)} /> : null}
       sx={{
         borderColor: hasContent ? "warning.main" : "var(--panel-border)",
         bgcolor: hasContent ? "rgba(255, 193, 7, 0.06)" : undefined,
@@ -191,5 +191,37 @@ export function ResourceMemoryPanel({
         </>
       ) : null}
     </Section>
+  );
+}
+
+export function ResourceMemoryTabLabel({
+  resource,
+  namespace,
+  name,
+}: {
+  resource: ListResourceKey;
+  namespace?: string | null;
+  name?: string | null;
+}) {
+  const context = useActiveContext();
+  const target = useMemo<ResourceMemoryTarget | null>(() => {
+    if (!context || !name) return null;
+    return { context, resource, namespace: namespace || "", name };
+  }, [context, name, namespace, resource]);
+  const record = useResourceMemory(target);
+
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+      <Box component="span">Notes</Box>
+      {record ? (
+        <Chip
+          size="small"
+          color={statusColor(record.status)}
+          variant="outlined"
+          label={resourceMemoryStatusLabel(record.status)}
+          sx={{ height: 18, "& .MuiChip-label": { px: 0.75, fontSize: "0.66rem" } }}
+        />
+      ) : null}
+    </Box>
   );
 }
