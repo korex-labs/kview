@@ -24,9 +24,9 @@
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
-    "@mui/icons-material": "^9.0.1",
+    "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.0.1",
-    "@mui/x-data-grid": "^9.5.0",
+    "@mui/x-data-grid": "^9.6.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "react": "^19.2.7",
