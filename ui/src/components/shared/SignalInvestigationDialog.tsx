@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Chip,
   Dialog,
@@ -18,9 +19,11 @@ import FactCheckIcon from "@mui/icons-material/FactCheck";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
 import InsightsIcon from "@mui/icons-material/Insights";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
+import SaveAltIcon from "@mui/icons-material/SaveAlt";
 import RuleIcon from "@mui/icons-material/Rule";
 import TravelExploreIcon from "@mui/icons-material/TravelExplore";
 import { apiPost } from "../../api";
+import { saveInvestigationSnapshot } from "../../investigationSnapshots";
 import type {
   DashboardSignalItem,
   SignalInvestigationHelperRun,
@@ -265,6 +268,9 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<SignalInvestigationResult | null>(null);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [savedSnapshotId, setSavedSnapshotId] = useState("");
   const requestKey = useMemo(() => (signal ? signalKey(signal) : ""), [signal]);
   const usefulHelpers = useMemo(() => (result?.helpers || []).filter(helperHasDetails), [result?.helpers]);
   const hasEvidence =
@@ -277,12 +283,18 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
       setResult(null);
       setError("");
       setLoading(false);
+      setSavingSnapshot(false);
+      setSaveError("");
+      setSavedSnapshotId("");
       return;
     }
     let cancelled = false;
     setTab(0);
     setLoading(true);
     setError("");
+    setSaveError("");
+    setSavedSnapshotId("");
+    setSavingSnapshot(false);
     setResult(null);
     apiPost<InvestigationResponse>("/api/dataplane/signals/investigate", token, { signal })
       .then((res) => {
@@ -298,6 +310,20 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
       cancelled = true;
     };
   }, [requestKey, signal, token]);
+
+  const handleSaveSnapshot = async () => {
+    if (!result || !token) return;
+    setSavingSnapshot(true);
+    setSaveError("");
+    try {
+      const saved = await saveInvestigationSnapshot(token, result);
+      setSavedSnapshotId(saved.id || "saved");
+    } catch (err) {
+      setSaveError(String((err as Error | undefined)?.message || err));
+    } finally {
+      setSavingSnapshot(false);
+    }
+  };
 
   return (
     <Dialog open={!!signal} onClose={onClose} fullWidth maxWidth="lg">
@@ -394,8 +420,29 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
           </>
         ) : null}
       </DialogContent>
-      <Box sx={{ display: "flex", justifyContent: "flex-end", p: 1.5, pt: 0 }}>
-        <DialogActionButton action="cancel" onClick={onClose}>Close</DialogActionButton>
+      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center", p: 1.5, pt: 0 }}>
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          {saveError ? (
+            <Alert severity="error" variant="outlined" sx={{ py: 0, alignItems: "center" }}>
+              Could not save snapshot: {saveError}
+            </Alert>
+          ) : savedSnapshotId ? (
+            <Alert severity="success" variant="outlined" sx={{ py: 0, alignItems: "center" }}>
+              Investigation snapshot saved locally.
+            </Alert>
+          ) : null}
+        </Box>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <DialogActionButton
+            action="secondary"
+            startIcon={<SaveAltIcon />}
+            onClick={handleSaveSnapshot}
+            disabled={!result || savingSnapshot}
+          >
+            {savingSnapshot ? "Saving…" : savedSnapshotId ? "Save another snapshot" : "Save snapshot"}
+          </DialogActionButton>
+          <DialogActionButton action="cancel" onClick={onClose}>Close</DialogActionButton>
+        </Box>
       </Box>
     </Dialog>
   );

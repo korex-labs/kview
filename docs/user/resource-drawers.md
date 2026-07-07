@@ -46,7 +46,9 @@ later drawers. It is not edited from the Settings form.
 - Use **Acknowledge signal** when a signal is known but not fixed yet.
 - Use **Investigate signal** to open a read-only evidence dialog with related
   events, YAML checks, log snippets when available, related signals, and a
-  copyable Markdown debug bundle.
+  copyable Markdown debug bundle. Use **Save snapshot** in that dialog to store
+  the generated investigation locally for later operator follow-up; this writes
+  kview's local state only, not Kubernetes annotations or objects.
 - Use relation tabs to jump from one resource to another without returning to
   the list first.
 - Use **Events** before mutating when a resource is failing or recently changed.

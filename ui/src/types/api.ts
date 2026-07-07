@@ -339,6 +339,50 @@ export type SignalInvestigationResult = {
   };
 };
 
+export type InvestigationSnapshotTriageState = "watching" | "investigating" | "known" | "resolved" | "ignored";
+
+export type InvestigationSnapshotSignalRef = {
+  type: string;
+  title?: string;
+  severity?: string;
+  category?: string;
+  observedAt?: number;
+};
+
+export type InvestigationSnapshotResourceRef = {
+  kind: string;
+  namespace?: string;
+  name: string;
+  uid?: string;
+};
+
+export type InvestigationSnapshot = {
+  id?: string;
+  context?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  title: string;
+  triageState: InvestigationSnapshotTriageState;
+  signal: InvestigationSnapshotSignalRef;
+  primaryResource: InvestigationSnapshotResourceRef;
+  relatedResources?: InvestigationSnapshotResourceRef[];
+  relatedSignalTypes?: string[];
+  markdown: string;
+  operatorNote?: string;
+  runbookUrls?: string[];
+  source: string;
+};
+
+export type InvestigationSnapshotResponse = {
+  active?: string;
+  item?: InvestigationSnapshot;
+};
+
+export type InvestigationSnapshotListResponse = {
+  active?: string;
+  items: InvestigationSnapshot[];
+};
+
 export type SignalOverride = {
   enabled?: boolean;
   severity?: "low" | "medium" | "high";

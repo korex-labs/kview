@@ -91,23 +91,38 @@ Background row enrichment is **narrow and user-aligned**:
 
 ---
 
-## 4. Explicit direct-read exceptions (kube in handler)
+## 4. Local operator knowledge reads
 
-### 4.1 Namespace helpers
+These routes read kview-owned local state only. They do not call Kubernetes and
+must remain safe in read-only/RBAC-constrained clusters.
+
+| Route | Behavior |
+|-------|----------|
+| `GET /api/investigations/snapshots` | Lists local investigation snapshots for the active context, optionally filtered by primary resource `kind`, `namespace`, and `name`. Source is kview's local investigation snapshot store, not Kubernetes. |
+| `GET /api/investigations/snapshots/{id}` | Returns one local investigation snapshot by id, or `404` if absent. Source is kview's local investigation snapshot store. |
+
+`POST` and `DELETE` on the same snapshot collection mutate only local kview
+operator state; they do not write annotations or any other Kubernetes object.
+
+---
+
+## 5. Explicit direct-read exceptions (kube in handler)
+
+### 5.1 Namespace helpers
 
 | Route | Reason |
 |-------|--------|
 | `GET /api/namespaces/{name}` | Namespace **detail** for raw metadata/conditions/YAML (intentional direct read, lazy-loaded by the UI). |
 | `GET /api/namespaces/{name}/events` | Aggregated namespace event list from Kubernetes Events in that namespace (intentional direct read, lazy-loaded by the UI). |
 
-### 4.2 Deferred catalog reads
+### 5.2 Deferred catalog reads
 
 | Route | Reason |
 |-------|--------|
 | `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. Rows are grouped by chart name and expose version rollups. If direct catalog read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived chart rows from cached Helm release snapshots instead. |
 | `GET /api/helmcharts/{name}` | Cluster-scoped Helm chart detail; direct Helm release storage read for one chart name. Version details include exact release deployments and release-backed manifests when release storage is visible. If direct detail read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived details; the UI can still hydrate a selected release manifest through `GET /api/namespaces/{ns}/helmreleases/{name}` when that namespaced read is allowed. |
 
-### 4.3 Cluster-scoped detail families
+### 5.3 Cluster-scoped detail families
 
 | Routes (representative) | Notes |
 |-------------------------|-------|
@@ -117,7 +132,7 @@ Background row enrichment is **narrow and user-aligned**:
 | `GET /api/customresourcedefinitions/{name}`, events, yaml | CRD cluster-scope detail surfaces; list is dataplane-backed. |
 | `GET /api/persistentvolumes/{name}`, events, yaml | Storage cluster-scope detail surfaces; list is dataplane-backed. |
 
-### 4.4 Detail, events, YAML, relations
+### 5.4 Detail, events, YAML, relations
 
 For resources that have them, these remain **direct** `kube` reads:
 
@@ -155,7 +170,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 - `GET /api/namespaces/{ns}/cronjobs/{name}` → `detailSignals` from
   `DetectCronJobDetailSignals`.
 
-### 4.5 Product and control-plane APIs
+### 5.5 Product and control-plane APIs
 
 | Route | Substrate |
 |-------|-----------|

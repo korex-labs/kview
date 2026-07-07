@@ -9,6 +9,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/investigation"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/jobdebug"
 	"github.com/korex-labs/kview/v5/internal/runtime"
@@ -37,6 +38,7 @@ type Server struct {
 	dp             dataplane.DataPlaneManager
 	sessions       session.Manager
 	jobRuns        *jobdebug.Manager
+	investigations investigation.Store
 	readOnly       bool
 	deniedLogMu    sync.Mutex
 	deniedLogUntil map[string]time.Time
@@ -58,6 +60,7 @@ func New(mgr *cluster.Manager, rt runtime.RuntimeManager, token string) *Server 
 		dp:             dpMgr,
 		sessions:       session.NewInMemoryManager(rt.Registry()),
 		jobRuns:        jobdebug.NewManager(),
+		investigations: investigation.NewFileStore(""),
 		deniedLogUntil: map[string]time.Time{},
 		clusterOnline:  map[string]bool{},
 	}

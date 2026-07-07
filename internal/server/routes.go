@@ -30,6 +30,7 @@ func (s *Server) Router() http.Handler {
 		// Projections must not perform hidden live kube reads; use snapshots only.
 
 		s.registerActivityAndDataplaneRoutes(api)
+		s.registerInvestigationRoutes(api)
 		s.registerSessionRoutes(api)
 		s.registerPerformanceRoutes(api)
 		s.registerNamespaceRoutes(api)
