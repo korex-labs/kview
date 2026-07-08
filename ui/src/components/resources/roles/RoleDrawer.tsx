@@ -148,6 +148,7 @@ export default function RoleDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="roles"
+        token={props.token}
         title={
           <>
             Role: {name || "-"}{" "}

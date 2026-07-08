@@ -17,6 +17,8 @@ import { AppButton } from "./AppActions";
 import InfoHint from "./InfoHint";
 import Section from "./Section";
 import { useActiveContext } from "../../activeContext";
+import { listResourceInvestigationSnapshots } from "../../investigationSnapshots";
+import type { InvestigationSnapshot } from "../../types/api";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import {
   getResourceMemoryRecord,
@@ -77,14 +79,115 @@ function useResourceMemory(target: ResourceMemoryTarget | null): ResourceMemoryR
   return useMemo(() => (target ? getResourceMemoryRecord(store, target) : null), [store, target]);
 }
 
+function useResourceInvestigationSnapshots(token: string | undefined, target: ResourceMemoryTarget | null) {
+  const [items, setItems] = useState<InvestigationSnapshot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!token || !target) {
+      setItems([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    listResourceInvestigationSnapshots(token, {
+      resource: target.resource,
+      namespace: target.namespace || "",
+      name: target.name,
+    })
+      .then((snapshots) => {
+        if (!cancelled) setItems(snapshots);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setItems([]);
+          setError(String((err as Error | undefined)?.message || err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, target]);
+
+  return { items, loading, error };
+}
+
+function snapshotStateColor(state?: string): "default" | "info" | "warning" | "error" | "success" {
+  switch (state) {
+    case "resolved": return "success";
+    case "ignored": return "default";
+    case "known": return "info";
+    case "watching": return "warning";
+    case "investigating":
+    default: return "warning";
+  }
+}
+
+function InvestigationSnapshotsSection({ token, target }: { token?: string; target: ResourceMemoryTarget }) {
+  const { items, loading, error } = useResourceInvestigationSnapshots(token, target);
+  const hasItems = items.length > 0;
+  if (!token) return null;
+
+  return (
+    <Section
+      title="Investigation snapshots"
+      dividerPlacement="content"
+      actions={hasItems ? <Chip size="small" color="info" variant="outlined" label={`${items.length} saved`} /> : null}
+      sx={{ mt: 1 }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: hasItems || loading || error ? 1 : 0 }}>
+        Local saved investigations for this resource and context. These are kview operator notes, not Kubernetes objects.
+      </Typography>
+      {loading ? <Typography variant="body2" color="text.secondary">Loading saved investigations…</Typography> : null}
+      {error ? <Typography variant="body2" color="error">Could not load snapshots: {error}</Typography> : null}
+      {!loading && !error && !hasItems ? (
+        <Typography variant="body2" color="text.secondary">
+          No saved investigation snapshots for this resource yet.
+        </Typography>
+      ) : null}
+      {hasItems ? (
+        <Stack spacing={1}>
+          {items.map((item) => (
+            <Box key={item.id || `${item.title}-${item.createdAt}`} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1, bgcolor: "background.paper" }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0, flexWrap: "wrap" }}>
+                <Chip size="small" color={snapshotStateColor(item.triageState)} variant="outlined" label={item.triageState || "investigating"} />
+                <Typography variant="body2" sx={{ fontWeight: 700, overflowWrap: "anywhere", flexGrow: 1, minWidth: 180 }}>
+                  {item.title || item.signal?.title || item.signal?.type || "Saved investigation"}
+                </Typography>
+              </Stack>
+              {item.operatorNote ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, overflowWrap: "anywhere", lineHeight: 1.45 }}>
+                  {item.operatorNote}
+                </Typography>
+              ) : null}
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
+                Saved {formatUpdatedAt(item.createdAt)} · {item.signal?.type || "signal"}
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
+      ) : null}
+    </Section>
+  );
+}
+
 export function ResourceMemoryPanel({
   resource,
   namespace,
   name,
+  token,
 }: {
   resource: ListResourceKey;
   namespace?: string | null;
   name?: string | null;
+  token?: string;
 }) {
   const context = useActiveContext();
   const target = useMemo<ResourceMemoryTarget | null>(() => {
@@ -117,15 +220,16 @@ export function ResourceMemoryPanel({
   };
 
   return (
-    <Section
-      title="Operator notes"
-      dividerPlacement="content"
-      actions={record ? <Chip size="small" color={statusColor(record.status)} variant="outlined" label={resourceMemoryStatusLabel(record.status)} /> : null}
-      sx={{
-        borderColor: hasContent ? "warning.main" : "var(--panel-border)",
-        bgcolor: hasContent ? "rgba(255, 193, 7, 0.06)" : undefined,
-      }}
-    >
+    <>
+      <Section
+        title="Operator notes"
+        dividerPlacement="content"
+        actions={record ? <Chip size="small" color={statusColor(record.status)} variant="outlined" label={resourceMemoryStatusLabel(record.status)} /> : null}
+        sx={{
+          borderColor: hasContent ? "warning.main" : "var(--panel-border)",
+          bgcolor: hasContent ? "rgba(255, 193, 7, 0.06)" : undefined,
+        }}
+      >
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ alignItems: { xs: "stretch", sm: "flex-start" } }}>
         <FormControl size="small" sx={{ flex: "0 0 220px" }}>
           <InputLabel id="resource-memory-status-label">
@@ -187,7 +291,9 @@ export function ResourceMemoryPanel({
           </Stack>
         </>
       ) : null}
-    </Section>
+      </Section>
+      <InvestigationSnapshotsSection token={token} target={target} />
+    </>
   );
 }
 

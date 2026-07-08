@@ -245,6 +245,7 @@ export default function StatefulSetDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="statefulsets"
+        token={props.token}
         title={
           <>
             StatefulSet: {name || "-"}{" "}

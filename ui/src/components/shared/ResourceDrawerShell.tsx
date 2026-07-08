@@ -42,6 +42,7 @@ export type ResourceDrawerShellProps = {
   resourceIdentity?: ResourceDrawerIdentity;
   dynamicLinks?: ResourceDrawerIdentity;
   headerActions?: React.ReactNode;
+  token?: string;
   onClose: () => void;
   children: React.ReactNode;
   /**
@@ -99,6 +100,7 @@ export default function ResourceDrawerShell({
   resourceIdentity,
   dynamicLinks,
   headerActions,
+  token,
   onClose,
   children,
   contentWidth = RESOURCE_DRAWER_WIDTH,
@@ -269,9 +271,10 @@ export default function ResourceDrawerShell({
         resource={drawerIdentity.resource}
         namespace={drawerIdentity.namespace}
         name={drawerIdentity.name}
+        token={token}
       />
     ) : null
-  ), [drawerIdentity?.name, drawerIdentity?.namespace, drawerIdentity?.resource, showOperatorNotesTab]);
+  ), [drawerIdentity?.name, drawerIdentity?.namespace, drawerIdentity?.resource, showOperatorNotesTab, token]);
 
   const renderChildrenWithNotesTab = useCallback((node: React.ReactNode): React.ReactNode => {
     if (!showOperatorNotesTab || !notesPanel || !React.isValidElement(node)) return node;

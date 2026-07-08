@@ -164,6 +164,7 @@ export default function RoleBindingDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="rolebindings"
+        token={props.token}
         title={
           <>
             RoleBinding: {name || "-"}{" "}

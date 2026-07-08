@@ -146,6 +146,7 @@ export default function ClusterRoleBindingDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="clusterrolebindings"
         title={<>ClusterRoleBinding: {name || "-"}</>}
         resourceIdentity={{ resource: "clusterrolebindings", name }}

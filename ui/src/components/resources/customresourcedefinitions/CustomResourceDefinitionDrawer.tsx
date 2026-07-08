@@ -185,6 +185,7 @@ export default function CustomResourceDefinitionDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="customresourcedefinitions"
         title={<>CRD: {name || "-"}</>}
         resourceIdentity={{ resource: "customresourcedefinitions", name }}

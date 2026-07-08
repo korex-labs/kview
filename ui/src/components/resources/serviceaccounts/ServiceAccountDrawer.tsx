@@ -197,6 +197,7 @@ export default function ServiceAccountDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="serviceaccounts"
+        token={props.token}
         title={
           <>
             ServiceAccount: {name || "-"}{" "}

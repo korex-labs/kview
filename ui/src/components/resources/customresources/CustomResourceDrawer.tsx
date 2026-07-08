@@ -188,6 +188,7 @@ export default function CustomResourceDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="customresources"
         title={title}
         onClose={props.onClose}

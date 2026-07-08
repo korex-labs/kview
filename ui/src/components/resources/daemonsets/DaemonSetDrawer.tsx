@@ -236,6 +236,7 @@ export default function DaemonSetDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="daemonsets"
+        token={props.token}
         title={
           <>
             DaemonSet: {name || "-"}{" "}

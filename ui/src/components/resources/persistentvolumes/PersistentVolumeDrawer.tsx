@@ -237,6 +237,7 @@ export default function PersistentVolumeDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="persistentvolumes"
         title={<>PV: {name || "-"}</>}
         resourceIdentity={{ resource: "persistentvolumes", name }}

@@ -246,6 +246,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
     <>
       <RightDrawer open={props.open} onClose={props.onClose}>
         <ResourceDrawerShell resourceIcon="horizontalpodautoscalers"
+          token={props.token}
           title={
             <>
               HPA: {name || "-"}{" "}

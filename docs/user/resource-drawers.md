@@ -12,6 +12,8 @@ objects, events, metadata, YAML, and supported actions.
 
 - **Overview tab**: starts with actions and attention-worthy state, then shows
   key operational details.
+- **Notes tab**: stores local operator notes and shows any saved investigation
+  snapshots for the current context/resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,
   reason, optional calculated detail, **Acknowledge signal**, and
   **Investigate signal**.

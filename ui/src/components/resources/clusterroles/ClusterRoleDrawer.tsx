@@ -139,6 +139,7 @@ export default function ClusterRoleDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="clusterroles"
         title={<>ClusterRole: {name || "-"}</>}
         resourceIdentity={{ resource: "clusterroles", name }}

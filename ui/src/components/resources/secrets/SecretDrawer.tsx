@@ -172,6 +172,7 @@ export default function SecretDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="secrets"
+        token={props.token}
         title={
           <>
             Secret: {name || "-"}{" "}

@@ -1446,6 +1446,7 @@ export default function PodDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="pods"
         title={
           <>

@@ -1,7 +1,8 @@
-import { apiPost } from "./api";
+import { apiGet, apiPost } from "./api";
 import type {
   DashboardSignalItem,
   InvestigationSnapshot,
+  InvestigationSnapshotListResponse,
   InvestigationSnapshotResponse,
   InvestigationSnapshotResourceRef,
   SignalInvestigationResourceRef,
@@ -9,6 +10,12 @@ import type {
 } from "./types/api";
 
 export const INVESTIGATION_SNAPSHOT_SOURCE = "investigate-signal";
+
+export type InvestigationSnapshotResourceTarget = {
+  resource: string;
+  namespace?: string | null;
+  name: string;
+};
 
 function compactText(value: unknown, fallback = ""): string {
   if (typeof value !== "string") return fallback;
@@ -90,4 +97,20 @@ export async function saveInvestigationSnapshot(token: string, result: SignalInv
   );
   if (!response.item) throw new Error("Investigation snapshot save returned no item");
   return response.item;
+}
+
+export async function listResourceInvestigationSnapshots(
+  token: string,
+  target: InvestigationSnapshotResourceTarget,
+): Promise<InvestigationSnapshot[]> {
+  if (!token || !target.name || !target.resource) return [];
+  const params = new URLSearchParams();
+  params.set("kind", target.resource);
+  if (target.namespace) params.set("namespace", target.namespace);
+  params.set("name", target.name);
+  const response = await apiGet<InvestigationSnapshotListResponse>(
+    `/api/investigations/snapshots?${params.toString()}`,
+    token,
+  );
+  return Array.isArray(response.items) ? response.items : [];
 }

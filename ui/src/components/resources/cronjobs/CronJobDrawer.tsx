@@ -256,6 +256,7 @@ export default function CronJobDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="cronjobs"
+        token={props.token}
         title={
           <>
             CronJob: {name || "-"}{" "}

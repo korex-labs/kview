@@ -273,6 +273,7 @@ export default function ReplicaSetDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="replicasets"
+        token={props.token}
         title={
           <>
             ReplicaSet: {name || "-"}{" "}

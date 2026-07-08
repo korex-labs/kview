@@ -205,6 +205,7 @@ export default function IngressDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="ingresses"
+        token={props.token}
         title={
           <>
             Ingress: {name || "-"}{" "}

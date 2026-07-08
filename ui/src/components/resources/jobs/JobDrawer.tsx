@@ -274,6 +274,7 @@ export default function JobDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="jobs"
+        token={props.token}
         title={
           <>
             Job: {name || "-"}{" "}

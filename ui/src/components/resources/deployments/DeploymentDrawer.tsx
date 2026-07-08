@@ -305,6 +305,7 @@ export default function DeploymentDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="deployments"
         title={
           <>

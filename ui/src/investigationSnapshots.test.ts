@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildInvestigationSnapshot } from "./investigationSnapshots";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildInvestigationSnapshot, listResourceInvestigationSnapshots } from "./investigationSnapshots";
 import type { SignalInvestigationResult } from "./types/api";
 
 function sampleInvestigation(): SignalInvestigationResult {
@@ -41,6 +41,10 @@ function sampleInvestigation(): SignalInvestigationResult {
     generatedAt: 3000,
   };
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("buildInvestigationSnapshot", () => {
   it("maps an investigation result into a local snapshot payload", () => {
@@ -85,5 +89,26 @@ describe("buildInvestigationSnapshot", () => {
     expect(snapshot.signal.type).toBe("Quota pressure");
     expect(snapshot.title).toBe("Investigation: Quota pressure on Namespace app-prod");
     expect(snapshot.primaryResource).toEqual({ kind: "namespaces", namespace: "", name: "app-prod" });
+  });
+});
+
+describe("listResourceInvestigationSnapshots", () => {
+  it("loads resource-scoped snapshots through the local API", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      active: "kind-dev",
+      items: [{ id: "snap-1", title: "Investigation", triageState: "investigating" }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(listResourceInvestigationSnapshots("token", {
+      resource: "pods",
+      namespace: "app-prod",
+      name: "api-7f",
+    })).resolves.toEqual([{ id: "snap-1", title: "Investigation", triageState: "investigating" }]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/investigations/snapshots?kind=pods&namespace=app-prod&name=api-7f",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token" }) }),
+    );
   });
 });

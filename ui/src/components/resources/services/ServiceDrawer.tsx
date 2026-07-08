@@ -373,6 +373,7 @@ export default function ServiceDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="services"
+        token={props.token}
         title={
           <>
             Service: {name || "-"}{" "}

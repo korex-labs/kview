@@ -364,6 +364,7 @@ export default function NamespaceDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell
+        token={props.token}
         resourceIcon="namespaces"
         title={<>Namespace: {name || "-"}</>}
         headerMeta={<ResourceDrawerTags resource="namespaces" name={name} labels={details?.metadata?.labels} annotations={details?.metadata?.annotations} />}

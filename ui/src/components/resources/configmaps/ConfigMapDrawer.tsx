@@ -215,6 +215,7 @@ export default function ConfigMapDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="configmaps"
+        token={props.token}
         title={
           <>
             ConfigMap: {name || "-"}{" "}

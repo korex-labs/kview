@@ -258,6 +258,7 @@ export default function HelmReleaseDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="helm"
+        token={props.token}
         title={
           <>
             Helm Release: {name || "-"}{" "}

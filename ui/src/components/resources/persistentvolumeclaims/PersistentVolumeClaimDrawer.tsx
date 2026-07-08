@@ -247,6 +247,7 @@ export default function PersistentVolumeClaimDrawer(props: {
   return (
     <RightDrawer open={props.open} onClose={props.onClose}>
       <ResourceDrawerShell resourceIcon="persistentvolumeclaims"
+        token={props.token}
         title={
           <>
             PVC: {name || "-"}{" "}
