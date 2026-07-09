@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 	go.etcd.io/bbolt v1.4.3
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	helm.sh/helm/v3 v3.21.1
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
