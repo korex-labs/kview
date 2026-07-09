@@ -16,6 +16,11 @@ import type { ApiDataplaneSearchItem, ApiDataplaneSearchResponse } from "../../t
 import { buildCommandSuggestions, parseKeyboardCommand, type CommandSuggestion, type KeyboardCommandAction } from "../../keyboard/commands";
 import { useKeyboardControls } from "../../keyboard/KeyboardProvider";
 import { getResourceLabel, type ListResourceKey } from "../../utils/k8sResources";
+import {
+  listInvestigationSnapshots,
+  searchInvestigationSnapshots,
+  type InvestigationSnapshotSearchItem,
+} from "../../investigationSnapshots";
 
 const searchLimit = 10;
 const searchDebounceMs = 350;
@@ -27,6 +32,7 @@ export type GlobalSearchFocusRequest = {
 
 type PaletteSuggestion =
   | { kind: "cached-resource"; key: string; item: ApiDataplaneSearchItem }
+  | { kind: "investigation-snapshot"; key: string; item: InvestigationSnapshotSearchItem }
   | { kind: "command"; key: string; suggestion: CommandSuggestion };
 
 type Props = {
@@ -56,6 +62,26 @@ function resourceSuggestionKey(item: ApiDataplaneSearchItem): string {
   return ["cached-resource", item.cluster, item.kind, item.namespace || "", item.name].join("\x00");
 }
 
+function snapshotSuggestionKey(item: InvestigationSnapshotSearchItem): string {
+  const snapshot = item.snapshot;
+  return ["investigation-snapshot", snapshot.context || "", snapshot.id || snapshot.createdAt || "", snapshot.primaryResource?.kind || "", snapshot.primaryResource?.namespace || "", snapshot.primaryResource?.name || ""].join("\x00");
+}
+
+function snapshotResourceItem(item: InvestigationSnapshotSearchItem): ApiDataplaneSearchItem {
+  const snapshot = item.snapshot;
+  const ref = snapshot.primaryResource;
+  return {
+    cluster: snapshot.context || "local",
+    kind: ref.kind,
+    namespace: ref.namespace,
+    name: ref.name,
+    signalSeverity: snapshot.signal?.severity,
+    signalCount: 1,
+    needsAttention: snapshot.triageState !== "resolved" && snapshot.triageState !== "ignored",
+    matchReason: item.matchReason,
+  };
+}
+
 function labelForSearchKind(kind: string): string {
   if (kind === "helmreleases") return "Helm Releases";
   return getResourceLabel(kind as ListResourceKey);
@@ -67,11 +93,14 @@ function resourceSuggestionDescription(item: ApiDataplaneSearchItem): string {
 }
 
 function paletteSuggestionCategory(option: PaletteSuggestion): string {
-  return option.kind === "cached-resource" ? "Cached Resources" : option.suggestion.category;
+  if (option.kind === "cached-resource") return "Cached Resources";
+  if (option.kind === "investigation-snapshot") return "Investigation Snapshots";
+  return option.suggestion.category;
 }
 
 function optionToAction(option: PaletteSuggestion): KeyboardCommandAction {
   if (option.kind === "cached-resource") return { type: "resource", item: option.item };
+  if (option.kind === "investigation-snapshot") return { type: "resource", item: snapshotResourceItem(option.item) };
   return option.suggestion.action;
 }
 
@@ -109,6 +138,13 @@ export default function GlobalSearchInput({
     activeContext,
     disabled: disabled || isCommandQuery(query),
   });
+  const snapshotItems = useInvestigationSnapshotSearch({
+    open,
+    query,
+    token,
+    activeContext,
+    disabled: disabled || isCommandQuery(query),
+  });
 
   useEffect(() => {
     if (!focusRequest?.nonce || disabled || !activeContext) return;
@@ -131,14 +167,19 @@ export default function GlobalSearchInput({
       key: resourceSuggestionKey(item),
       item,
     }));
+    const snapshotSuggestions = snapshotItems.map((item) => ({
+      kind: "investigation-snapshot" as const,
+      key: snapshotSuggestionKey(item),
+      item,
+    }));
     const commandOptions = commandSuggestions.map((suggestion) => ({
       kind: "command" as const,
       key: suggestion.value,
       suggestion,
     }));
     if (isCommandQuery(query)) return commandOptions;
-    return [...resourceSuggestions, ...commandOptions];
-  }, [commandSuggestions, query, resourceItems]);
+    return [...resourceSuggestions, ...snapshotSuggestions, ...commandOptions];
+  }, [commandSuggestions, query, resourceItems, snapshotItems]);
 
   const groupedSuggestions = useMemo(() => {
     const groups: Array<{ category: string; options: PaletteSuggestion[] }> = [];
@@ -201,7 +242,9 @@ export default function GlobalSearchInput({
       getOptionLabel={(option) => {
         if (typeof option === "string") return option;
         if (option.kind === "cached-resource") return option.item.name;
-        return option.suggestion.value;
+        if (option.kind === "investigation-snapshot") return option.item.snapshot.title;
+        if (option.kind === "command") return option.suggestion.value;
+        return "";
       }}
       filterOptions={(options) => options}
       onInputChange={(_, value) => {
@@ -284,9 +327,11 @@ export default function GlobalSearchInput({
         >
           {option.kind === "cached-resource" ? (
             <ResourceOption item={option.item} />
-          ) : (
+          ) : option.kind === "investigation-snapshot" ? (
+            <SnapshotOption item={option.item} />
+          ) : option.kind === "command" ? (
             <CommandOption option={option.suggestion} />
-          )}
+          ) : null}
         </li>
       )}
       renderGroup={(params) => {
@@ -431,6 +476,57 @@ function useDataplaneSearch({
   return { items, loading: loading || loadingMore, error, hasMore, loadMore };
 }
 
+function useInvestigationSnapshotSearch({
+  open,
+  query,
+  token,
+  activeContext,
+  disabled,
+}: {
+  open: boolean;
+  query: string;
+  token: string;
+  activeContext: string;
+  disabled: boolean;
+}) {
+  const [items, setItems] = useState<InvestigationSnapshotSearchItem[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const seqRef = useRef(0);
+  const trimmed = query.trim();
+  const canSearch = open && !disabled && !!activeContext && trimmed.length >= 2;
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    if (!canSearch) {
+      setItems([]);
+      return;
+    }
+    const seq = seqRef.current + 1;
+    seqRef.current = seq;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timer = window.setTimeout(() => {
+      listInvestigationSnapshots(token, activeContext, { signal: controller.signal })
+        .then((snapshots) => {
+          if (controller.signal.aborted || seq !== seqRef.current) return;
+          setItems(searchInvestigationSnapshots(snapshots, trimmed));
+        })
+        .catch((err) => {
+          if (controller.signal.aborted || seq !== seqRef.current || isAbortError(err)) return;
+          setItems([]);
+        });
+    }, searchDebounceMs);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeContext, canSearch, token, trimmed]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  return items;
+}
+
 function severityChipColor(severity?: string): "default" | "error" | "warning" | "info" | "success" {
   switch ((severity || "").toLowerCase()) {
     case "high":
@@ -444,6 +540,33 @@ function severityChipColor(severity?: string): "default" | "error" | "warning" |
     default:
       return "default";
   }
+}
+
+export function SnapshotOption({ item }: { item: InvestigationSnapshotSearchItem }) {
+  const snapshot = item.snapshot;
+  const ref = snapshot.primaryResource;
+  const resourceLabel = ref.namespace ? `${ref.kind} · ${ref.namespace}/${ref.name}` : `${ref.kind} · ${ref.name}`;
+  return (
+    <Box sx={{ minWidth: 0, width: "100%", py: 0.25 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, mb: 0.35 }}>
+        <Typography variant="body2" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {snapshot.title || snapshot.signal?.title || "Saved investigation"}
+        </Typography>
+        <Chip size="small" color="info" variant="outlined" label="snapshot" sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }} />
+        <Chip size="small" variant="outlined" label={`${item.matchReason} match`} sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }} />
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, flexWrap: "wrap" }}>
+        <Chip size="small" color={severityChipColor(snapshot.signal?.severity)} variant="outlined" label={snapshot.signal?.severity || "signal"} sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }} />
+        <Chip size="small" variant="outlined" label={snapshot.triageState || "investigating"} sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }} />
+        <Chip size="small" variant="outlined" label={resourceLabel} sx={{ height: 20, "& .MuiChip-label": { px: 0.65 } }} />
+      </Box>
+      {snapshot.operatorNote ? (
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {snapshot.operatorNote}
+        </Typography>
+      ) : null}
+    </Box>
+  );
 }
 
 export function ResourceOption({ item }: { item: ApiDataplaneSearchItem }) {

@@ -26,6 +26,8 @@ import { emitFocusLogsTab, emitOpenTerminalSession } from "../../activityEvents"
 import { useConnectionState } from "../../connectionState";
 import { fmtDurationMs } from "../../utils/format";
 import usePageVisible from "../../utils/usePageVisible";
+import { listInvestigationSnapshots } from "../../investigationSnapshots";
+import type { InvestigationSnapshot } from "../../types/api";
 import {
   activityChipSx,
   chipColorForValue,
@@ -285,6 +287,30 @@ function formatSchedulerHealthDetail(snapshot: SchedulerHealthSnapshot) {
   return bits.join(" · ");
 }
 
+function investigationSnapshotActivity(snapshot: InvestigationSnapshot): Activity {
+  const ref = snapshot.primaryResource;
+  const createdAt = new Date(snapshot.createdAt || Date.now()).toISOString();
+  const updatedAt = new Date(snapshot.updatedAt || snapshot.createdAt || Date.now()).toISOString();
+  return {
+    id: `snapshot:${snapshot.id || `${snapshot.context || "local"}:${ref.kind}:${ref.namespace || ""}:${ref.name}`}`,
+    kind: "local",
+    type: "investigation-snapshot",
+    title: snapshot.title || snapshot.signal?.title || "Saved investigation",
+    status: snapshot.triageState || "investigating",
+    createdAt,
+    updatedAt,
+    startedAt: createdAt,
+    resourceType: snapshot.signal?.type || "investigation",
+    metadata: {
+      context: snapshot.context || "",
+      resourceKind: ref.kind || "",
+      namespace: ref.namespace || "",
+      name: ref.name || "",
+      signalSeverity: snapshot.signal?.severity || "",
+    },
+  };
+}
+
 export default function ActivityTabs({
   panelOpen,
   tab,
@@ -382,9 +408,13 @@ export default function ActivityTabs({
     if (offline) return;
     setLoading(true);
     setErr(null);
-    apiGet<{ items: Activity[] }>("/api/activity", token)
-      .then((res) => {
-        setActivities(res.items || []);
+    Promise.all([
+      apiGet<{ items: Activity[] }>("/api/activity", token),
+      listInvestigationSnapshots(token).catch(() => []),
+    ])
+      .then(([res, snapshots]) => {
+        const snapshotActivities = snapshots.map(investigationSnapshotActivity);
+        setActivities([...(res.items || []), ...snapshotActivities]);
       })
       .catch((e) => {
         // Keep stale activity rows visible while retrying in background.

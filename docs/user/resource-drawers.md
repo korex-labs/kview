@@ -14,6 +14,8 @@ objects, events, metadata, YAML, and supported actions.
   key operational details.
 - **Notes tab**: stores local operator notes and shows any saved investigation
   snapshots for the current context/resource.
+- **Search and Activity**: saved investigation snapshots can appear in header
+  search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,
   reason, optional calculated detail, **Acknowledge signal**, and
   **Investigate signal**.

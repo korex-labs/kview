@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./api";
+import { apiGet, apiGetWithContext, apiPost } from "./api";
 import type {
   DashboardSignalItem,
   InvestigationSnapshot,
@@ -15,6 +15,11 @@ export type InvestigationSnapshotResourceTarget = {
   resource: string;
   namespace?: string | null;
   name: string;
+};
+
+export type InvestigationSnapshotSearchItem = {
+  snapshot: InvestigationSnapshot;
+  matchReason: string;
 };
 
 function compactText(value: unknown, fallback = ""): string {
@@ -113,4 +118,60 @@ export async function listResourceInvestigationSnapshots(
     token,
   );
   return Array.isArray(response.items) ? response.items : [];
+}
+
+export async function listInvestigationSnapshots(
+  token: string,
+  activeContext = "",
+  opts?: { signal?: AbortSignal },
+): Promise<InvestigationSnapshot[]> {
+  if (!token) return [];
+  const response = activeContext
+    ? await apiGetWithContext<InvestigationSnapshotListResponse>("/api/investigations/snapshots", token, activeContext, opts)
+    : await apiGet<InvestigationSnapshotListResponse>("/api/investigations/snapshots", token, { signal: opts?.signal });
+  return Array.isArray(response.items) ? response.items : [];
+}
+
+function snapshotSearchFields(snapshot: InvestigationSnapshot): Array<{ label: string; value?: string | string[] }> {
+  return [
+    { label: "title", value: snapshot.title },
+    { label: "state", value: snapshot.triageState },
+    { label: "signal", value: [snapshot.signal?.type, snapshot.signal?.title, snapshot.signal?.severity, snapshot.signal?.category].filter(Boolean) as string[] },
+    { label: "resource", value: [snapshot.primaryResource?.kind, snapshot.primaryResource?.namespace, snapshot.primaryResource?.name].filter(Boolean) as string[] },
+    { label: "related signal", value: snapshot.relatedSignalTypes || [] },
+    { label: "note", value: snapshot.operatorNote },
+  ];
+}
+
+export function searchInvestigationSnapshots(
+  snapshots: InvestigationSnapshot[],
+  query: string,
+  limit = 5,
+): InvestigationSnapshotSearchItem[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return [];
+  const out: InvestigationSnapshotSearchItem[] = [];
+  for (const snapshot of snapshots) {
+    const fields = snapshotSearchFields(snapshot);
+    let firstReason = "snapshot";
+    let matchedAll = true;
+    for (const term of terms) {
+      let matchedTerm = false;
+      for (const field of fields) {
+        const values = Array.isArray(field.value) ? field.value : [field.value || ""];
+        if (!values.some((value) => value.toLowerCase().includes(term))) continue;
+        if (firstReason === "snapshot") firstReason = field.label;
+        matchedTerm = true;
+        break;
+      }
+      if (!matchedTerm) {
+        matchedAll = false;
+        break;
+      }
+    }
+    if (!matchedAll) continue;
+    out.push({ snapshot, matchReason: firstReason });
+    if (out.length >= limit) break;
+  }
+  return out;
 }

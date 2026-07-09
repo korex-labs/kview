@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildInvestigationSnapshot, listResourceInvestigationSnapshots } from "./investigationSnapshots";
+import { buildInvestigationSnapshot, listResourceInvestigationSnapshots, searchInvestigationSnapshots } from "./investigationSnapshots";
 import type { SignalInvestigationResult } from "./types/api";
 
 function sampleInvestigation(): SignalInvestigationResult {
@@ -89,6 +89,24 @@ describe("buildInvestigationSnapshot", () => {
     expect(snapshot.signal.type).toBe("Quota pressure");
     expect(snapshot.title).toBe("Investigation: Quota pressure on Namespace app-prod");
     expect(snapshot.primaryResource).toEqual({ kind: "namespaces", namespace: "", name: "app-prod" });
+  });
+});
+
+describe("searchInvestigationSnapshots", () => {
+  it("matches snapshots by signal, resource, state, and note text", () => {
+    const snapshot = buildInvestigationSnapshot(sampleInvestigation());
+    snapshot.id = "snap-1";
+    snapshot.context = "kind-dev";
+    snapshot.triageState = "known";
+    snapshot.operatorNote = "Known startup regression after deploy.";
+
+    expect(searchInvestigationSnapshots([snapshot], "crashloop api")).toEqual([
+      { snapshot, matchReason: "title" },
+    ]);
+    expect(searchInvestigationSnapshots([snapshot], "known regression")).toEqual([
+      { snapshot, matchReason: "state" },
+    ]);
+    expect(searchInvestigationSnapshots([snapshot], "missing")).toEqual([]);
   });
 });
 
