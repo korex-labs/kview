@@ -159,6 +159,11 @@ make build-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64
 
 The `local-*` Makefile targets are implementation details for the Docker container or explicit maintainer debugging. AI coding agents must not call host `go`, `npm`, `node`, or `local-*` targets unless the project owner explicitly asks for a host-toolchain exception.
 
+The UI uses TypeScript 7's native compiler for `npm run typecheck`. TypeScript 6
+remains installed side-by-side because `typescript-eslint` still depends on its
+programmatic API; `npm run typecheck:legacy` is available for temporary diagnostic
+parity checks during the TypeScript 7.0 transition.
+
 ### Go linting
 
 Run Go lint checks through the pinned Docker toolchain:

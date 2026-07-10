@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
+    "typecheck": "node ./node_modules/@typescript/native/bin/tsc --noEmit && node ./node_modules/@typescript/native/bin/tsc --noEmit -p tsconfig.e2e.json",
+    "typecheck:legacy": "node ./node_modules/typescript/bin/tsc --noEmit && node ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint src e2e playwright.config.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -41,6 +42,7 @@
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.5.0",
