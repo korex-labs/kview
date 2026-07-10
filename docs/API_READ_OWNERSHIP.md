@@ -98,11 +98,14 @@ must remain safe in read-only/RBAC-constrained clusters.
 
 | Route | Behavior |
 |-------|----------|
-| `GET /api/investigations/snapshots` | Lists local investigation snapshots for the active context, optionally filtered by primary resource `kind`, `namespace`, and `name`. Source is kview's local investigation snapshot store, not Kubernetes. |
+| `GET /api/investigations/snapshots` | Lists local investigation snapshots for the active context, optionally filtered by primary resource `kind`, `namespace`, and `name`. Source is kview's local investigation snapshot store, not Kubernetes. The Settings transfer UI uses this route when exporting the explicit **Investigation snapshots** transfer section. |
 | `GET /api/investigations/snapshots/{id}` | Returns one local investigation snapshot by id, or `404` if absent. Source is kview's local investigation snapshot store. |
 
 `POST` and `DELETE` on the same snapshot collection mutate only local kview
 operator state; they do not write annotations or any other Kubernetes object.
+Settings transfer import uses the same local mutation path for the explicit
+**Investigation snapshots** section and applies duplicate handling in the UI
+before saving imported records.
 
 ---
 

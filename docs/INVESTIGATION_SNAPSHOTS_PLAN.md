@@ -215,6 +215,8 @@ make check DOCKER_BUILD=0
 
 **Objective:** Treat investigation snapshots as explicit local operator knowledge that can move with settings/profile transfer.
 
+**Status:** Implemented. Settings transfer exposes an explicit **Investigation snapshots** section, exports snapshots from the local snapshot store, imports them through the same local save path, and applies duplicate/conflict handling before save.
+
 **Likely files:**
 
 - settings export/import helpers;

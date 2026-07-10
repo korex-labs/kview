@@ -1,5 +1,6 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
 import { isSection, type AppStateV1 } from "./state";
+import type { InvestigationSnapshot } from "./types/api";
 
 export type SettingsScopeMode = "all" | "cluster" | "namespace";
 export type SettingsResourceScopeMode = "any" | "selected";
@@ -21,7 +22,8 @@ export type SettingsTransferSection =
   | "favourites"
   | "savedViews"
   | "signalSettings"
-  | "signalAcknowledgements";
+  | "signalAcknowledgements"
+  | "investigationSnapshots";
 
 export type SignalOverride = {
   enabled?: boolean;
@@ -281,6 +283,7 @@ export type SettingsTransferBundleV1 = {
       contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>>;
     };
     signalAcknowledgements: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+    investigationSnapshots: InvestigationSnapshot[];
   }>;
 };
 
@@ -2348,6 +2351,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
   { id: "signalAcknowledgements", label: "Signal acknowledgements" },
+  { id: "investigationSnapshots", label: "Investigation snapshots" },
 ];
 
 export const settingsTransferMergeStrategies: Array<{ id: SettingsTransferMergeStrategy; label: string }> = [
@@ -2361,6 +2365,7 @@ export function exportSettingsTransferJSON(input: {
   appState: AppStateV1;
   sections: SettingsTransferSection[];
   signalAcknowledgements?: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+  investigationSnapshots?: InvestigationSnapshot[];
 }): string {
   const selected = new Set(input.sections);
   const serialized = serializeUserSettingsV2(input.settings);
@@ -2394,6 +2399,9 @@ export function exportSettingsTransferJSON(input: {
   }
   if (selected.has("signalAcknowledgements")) {
     bundle.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(input.signalAcknowledgements);
+  }
+  if (selected.has("investigationSnapshots")) {
+    bundle.sections.investigationSnapshots = normalizeInvestigationSnapshotTransfer(input.investigationSnapshots);
   }
   return `${JSON.stringify(bundle, null, 2)}\n`;
 }
@@ -2459,6 +2467,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   }
   if ("signalAcknowledgements" in sections) {
     out.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(sections.signalAcknowledgements);
+  }
+  if ("investigationSnapshots" in sections) {
+    out.sections.investigationSnapshots = normalizeInvestigationSnapshotTransfer(sections.investigationSnapshots);
   }
   if (Object.keys(out.sections).length === 0) return null;
   return out;
@@ -2763,6 +2774,93 @@ function normalizeSignalSettingsTransfer(input: unknown): NonNullable<SettingsTr
     global: parsed.dataplane.global.signals,
     contextOverrides: normalizedContextOverrides,
   };
+}
+
+function normalizeInvestigationTriageState(value: unknown): InvestigationSnapshot["triageState"] {
+  switch (value) {
+    case "watching":
+    case "investigating":
+    case "known":
+    case "resolved":
+    case "ignored":
+      return value;
+    default:
+      return "investigating";
+  }
+}
+
+function cleanTransferText(value: unknown, maxLength: number): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function cleanTransferBlock(value: unknown, maxLength: number): string {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function normalizeInvestigationResourceRef(input: unknown): InvestigationSnapshot["primaryResource"] | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Partial<InvestigationSnapshot["primaryResource"]>;
+  const ref = {
+    kind: cleanTransferText(raw.kind, 128),
+    namespace: cleanTransferText(raw.namespace, 128),
+    name: cleanTransferText(raw.name, 256),
+    uid: cleanTransferText(raw.uid, 256),
+  };
+  if (!ref.kind || !ref.name) return null;
+  return ref;
+}
+
+function normalizeInvestigationSnapshotTransfer(input: unknown): InvestigationSnapshot[] {
+  if (!Array.isArray(input)) return [];
+  const out: InvestigationSnapshot[] = [];
+  const seen = new Set<string>();
+  for (const item of input) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const raw = item as Partial<InvestigationSnapshot>;
+    const primaryResource = normalizeInvestigationResourceRef(raw.primaryResource);
+    const signalRaw = raw.signal && typeof raw.signal === "object" && !Array.isArray(raw.signal) ? raw.signal : {};
+    const signal = {
+      type: cleanTransferText((signalRaw as Partial<InvestigationSnapshot["signal"]>).type, 128),
+      title: cleanTransferText((signalRaw as Partial<InvestigationSnapshot["signal"]>).title, 240),
+      severity: cleanTransferText((signalRaw as Partial<InvestigationSnapshot["signal"]>).severity, 32),
+      category: cleanTransferText((signalRaw as Partial<InvestigationSnapshot["signal"]>).category, 64),
+      observedAt: typeof (signalRaw as Partial<InvestigationSnapshot["signal"]>).observedAt === "number"
+        ? Math.floor((signalRaw as Partial<InvestigationSnapshot["signal"]>).observedAt || 0)
+        : undefined,
+    };
+    const markdown = cleanTransferBlock(raw.markdown, 200000);
+    const title = cleanTransferText(raw.title, 240);
+    if (!primaryResource || !signal.type || !markdown || !title) continue;
+    const snapshot: InvestigationSnapshot = {
+      id: cleanTransferText(raw.id, 128) || undefined,
+      context: cleanTransferText(raw.context, 128) || undefined,
+      createdAt: typeof raw.createdAt === "number" && raw.createdAt > 0 ? Math.floor(raw.createdAt) : undefined,
+      updatedAt: typeof raw.updatedAt === "number" && raw.updatedAt > 0 ? Math.floor(raw.updatedAt) : undefined,
+      title,
+      triageState: normalizeInvestigationTriageState(raw.triageState),
+      signal,
+      primaryResource,
+      relatedResources: Array.isArray(raw.relatedResources)
+        ? raw.relatedResources.map(normalizeInvestigationResourceRef).filter((ref): ref is InvestigationSnapshot["primaryResource"] => !!ref).slice(0, 64)
+        : [],
+      relatedSignalTypes: Array.isArray(raw.relatedSignalTypes)
+        ? Array.from(new Set(raw.relatedSignalTypes.map((value) => cleanTransferText(value, 128)).filter(Boolean))).slice(0, 64)
+        : [],
+      markdown,
+      operatorNote: cleanTransferBlock(raw.operatorNote, 8000) || undefined,
+      runbookUrls: Array.isArray(raw.runbookUrls)
+        ? Array.from(new Set(raw.runbookUrls.map((value) => cleanTransferText(value, 2048)).filter(Boolean))).slice(0, 16)
+        : [],
+      source: cleanTransferText(raw.source, 64) || "investigate-signal",
+    };
+    const key = `${snapshot.context || ""}\u0000${snapshot.id || ""}\u0000${snapshot.primaryResource.kind}\u0000${snapshot.primaryResource.namespace || ""}\u0000${snapshot.primaryResource.name}\u0000${snapshot.title}\u0000${snapshot.createdAt || 0}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(snapshot);
+  }
+  return out.slice(0, 500);
 }
 
 function normalizeSignalAcknowledgementTransfer(input: unknown): Record<string, Record<string, SignalAcknowledgementTransferRecord>> {

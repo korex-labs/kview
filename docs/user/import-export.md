@@ -17,8 +17,8 @@ at export time.
 
 Exportable sections include Smart Filters, Resource Tags, Resource Macros,
 Dynamic Links, Saved Views, Custom Commands, Custom Actions, Dataplane signal
-settings, favourite namespaces, recent namespaces, and signal acknowledgements
-when available.
+settings, favourite namespaces, recent namespaces, signal acknowledgements when
+available, and saved Investigation Snapshots.
 
 When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
@@ -30,11 +30,18 @@ Merge strategies decide how imported sections interact with local settings:
 
 - **Use imported**: replace matching local data with the imported data.
 - **Keep mine**: keep local data when both profiles contain the same item.
-- **Merge**: combine compatible data where possible.
+- **Replace selected sections**: replace the selected local sections with the imported sections.
+
+For Investigation Snapshots, conflicts are detected by snapshot id when present
+and otherwise by context, primary resource, title, and creation time. **Keep
+mine** skips matching local snapshots, **Use imported** writes the imported copy,
+and **Replace selected sections** removes matching-context local snapshots before
+importing the bundle.
 
 Use **Use imported** when you trust the source profile and want to match it.
 Use **Keep mine** when you are trying a shared bundle without overwriting local
-customizations. Use **Merge** when both profiles contain useful definitions.
+customizations. Use **Replace selected sections** when the imported bundle should
+be the source of truth for the selected sections.
 
 ## Full Profile Backup
 
@@ -50,6 +57,8 @@ profile import replaces the current settings profile after confirmation.
   another browser profile.
 - Export **Saved Views** to share both resource-list layouts and dashboard
   signal views without changing broader operator settings.
+- Export **Investigation Snapshots** when handing off recurring incident context,
+  known-fix notes, or a browser profile used during an incident review.
 - Export **Resource Macros** and **Dynamic Links** to share external-link
   templates without changing someone else's local UI preferences.
 - Export a full profile before testing broad Dataplane or signal changes.
@@ -58,8 +67,11 @@ profile import replaces the current settings profile after confirmation.
 
 ## Permission And Data Notes
 
-Import / Export changes local kview settings only. It does not write to
-Kubernetes resources. Imported Custom Commands and Custom Actions can later
+Import / Export changes local kview settings and local operator knowledge only.
+It does not write to Kubernetes resources. Investigation Snapshot import/export
+uses kview's local snapshot store; imported snapshots can appear in resource
+Notes, Search, and Activity, but they are never written as Kubernetes
+annotations or labels. Imported Custom Commands and Custom Actions can later
 trigger Kubernetes API calls or container exec sessions only when a user runs
 them and RBAC allows the operation.
 

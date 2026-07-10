@@ -77,6 +77,14 @@ Rule of thumb: derived projections can support correlation and triage, but the U
 
 Signal responses include a stable `historyKey`, first/last seen timestamps, and optional local acknowledgement fields. Signal acknowledgements are local operator metadata stored in the dataplane persistence database, keyed by cluster/context plus `historyKey`. They do not write Kubernetes annotations or require cluster mutation permissions. `POST /api/dataplane/signals/ack` records an acknowledgement with an optional comment; `DELETE /api/dataplane/signals/ack` clears it. Acknowledgements are pruned with dataplane cache retention.
 
+Saved investigation snapshots are a separate local operator-knowledge store. They
+are created from read-only signal investigation bundles, can be shown in resource
+Notes, Search, and Activity, and can be transferred through Settings → Import /
+Export via the explicit **Investigation snapshots** section. Snapshot transfer
+uses the local `/api/investigations/snapshots` routes only; it does not write
+snapshot metadata to Kubernetes objects and does not change dataplane snapshot
+freshness or scheduler state.
+
 ---
 
 ## Signal detector registry

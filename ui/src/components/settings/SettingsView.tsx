@@ -108,6 +108,12 @@ import {
   ScopeTag,
 } from "./shared";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
+import {
+  deleteInvestigationSnapshot,
+  listInvestigationSnapshots,
+  saveInvestigationSnapshotRecord,
+} from "../../investigationSnapshots";
+import type { InvestigationSnapshot } from "../../types/api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
@@ -823,9 +829,83 @@ function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: Set
       const ackCount = Object.values(contexts).reduce((sum, records) => sum + Object.keys(records).length, 0);
       return `${ackCount} acknowledgement${ackCount === 1 ? "" : "s"} across ${contextCount} context${contextCount === 1 ? "" : "s"}`;
     }
+    case "investigationSnapshots": {
+      const snapshots = bundle.sections.investigationSnapshots || [];
+      const contextCount = new Set(snapshots.map((snapshot) => snapshot.context || "local")).size;
+      return `${snapshots.length} snapshot${snapshots.length === 1 ? "" : "s"} across ${contextCount} context${contextCount === 1 ? "" : "s"}`;
+    }
     default:
       return section ? "Included" : "Not included";
   }
+}
+
+function snapshotTransferKey(snapshot: InvestigationSnapshot): string {
+  const ref = snapshot.primaryResource;
+  return [
+    snapshot.context || "",
+    ref.kind || "",
+    ref.namespace || "",
+    ref.name || "",
+    snapshot.title || "",
+    String(snapshot.createdAt || 0),
+  ].join("\x00");
+}
+
+function uniqueSnapshots(snapshots: InvestigationSnapshot[]): InvestigationSnapshot[] {
+  const seen = new Set<string>();
+  const out: InvestigationSnapshot[] = [];
+  for (const snapshot of snapshots) {
+    const key = snapshot.id ? `${snapshot.context || ""}\x00id\x00${snapshot.id}` : snapshotTransferKey(snapshot);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(snapshot);
+  }
+  return out;
+}
+
+async function listSnapshotsForContexts(token: string, contextNames: string[]): Promise<InvestigationSnapshot[]> {
+  const contexts = Array.from(new Set(contextNames.map((item) => item.trim()).filter(Boolean)));
+  const groups = await Promise.all(contexts.map((contextName) => listInvestigationSnapshots(token, contextName)));
+  return uniqueSnapshots(groups.flat());
+}
+
+async function importInvestigationSnapshotTransfer(input: {
+  token: string;
+  snapshots: InvestigationSnapshot[];
+  strategy: SettingsTransferMergeStrategy;
+}): Promise<{ imported: number; skipped: number; deleted: number }> {
+  const incoming = uniqueSnapshots(input.snapshots);
+  if (incoming.length === 0) return { imported: 0, skipped: 0, deleted: 0 };
+  const contextNames = Array.from(new Set(incoming.map((snapshot) => snapshot.context || "").filter(Boolean)));
+  const existing = await listSnapshotsForContexts(input.token, contextNames);
+  let deleted = 0;
+  let baseline = existing;
+  if (input.strategy === "replaceSections") {
+    for (const snapshot of existing) {
+      if (!snapshot.id) continue;
+      await deleteInvestigationSnapshot(input.token, snapshot.id);
+      deleted += 1;
+    }
+    baseline = [];
+  }
+  const existingByID = new Map(baseline.filter((snapshot) => snapshot.id).map((snapshot) => [snapshot.id || "", snapshot]));
+  const existingByStableKey = new Map(baseline.map((snapshot) => [snapshotTransferKey(snapshot), snapshot]));
+  let imported = 0;
+  let skipped = 0;
+  for (const snapshot of incoming) {
+    const existingIDMatch = snapshot.id ? existingByID.get(snapshot.id) : undefined;
+    const stableMatch = existingByStableKey.get(snapshotTransferKey(snapshot));
+    if (input.strategy === "keepMine" && (existingIDMatch || stableMatch)) {
+      skipped += 1;
+      continue;
+    }
+    const toSave = input.strategy === "useImported" && stableMatch?.id && snapshot.id !== stableMatch.id
+      ? { ...snapshot, id: stableMatch.id }
+      : snapshot;
+    await saveInvestigationSnapshotRecord(input.token, toSave);
+    imported += 1;
+  }
+  return { imported, skipped, deleted };
 }
 
 function HighlightedJsonTextArea({
@@ -1273,6 +1353,7 @@ export default function SettingsView({
         comment?: string;
         updatedAt: number;
       }>> | undefined;
+      let investigationSnapshots: InvestigationSnapshot[] | undefined;
       if (transferSections.includes("signalAcknowledgements") && activeContext) {
         const res = await apiGet<{ active: string; items: Record<string, {
           acknowledgedAt: number;
@@ -1282,8 +1363,11 @@ export default function SettingsView({
         }> }>("/api/dataplane/signals/ack/export", token);
         signalAcknowledgements = res.active ? { [res.active]: res.items || {} } : {};
       }
+      if (transferSections.includes("investigationSnapshots")) {
+        investigationSnapshots = await listSnapshotsForContexts(token, contextOptions);
+      }
       const blob = new Blob([
-        exportSettingsTransferJSON({ settings, appState, sections: transferSections, signalAcknowledgements }),
+        exportSettingsTransferJSON({ settings, appState, sections: transferSections, signalAcknowledgements, investigationSnapshots }),
       ], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1320,12 +1404,23 @@ export default function SettingsView({
           contexts: bundle.sections.signalAcknowledgements,
         });
       }
+      let snapshotImportResult: Awaited<ReturnType<typeof importInvestigationSnapshotTransfer>> | null = null;
+      if (selected.includes("investigationSnapshots") && bundle.sections.investigationSnapshots) {
+        snapshotImportResult = await importInvestigationSnapshotTransfer({
+          token,
+          snapshots: bundle.sections.investigationSnapshots,
+          strategy: transferStrategy,
+        });
+      }
       replaceSettings(applied.settings);
       setAppState(applied.appState);
       setImportText(text);
+      const snapshotSuffix = snapshotImportResult
+        ? ` Investigation snapshots: ${snapshotImportResult.imported} imported, ${snapshotImportResult.skipped} skipped${snapshotImportResult.deleted ? `, ${snapshotImportResult.deleted} replaced` : ""}.`
+        : "";
       setTransferDialogMessage({
         severity: "success",
-        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".`,
+        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${snapshotSuffix}`,
       });
       setImportMessage({ severity: "success", text: "Transfer bundle imported." });
     } catch (err) {
