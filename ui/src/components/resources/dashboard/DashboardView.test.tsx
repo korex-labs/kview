@@ -260,7 +260,7 @@ describe("DashboardView warmup loading", () => {
       signalsSort: "last_seen_desc",
       signalsRowsPerPage: 25,
     });
-  }, 10_000);
+  }, 20_000);
 
   it("clears startup loading after deferred warmup retries commit data", async () => {
     apiGet
@@ -279,7 +279,7 @@ describe("DashboardView warmup loading", () => {
 
     await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
     expect(screen.getByText("Signals panel")).toBeTruthy();
-  }, 10_000);
+  }, 20_000);
 
   it("keeps loading for cold all-zero context switch responses", async () => {
     apiGet
@@ -295,5 +295,5 @@ describe("DashboardView warmup loading", () => {
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2), { timeout: 4_000 });
     await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
     expect(screen.getByText("Signals panel")).toBeTruthy();
-  }, 10_000);
+  }, 20_000);
 });

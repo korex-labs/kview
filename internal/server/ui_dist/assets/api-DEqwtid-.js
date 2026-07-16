@@ -1,0 +1,1 @@
+function e(e){let t=e.meta;return!t&&!e.observed?null:{state:t?.state,freshness:t?.freshness,coverage:t?.coverage,degradation:t?.degradation,completeness:t?.completeness,revision:t?.revision==null?void 0:String(t.revision),observed:e.observed}}export{e as t};

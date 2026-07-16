@@ -5,7 +5,7 @@ OUTPUT=$(BINARY_NAME)
 DIST_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
-DOCKER_IMAGE=kview-build:go1.26.2-node22.20.0
+DOCKER_IMAGE=kview-build:go1.26.5-node22.23.1
 DOCKER_BUILD?=1
 COVERAGE_DIR=.artifacts/coverage
 CODEX?=codex
@@ -153,7 +153,7 @@ local-check: install-git-hooks
 	scripts/test-visibility.sh
 
 local-lint-go: install-git-hooks
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
 
 local-coverage: install-git-hooks
 	mkdir -p $(COVERAGE_DIR)

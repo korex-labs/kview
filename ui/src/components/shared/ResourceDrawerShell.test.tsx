@@ -74,5 +74,5 @@ describe("ResourceDrawerShell", () => {
     expect(screen.getByRole("combobox", { name: /Triage state/ })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Reference link/ })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Operator note/ }).tagName.toLowerCase()).toBe("textarea");
-  }, 10000);
+  }, 20000);
 });

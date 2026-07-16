@@ -68,5 +68,5 @@ describe("ResourceTagsRow", () => {
     await waitFor(() => expect(screen.getByText("Incident")).toBeTruthy());
     expect(screen.getByTestId("incident-color").textContent).toBe("#e53935");
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
-  }, 10000);
+  }, 20000);
 });

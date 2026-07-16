@@ -2,7 +2,7 @@
 
 The Playwright suite runs the real kview UI against a real local Kubernetes connection. The backend is always started with `--read-only`, so destructive Kubernetes operations are rejected server-side even though action buttons and dialogs remain visible.
 
-The UI toolchain expects Node.js `>=22.20.0`, matching `ui/package.json`.
+The UI toolchain expects Node.js `>=22.23.1`, matching `ui/package.json`.
 
 ## Commands
 
