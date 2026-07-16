@@ -5,6 +5,7 @@ import type { DashboardSignalItem } from "../../types/api";
 import type { ChipColor } from "../../utils/k8sUi";
 import SignalActions from "./SignalActions";
 import SignalInvestigationDialog from "./SignalInvestigationDialog";
+import SignalMemoryHint from "./SignalMemoryHint";
 import StatusChip from "./StatusChip";
 import { signalHistoryKey, signalWithHistoryKey } from "./signalIdentity";
 import { rankAttentionSignals, signalCalculatedText, signalMetaText, signalSeverityColor } from "./signalFormat";
@@ -105,6 +106,7 @@ export default function AttentionSummary(props: AttentionSummaryProps) {
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                     <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity || "info"} />
+                    <SignalMemoryHint signal={signal} />
                     <Typography component="span" variant="body2">
                       {signal.reason}
                     </Typography>

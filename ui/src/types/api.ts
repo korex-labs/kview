@@ -278,6 +278,9 @@ export type DashboardSignalItem = {
   calculatedData?: string;
   firstSeenAt?: number;
   lastSeenAt?: number;
+  observedDays7d?: number;
+  observedDays30d?: number;
+  recurring?: boolean;
   historyKey?: string;
   acknowledged?: boolean;
   acknowledgedAt?: number;

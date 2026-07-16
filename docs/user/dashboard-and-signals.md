@@ -86,11 +86,15 @@ Signals are backend-produced and designed for triage. A signal can include:
 - suggested action
 - calculated details
 - first seen and last seen timestamps
+- local recurrence hints such as **Seen 4d / 7d**, based on distinct UTC
+  observation days rather than refresh counts
 - acknowledgement state
 
 Signals are heuristics over visible data. They are useful for prioritization,
 but should be confirmed from resource details, events, logs, and YAML before
-making risky changes.
+making risky changes. Recurrence hints are local signal memory: they mean kview
+observed the same stable signal identity on multiple days. They do not claim that
+each day was a separate incident or that an absent signal was resolved.
 
 Opening a focused resource list from a dashboard or namespace signal is
 transient navigation. It changes the active list, namespace, and text filter,

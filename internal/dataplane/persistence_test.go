@@ -254,9 +254,10 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	now := time.Now().UTC().Unix()
 	if err := store.UpsertSignalHistory("ctx", map[string]signalHistoryRecord{
 		"pod_restarts|namespace|team-a|Pod|api-0": {
-			FirstSeenAt: now - 7200,
-			LastSeenAt:  now - 60,
-			SeenCount:   3,
+			FirstSeenAt:  now - 7200,
+			LastSeenAt:   now - 60,
+			SeenCount:    3,
+			ObservedDays: []int64{signalObservedDay(now - 7200), signalObservedDay(now - 60)},
 		},
 		"empty_secret|namespace|team-a|Secret|token": {
 			FirstSeenAt: now - int64((48 * time.Hour).Seconds()),
@@ -274,7 +275,7 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	if len(history) != 2 {
 		t.Fatalf("history len = %d, want 2", len(history))
 	}
-	if got := history["pod_restarts|namespace|team-a|Pod|api-0"]; got.FirstSeenAt != now-7200 || got.LastSeenAt != now-60 || got.SeenCount != 3 {
+	if got := history["pod_restarts|namespace|team-a|Pod|api-0"]; got.FirstSeenAt != now-7200 || got.LastSeenAt != now-60 || got.SeenCount != 3 || len(got.ObservedDays) == 0 {
 		t.Fatalf("pod signal history = %+v", got)
 	}
 

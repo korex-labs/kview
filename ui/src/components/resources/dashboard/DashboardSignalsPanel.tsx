@@ -28,6 +28,7 @@ import StatusChip from "../../shared/StatusChip";
 import OverflowTooltip from "../../shared/OverflowTooltip";
 import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import SignalMemoryHint from "../../shared/SignalMemoryHint";
 import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import {
@@ -886,6 +887,7 @@ export default function DashboardSignalsPanel({
                           {signalCalculatedText(f)}
                         </Typography>
                       ) : null}
+                      <SignalMemoryHint signal={f} />
                     </TableCell>
                     <TableCell sx={seenCellSx}>
                       <Typography variant="caption" color="text.secondary">

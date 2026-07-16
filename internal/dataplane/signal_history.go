@@ -7,9 +7,10 @@ import (
 )
 
 type signalHistoryRecord struct {
-	FirstSeenAt int64  `json:"firstSeenAt"`
-	LastSeenAt  int64  `json:"lastSeenAt"`
-	SeenCount   uint64 `json:"seenCount,omitempty"`
+	FirstSeenAt  int64   `json:"firstSeenAt"`
+	LastSeenAt   int64   `json:"lastSeenAt"`
+	SeenCount    uint64  `json:"seenCount,omitempty"`
+	ObservedDays []int64 `json:"observedDays,omitempty"`
 }
 
 type SignalAcknowledgementRecord struct {
@@ -96,15 +97,21 @@ func (m *manager) attachSignalHistory(clusterName string, observedAt time.Time, 
 		if rec.FirstSeenAt <= 0 {
 			rec.FirstSeenAt = observedUnix
 		}
+		rec.ObservedDays = updateSignalObservedDays(rec, observedUnix)
 		if observedUnix > rec.LastSeenAt {
 			rec.LastSeenAt = observedUnix
 		}
 		rec.SeenCount++
+		observedDays7d := countSignalObservedDays(rec.ObservedDays, rec.LastSeenAt, 7)
+		observedDays30d := countSignalObservedDays(rec.ObservedDays, rec.LastSeenAt, 30)
 		clusterHistory[key] = rec
 		changed[key] = rec
 		items[i].HistoryKey = key
 		items[i].FirstSeenAt = rec.FirstSeenAt
 		items[i].LastSeenAt = rec.LastSeenAt
+		items[i].ObservedDays7d = observedDays7d
+		items[i].ObservedDays30d = observedDays30d
+		items[i].Recurring = observedDays7d >= 2
 	}
 	m.signalHistoryMu.Unlock()
 
@@ -123,6 +130,61 @@ func (m *manager) attachSignalHistory(clusterName string, observedAt time.Time, 
 		_ = sp.UpsertSignalHistory(clusterName, changed)
 	}
 	return items
+}
+
+const signalObservedDayRetention = 30
+
+func signalObservedDay(unix int64) int64 {
+	if unix <= 0 {
+		return 0
+	}
+	return time.Unix(unix, 0).UTC().Truncate(24 * time.Hour).Unix()
+}
+
+func updateSignalObservedDays(rec signalHistoryRecord, observedUnix int64) []int64 {
+	latestUnix := observedUnix
+	if rec.LastSeenAt > latestUnix {
+		latestUnix = rec.LastSeenAt
+	}
+	latestDay := signalObservedDay(latestUnix)
+	observedDay := signalObservedDay(observedUnix)
+	if latestDay <= 0 || observedDay <= 0 {
+		return nil
+	}
+	cutoff := latestDay - int64(signalObservedDayRetention-1)*int64(24*time.Hour/time.Second)
+	candidates := make([]int64, 0, len(rec.ObservedDays)+3)
+	candidates = append(candidates, rec.ObservedDays...)
+	candidates = append(candidates, signalObservedDay(rec.FirstSeenAt), signalObservedDay(rec.LastSeenAt), observedDay)
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i] < candidates[j] })
+	out := make([]int64, 0, len(candidates))
+	for _, day := range candidates {
+		if day < cutoff || day > latestDay {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1] == day {
+			continue
+		}
+		out = append(out, day)
+	}
+	return out
+}
+
+func countSignalObservedDays(days []int64, observedUnix int64, windowDays int) int {
+	if windowDays <= 0 {
+		return 0
+	}
+	observedDay := signalObservedDay(observedUnix)
+	if observedDay <= 0 {
+		return 0
+	}
+	cutoff := observedDay - int64(windowDays-1)*int64(24*time.Hour/time.Second)
+	count := 0
+	for _, day := range days {
+		if day >= cutoff && day <= observedDay {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *manager) AcknowledgeSignal(clusterName string, req SignalAcknowledgementRequest) (SignalAcknowledgementRecord, error) {

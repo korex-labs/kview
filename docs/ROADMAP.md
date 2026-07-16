@@ -60,9 +60,8 @@ Turn the existing **Investigate Signal** output into a durable local artifact.
 - Include investigation snapshots in settings/profile transfer and export/import.
 - Keep snapshots local; never write snapshot metadata back to Kubernetes.
 
-This is the preferred next implementation pack because it reuses existing
-signals, resource drawers, notes, search, and investigation helpers without
-requiring a new cluster-side model.
+This pack is implemented: saved investigations now cover local persistence,
+resource drawers/Notes, Search, Activity, and explicit settings transfer.
 
 ### 2. Signal Memory And Recurring Incident Detection
 
@@ -75,6 +74,10 @@ Use local signal history to explain when a current signal has been seen before.
 - Connect the latest note or saved investigation snapshot to the current signal.
 - Keep the history bounded, exportable, and easy to reset.
 - Avoid background cluster reads; update memory from already observed signals.
+
+Current first slice records bounded distinct observation days and surfaces honest
+**Seen Nd / 7d** or **Seen Nd / 30d** hints. Linking explicit resolved/known/noisy
+states and latest notes from saved investigations remains the next slice.
 
 ### 3. Signal Snooze And Suppression Rules
 

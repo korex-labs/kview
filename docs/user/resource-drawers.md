@@ -17,8 +17,8 @@ objects, events, metadata, YAML, and supported actions.
 - **Search and Activity**: saved investigation snapshots can appear in header
   search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,
-  reason, optional calculated detail, **Acknowledge signal**, and
-  **Investigate signal**.
+  optional local recurrence hint, reason, optional calculated detail,
+  **Acknowledge signal**, and **Investigate signal**.
 - **Relation tabs**: show resource-specific relationships such as pods,
   endpoints, owners, subjects, rules, volumes, or Helm objects.
 - **Events tab**: shows Kubernetes events related to the resource when

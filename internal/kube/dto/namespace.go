@@ -216,6 +216,9 @@ type NamespaceInsightSignalDTO struct {
 	CalculatedData  string `json:"calculatedData,omitempty"`
 	FirstSeenAt     int64  `json:"firstSeenAt,omitempty"`
 	LastSeenAt      int64  `json:"lastSeenAt,omitempty"`
+	ObservedDays7d  int    `json:"observedDays7d,omitempty"`
+	ObservedDays30d int    `json:"observedDays30d,omitempty"`
+	Recurring       bool   `json:"recurring,omitempty"`
 	HistoryKey      string `json:"historyKey,omitempty"`
 	Acknowledged    bool   `json:"acknowledged,omitempty"`
 	AcknowledgedAt  int64  `json:"acknowledgedAt,omitempty"`

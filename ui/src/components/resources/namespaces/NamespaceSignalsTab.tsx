@@ -31,6 +31,7 @@ import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
 import SignalActions from "../../shared/SignalActions";
 import SignalInvestigationDialog from "../../shared/SignalInvestigationDialog";
+import SignalMemoryHint from "../../shared/SignalMemoryHint";
 import { AppIconButton } from "../../shared/AppActions";
 import { signalWithHistoryKey } from "../../shared/signalIdentity";
 import { useActiveContext } from "../../../activeContext";
@@ -457,6 +458,7 @@ export default function NamespaceSignalsTab({
                           {signalCalculatedText(signal)}
                         </Typography>
                       ) : null}
+                      <SignalMemoryHint signal={signal} />
                     </TableCell>
                   </TableRow>
                 );

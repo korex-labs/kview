@@ -89,6 +89,12 @@ Background row enrichment is **narrow and user-aligned**:
 | `GET /api/cluster/{kind}/{name}/signals` | `ResourceSignals` (cluster scope): same contract as above, for cluster-scoped resources (`nodes`, `persistentvolumes`, `clusterroles`, `clusterrolebindings`, `customresourcedefinitions`, `namespaces`). Currently only `Node` resources can produce signals (`node_resource_pressure`); other kinds return an empty `signals` array but still respond `200 OK`. Lives under the explicit `/cluster/` prefix to keep URLs unambiguous against the existing top-level cluster resource routes. |
 | `POST /api/dataplane/signals/investigate` | Read-shaped signal investigation bundle. The handler accepts the selected signal, then composes `ResourceSignals` and, for namespace-scoped signals, `NamespaceInsightsProjection` into a read-only debug bundle with primary resource, same-resource signal evidence, weak namespace/same-type context signals, targeted checks, unavailable helper checks, and copyable Markdown. It also runs explicit read-only helpers for object-scoped Events, supported resource YAML checks, referenced Secret/ConfigMap/PVC/ServiceAccount availability checks, Service selector backing Pod checks, and a small Pod log tail scan for common failure patterns. It performs no cluster mutations. |
 
+Signal-bearing projection responses can include additive local-memory fields
+`observedDays7d`, `observedDays30d`, and `recurring`. These fields come from the
+local dataplane signal-history store and count distinct observation days for the
+stable signal identity; they do not perform Kubernetes reads or infer incident
+resolution from absence.
+
 ---
 
 ## 4. Local operator knowledge reads

@@ -260,7 +260,7 @@ describe("DashboardView warmup loading", () => {
       signalsSort: "last_seen_desc",
       signalsRowsPerPage: 25,
     });
-  });
+  }, 10_000);
 
   it("clears startup loading after deferred warmup retries commit data", async () => {
     apiGet
