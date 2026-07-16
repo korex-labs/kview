@@ -75,9 +75,10 @@ Use local signal history to explain when a current signal has been seen before.
 - Keep the history bounded, exportable, and easy to reset.
 - Avoid background cluster reads; update memory from already observed signals.
 
-Current first slice records bounded distinct observation days and surfaces honest
-**Seen Nd / 7d** or **Seen Nd / 30d** hints. Linking explicit resolved/known/noisy
-states and latest notes from saved investigations remains the next slice.
+The first two slices are implemented: bounded distinct observation days surface
+honest **Seen Nd / 7d** or **Seen Nd / 30d** hints, and current signals link to
+the latest matching Investigation Snapshot state and operator note. Explicit
+signal-history transfer, reset, and retention controls remain the final slice.
 
 ### 3. Signal Snooze And Suppression Rules
 

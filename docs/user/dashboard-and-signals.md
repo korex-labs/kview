@@ -88,13 +88,18 @@ Signals are backend-produced and designed for triage. A signal can include:
 - first seen and last seen timestamps
 - local recurrence hints such as **Seen 4d / 7d**, based on distinct UTC
   observation days rather than refresh counts
+- explicit saved context such as **Previously resolved**, **Known**,
+  **Watching**, or **Known noisy** when an Investigation Snapshot matches the
+  signal and primary resource
 - acknowledgement state
 
 Signals are heuristics over visible data. They are useful for prioritization,
 but should be confirmed from resource details, events, logs, and YAML before
 making risky changes. Recurrence hints are local signal memory: they mean kview
 observed the same stable signal identity on multiple days. They do not claim that
-each day was a separate incident or that an absent signal was resolved.
+each day was a separate incident or that an absent signal was resolved. Hover a
+saved-context state to review the snapshot title and latest operator note. Select
+the state to open the snapshot's primary resource.
 
 Opening a focused resource list from a dashboard or namespace signal is
 transient navigation. It changes the active list, namespace, and text filter,

@@ -27,6 +27,8 @@ The product must not label that raw value as “times seen”.
 
 ## Tranche 1: Honest Recurrence Hints
 
+**Status:** Implemented.
+
 **Objective:** expose bounded, refresh-resistant recurrence metadata on current
 signals and render it consistently.
 
@@ -44,6 +46,10 @@ signals and render it consistently.
 6. Add persistence/history/UI tests and update user/dataplane/API docs.
 
 ## Tranche 2: Previous Decisions And Saved Context
+
+**Status:** Implemented. The UI loads Investigation Snapshots once per active
+context, indexes them against current signal identity, and surfaces the latest
+explicit triage state and operator note through the shared signal-memory hint.
 
 **Objective:** connect current signals to deliberate operator knowledge.
 

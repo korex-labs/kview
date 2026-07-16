@@ -1,6 +1,7 @@
 import React from "react";
-import { Box } from "@mui/material";
+import { Box, Chip } from "@mui/material";
 import type { DashboardSignalItem } from "../../types/api";
+import { useSignalMemory } from "../../signalMemory";
 import StatusChip from "./StatusChip";
 
 export type SignalMemoryHintValue = {
@@ -28,10 +29,30 @@ export function signalMemoryHintValue(signal: DashboardSignalItem): SignalMemory
 
 export default function SignalMemoryHint({ signal }: { signal: DashboardSignalItem }) {
   const hint = signalMemoryHintValue(signal);
-  if (!hint) return null;
+  const { decisionForSignal, openSnapshot } = useSignalMemory();
+  const decision = decisionForSignal(signal);
+  if (!hint && !decision) return null;
+  const note = decision?.note ? ` Last note: ${decision.note}` : "";
   return (
-    <Box title={hint.tooltip} sx={{ display: "inline-flex" }}>
-      <StatusChip size="small" color="info" variant="outlined" label={hint.label} />
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+      {hint ? (
+        <Box title={hint.tooltip} sx={{ display: "inline-flex" }}>
+          <StatusChip size="small" color="info" variant="outlined" label={hint.label} />
+        </Box>
+      ) : null}
+      {decision ? (
+        <Chip
+          size="small"
+          color={decision.snapshot.triageState === "resolved" ? "success" : decision.snapshot.triageState === "ignored" ? "default" : "info"}
+          variant="outlined"
+          label={decision.label}
+          title={`${decision.snapshot.title}.${note}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            openSnapshot(decision.snapshot);
+          }}
+        />
+      ) : null}
     </Box>
   );
 }

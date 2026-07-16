@@ -8,7 +8,7 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
 import logoUrl from "./assets/logo.svg";
 import Sidebar from "./components/Sidebar";
 import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext, toApiError } from "./api";
-import type { ApiContextsResponse, ApiNamespacesListResponse, ApiViewResourcesResponse } from "./types/api";
+import type { ApiContextsResponse, ApiNamespacesListResponse, ApiViewResourcesResponse, InvestigationSnapshot } from "./types/api";
 import {
   loadState,
   isSection,
@@ -54,6 +54,7 @@ import {
   setPerformanceDiagnosticsEnabled,
 } from "./utils/performanceDiagnostics";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
+import { SignalMemoryProvider } from "./signalMemory";
 import "./styles/theme.css";
 
 const SettingsView = React.lazy(() => import("./components/settings/SettingsView"));
@@ -670,6 +671,23 @@ function AppInner() {
 
   return (
     <ActiveContextProvider value={activeContext}>
+      <SignalMemoryProvider
+        token={token}
+        activeContext={activeContext}
+        onOpenSnapshot={(snapshot: InvestigationSnapshot) => {
+          const ref = snapshot.primaryResource;
+          onOpenSearchResult({
+            cluster: snapshot.context || activeContext,
+            kind: ref.kind,
+            namespace: ref.namespace,
+            name: ref.name,
+            signalSeverity: snapshot.signal?.severity,
+            signalCount: 1,
+            needsAttention: snapshot.triageState !== "resolved" && snapshot.triageState !== "ignored",
+            matchReason: "saved investigation",
+          });
+        }}
+      >
       <MutationProvider>
         <KeyboardProvider
           settingsOpen={settingsOpen || helpOpen}
@@ -960,6 +978,7 @@ function AppInner() {
         </Box>
         </KeyboardProvider>
       </MutationProvider>
+      </SignalMemoryProvider>
     </ActiveContextProvider>
   );
 }

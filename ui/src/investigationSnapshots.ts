@@ -10,6 +10,13 @@ import type {
 } from "./types/api";
 
 export const INVESTIGATION_SNAPSHOT_SOURCE = "investigate-signal";
+export const INVESTIGATION_SNAPSHOTS_CHANGED_EVENT = "kview:investigation-snapshots-changed";
+
+function notifyInvestigationSnapshotsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(INVESTIGATION_SNAPSHOTS_CHANGED_EVENT));
+  }
+}
 
 export type InvestigationSnapshotResourceTarget = {
   resource: string;
@@ -105,6 +112,7 @@ export async function saveInvestigationSnapshotRecord(token: string, snapshot: I
     snapshot,
   );
   if (!response.item) throw new Error("Investigation snapshot save returned no item");
+  notifyInvestigationSnapshotsChanged();
   return response.item;
 }
 
@@ -144,6 +152,7 @@ export async function deleteInvestigationSnapshot(token: string, id: string): Pr
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(res.statusText || "Failed to delete investigation snapshot");
+  notifyInvestigationSnapshotsChanged();
 }
 
 function snapshotSearchFields(snapshot: InvestigationSnapshot): Array<{ label: string; value?: string | string[] }> {
