@@ -4,6 +4,36 @@ kview is a local Kubernetes UI for fast cluster exploration. It reads your
 kubeconfig, starts a local server, and opens the UI in a browser or desktop
 webview depending on how the binary was built.
 
+## Download A Release
+
+Tagged releases are available from
+[GitHub Releases](https://github.com/korex-labs/kview/releases). Choose the regular
+binary for browser/server mode on Linux, macOS, or Windows.
+
+Linux amd64 and macOS releases also include desktop assets named:
+
+```text
+kview-<version>-linux-amd64-webview
+kview-<version>-darwin-amd64-webview
+kview-<version>-darwin-arm64-webview
+```
+
+They open the embedded UI in a native window by default. The Linux asset requires
+GTK 3 and WebKitGTK 4.1 runtime libraries on the host. The macOS assets use the
+system WebKit framework and do not need a separate WebKit installation. Choose
+`darwin-amd64` for an Intel Mac or `darwin-arm64` for Apple Silicon.
+
+The macOS assets are ad-hoc signed but not Apple-notarized. Depending on your
+Gatekeeper policy, the first launch may require approving kview in **System
+Settings → Privacy & Security**. Webview assets for Linux arm64 and Windows are
+not published yet; use the regular release binary on those platforms.
+
+After downloading a Linux or macOS binary, make it executable before running it:
+
+```bash
+chmod +x kview-*
+```
+
 ## First Run
 
 Start kview from a shell that can already access your Kubernetes contexts:

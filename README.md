@@ -39,7 +39,10 @@ More selected screenshots are available in [docs/screenshots](docs/screenshots/)
 
 Pre-built binaries for Linux, macOS, and Windows are published on the [GitHub Releases](../../releases) page for every `v*` tag.
 
-Release binaries are built for browser/server modes. Desktop webview mode requires a local build with webview support; see [Desktop webview mode](#desktop-webview-mode).
+Each release includes browser/server-mode binaries for all supported platforms and
+additional desktop webview binaries for Linux amd64 and macOS Intel/Apple Silicon.
+The webview assets start in desktop mode by default and still accept
+`--mode browser` or `--mode server`.
 
 Download the binary for your platform, make it executable, and run:
 
@@ -113,7 +116,25 @@ Git does not provide a native pre-tag hook, so the helper validates before creat
 
 ### Desktop webview mode
 
-Desktop webview mode is only available in binaries built with the `webview` build tag. Release binaries are built without it.
+Every tagged release publishes these webview-enabled desktop assets:
+
+```text
+kview-<version>-linux-amd64-webview
+kview-<version>-darwin-amd64-webview
+kview-<version>-darwin-arm64-webview
+```
+
+Download the asset for your platform from GitHub Releases, make it executable,
+and run it directly. The Linux host must provide GTK 3 and WebKitGTK 4.1 runtime
+libraries. Package names vary by distribution; on Debian/Ubuntu the relevant
+runtime packages are `libgtk-3-0` and `libwebkit2gtk-4.1-0`.
+
+The macOS binaries use the system WebKit framework and do not need a separate
+WebKit installation. They are ad-hoc signed but not Apple-notarized. Depending on
+Gatekeeper policy, the first launch may require approving the binary in
+**System Settings → Privacy & Security**. Webview release assets for Linux arm64
+and Windows are not published yet; those platforms continue to use the
+browser/server release binary or a local webview build.
 
 To build kview with Linux webview support through the pinned Docker toolchain:
 
@@ -151,11 +172,27 @@ Release-style artifacts:
 
 ```bash
 make build-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64
+make build-webview-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64-webview
+# Run natively on the matching macOS architecture:
+make local-build-webview-release GOOS=darwin GOARCH=arm64 OUTPUT=dist/kview-darwin-arm64-webview
 ```
 
-`make`, `make check`, `make build`, `make build-webview`, and `make build-release` all run through the pinned Docker toolchain by default and keep Go/npm build caches under `.cache/`, so local rebuilds reuse dependency artifacts without requiring a host Go or Node.js installation.
+Webview release targets require a native CGO toolchain for the target operating
+system and architecture. GitHub-hosted Linux and macOS runners build the release
+assets natively. The regular release target remains CGO-free and
+cross-compilable.
 
-`make build`, `make build-webview`, and `make build-release` build a fresh frontend bundle for the binary, but they restore the tracked `internal/server/ui_dist` files afterward so build verification does not leave generated asset churn in the worktree. Run `make ui` when you intentionally want to refresh the embedded UI assets that are checked into the repository.
+`make`, `make check`, `make build`, `make build-webview`, `make build-release`,
+and `make build-webview-release` all run through the pinned Docker toolchain by
+default and keep Go/npm build caches under `.cache/`, so local rebuilds reuse
+dependency artifacts without requiring a host Go or Node.js installation.
+
+`make build`, `make build-webview`, `make build-release`, and
+`make build-webview-release` build a fresh frontend bundle for the binary, but
+they restore the tracked `internal/server/ui_dist` files afterward so build
+verification does not leave generated asset churn in the worktree. Run
+`make ui` when you intentionally want to refresh the embedded UI assets that are
+checked into the repository.
 
 The `local-*` Makefile targets are implementation details for the Docker container or explicit maintainer debugging. AI coding agents must not call host `go`, `npm`, `node`, or `local-*` targets unless the project owner explicitly asks for a host-toolchain exception.
 

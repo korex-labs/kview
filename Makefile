@@ -48,7 +48,7 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release
+.PHONY: all check lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
 
 all: install-git-hooks check build
 
@@ -133,6 +133,10 @@ build-release: install-git-hooks docker-image prepare-cache
 	mkdir -p $(DIST_DIR)
 	$(DOCKER_RUN) make local-build-release GOOS=$(GOOS) GOARCH=$(GOARCH) OUTPUT=$(OUTPUT) VERSION=$(VERSION)
 
+build-webview-release: install-git-hooks docker-image prepare-cache
+	mkdir -p $(DIST_DIR)
+	$(DOCKER_RUN) make local-build-webview-release GOOS=$(GOOS) GOARCH=$(GOARCH) OUTPUT=$(OUTPUT) VERSION=$(VERSION)
+
 local-check: install-git-hooks
 	cd $(UI_DIR) && npm ci && npm run typecheck && npm run lint && npm run test
 	GO_PACKAGES=$$(go list ./... | grep -v '/$(UI_DIR)/node_modules/'); \
@@ -196,6 +200,11 @@ local-build-release: install-git-hooks
 	mkdir -p $(dir $(OUTPUT))
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) sh scripts/build-with-ui-dist.sh go build -trimpath -ldflags "$(GO_LDFLAGS) -s -w" -o $(OUTPUT) ./cmd/kview
 	@echo "Built $(OUTPUT) ($(GOOS)/$(GOARCH); browser/server modes; default: browser)"
+
+local-build-webview-release: install-git-hooks
+	mkdir -p $(dir $(OUTPUT))
+	CGO_ENABLED=1 GOOS=$(GOOS) GOARCH=$(GOARCH) sh scripts/build-with-ui-dist.sh go build -tags webview -trimpath -ldflags "$(GO_LDFLAGS) -s -w" -o $(OUTPUT) ./cmd/kview
+	@echo "Built $(OUTPUT) ($(GOOS)/$(GOARCH); browser/server/webview modes; default: webview)"
 
 docker-image: install-git-hooks
 ifeq ($(DOCKER_BUILD),0)
