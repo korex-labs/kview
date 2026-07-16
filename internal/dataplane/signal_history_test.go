@@ -7,7 +7,7 @@ import (
 
 func TestAttachSignalHistoryCountsDistinctObservationDays(t *testing.T) {
 	m := &manager{
-		signalHistory: map[string]map[string]signalHistoryRecord{"ctx": {}},
+		signalHistory: map[string]map[string]SignalHistoryRecord{"ctx": {}},
 		signalAck:     map[string]map[string]SignalAcknowledgementRecord{"ctx": {}},
 	}
 	signal := ClusterDashboardSignal{
@@ -63,7 +63,7 @@ func TestNamespaceInsightSignalsPreserveSignalMemory(t *testing.T) {
 
 func TestSignalObservedDaysSeedsLegacyHistoryAndStaysBounded(t *testing.T) {
 	observed := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
-	rec := signalHistoryRecord{
+	rec := SignalHistoryRecord{
 		FirstSeenAt: observed.Add(-45 * 24 * time.Hour).Unix(),
 		LastSeenAt:  observed.Add(-24 * time.Hour).Unix(),
 		SeenCount:   20,
@@ -88,5 +88,64 @@ func TestSignalObservedDaysSeedsLegacyHistoryAndStaysBounded(t *testing.T) {
 	}
 	if len(rec.ObservedDays) > signalObservedDayRetention {
 		t.Fatalf("observed days retained %d entries, want <= %d", len(rec.ObservedDays), signalObservedDayRetention)
+	}
+}
+
+func TestSignalHistoryTransferAndReset(t *testing.T) {
+	dayOne := time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC).Unix()
+	dayTwo := time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC).Unix()
+	m := &manager{
+		signalHistory: map[string]map[string]SignalHistoryRecord{
+			"ctx": {
+				"existing": {FirstSeenAt: dayOne, LastSeenAt: dayOne, SeenCount: 1, ObservedDays: []int64{dayOne}},
+			},
+		},
+	}
+
+	result, err := m.ImportSignalHistory("ctx", map[string]SignalHistoryRecord{
+		"existing": {FirstSeenAt: dayOne, LastSeenAt: dayTwo, SeenCount: 2, ObservedDays: []int64{dayOne, dayTwo}},
+		"new":      {FirstSeenAt: dayTwo, LastSeenAt: dayTwo, ObservedDays: []int64{dayTwo}},
+		"invalid":  {FirstSeenAt: dayTwo, LastSeenAt: dayOne},
+	}, "keepMine")
+	if err != nil {
+		t.Fatalf("import signal history: %v", err)
+	}
+	if result.Imported != 1 || result.Skipped != 1 {
+		t.Fatalf("import result = %+v", result)
+	}
+	exported := m.ExportSignalHistory("ctx")
+	if len(exported) != 2 || exported["new"].SeenCount != 1 {
+		t.Fatalf("exported history = %+v", exported)
+	}
+
+	deleted, err := m.ResetSignalHistory("ctx", "existing")
+	if err != nil || deleted != 1 {
+		t.Fatalf("reset one signal = deleted %d, err %v", deleted, err)
+	}
+	deleted, err = m.ResetSignalHistory("ctx", "")
+	if err != nil || deleted != 1 || len(m.ExportSignalHistory("ctx")) != 0 {
+		t.Fatalf("reset context = deleted %d, err %v, remaining %+v", deleted, err, m.ExportSignalHistory("ctx"))
+	}
+}
+
+func TestSignalHistoryReplaceSectionsRemovesMissingRecords(t *testing.T) {
+	observed := time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC).Unix()
+	m := &manager{signalHistory: map[string]map[string]SignalHistoryRecord{
+		"ctx": {
+			"old":  {FirstSeenAt: observed, LastSeenAt: observed, ObservedDays: []int64{observed}},
+			"keep": {FirstSeenAt: observed, LastSeenAt: observed, ObservedDays: []int64{observed}},
+		},
+	}}
+	result, err := m.ImportSignalHistory("ctx", map[string]SignalHistoryRecord{
+		"keep": {FirstSeenAt: observed, LastSeenAt: observed, ObservedDays: []int64{observed}},
+	}, "replaceSections")
+	if err != nil {
+		t.Fatalf("replace signal history: %v", err)
+	}
+	if result.Imported != 1 || result.Replaced != 2 {
+		t.Fatalf("replace result = %+v", result)
+	}
+	if _, ok := m.signalHistory["ctx"]["old"]; ok {
+		t.Fatal("missing imported record was not removed")
 	}
 }

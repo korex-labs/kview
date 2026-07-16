@@ -88,6 +88,14 @@ write Kubernetes annotations or require cluster mutation permissions.
 comment; `DELETE /api/dataplane/signals/ack` clears it. Acknowledgements are
 pruned with dataplane cache retention.
 
+Signal observation history is manageable local operator state. Settings transfer
+uses `GET /api/dataplane/signals/history/export` and
+`POST /api/dataplane/signals/history/import`; imports validate timestamps and
+retain no more than 30 distinct observation days per stable identity. `POST
+/api/dataplane/signals/history/reset` removes either the requested `historyKey`
+or all signal memory for the active context. Reset never mutates Kubernetes and
+can only be undone by importing a previously exported transfer bundle.
+
 Saved investigation snapshots are a separate local operator-knowledge store. They
 are created from read-only signal investigation bundles, can be shown in resource
 Notes, Search, and Activity, and can be transferred through Settings → Import /

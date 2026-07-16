@@ -178,11 +178,12 @@ type stubDataplane struct {
 	bundle    dataplane.DataplanePolicyBundle
 	effective map[string]dataplane.DataplanePolicy
 	acks      map[string]dataplane.SignalAcknowledgementRecord
+	history   map[string]dataplane.SignalHistoryRecord
 }
 
 func newStubDataplane() *stubDataplane {
 	bundle := dataplane.DefaultDataplanePolicyBundle()
-	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}}
+	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}, history: map[string]dataplane.SignalHistoryRecord{}}
 }
 
 func (s *stubDataplane) NoteUserActivity()                                       {}
@@ -259,6 +260,49 @@ func (s *stubDataplane) ImportSignalAcknowledgements(clusterName string, incomin
 		result.Imported++
 	}
 	return result, nil
+}
+func (s *stubDataplane) ExportSignalHistory(clusterName string) map[string]dataplane.SignalHistoryRecord {
+	out := map[string]dataplane.SignalHistoryRecord{}
+	prefix := clusterName + "\x00"
+	for key, rec := range s.history {
+		if strings.HasPrefix(key, prefix) {
+			out[strings.TrimPrefix(key, prefix)] = rec
+		}
+	}
+	return out
+}
+func (s *stubDataplane) ImportSignalHistory(clusterName string, incoming map[string]dataplane.SignalHistoryRecord, strategy string) (dataplane.SignalHistoryImportResult, error) {
+	result := dataplane.SignalHistoryImportResult{}
+	prefix := clusterName + "\x00"
+	if strategy == "replaceSections" {
+		for key := range s.history {
+			if strings.HasPrefix(key, prefix) {
+				delete(s.history, key)
+				result.Replaced++
+			}
+		}
+	}
+	for historyKey, rec := range incoming {
+		key := prefix + historyKey
+		if _, ok := s.history[key]; ok && strategy == "keepMine" {
+			result.Skipped++
+			continue
+		}
+		s.history[key] = rec
+		result.Imported++
+	}
+	return result, nil
+}
+func (s *stubDataplane) ResetSignalHistory(clusterName, historyKey string) (int, error) {
+	prefix := clusterName + "\x00"
+	deleted := 0
+	for key := range s.history {
+		if strings.HasPrefix(key, prefix) && (historyKey == "" || key == prefix+historyKey) {
+			delete(s.history, key)
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 func (s *stubDataplane) NodeMetricsCachedSnapshot(_ string) (dataplane.NodeMetricsSnapshot, bool) {
 	return dataplane.NodeMetricsSnapshot{}, false
@@ -1568,6 +1612,45 @@ func TestDeleteDataplaneSignalAcknowledgement(t *testing.T) {
 	}
 	if _, ok := dp.acks["test-context\x00pod_restarts|namespace|default|Pod|api-0"]; ok {
 		t.Fatalf("acknowledgement was not deleted: %+v", dp.acks)
+	}
+}
+
+func TestSignalHistoryExportImportAndReset(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	now := time.Now().UTC().Unix()
+	key := "pod_restarts|namespace|default|Pod|api-0"
+	dp.history["test-context\x00"+key] = dataplane.SignalHistoryRecord{
+		FirstSeenAt:  now - 86400,
+		LastSeenAt:   now,
+		SeenCount:    2,
+		ObservedDays: []int64{now - 86400, now},
+	}
+
+	rec := doReq(t, h, http.MethodGet, "/api/dataplane/signals/history/export", testToken, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), key) {
+		t.Fatalf("history export: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	importBody := toJSON(t, map[string]any{
+		"strategy": "useImported",
+		"contexts": map[string]any{
+			"other-context": map[string]any{
+				key: dataplane.SignalHistoryRecord{FirstSeenAt: now, LastSeenAt: now, SeenCount: 1, ObservedDays: []int64{now}},
+			},
+		},
+	})
+	rec = doReq(t, h, http.MethodPost, "/api/dataplane/signals/history/import", testToken, importBody)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history import: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if _, ok := dp.history["other-context\x00"+key]; !ok {
+		t.Fatalf("imported history missing: %+v", dp.history)
+	}
+
+	rec = doReq(t, h, http.MethodPost, "/api/dataplane/signals/history/reset", testToken, []byte(`{}`))
+	if rec.Code != http.StatusOK || len(dp.ExportSignalHistory("test-context")) != 0 {
+		t.Fatalf("history reset: status=%d body=%s remaining=%+v", rec.Code, rec.Body.String(), dp.history)
 	}
 }
 

@@ -47,8 +47,9 @@ type snapshotPersistence interface {
 	PruneOlderThan(cluster string, maxAge time.Duration) error
 	ListSnapshots(cluster string) ([]persistedSnapshotCell, error)
 	SearchName(cluster string, query string, limit int, offset int) ([]dataplaneSearchRow, error)
-	LoadSignalHistory(cluster string) (map[string]signalHistoryRecord, error)
-	UpsertSignalHistory(cluster string, updates map[string]signalHistoryRecord) error
+	LoadSignalHistory(cluster string) (map[string]SignalHistoryRecord, error)
+	UpsertSignalHistory(cluster string, updates map[string]SignalHistoryRecord) error
+	DeleteSignalHistory(cluster, key string) error
 	PruneSignalHistoryOlderThan(cluster string, maxAge time.Duration) error
 	LoadSignalAcknowledgements(cluster string) (map[string]SignalAcknowledgementRecord, error)
 	UpsertSignalAcknowledgement(cluster, key string, rec SignalAcknowledgementRecord) error
@@ -385,11 +386,11 @@ func (p *boltSnapshotPersistence) ListSnapshots(cluster string) ([]persistedSnap
 	return cells, err
 }
 
-func (p *boltSnapshotPersistence) LoadSignalHistory(cluster string) (map[string]signalHistoryRecord, error) {
+func (p *boltSnapshotPersistence) LoadSignalHistory(cluster string) (map[string]SignalHistoryRecord, error) {
 	if p == nil || p.db == nil {
 		return nil, nil
 	}
-	out := map[string]signalHistoryRecord{}
+	out := map[string]SignalHistoryRecord{}
 	prefix := signalHistoryKey(cluster, "")
 	err := p.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(dataplaneSignalBucket)
@@ -402,7 +403,7 @@ func (p *boltSnapshotPersistence) LoadSignalHistory(cluster string) (map[string]
 			if signalKey == "" {
 				continue
 			}
-			var rec signalHistoryRecord
+			var rec SignalHistoryRecord
 			if err := json.Unmarshal(value, &rec); err != nil {
 				return err
 			}
@@ -416,7 +417,7 @@ func (p *boltSnapshotPersistence) LoadSignalHistory(cluster string) (map[string]
 	return out, nil
 }
 
-func (p *boltSnapshotPersistence) UpsertSignalHistory(cluster string, updates map[string]signalHistoryRecord) error {
+func (p *boltSnapshotPersistence) UpsertSignalHistory(cluster string, updates map[string]SignalHistoryRecord) error {
 	if p == nil || p.db == nil || len(updates) == 0 {
 		return nil
 	}
@@ -438,6 +439,19 @@ func (p *boltSnapshotPersistence) UpsertSignalHistory(cluster string, updates ma
 	})
 }
 
+func (p *boltSnapshotPersistence) DeleteSignalHistory(cluster, key string) error {
+	if p == nil || p.db == nil || cluster == "" || key == "" {
+		return nil
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalBucket)
+		if b == nil {
+			return nil
+		}
+		return b.Delete(signalHistoryKey(cluster, key))
+	})
+}
+
 func (p *boltSnapshotPersistence) PruneSignalHistoryOlderThan(cluster string, maxAge time.Duration) error {
 	if p == nil || p.db == nil || maxAge <= 0 {
 		return nil
@@ -451,7 +465,7 @@ func (p *boltSnapshotPersistence) PruneSignalHistoryOlderThan(cluster string, ma
 		var deleteKeys [][]byte
 		if cluster == "" {
 			if err := b.ForEach(func(key, value []byte) error {
-				var rec signalHistoryRecord
+				var rec SignalHistoryRecord
 				if err := json.Unmarshal(value, &rec); err != nil {
 					return err
 				}
@@ -466,7 +480,7 @@ func (p *boltSnapshotPersistence) PruneSignalHistoryOlderThan(cluster string, ma
 			prefix := signalHistoryKey(cluster, "")
 			c := b.Cursor()
 			for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
-				var rec signalHistoryRecord
+				var rec SignalHistoryRecord
 				if err := json.Unmarshal(value, &rec); err != nil {
 					return err
 				}

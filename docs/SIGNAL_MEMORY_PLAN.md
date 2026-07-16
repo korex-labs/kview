@@ -68,6 +68,11 @@ explicit triage state and operator note through the shared signal-memory hint.
 
 ## Tranche 3: Transfer, Reset, And Retention Controls
 
+**Status:** Implemented. Settings transfer includes a validated, bounded **Signal
+memory** section with the standard conflict strategies. Dataplane → Signals can
+reset all history for the active context after confirmation, while the backend
+also supports one-identity reset for future contextual UI actions.
+
 **Objective:** make signal memory manageable operator-owned state.
 
 1. Add explicit signal-history export/import coverage alongside acknowledgements
@@ -84,8 +89,9 @@ explicit triage state and operator note through the shared signal-memory hint.
 - Absence from a partial/degraded dataplane response does not mean “resolved”.
 - “Previously resolved” comes only from an explicit saved investigation state.
 - No Signal Memory path performs a live Kubernetes read.
-- History remains bounded and follows existing local dataplane persistence
-  retention until explicit controls are added.
+- History retains at most 30 distinct observation days per identity, follows local
+  dataplane persistence retention, and can be exported/imported or reset per
+  context.
 - API changes are additive so older clients can ignore memory fields.
 
 ## Verification

@@ -555,17 +555,33 @@ describe("user settings", () => {
     const exported = exportSettingsTransferJSON({
       settings,
       appState: { v: 1, favouriteNamespacesByContext: { ctx: ["apps"] } },
-      sections: ["resourceTags", "resourceMacros", "dynamicLinks", "savedViews", "favourites", "investigationSnapshots"],
+      sections: ["resourceTags", "resourceMacros", "dynamicLinks", "savedViews", "favourites", "signalHistory", "investigationSnapshots"],
+      signalHistory: {
+        ctx: {
+          "pod_crash_loop_waiting|namespace|apps|Pod|api-7f": {
+            firstSeenAt: 86_400,
+            lastSeenAt: 172_800,
+            seenCount: 4,
+            observedDays: [86_400, 86_400, 172_800],
+          },
+        },
+      },
       investigationSnapshots: [snapshot],
     });
 
     const parsed = parseSettingsTransferJSON(exported);
-    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "resourceMacros", "dynamicLinks", "favourites", "savedViews", "investigationSnapshots"]);
+    expect(settingsTransferSectionIds(parsed)).toEqual(["resourceTags", "resourceMacros", "dynamicLinks", "favourites", "savedViews", "signalHistory", "investigationSnapshots"]);
     expect(parsed.sections.resourceTags?.definitions[0].id).toBe("handoff");
     expect(parsed.sections.resourceMacros?.definitions[0].macroName).toBe("JIRA_URL");
     expect(parsed.sections.dynamicLinks?.definitions[0].label).toBe("Jira Issue");
     expect(parsed.sections.savedViews?.[0].dashboardSnapshot?.signalsQuery).toBe("api");
     expect(parsed.sections.favourites?.favouriteNamespacesByContext.ctx).toEqual(["apps"]);
+    expect(parsed.sections.signalHistory?.ctx["pod_crash_loop_waiting|namespace|apps|Pod|api-7f"]).toEqual({
+      firstSeenAt: 86_400,
+      lastSeenAt: 172_800,
+      seenCount: 4,
+      observedDays: [86_400, 172_800],
+    });
     expect(parsed.sections.investigationSnapshots?.[0].primaryResource.name).toBe("api-7f");
     expect(parsed.sections.investigationSnapshots?.[0].operatorNote).toBe("Known deploy regression.");
   });

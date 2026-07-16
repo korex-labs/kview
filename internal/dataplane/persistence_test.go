@@ -252,7 +252,7 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	now := time.Now().UTC().Unix()
-	if err := store.UpsertSignalHistory("ctx", map[string]signalHistoryRecord{
+	if err := store.UpsertSignalHistory("ctx", map[string]SignalHistoryRecord{
 		"pod_restarts|namespace|team-a|Pod|api-0": {
 			FirstSeenAt:  now - 7200,
 			LastSeenAt:   now - 60,
@@ -291,6 +291,13 @@ func TestBoltSnapshotPersistenceSignalHistoryRoundTripAndPrune(t *testing.T) {
 	}
 	if _, ok := history["empty_secret|namespace|team-a|Secret|token"]; ok {
 		t.Fatalf("stale signal history was not pruned: %+v", history)
+	}
+	if err := store.DeleteSignalHistory("ctx", "pod_restarts|namespace|team-a|Pod|api-0"); err != nil {
+		t.Fatalf("delete signal history: %v", err)
+	}
+	history, err = store.LoadSignalHistory("ctx")
+	if err != nil || len(history) != 0 {
+		t.Fatalf("history after delete = %+v, err %v", history, err)
 	}
 }
 

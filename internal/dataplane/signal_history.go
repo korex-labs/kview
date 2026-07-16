@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type signalHistoryRecord struct {
+type SignalHistoryRecord struct {
 	FirstSeenAt  int64   `json:"firstSeenAt"`
 	LastSeenAt   int64   `json:"lastSeenAt"`
 	SeenCount    uint64  `json:"seenCount,omitempty"`
@@ -31,6 +31,12 @@ type SignalAcknowledgementImportResult struct {
 	Replaced int `json:"replaced"`
 }
 
+type SignalHistoryImportResult struct {
+	Imported int `json:"imported"`
+	Skipped  int `json:"skipped"`
+	Replaced int `json:"replaced"`
+}
+
 func (m *manager) ensureSignalHistory(clusterName string) {
 	if clusterName == "" {
 		return
@@ -41,7 +47,7 @@ func (m *manager) ensureSignalHistory(clusterName string) {
 	if ok {
 		return
 	}
-	loaded := map[string]signalHistoryRecord{}
+	loaded := map[string]SignalHistoryRecord{}
 	if sp := m.currentPersistence(); sp != nil {
 		if hist, err := sp.LoadSignalHistory(clusterName); err == nil && hist != nil {
 			loaded = hist
@@ -84,7 +90,7 @@ func (m *manager) attachSignalHistory(clusterName string, observedAt time.Time, 
 	m.ensureSignalHistory(clusterName)
 	m.ensureSignalAcknowledgements(clusterName)
 	observedUnix := observedAt.UTC().Unix()
-	changed := map[string]signalHistoryRecord{}
+	changed := map[string]SignalHistoryRecord{}
 
 	m.signalHistoryMu.Lock()
 	clusterHistory := m.signalHistory[clusterName]
@@ -141,7 +147,7 @@ func signalObservedDay(unix int64) int64 {
 	return time.Unix(unix, 0).UTC().Truncate(24 * time.Hour).Unix()
 }
 
-func updateSignalObservedDays(rec signalHistoryRecord, observedUnix int64) []int64 {
+func updateSignalObservedDays(rec SignalHistoryRecord, observedUnix int64) []int64 {
 	latestUnix := observedUnix
 	if rec.LastSeenAt > latestUnix {
 		latestUnix = rec.LastSeenAt
@@ -315,6 +321,139 @@ func (m *manager) ImportSignalAcknowledgements(clusterName string, incoming map[
 		}
 	}
 	return result, nil
+}
+
+func (m *manager) ExportSignalHistory(clusterName string) map[string]SignalHistoryRecord {
+	if clusterName == "" {
+		return map[string]SignalHistoryRecord{}
+	}
+	m.ensureSignalHistory(clusterName)
+	m.signalHistoryMu.RLock()
+	defer m.signalHistoryMu.RUnlock()
+	out := map[string]SignalHistoryRecord{}
+	for key, rec := range m.signalHistory[clusterName] {
+		if strings.TrimSpace(key) == "" || rec.LastSeenAt <= 0 {
+			continue
+		}
+		rec.ObservedDays = append([]int64(nil), rec.ObservedDays...)
+		out[key] = rec
+	}
+	return out
+}
+
+func normalizeImportedSignalHistory(rec SignalHistoryRecord) (SignalHistoryRecord, bool) {
+	if rec.FirstSeenAt <= 0 || rec.LastSeenAt <= 0 || rec.LastSeenAt < rec.FirstSeenAt {
+		return SignalHistoryRecord{}, false
+	}
+	latestDay := signalObservedDay(rec.LastSeenAt)
+	filteredDays := make([]int64, 0, len(rec.ObservedDays))
+	for _, day := range rec.ObservedDays {
+		day = signalObservedDay(day)
+		if day > 0 && day <= latestDay {
+			filteredDays = append(filteredDays, day)
+		}
+	}
+	rec.ObservedDays = filteredDays
+	rec.ObservedDays = updateSignalObservedDays(rec, rec.LastSeenAt)
+	if len(rec.ObservedDays) == 0 {
+		return SignalHistoryRecord{}, false
+	}
+	if rec.SeenCount == 0 {
+		rec.SeenCount = uint64(len(rec.ObservedDays))
+	}
+	return rec, true
+}
+
+func (m *manager) ImportSignalHistory(clusterName string, incoming map[string]SignalHistoryRecord, strategy string) (SignalHistoryImportResult, error) {
+	var result SignalHistoryImportResult
+	if clusterName == "" {
+		return result, nil
+	}
+	m.ensureSignalHistory(clusterName)
+	cleaned := map[string]SignalHistoryRecord{}
+	for key, rec := range incoming {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if normalized, ok := normalizeImportedSignalHistory(rec); ok {
+			cleaned[key] = normalized
+		}
+	}
+
+	m.signalHistoryMu.Lock()
+	if m.signalHistory[clusterName] == nil {
+		m.signalHistory[clusterName] = map[string]SignalHistoryRecord{}
+	}
+	current := m.signalHistory[clusterName]
+	deleteKeys := []string{}
+	if strategy == "replaceSections" {
+		for key := range current {
+			if _, ok := cleaned[key]; !ok {
+				delete(current, key)
+				deleteKeys = append(deleteKeys, key)
+				result.Replaced++
+			}
+		}
+	}
+	upserts := map[string]SignalHistoryRecord{}
+	for key, rec := range cleaned {
+		_, exists := current[key]
+		if exists && strategy == "keepMine" {
+			result.Skipped++
+			continue
+		}
+		if exists {
+			result.Replaced++
+		}
+		current[key] = rec
+		upserts[key] = rec
+		result.Imported++
+	}
+	m.signalHistoryMu.Unlock()
+
+	if sp := m.currentPersistence(); sp != nil {
+		for _, key := range deleteKeys {
+			if err := sp.DeleteSignalHistory(clusterName, key); err != nil {
+				return result, err
+			}
+		}
+		if err := sp.UpsertSignalHistory(clusterName, upserts); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func (m *manager) ResetSignalHistory(clusterName, historyKey string) (int, error) {
+	if clusterName == "" {
+		return 0, nil
+	}
+	m.ensureSignalHistory(clusterName)
+	key := strings.TrimSpace(historyKey)
+	m.signalHistoryMu.Lock()
+	current := m.signalHistory[clusterName]
+	keys := []string{}
+	if key != "" {
+		if _, ok := current[key]; ok {
+			delete(current, key)
+			keys = append(keys, key)
+		}
+	} else {
+		for currentKey := range current {
+			keys = append(keys, currentKey)
+		}
+		m.signalHistory[clusterName] = map[string]SignalHistoryRecord{}
+	}
+	m.signalHistoryMu.Unlock()
+	if sp := m.currentPersistence(); sp != nil {
+		for _, deleteKey := range keys {
+			if err := sp.DeleteSignalHistory(clusterName, deleteKey); err != nil {
+				return len(keys), err
+			}
+		}
+	}
+	return len(keys), nil
 }
 
 func signalHistoryIdentity(item ClusterDashboardSignal) string {

@@ -218,6 +218,73 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Get("/dataplane/signals/history/export", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		active := s.readContextName(r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"items":  s.dp.ExportSignalHistory(active),
+		})
+	})
+
+	api.Post("/dataplane/signals/history/import", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req struct {
+			Strategy string                                              `json:"strategy"`
+			Contexts map[string]map[string]dataplane.SignalHistoryRecord `json:"contexts"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal history import"})
+			return
+		}
+		strategy := strings.TrimSpace(req.Strategy)
+		if strategy != "keepMine" && strategy != "useImported" && strategy != "replaceSections" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid merge strategy"})
+			return
+		}
+		results := map[string]dataplane.SignalHistoryImportResult{}
+		for contextName, records := range req.Contexts {
+			contextName = strings.TrimSpace(contextName)
+			if contextName == "" {
+				continue
+			}
+			result, err := s.dp.ImportSignalHistory(contextName, records, strategy)
+			if err != nil {
+				writeErrorResponse(w, http.StatusInternalServerError, "failed to import signal history")
+				return
+			}
+			results[contextName] = result
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": results})
+	})
+
+	api.Post("/dataplane/signals/history/reset", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req struct {
+			HistoryKey string `json:"historyKey,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid signal history reset"})
+			return
+		}
+		active := s.readContextName(r)
+		deleted, err := s.dp.ResetSignalHistory(active, req.HistoryKey)
+		if err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to reset signal history")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "deleted": deleted})
+	})
+
 	api.Post("/dataplane/signals/ack", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})

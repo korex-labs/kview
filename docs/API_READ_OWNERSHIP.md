@@ -106,6 +106,9 @@ must remain safe in read-only/RBAC-constrained clusters.
 |-------|----------|
 | `GET /api/investigations/snapshots` | Lists local investigation snapshots for the active context, optionally filtered by primary resource `kind`, `namespace`, and `name`. Source is kview's local investigation snapshot store, not Kubernetes. The Settings transfer UI uses this route when exporting the explicit **Investigation snapshots** transfer section. |
 | `GET /api/investigations/snapshots/{id}` | Returns one local investigation snapshot by id, or `404` if absent. Source is kview's local investigation snapshot store. |
+| `GET /api/dataplane/signals/history/export` | Returns bounded local signal observation history for the active context. It performs no Kubernetes read. |
+| `POST /api/dataplane/signals/history/import` | Imports bounded signal history for explicit contexts using the Settings transfer merge strategy. It mutates only kview's local dataplane persistence. |
+| `POST /api/dataplane/signals/history/reset` | Removes one `historyKey`, or all local signal history for the active context when the key is omitted. It never mutates Kubernetes. |
 
 `POST` and `DELETE` on the same snapshot collection mutate only local kview
 operator state; they do not write annotations or any other Kubernetes object.

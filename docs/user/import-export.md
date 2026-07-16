@@ -18,7 +18,7 @@ at export time.
 Exportable sections include Smart Filters, Resource Tags, Resource Macros,
 Dynamic Links, Saved Views, Custom Commands, Custom Actions, Dataplane signal
 settings, favourite namespaces, recent namespaces, signal acknowledgements when
-available, and saved Investigation Snapshots.
+available, bounded **Signal memory**, and saved Investigation Snapshots.
 
 When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
@@ -57,6 +57,10 @@ profile import replaces the current settings profile after confirmation.
   another browser profile.
 - Export **Saved Views** to share both resource-list layouts and dashboard
   signal views without changing broader operator settings.
+- Export **Signal memory** to preserve bounded distinct observation days during
+  profile transfer. Import honours the selected conflict strategy. In Dataplane →
+  Signals, **Reset context memory** removes all signal history for the active
+  context after confirmation; restore requires an exported transfer bundle.
 - Export **Investigation Snapshots** when handing off recurring incident context,
   known-fix notes, or a browser profile used during an incident review.
 - Export **Resource Macros** and **Dynamic Links** to share external-link

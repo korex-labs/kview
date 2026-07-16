@@ -232,6 +232,12 @@ type DataPlaneManager interface {
 	ExportSignalAcknowledgements(clusterName string) map[string]SignalAcknowledgementRecord
 	// ImportSignalAcknowledgements merges local signal acknowledgement metadata for a context.
 	ImportSignalAcknowledgements(clusterName string, incoming map[string]SignalAcknowledgementRecord, strategy string) (SignalAcknowledgementImportResult, error)
+	// ExportSignalHistory returns bounded local observation history for a context.
+	ExportSignalHistory(clusterName string) map[string]SignalHistoryRecord
+	// ImportSignalHistory merges bounded local observation history for a context.
+	ImportSignalHistory(clusterName string, incoming map[string]SignalHistoryRecord, strategy string) (SignalHistoryImportResult, error)
+	// ResetSignalHistory removes one signal identity or all history for a context.
+	ResetSignalHistory(clusterName, historyKey string) (int, error)
 
 	// Policy returns the current dataplane behavior policy.
 	Policy() DataplanePolicy
@@ -325,7 +331,7 @@ type manager struct {
 	migration     PersistenceMigrationStatus
 
 	signalHistoryMu sync.RWMutex
-	signalHistory   map[string]map[string]signalHistoryRecord
+	signalHistory   map[string]map[string]SignalHistoryRecord
 	signalAckMu     sync.RWMutex
 	signalAck       map[string]map[string]SignalAcknowledgementRecord
 
@@ -380,7 +386,7 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		stats:                newDataplaneSessionStats(time.Now().UTC()),
 		policy:               policy,
 		bundle:               bundle,
-		signalHistory:        map[string]map[string]signalHistoryRecord{},
+		signalHistory:        map[string]map[string]SignalHistoryRecord{},
 		signalAck:            map[string]map[string]SignalAcknowledgementRecord{},
 		nsEnrich:             newNsEnrichmentCoordinator(),
 		observerEnsureLast:   map[string]time.Time{},

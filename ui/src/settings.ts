@@ -23,6 +23,7 @@ export type SettingsTransferSection =
   | "savedViews"
   | "signalSettings"
   | "signalAcknowledgements"
+  | "signalHistory"
   | "investigationSnapshots";
 
 export type SignalOverride = {
@@ -265,6 +266,13 @@ export type SignalAcknowledgementTransferRecord = {
   updatedAt: number;
 };
 
+export type SignalHistoryTransferRecord = {
+  firstSeenAt: number;
+  lastSeenAt: number;
+  seenCount?: number;
+  observedDays: number[];
+};
+
 export type SettingsTransferBundleV1 = {
   kind: "kview.settingsTransfer";
   v: 1;
@@ -283,6 +291,7 @@ export type SettingsTransferBundleV1 = {
       contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>>;
     };
     signalAcknowledgements: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+    signalHistory: Record<string, Record<string, SignalHistoryTransferRecord>>;
     investigationSnapshots: InvestigationSnapshot[];
   }>;
 };
@@ -2351,6 +2360,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
   { id: "signalAcknowledgements", label: "Signal acknowledgements" },
+  { id: "signalHistory", label: "Signal memory" },
   { id: "investigationSnapshots", label: "Investigation snapshots" },
 ];
 
@@ -2365,6 +2375,7 @@ export function exportSettingsTransferJSON(input: {
   appState: AppStateV1;
   sections: SettingsTransferSection[];
   signalAcknowledgements?: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
+  signalHistory?: Record<string, Record<string, SignalHistoryTransferRecord>>;
   investigationSnapshots?: InvestigationSnapshot[];
 }): string {
   const selected = new Set(input.sections);
@@ -2399,6 +2410,9 @@ export function exportSettingsTransferJSON(input: {
   }
   if (selected.has("signalAcknowledgements")) {
     bundle.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(input.signalAcknowledgements);
+  }
+  if (selected.has("signalHistory")) {
+    bundle.sections.signalHistory = normalizeSignalHistoryTransfer(input.signalHistory);
   }
   if (selected.has("investigationSnapshots")) {
     bundle.sections.investigationSnapshots = normalizeInvestigationSnapshotTransfer(input.investigationSnapshots);
@@ -2467,6 +2481,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   }
   if ("signalAcknowledgements" in sections) {
     out.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(sections.signalAcknowledgements);
+  }
+  if ("signalHistory" in sections) {
+    out.sections.signalHistory = normalizeSignalHistoryTransfer(sections.signalHistory);
   }
   if ("investigationSnapshots" in sections) {
     out.sections.investigationSnapshots = normalizeInvestigationSnapshotTransfer(sections.investigationSnapshots);
@@ -2882,6 +2899,42 @@ function normalizeSignalAcknowledgementTransfer(input: unknown): Record<string, 
         updatedAt: typeof record.updatedAt === "number" && record.updatedAt > 0
           ? Math.floor(record.updatedAt)
           : Math.floor(record.acknowledgedAt),
+      };
+    }
+    if (Object.keys(contextRecords).length > 0) out[contextKey] = contextRecords;
+  }
+  return out;
+}
+
+function normalizeSignalHistoryTransfer(input: unknown): Record<string, Record<string, SignalHistoryTransferRecord>> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, Record<string, SignalHistoryTransferRecord>> = {};
+  for (const [contextName, records] of Object.entries(input)) {
+    const contextKey = contextName.trim();
+    if (!contextKey || !records || typeof records !== "object" || Array.isArray(records)) continue;
+    const contextRecords: Record<string, SignalHistoryTransferRecord> = {};
+    for (const [historyKey, rawRecord] of Object.entries(records)) {
+      const key = historyKey.trim();
+      if (!key || !rawRecord || typeof rawRecord !== "object" || Array.isArray(rawRecord)) continue;
+      const record = rawRecord as Partial<SignalHistoryTransferRecord>;
+      const firstSeenAt = typeof record.firstSeenAt === "number" ? Math.floor(record.firstSeenAt) : 0;
+      const lastSeenAt = typeof record.lastSeenAt === "number" ? Math.floor(record.lastSeenAt) : 0;
+      if (firstSeenAt <= 0 || lastSeenAt < firstSeenAt) continue;
+      const observedDays = Array.isArray(record.observedDays)
+        ? Array.from(new Set(record.observedDays
+          .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
+          .map((value) => Math.floor(value))))
+          .sort((a, b) => a - b)
+          .slice(-30)
+        : [];
+      if (observedDays.length === 0) continue;
+      contextRecords[key] = {
+        firstSeenAt,
+        lastSeenAt,
+        seenCount: typeof record.seenCount === "number" && Number.isFinite(record.seenCount) && record.seenCount > 0
+          ? Math.floor(record.seenCount)
+          : observedDays.length,
+        observedDays,
       };
     }
     if (Object.keys(contextRecords).length > 0) out[contextKey] = contextRecords;

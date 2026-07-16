@@ -82,6 +82,7 @@ import {
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
+  type SignalHistoryTransferRecord,
   type SettingsTransferMergeStrategy,
   type SettingsTransferSection,
   type SettingsTransferBundleV1,
@@ -829,6 +830,12 @@ function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: Set
       const ackCount = Object.values(contexts).reduce((sum, records) => sum + Object.keys(records).length, 0);
       return `${ackCount} acknowledgement${ackCount === 1 ? "" : "s"} across ${contextCount} context${contextCount === 1 ? "" : "s"}`;
     }
+    case "signalHistory": {
+      const contexts = bundle.sections.signalHistory || {};
+      const contextCount = Object.keys(contexts).length;
+      const signalCount = Object.values(contexts).reduce((sum, records) => sum + Object.keys(records).length, 0);
+      return `${signalCount} signal memor${signalCount === 1 ? "y" : "ies"} across ${contextCount} context${contextCount === 1 ? "" : "s"}`;
+    }
     case "investigationSnapshots": {
       const snapshots = bundle.sections.investigationSnapshots || [];
       const contextCount = new Set(snapshots.map((snapshot) => snapshot.context || "local")).size;
@@ -1045,6 +1052,8 @@ export default function SettingsView({
   const [pendingTransferText, setPendingTransferText] = useState("");
   const [transferDialogMessage, setTransferDialogMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferImportBusy, setTransferImportBusy] = useState(false);
+  const [signalHistoryResetBusy, setSignalHistoryResetBusy] = useState(false);
+  const [signalHistoryMessage, setSignalHistoryMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [performanceSnapshot, setPerformanceSnapshot] = useState("");
   const [performanceSnapshotError, setPerformanceSnapshotError] = useState("");
   const [performanceSnapshotLoading, setPerformanceSnapshotLoading] = useState(false);
@@ -1353,6 +1362,7 @@ export default function SettingsView({
         comment?: string;
         updatedAt: number;
       }>> | undefined;
+      let signalHistory: Record<string, Record<string, SignalHistoryTransferRecord>> | undefined;
       let investigationSnapshots: InvestigationSnapshot[] | undefined;
       if (transferSections.includes("signalAcknowledgements") && activeContext) {
         const res = await apiGet<{ active: string; items: Record<string, {
@@ -1363,11 +1373,25 @@ export default function SettingsView({
         }> }>("/api/dataplane/signals/ack/export", token);
         signalAcknowledgements = res.active ? { [res.active]: res.items || {} } : {};
       }
+      if (transferSections.includes("signalHistory") && activeContext) {
+        const res = await apiGet<{ active: string; items: Record<string, SignalHistoryTransferRecord> }>(
+          "/api/dataplane/signals/history/export",
+          token,
+        );
+        signalHistory = res.active ? { [res.active]: res.items || {} } : {};
+      }
       if (transferSections.includes("investigationSnapshots")) {
         investigationSnapshots = await listSnapshotsForContexts(token, contextOptions);
       }
       const blob = new Blob([
-        exportSettingsTransferJSON({ settings, appState, sections: transferSections, signalAcknowledgements, investigationSnapshots }),
+        exportSettingsTransferJSON({
+          settings,
+          appState,
+          sections: transferSections,
+          signalAcknowledgements,
+          signalHistory,
+          investigationSnapshots,
+        }),
       ], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1404,6 +1428,23 @@ export default function SettingsView({
           contexts: bundle.sections.signalAcknowledgements,
         });
       }
+      let signalHistoryImportResult: { imported: number; skipped: number; replaced: number } | null = null;
+      if (selected.includes("signalHistory") && bundle.sections.signalHistory) {
+        const res = await apiPost<{
+          items: Record<string, { imported: number; skipped: number; replaced: number }>;
+        }>("/api/dataplane/signals/history/import", token, {
+          strategy: transferStrategy,
+          contexts: bundle.sections.signalHistory,
+        });
+        signalHistoryImportResult = Object.values(res.items || {}).reduce(
+          (total, item) => ({
+            imported: total.imported + (item.imported || 0),
+            skipped: total.skipped + (item.skipped || 0),
+            replaced: total.replaced + (item.replaced || 0),
+          }),
+          { imported: 0, skipped: 0, replaced: 0 },
+        );
+      }
       let snapshotImportResult: Awaited<ReturnType<typeof importInvestigationSnapshotTransfer>> | null = null;
       if (selected.includes("investigationSnapshots") && bundle.sections.investigationSnapshots) {
         snapshotImportResult = await importInvestigationSnapshotTransfer({
@@ -1415,12 +1456,15 @@ export default function SettingsView({
       replaceSettings(applied.settings);
       setAppState(applied.appState);
       setImportText(text);
+      const signalHistorySuffix = signalHistoryImportResult
+        ? ` Signal memory: ${signalHistoryImportResult.imported} imported, ${signalHistoryImportResult.skipped} skipped${signalHistoryImportResult.replaced ? `, ${signalHistoryImportResult.replaced} replaced` : ""}.`
+        : "";
       const snapshotSuffix = snapshotImportResult
         ? ` Investigation snapshots: ${snapshotImportResult.imported} imported, ${snapshotImportResult.skipped} skipped${snapshotImportResult.deleted ? `, ${snapshotImportResult.deleted} replaced` : ""}.`
         : "";
       setTransferDialogMessage({
         severity: "success",
-        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${snapshotSuffix}`,
+        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${signalHistorySuffix}${snapshotSuffix}`,
       });
       setImportMessage({ severity: "success", text: "Transfer bundle imported." });
     } catch (err) {
@@ -1429,6 +1473,28 @@ export default function SettingsView({
       setImportMessage({ severity: "error", text: message });
     } finally {
       setTransferImportBusy(false);
+    }
+  };
+
+  const resetActiveContextSignalHistory = async () => {
+    if (!activeContext || signalHistoryResetBusy) return;
+    if (!window.confirm(`Reset all local signal memory for ${activeContext}? This does not change Kubernetes resources or saved investigations.`)) return;
+    setSignalHistoryResetBusy(true);
+    setSignalHistoryMessage(null);
+    try {
+      const res = await apiPost<{ active: string; deleted: number }>(
+        "/api/dataplane/signals/history/reset",
+        token,
+        {},
+      );
+      setSignalHistoryMessage({
+        severity: "success",
+        text: `Reset ${res.deleted || 0} signal memor${res.deleted === 1 ? "y" : "ies"} for ${res.active || activeContext}.`,
+      });
+    } catch (err) {
+      setSignalHistoryMessage({ severity: "error", text: (err as Error).message || "Failed to reset signal memory." });
+    } finally {
+      setSignalHistoryResetBusy(false);
     }
   };
 
@@ -3402,6 +3468,25 @@ export default function SettingsView({
               </AppIconButton>
             }
           >
+            <Box sx={[settingsItemCardSx, { gap: 1 }]}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                <Box>
+                  <Typography variant="subtitle2">Signal memory</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    kview retains at most 30 distinct UTC observation days per stable signal identity. Export it through Settings transfer, or reset the active context locally.
+                  </Typography>
+                </Box>
+                <AppButton
+                  variant="outlined"
+                  color="warning"
+                  disabled={!activeContext || signalHistoryResetBusy}
+                  onClick={() => void resetActiveContextSignalHistory()}
+                >
+                  {signalHistoryResetBusy ? "Resetting…" : "Reset context memory"}
+                </AppButton>
+              </Box>
+              {signalHistoryMessage ? <Alert severity={signalHistoryMessage.severity}>{signalHistoryMessage.text}</Alert> : null}
+            </Box>
             <SettingField
               label="Filter signals"
               value={signalCatalogQuery}
