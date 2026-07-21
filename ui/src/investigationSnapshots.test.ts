@@ -71,6 +71,7 @@ describe("buildInvestigationSnapshot", () => {
       source: "investigate-signal",
     });
     expect(snapshot.relatedSignalTypes).toEqual(["pod_crash_loop_waiting", "pod_restart_elevated"]);
+    expect(snapshot.investigation).toEqual(sampleInvestigation());
   });
 
   it("falls back to reason/kind when signalType and resource identity are sparse", () => {

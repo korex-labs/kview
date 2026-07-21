@@ -62,7 +62,9 @@ profile import replaces the current settings profile after confirmation.
   Signals, **Reset context memory** removes all signal history for the active
   context after confirmation; restore requires an exported transfer bundle.
 - Export **Investigation Snapshots** when handing off recurring incident context,
-  known-fix notes, or a browser profile used during an incident review.
+  known-fix notes, or a browser profile used during an incident review. New
+  snapshots include the structured investigation result as well as the complete
+  Markdown report so the standard investigation dialog can replay the saved view.
 - Export **Resource Macros** and **Dynamic Links** to share external-link
   templates without changing someone else's local UI preferences.
 - Export a full profile before testing broad Dataplane or signal changes.

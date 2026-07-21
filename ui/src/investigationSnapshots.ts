@@ -97,6 +97,7 @@ export function buildInvestigationSnapshot(result: SignalInvestigationResult): I
     markdown: result.exportMarkdown || "",
     operatorNote: result.diagnosis?.summary || "",
     runbookUrls: [],
+    investigation: result,
     source: INVESTIGATION_SNAPSHOT_SOURCE,
   };
 }

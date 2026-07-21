@@ -13,7 +13,13 @@ objects, events, metadata, YAML, and supported actions.
 - **Overview tab**: starts with actions and attention-worthy state, then shows
   key operational details.
 - **Notes tab**: stores local operator notes and shows any saved investigation
-  snapshots for the current context/resource.
+  snapshots for the current context/resource. Use **Open snapshot** to reopen the
+  saved bundle in the standard **Signal investigation** dialog. Saved mode keeps
+  the familiar Summary, Evidence, Context, and Export tabs, but omits the
+ **Save snapshot** action because the bundle is already persisted. Newly saved
+ snapshots retain the structured investigation result for the closest possible
+ replay; older snapshots use their saved summary/resource fields and complete
+ Markdown Export bundle.
 - **Search and Activity**: saved investigation snapshots can appear in header
   search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,

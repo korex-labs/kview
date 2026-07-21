@@ -68,11 +68,16 @@ type InvestigationSnapshot = {
   markdown: string;
   operatorNote?: string;
   runbookUrls?: string[];
+  investigation?: SignalInvestigationResult;
   source: "investigate-signal";
 };
 ```
 
-Backend Go types should mirror this shape with JSON tags and preserve unknown-free, explicit fields.
+Backend Go types mirror this shape with JSON tags and preserve unknown-free,
+explicit fields. The optional structured investigation payload is bounded and
+JSON-normalized; it lets newly saved snapshots replay the standard investigation
+dialog exactly, while older records remain readable through their summary fields
+and Markdown bundle.
 
 ---
 

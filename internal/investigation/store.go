@@ -41,20 +41,21 @@ type ResourceRef struct {
 }
 
 type Snapshot struct {
-	ID                 string        `json:"id"`
-	Context            string        `json:"context"`
-	CreatedAt          int64         `json:"createdAt"`
-	UpdatedAt          int64         `json:"updatedAt"`
-	Title              string        `json:"title"`
-	TriageState        TriageState   `json:"triageState"`
-	Signal             SignalRef     `json:"signal"`
-	PrimaryResource    ResourceRef   `json:"primaryResource"`
-	RelatedResources   []ResourceRef `json:"relatedResources,omitempty"`
-	RelatedSignalTypes []string      `json:"relatedSignalTypes,omitempty"`
-	Markdown           string        `json:"markdown"`
-	OperatorNote       string        `json:"operatorNote,omitempty"`
-	RunbookURLs        []string      `json:"runbookUrls,omitempty"`
-	Source             string        `json:"source"`
+	ID                 string          `json:"id"`
+	Context            string          `json:"context"`
+	CreatedAt          int64           `json:"createdAt"`
+	UpdatedAt          int64           `json:"updatedAt"`
+	Title              string          `json:"title"`
+	TriageState        TriageState     `json:"triageState"`
+	Signal             SignalRef       `json:"signal"`
+	PrimaryResource    ResourceRef     `json:"primaryResource"`
+	RelatedResources   []ResourceRef   `json:"relatedResources,omitempty"`
+	RelatedSignalTypes []string        `json:"relatedSignalTypes,omitempty"`
+	Markdown           string          `json:"markdown"`
+	OperatorNote       string          `json:"operatorNote,omitempty"`
+	RunbookURLs        []string        `json:"runbookUrls,omitempty"`
+	Investigation      json.RawMessage `json:"investigation,omitempty"`
+	Source             string          `json:"source"`
 }
 
 type ListFilter struct {
@@ -245,6 +246,7 @@ func normalizeSnapshot(snapshot Snapshot, now int64) Snapshot {
 	snapshot.Markdown = cleanText(snapshot.Markdown, 200000)
 	snapshot.OperatorNote = cleanText(snapshot.OperatorNote, 8000)
 	snapshot.RunbookURLs = normalizeStringList(snapshot.RunbookURLs, 16, 2048)
+	snapshot.Investigation = normalizeJSONDocument(snapshot.Investigation, 1_000_000)
 	snapshot.Source = cleanSingleLine(snapshot.Source, 64)
 	if snapshot.Source == "" {
 		snapshot.Source = "investigate-signal"
@@ -281,7 +283,7 @@ func matchesFilter(snapshot Snapshot, filter ListFilter) bool {
 	if filter.Context != "" && snapshot.Context != cleanSingleLine(filter.Context, 128) {
 		return false
 	}
-	if filter.Kind != "" && !strings.EqualFold(snapshot.PrimaryResource.Kind, cleanSingleLine(filter.Kind, 128)) {
+	if filter.Kind != "" && canonicalResourceKind(snapshot.PrimaryResource.Kind) != canonicalResourceKind(filter.Kind) {
 		return false
 	}
 	if filter.Namespace != "" && snapshot.PrimaryResource.Namespace != cleanSingleLine(filter.Namespace, 128) {
@@ -291,6 +293,42 @@ func matchesFilter(snapshot Snapshot, filter ListFilter) bool {
 		return false
 	}
 	return true
+}
+
+func canonicalResourceKind(value string) string {
+	kind := strings.ToLower(cleanSingleLine(value, 128))
+	kind = strings.NewReplacer("-", "", "_", "", " ", "").Replace(kind)
+	aliases := map[string]string{
+		"pods":                      "pod",
+		"deployments":               "deployment",
+		"daemonsets":                "daemonset",
+		"statefulsets":              "statefulset",
+		"replicasets":               "replicaset",
+		"services":                  "service",
+		"ingresses":                 "ingress",
+		"networkpolicies":           "networkpolicy",
+		"jobs":                      "job",
+		"cronjobs":                  "cronjob",
+		"horizontalpodautoscalers":  "horizontalpodautoscaler",
+		"configmaps":                "configmap",
+		"secrets":                   "secret",
+		"serviceaccounts":           "serviceaccount",
+		"roles":                     "role",
+		"rolebindings":              "rolebinding",
+		"clusterroles":              "clusterrole",
+		"clusterrolebindings":       "clusterrolebinding",
+		"persistentvolumeclaims":    "persistentvolumeclaim",
+		"persistentvolumes":         "persistentvolume",
+		"nodes":                     "node",
+		"namespaces":                "namespace",
+		"customresourcedefinitions": "customresourcedefinition",
+		"resourcequotas":            "resourcequota",
+		"limitranges":               "limitrange",
+	}
+	if canonical, ok := aliases[kind]; ok {
+		return canonical
+	}
+	return kind
 }
 
 func normalizeTriageState(value TriageState) TriageState {
@@ -349,6 +387,21 @@ func cleanText(value string, maxLength int) string {
 		value = value[:maxLength]
 	}
 	return value
+}
+
+func normalizeJSONDocument(value json.RawMessage, maxLength int) json.RawMessage {
+	if len(value) == 0 || len(value) > maxLength {
+		return nil
+	}
+	var document map[string]any
+	if err := json.Unmarshal(value, &document); err != nil || document == nil {
+		return nil
+	}
+	normalized, err := json.Marshal(document)
+	if err != nil || len(normalized) > maxLength {
+		return nil
+	}
+	return normalized
 }
 
 func cleanSingleLine(value string, maxLength int) string {

@@ -26,6 +26,7 @@ import { apiPost } from "../../api";
 import { saveInvestigationSnapshot } from "../../investigationSnapshots";
 import type {
   DashboardSignalItem,
+  InvestigationSnapshot,
   SignalInvestigationHelperRun,
   SignalInvestigationItem,
   SignalInvestigationResourceRef,
@@ -40,6 +41,7 @@ import { signalCalculatedText, signalSeverityColor } from "./signalFormat";
 type Props = {
   token: string;
   signal: DashboardSignalItem | null;
+  snapshot?: InvestigationSnapshot | null;
   onClose: () => void;
 };
 
@@ -83,6 +85,84 @@ function signalKey(signal: DashboardSignalItem): string {
     signal.name,
     signal.reason,
   ].filter(Boolean).join("/");
+}
+
+function isRenderableInvestigationResult(value: unknown): value is SignalInvestigationResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = value as Partial<SignalInvestigationResult>;
+  if (!result.signal || typeof result.signal !== "object" || Array.isArray(result.signal)) return false;
+  if (!result.diagnosis || typeof result.diagnosis !== "object" || Array.isArray(result.diagnosis)) return false;
+  if (!result.primaryResource || typeof result.primaryResource !== "object" || Array.isArray(result.primaryResource)) return false;
+  if (typeof result.exportMarkdown !== "string" || typeof result.generatedAt !== "number") return false;
+  const arrays = [
+    result.helpers,
+    result.relatedResources,
+    result.relatedSignals,
+    result.contextSignals,
+    result.evidenceSections,
+    result.diagnosis.evidence,
+    result.diagnosis.nextSteps,
+    result.diagnosis.unknowns,
+  ];
+  return arrays.every((items) => items === undefined || (Array.isArray(items) && items.every((item) => !!item && typeof item === "object" && !Array.isArray(item))));
+}
+
+function snapshotInvestigationResult(snapshot: InvestigationSnapshot): SignalInvestigationResult {
+  if (isRenderableInvestigationResult(snapshot.investigation)) return snapshot.investigation;
+
+  const primaryResource: SignalInvestigationResourceRef = {
+    kind: snapshot.primaryResource.kind,
+    namespace: snapshot.primaryResource.namespace,
+    name: snapshot.primaryResource.name,
+    relation: "primary",
+    confidence: "saved",
+    evidence: snapshot.operatorNote,
+  };
+  return {
+    signal: {
+      kind: snapshot.primaryResource.kind,
+      namespace: snapshot.primaryResource.namespace,
+      name: snapshot.primaryResource.name,
+      resourceKind: snapshot.primaryResource.kind,
+      resourceName: snapshot.primaryResource.name,
+      severity: snapshot.signal.severity || "unknown",
+      score: 0,
+      reason: snapshot.signal.title || snapshot.signal.type,
+      section: snapshot.signal.category,
+      signalType: snapshot.signal.type,
+      lastSeenAt: snapshot.signal.observedAt,
+    },
+    diagnosis: {
+      summary: snapshot.operatorNote || "Saved investigation snapshot.",
+      confidence: "saved",
+      evidence: [
+        { label: "Snapshot state", value: snapshot.triageState || "investigating" },
+        ...(snapshot.context ? [{ label: "Context", value: snapshot.context }] : []),
+      ],
+    },
+    primaryResource,
+    relatedResources: (snapshot.relatedResources || []).map((resource) => ({
+      kind: resource.kind,
+      namespace: resource.namespace,
+      name: resource.name,
+      relation: "related",
+      confidence: "saved",
+    })),
+    relatedSignals: (snapshot.relatedSignalTypes || []).map((signalType) => ({
+      kind: snapshot.primaryResource.kind,
+      namespace: snapshot.primaryResource.namespace,
+      name: snapshot.primaryResource.name,
+      resourceKind: snapshot.primaryResource.kind,
+      resourceName: snapshot.primaryResource.name,
+      severity: "unknown",
+      score: 0,
+      reason: signalType,
+      signalType,
+    })),
+    contextSignals: [],
+    exportMarkdown: snapshot.markdown || "",
+    generatedAt: snapshot.createdAt || snapshot.updatedAt || Date.now(),
+  };
 }
 
 function hasItems(items?: SignalInvestigationItem[]) {
@@ -263,7 +343,7 @@ function HelperCard({ helper }: { helper: SignalInvestigationHelperRun }) {
   );
 }
 
-export default function SignalInvestigationDialog({ token, signal, onClose }: Props) {
+export default function SignalInvestigationDialog({ token, signal, snapshot = null, onClose }: Props) {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -272,6 +352,7 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
   const [saveError, setSaveError] = useState("");
   const [savedSnapshotId, setSavedSnapshotId] = useState("");
   const requestKey = useMemo(() => (signal ? signalKey(signal) : ""), [signal]);
+  const snapshotKey = snapshot?.id || `${snapshot?.title || ""}/${snapshot?.createdAt || 0}`;
   const usefulHelpers = useMemo(() => (result?.helpers || []).filter(helperHasDetails), [result?.helpers]);
   const hasEvidence =
     usefulHelpers.length > 0 ||
@@ -279,6 +360,16 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
     (result?.relatedResources?.length || 0) > 0;
 
   useEffect(() => {
+    if (snapshot) {
+      setTab(0);
+      setResult(snapshotInvestigationResult(snapshot));
+      setError("");
+      setLoading(false);
+      setSavingSnapshot(false);
+      setSaveError("");
+      setSavedSnapshotId("");
+      return;
+    }
     if (!signal || !token) {
       setResult(null);
       setError("");
@@ -309,7 +400,7 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
     return () => {
       cancelled = true;
     };
-  }, [requestKey, signal, token]);
+  }, [requestKey, signal, snapshot, snapshotKey, token]);
 
   const handleSaveSnapshot = async () => {
     if (!result || !token) return;
@@ -326,13 +417,14 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
   };
 
   return (
-    <Dialog open={!!signal} onClose={onClose} fullWidth maxWidth="lg">
+    <Dialog open={!!signal || !!snapshot} onClose={onClose} fullWidth maxWidth="lg">
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
         <ManageSearchIcon fontSize="small" color="primary" />
-        <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="subtitle1" component="span" sx={{ fontWeight: 700 }}>
             Signal investigation
           </Typography>
+          {snapshot ? <Chip size="small" color="info" variant="outlined" label="Saved snapshot" /> : null}
         </Box>
       </DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.25, minHeight: 560 }}>
@@ -433,14 +525,16 @@ export default function SignalInvestigationDialog({ token, signal, onClose }: Pr
           ) : null}
         </Box>
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-          <DialogActionButton
-            action="secondary"
-            startIcon={<SaveAltIcon />}
-            onClick={handleSaveSnapshot}
-            disabled={!result || savingSnapshot}
-          >
-            {savingSnapshot ? "Saving…" : savedSnapshotId ? "Save another snapshot" : "Save snapshot"}
-          </DialogActionButton>
+          {!snapshot ? (
+            <DialogActionButton
+              action="secondary"
+              startIcon={<SaveAltIcon />}
+              onClick={handleSaveSnapshot}
+              disabled={!result || savingSnapshot}
+            >
+              {savingSnapshot ? "Saving…" : savedSnapshotId ? "Save another snapshot" : "Save snapshot"}
+            </DialogActionButton>
+          ) : null}
           <DialogActionButton action="cancel" onClick={onClose}>Close</DialogActionButton>
         </Box>
       </Box>

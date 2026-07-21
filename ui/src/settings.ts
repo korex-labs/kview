@@ -2829,6 +2829,22 @@ function normalizeInvestigationResourceRef(input: unknown): InvestigationSnapsho
   return ref;
 }
 
+function normalizeSavedInvestigationResult(input: unknown): InvestigationSnapshot["investigation"] | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const raw = input as Record<string, unknown>;
+  if (!raw.signal || typeof raw.signal !== "object" || Array.isArray(raw.signal)) return undefined;
+  if (!raw.diagnosis || typeof raw.diagnosis !== "object" || Array.isArray(raw.diagnosis)) return undefined;
+  if (!raw.primaryResource || typeof raw.primaryResource !== "object" || Array.isArray(raw.primaryResource)) return undefined;
+  if (typeof raw.exportMarkdown !== "string" || typeof raw.generatedAt !== "number") return undefined;
+  try {
+    const serialized = JSON.stringify(input);
+    if (serialized.length > 1_000_000) return undefined;
+    return JSON.parse(serialized) as InvestigationSnapshot["investigation"];
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizeInvestigationSnapshotTransfer(input: unknown): InvestigationSnapshot[] {
   if (!Array.isArray(input)) return [];
   const out: InvestigationSnapshot[] = [];
@@ -2870,6 +2886,7 @@ function normalizeInvestigationSnapshotTransfer(input: unknown): InvestigationSn
       runbookUrls: Array.isArray(raw.runbookUrls)
         ? Array.from(new Set(raw.runbookUrls.map((value) => cleanTransferText(value, 2048)).filter(Boolean))).slice(0, 16)
         : [],
+      investigation: normalizeSavedInvestigationResult(raw.investigation),
       source: cleanTransferText(raw.source, 64) || "investigate-signal",
     };
     const key = `${snapshot.context || ""}\u0000${snapshot.id || ""}\u0000${snapshot.primaryResource.kind}\u0000${snapshot.primaryResource.namespace || ""}\u0000${snapshot.primaryResource.name}\u0000${snapshot.title}\u0000${snapshot.createdAt || 0}`;

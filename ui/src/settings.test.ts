@@ -550,6 +550,13 @@ describe("user settings", () => {
       markdown: "# Investigation",
       operatorNote: "Known deploy regression.",
       runbookUrls: [],
+      investigation: {
+        signal: { kind: "Pod", namespace: "apps", name: "api-7f", severity: "high", score: 90, reason: "CrashLoopBackOff" },
+        diagnosis: { summary: "Known deploy regression.", confidence: "high" },
+        primaryResource: { kind: "Pod", namespace: "apps", name: "api-7f", relation: "primary" },
+        exportMarkdown: "# Investigation",
+        generatedAt: 100,
+      },
       source: "investigate-signal",
     };
     const exported = exportSettingsTransferJSON({
@@ -584,6 +591,7 @@ describe("user settings", () => {
     });
     expect(parsed.sections.investigationSnapshots?.[0].primaryResource.name).toBe("api-7f");
     expect(parsed.sections.investigationSnapshots?.[0].operatorNote).toBe("Known deploy regression.");
+    expect(parsed.sections.investigationSnapshots?.[0].investigation?.diagnosis.summary).toBe("Known deploy regression.");
   });
 
   it("merges transfer sections while keeping local conflicts", () => {

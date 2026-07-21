@@ -373,6 +373,7 @@ export type InvestigationSnapshot = {
   markdown: string;
   operatorNote?: string;
   runbookUrls?: string[];
+  investigation?: SignalInvestigationResult;
   source: string;
 };
 

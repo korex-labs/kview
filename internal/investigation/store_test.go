@@ -1,6 +1,7 @@
 package investigation
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ func TestFileStoreCreateListGetDeleteSnapshots(t *testing.T) {
 		TriageState: TriageInvestigating,
 		Signal:      SignalRef{Type: "pod_crash_loop_waiting", Severity: "high"},
 		PrimaryResource: ResourceRef{
-			Kind:      "pods",
+			Kind:      "Pod",
 			Namespace: "app-prod",
 			Name:      "api-7f",
 		},
@@ -24,6 +25,7 @@ func TestFileStoreCreateListGetDeleteSnapshots(t *testing.T) {
 		Markdown:           "# Debug bundle\n\nEvidence here.",
 		OperatorNote:       "Check rollout image.",
 		RunbookURLs:        []string{"https://runbooks.example.invalid/pods", "https://runbooks.example.invalid/pods"},
+		Investigation:      json.RawMessage(`{"signal":{"kind":"Pod"},"diagnosis":{"summary":"Saved"}}`),
 		Source:             "investigate-signal",
 	})
 	if err != nil {
@@ -45,6 +47,9 @@ func TestFileStoreCreateListGetDeleteSnapshots(t *testing.T) {
 	}
 	if byID.PrimaryResource.Name != "api-7f" {
 		t.Fatalf("primary resource name: got %q", byID.PrimaryResource.Name)
+	}
+	if len(byID.Investigation) == 0 {
+		t.Fatal("expected structured investigation payload to survive persistence")
 	}
 
 	all, err := store.List(ListFilter{Context: "kind-dev"})

@@ -16,8 +16,12 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { AppButton } from "./AppActions";
 import InfoHint from "./InfoHint";
 import Section from "./Section";
+import SignalInvestigationDialog from "./SignalInvestigationDialog";
 import { useActiveContext } from "../../activeContext";
-import { listResourceInvestigationSnapshots } from "../../investigationSnapshots";
+import {
+  INVESTIGATION_SNAPSHOTS_CHANGED_EVENT,
+  listResourceInvestigationSnapshots,
+} from "../../investigationSnapshots";
 import type { InvestigationSnapshot } from "../../types/api";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import {
@@ -83,6 +87,13 @@ function useResourceInvestigationSnapshots(token: string | undefined, target: Re
   const [items, setItems] = useState<InvestigationSnapshot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener(INVESTIGATION_SNAPSHOTS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(INVESTIGATION_SNAPSHOTS_CHANGED_EVENT, refresh);
+  }, []);
 
   useEffect(() => {
     if (!token || !target) {
@@ -114,7 +125,7 @@ function useResourceInvestigationSnapshots(token: string | undefined, target: Re
     return () => {
       cancelled = true;
     };
-  }, [token, target]);
+  }, [revision, token, target]);
 
   return { items, loading, error };
 }
@@ -132,49 +143,61 @@ function snapshotStateColor(state?: string): "default" | "info" | "warning" | "e
 
 function InvestigationSnapshotsSection({ token, target }: { token?: string; target: ResourceMemoryTarget }) {
   const { items, loading, error } = useResourceInvestigationSnapshots(token, target);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<InvestigationSnapshot | null>(null);
   const hasItems = items.length > 0;
   if (!token) return null;
 
   return (
-    <Section
-      title="Investigation snapshots"
-      dividerPlacement="content"
-      actions={hasItems ? <Chip size="small" color="info" variant="outlined" label={`${items.length} saved`} /> : null}
-      sx={{ mt: 1 }}
-    >
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: hasItems || loading || error ? 1 : 0 }}>
-        Local saved investigations for this resource and context. These are kview operator notes, not Kubernetes objects.
-      </Typography>
-      {loading ? <Typography variant="body2" color="text.secondary">Loading saved investigations…</Typography> : null}
-      {error ? <Typography variant="body2" color="error">Could not load snapshots: {error}</Typography> : null}
-      {!loading && !error && !hasItems ? (
-        <Typography variant="body2" color="text.secondary">
-          No saved investigation snapshots for this resource yet.
+    <>
+      <Section
+        title="Investigation snapshots"
+        dividerPlacement="content"
+        actions={hasItems ? <Chip size="small" color="info" variant="outlined" label={`${items.length} saved`} /> : null}
+        sx={{ mt: 1 }}
+      >
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: hasItems || loading || error ? 1 : 0 }}>
+          Local saved investigations for this resource and context. These are kview operator notes, not Kubernetes objects.
         </Typography>
-      ) : null}
-      {hasItems ? (
-        <Stack spacing={1}>
-          {items.map((item) => (
-            <Box key={item.id || `${item.title}-${item.createdAt}`} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1, bgcolor: "background.paper" }}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0, flexWrap: "wrap" }}>
-                <Chip size="small" color={snapshotStateColor(item.triageState)} variant="outlined" label={item.triageState || "investigating"} />
-                <Typography variant="body2" sx={{ fontWeight: 700, overflowWrap: "anywhere", flexGrow: 1, minWidth: 180 }}>
-                  {item.title || item.signal?.title || item.signal?.type || "Saved investigation"}
-                </Typography>
-              </Stack>
-              {item.operatorNote ? (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, overflowWrap: "anywhere", lineHeight: 1.45 }}>
-                  {item.operatorNote}
-                </Typography>
-              ) : null}
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
-                Saved {formatUpdatedAt(item.createdAt)} · {item.signal?.type || "signal"}
-              </Typography>
-            </Box>
-          ))}
-        </Stack>
-      ) : null}
-    </Section>
+        {loading ? <Typography variant="body2" color="text.secondary">Loading saved investigations…</Typography> : null}
+        {error ? <Typography variant="body2" color="error">Could not load snapshots: {error}</Typography> : null}
+        {!loading && !error && !hasItems ? (
+          <Typography variant="body2" color="text.secondary">
+            No saved investigation snapshots for this resource yet.
+          </Typography>
+        ) : null}
+        {hasItems ? (
+          <Stack spacing={1}>
+            {items.map((item) => (
+              <Box key={item.id || `${item.title}-${item.createdAt}`} sx={{ border: "1px solid var(--panel-border)", borderRadius: 1, p: 1, bgcolor: "background.paper" }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0, flexWrap: "wrap" }}>
+                  <Chip size="small" color={snapshotStateColor(item.triageState)} variant="outlined" label={item.triageState || "investigating"} />
+                  <Typography variant="body2" sx={{ fontWeight: 700, overflowWrap: "anywhere", flexGrow: 1, minWidth: 180 }}>
+                    {item.title || item.signal?.title || item.signal?.type || "Saved investigation"}
+                  </Typography>
+                </Stack>
+                {item.operatorNote ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, overflowWrap: "anywhere", lineHeight: 1.45 }}>
+                    {item.operatorNote}
+                  </Typography>
+                ) : null}
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 0.75, alignItems: { xs: "flex-start", sm: "center" } }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+                    Saved {formatUpdatedAt(item.createdAt)} · {item.signal?.type || "signal"}
+                  </Typography>
+                  <AppButton onClick={() => setSelectedSnapshot(item)}>Open snapshot</AppButton>
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        ) : null}
+      </Section>
+      <SignalInvestigationDialog
+        token={token}
+        signal={null}
+        snapshot={selectedSnapshot}
+        onClose={() => setSelectedSnapshot(null)}
+      />
+    </>
   );
 }
 
