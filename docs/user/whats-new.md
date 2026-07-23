@@ -6,21 +6,22 @@ repository.
 
 ## Recent Highlights
 
-- Saved views now work across both the dashboard and resource lists, so one
-  shared saved view can move you between signal triage and list workflows.
-- Local resource notes can now be added and reviewed directly in kview, with
-  note state surfaced in drawers, activity tabs, and resource lists.
-- The Activity view now shows adaptive scheduler health and namespace sweep
-  coverage, making background dataplane behavior easier to understand when the
-  cluster is under pressure.
-- Dataplane freshness now adapts under load, reducing unnecessary background
-  churn while keeping operators informed when polling and enrichment slow down.
-- Failure signals now do a better job surfacing image pull problems,
-  CrashLoopBackOff states, unschedulable pods, and unavailable deployments.
-- Global search results now carry richer status and signal context, making it
-  easier to spot why a matching resource needs attention.
-- `kview --version` and `kview -version` now print the resolved build version
-  without starting the application.
+- You can now save signal investigations as local snapshots and reopen them
+  later, making it easier to preserve triage context without rebuilding the
+  same investigation.
+- Saved investigation snapshots now appear in resource drawers, search results,
+  and activity views, so saved context stays visible while you move between
+  workflows.
+- Signal workflows now show recurring observation history, helping you tell
+  when an issue is repeating instead of appearing for the first time.
+- Current signals can now link back to saved decisions, giving operators faster
+  access to prior conclusions while reviewing active issues.
+- Signal memory can now be transferred with settings or reset when needed,
+  making it easier to carry forward or clear operator decision history.
+- Saved investigation snapshots are now included in settings transfer bundles,
+  improving portability for investigation workflows across environments.
+- Dataplane refreshes now preserve previously collected metrics more reliably
+  when joined refresh work overlaps.
 
 ## Full History
 

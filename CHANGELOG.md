@@ -3,6 +3,30 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.14.0 - 2026-07-23
+
+- Added saved investigation snapshots so operators can keep local copies of
+  signal investigations and reopen them later without rebuilding the same
+  context from scratch.
+- Surfaced saved snapshots across resource drawers, search, and activity views,
+  making saved investigation context easier to find while moving between
+  browsing and triage workflows.
+- Improved signal continuity by showing recurring observation history and
+  linking current signals back to saved decisions, helping operators understand
+  whether an issue is repeating and what was decided previously.
+- Added transfer and reset support for signal memory, and included saved
+  snapshots in settings transfer bundles so investigation state can move more
+  cleanly between environments and profiles.
+- Fixed investigation reopening and dataplane refresh behavior so saved
+  snapshots reopen more reliably and joined refreshes keep previously collected
+  metrics intact.
+- Updated Kubernetes compatibility and release infrastructure by migrating
+  service endpoint handling to `EndpointSlice`, publishing desktop webview
+  binaries, adopting native TypeScript 7 typechecking, and refreshing core
+  toolchain and dependency maintenance.
+- Tightened release verification and project maintenance with CI isolation for
+  lint and TypeScript compatibility plus targeted dependency refresh work.
+
 ## v5.13.0 - 2026-06-24
 
 - Unified saved views across the dashboard and resource lists so operators can
