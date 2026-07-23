@@ -83,7 +83,9 @@ require permissions beyond list/read access. Job rerun, CronJob run, and debug
 run actions require permission to create Jobs in the namespace. Stopping a
 debug run requires permission to stop or delete the generated Job. CronJob
 suspend and resume require patch or update permission on CronJobs. Metrics
-appear only when metrics.k8s.io is available and allowed.
+appear only when metrics.k8s.io is available and allowed. During a background
+metrics refresh, kview keeps the previous sample visible until a replacement is
+available instead of briefly clearing the CPU and Memory columns.
 
 ## Related Settings
 

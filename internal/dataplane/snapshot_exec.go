@@ -109,7 +109,9 @@ func executeClusterSnapshot[I any](
 	}
 
 	var out Snapshot[I]
+	executed := false
 	runErr := sched.Run(ctx, prio, key, func(runCtx context.Context) error {
+		executed = true
 		if p.stats != nil {
 			p.stats.recordFetchAttempt(source, desc.kind)
 		}
@@ -157,6 +159,15 @@ func executeClusterSnapshot[I any](
 		return nil
 	})
 
+	// A joined caller waits for the scheduler owner but does not execute this
+	// call's closure, so its local out value is empty. Never let that follower
+	// overwrite an existing snapshot with the zero value.
+	if !executed {
+		if joined, ok := peekClusterSnapshot(store); ok {
+			return joined, runErr
+		}
+		return out, runErr
+	}
 	if runErr != nil && len(out.Items) == 0 && haveStaleCached {
 		fallback := staleCachedSnapshotFallback(staleCached, out)
 		setClusterSnapshot(store, fallback)
@@ -224,7 +235,9 @@ func executeNamespacedSnapshot[I any](
 	}
 
 	var out Snapshot[I]
+	executed := false
 	runErr := sched.Run(ctx, prio, key, func(runCtx context.Context) error {
+		executed = true
 		if p.stats != nil {
 			p.stats.recordFetchAttempt(source, desc.kind)
 		}
@@ -272,6 +285,15 @@ func executeNamespacedSnapshot[I any](
 		return nil
 	})
 
+	// A joined caller waits for the scheduler owner but does not execute this
+	// call's closure, so its local out value is empty. Preserve the latest
+	// namespace snapshot instead of replacing it with an empty cache cell.
+	if !executed {
+		if joined, ok := peekNamespacedSnapshot(store, namespace); ok {
+			return joined, runErr
+		}
+		return out, runErr
+	}
 	if runErr != nil && len(out.Items) == 0 && haveStaleCached {
 		fallback := staleCachedSnapshotFallback(staleCached, out)
 		setNamespacedSnapshot(store, namespace, fallback)
