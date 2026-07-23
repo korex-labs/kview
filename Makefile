@@ -152,8 +152,15 @@ local-check: install-git-hooks
 		fi
 	scripts/test-visibility.sh
 
+# npm dependencies can contain nested Go packages (for example flatted/golang).
+# Resolve project package directories explicitly so golangci-lint never scans node_modules.
 local-lint-go: install-git-hooks
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
+	ROOT=$$(pwd); \
+		GO_PACKAGES=""; \
+		for dir in $$(go list -f '{{.Dir}}' ./... | grep -v '/$(UI_DIR)/node_modules/'); do \
+			GO_PACKAGES="$$GO_PACKAGES .$${dir#$$ROOT}"; \
+		done; \
+		go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run $$GO_PACKAGES
 
 local-coverage: install-git-hooks
 	mkdir -p $(COVERAGE_DIR)

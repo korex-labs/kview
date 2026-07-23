@@ -26,6 +26,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3
+    ignore:
+      # TypeScript 7 is the native compiler alias below; the package named
+      # "typescript" must stay on the TS6 programmatic API until
+      # typescript-eslint supports TS7.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-tooling:
         dependency-type: "development"
