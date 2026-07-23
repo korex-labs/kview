@@ -9,7 +9,6 @@ import (
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -104,25 +103,13 @@ func mapLoadBalancerIngress(items []corev1.LoadBalancerIngress) []string {
 }
 
 func listServiceEndpointPods(ctx context.Context, c *cluster.Clients, svc *corev1.Service) (int, int, []dto.ServiceEndpointPodDTO, error) {
-	ep, err := c.Clientset.CoreV1().Endpoints(svc.Namespace).Get(ctx, svc.Name, metav1.GetOptions{})
+	slices, err := ListServiceEndpointSlices(ctx, c, svc.Namespace, svc.Name)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return 0, 0, nil, nil
-		}
 		return 0, 0, nil, err
 	}
 
-	readyCount, notReadyCount := EndpointsCounts(ep)
-	podRefs := map[string]corev1.ObjectReference{}
-
-	for _, subset := range ep.Subsets {
-		for _, addr := range subset.Addresses {
-			addPodRef(podRefs, addr.TargetRef, svc.Namespace)
-		}
-		for _, addr := range subset.NotReadyAddresses {
-			addPodRef(podRefs, addr.TargetRef, svc.Namespace)
-		}
-	}
+	readyCount, notReadyCount := EndpointSlicesCounts(slices)
+	podRefs := EndpointSlicePodRefs(slices, svc.Namespace)
 
 	pods := make([]dto.ServiceEndpointPodDTO, 0, len(podRefs))
 	for _, ref := range podRefs {
@@ -153,18 +140,6 @@ func listServiceEndpointPods(ctx context.Context, c *cluster.Clients, svc *corev
 	})
 
 	return readyCount, notReadyCount, pods, nil
-}
-
-func addPodRef(target map[string]corev1.ObjectReference, ref *corev1.ObjectReference, defaultNS string) {
-	if ref == nil {
-		return
-	}
-	ns := ref.Namespace
-	if ns == "" {
-		ns = defaultNS
-	}
-	key := ns + "/" + ref.Name
-	target[key] = *ref
 }
 
 func IsPodReady(pod *corev1.Pod) bool {

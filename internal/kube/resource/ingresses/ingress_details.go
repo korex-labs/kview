@@ -10,7 +10,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	svcs "github.com/korex-labs/kview/v5/internal/kube/resource/services"
-	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -196,15 +196,9 @@ func buildIngressWarnings(ctx context.Context, c *cluster.Clients, namespace str
 		serviceMap[s.Name] = struct{}{}
 	}
 
-	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-	endpointsByName := map[string]*corev1.Endpoints{}
-	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
-		for i := range endpoints.Items {
-			ep := endpoints.Items[i]
-			endpointsByName[ep.Name] = &ep
-		}
+	endpointSlicesByName := map[string][]discoveryv1.EndpointSlice{}
+	if slices, err := svcs.ListEndpointSlicesByService(ctx, c, namespace); err == nil {
+		endpointSlicesByName = slices
 	}
 
 	missing := []string{}
@@ -214,7 +208,7 @@ func buildIngressWarnings(ctx context.Context, c *cluster.Clients, namespace str
 			missing = append(missing, svcName)
 			continue
 		}
-		ready, _ := svcs.EndpointsCounts(endpointsByName[svcName])
+		ready, _ := svcs.EndpointSlicesCounts(endpointSlicesByName[svcName])
 		if ready == 0 {
 			noReady = append(noReady, svcName)
 		}

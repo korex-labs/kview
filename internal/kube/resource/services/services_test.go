@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -110,84 +112,61 @@ func TestFormatServicePortsSummary(t *testing.T) {
 	}
 }
 
-//nolint:staticcheck // Deferred migration to EndpointSlice; test matches current behavior.
-func TestEndpointsCounts(t *testing.T) {
-	addr := func(ip string) corev1.EndpointAddress { return corev1.EndpointAddress{IP: ip} }
-
-	cases := []struct {
-		name         string
-		ep           *corev1.Endpoints
-		wantReady    int
-		wantNotReady int
-	}{
+func TestEndpointSlicesCounts(t *testing.T) {
+	ready := true
+	notReady := false
+	podRef := func(name, uid string) *corev1.ObjectReference {
+		return &corev1.ObjectReference{Kind: "Pod", Namespace: "default", Name: name, UID: types.UID(uid)}
+	}
+	slices := []discoveryv1.EndpointSlice{
 		{
-			name:         "nil endpoint",
-			ep:           nil,
-			wantReady:    0,
-			wantNotReady: 0,
-		},
-		{
-			name:         "empty subsets",
-			ep:           &corev1.Endpoints{},
-			wantReady:    0,
-			wantNotReady: 0,
-		},
-		{
-			name: "ready addresses only",
-			ep: &corev1.Endpoints{
-				Subsets: []corev1.EndpointSubset{
-					{Addresses: []corev1.EndpointAddress{addr("10.0.0.1"), addr("10.0.0.2")}},
-				},
+			ObjectMeta:  metav1.ObjectMeta{Name: "api-v4", Namespace: "default"},
+			AddressType: discoveryv1.AddressTypeIPv4,
+			Endpoints: []discoveryv1.Endpoint{
+				{Addresses: []string{"10.0.0.1"}, Conditions: discoveryv1.EndpointConditions{Ready: &ready}, TargetRef: podRef("api-1", "pod-1")},
+				{Addresses: []string{"10.0.0.2"}, Conditions: discoveryv1.EndpointConditions{Ready: &notReady}, TargetRef: podRef("api-2", "pod-2")},
+				{Addresses: []string{"10.0.0.3"}, TargetRef: podRef("api-3", "pod-3")},
 			},
-			wantReady:    2,
-			wantNotReady: 0,
 		},
 		{
-			name: "not-ready addresses only",
-			ep: &corev1.Endpoints{
-				Subsets: []corev1.EndpointSubset{
-					{NotReadyAddresses: []corev1.EndpointAddress{addr("10.0.0.3")}},
-				},
+			ObjectMeta:  metav1.ObjectMeta{Name: "api-v6", Namespace: "default"},
+			AddressType: discoveryv1.AddressTypeIPv6,
+			Endpoints: []discoveryv1.Endpoint{
+				// Same target as api-1: dual-stack must not double count the backend.
+				{Addresses: []string{"2001:db8::1"}, Conditions: discoveryv1.EndpointConditions{Ready: &notReady}, TargetRef: podRef("api-1", "pod-1")},
 			},
-			wantReady:    0,
-			wantNotReady: 1,
-		},
-		{
-			name: "mixed ready and not-ready",
-			ep: &corev1.Endpoints{
-				Subsets: []corev1.EndpointSubset{
-					{
-						Addresses:         []corev1.EndpointAddress{addr("10.0.0.1")},
-						NotReadyAddresses: []corev1.EndpointAddress{addr("10.0.0.2"), addr("10.0.0.3")},
-					},
-				},
-			},
-			wantReady:    1,
-			wantNotReady: 2,
-		},
-		{
-			name: "multiple subsets summed",
-			ep: &corev1.Endpoints{
-				Subsets: []corev1.EndpointSubset{
-					{Addresses: []corev1.EndpointAddress{addr("10.0.0.1")}},
-					{
-						Addresses:         []corev1.EndpointAddress{addr("10.0.0.2")},
-						NotReadyAddresses: []corev1.EndpointAddress{addr("10.0.0.3")},
-					},
-				},
-			},
-			wantReady:    2,
-			wantNotReady: 1,
 		},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ready, notReady := EndpointsCounts(tc.ep)
-			if ready != tc.wantReady || notReady != tc.wantNotReady {
-				t.Fatalf("EndpointsCounts() = (%d, %d), want (%d, %d)",
-					ready, notReady, tc.wantReady, tc.wantNotReady)
-			}
-		})
+
+	gotReady, gotNotReady := EndpointSlicesCounts(slices)
+	if gotReady != 2 || gotNotReady != 1 {
+		t.Fatalf("EndpointSlicesCounts() = (%d, %d), want (2, 1)", gotReady, gotNotReady)
+	}
+}
+
+func TestEndpointSlicePodRefsDeduplicatesAndDefaultsNamespace(t *testing.T) {
+	ref := &corev1.ObjectReference{Kind: "Pod", Name: "api-1", UID: "pod-1"}
+	slices := []discoveryv1.EndpointSlice{
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}, Endpoints: []discoveryv1.Endpoint{{TargetRef: ref}}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}, Endpoints: []discoveryv1.Endpoint{{TargetRef: ref}}},
+	}
+
+	got := EndpointSlicePodRefs(slices, "default")
+	if len(got) != 1 || got[0].Namespace != "default" || got[0].Name != "api-1" {
+		t.Fatalf("EndpointSlicePodRefs() = %#v, want one default/api-1 ref", got)
+	}
+}
+
+func TestEndpointSliceTargetPodNamePrefersReady(t *testing.T) {
+	ready := true
+	notReady := false
+	slices := []discoveryv1.EndpointSlice{{Endpoints: []discoveryv1.Endpoint{
+		{Conditions: discoveryv1.EndpointConditions{Ready: &notReady}, TargetRef: &corev1.ObjectReference{Kind: "Pod", Name: "fallback"}},
+		{Conditions: discoveryv1.EndpointConditions{Ready: &ready}, TargetRef: &corev1.ObjectReference{Kind: "Pod", Name: "preferred"}},
+	}}}
+
+	if got := EndpointSliceTargetPodName(slices); got != "preferred" {
+		t.Fatalf("EndpointSliceTargetPodName() = %q, want preferred", got)
 	}
 }
 

@@ -29,8 +29,9 @@ services or ready endpoints are missing.
 ## Permission And Data Notes
 
 Networking diagnosis often depends on reading related resources. If kview can
-read the Service but not pods or endpoints, related sections may be partial or
-empty. The view reflects visible Kubernetes data only.
+read the Service but not pods or `discovery.k8s.io/v1` EndpointSlices, related
+sections may be partial or empty. The view reflects visible Kubernetes data
+only.
 
 ## Related Settings
 

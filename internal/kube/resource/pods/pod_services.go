@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -27,15 +27,9 @@ func ListServicesSelectingPod(ctx context.Context, c *cluster.Clients, namespace
 		return nil, err
 	}
 
-	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-	endpointsByName := map[string]*corev1.Endpoints{}
-	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
-		for i := range endpoints.Items {
-			ep := endpoints.Items[i]
-			endpointsByName[ep.Name] = &ep
-		}
+	endpointSlicesByName := map[string][]discoveryv1.EndpointSlice{}
+	if slices, err := svcs.ListEndpointSlicesByService(ctx, c, namespace); err == nil {
+		endpointSlicesByName = slices
 	}
 
 	out := make([]dto.ServiceLinkDTO, 0)
@@ -47,7 +41,7 @@ func ListServicesSelectingPod(ctx context.Context, c *cluster.Clients, namespace
 			continue
 		}
 
-		ready, notReady := svcs.EndpointsCounts(endpointsByName[svc.Name])
+		ready, notReady := svcs.EndpointSlicesCounts(endpointSlicesByName[svc.Name])
 		selector := map[string]string{}
 		for k, v := range svc.Spec.Selector {
 			selector[k] = v

@@ -154,6 +154,11 @@ For resources that have them, these remain **direct** `kube` reads:
 - Relation reads, e.g. `GET …/pods/{name}/services`, `GET …/services/{name}/ingresses`
 - `GET …/serviceaccounts/{name}/rolebindings`
 
+Service endpoint readiness, Service-to-Pod relationships, Ingress backend
+warnings, and Service session target selection read
+`discovery.k8s.io/v1 EndpointSlice` objects. kview does not poll the deprecated
+`core/v1 Endpoints` API for these paths.
+
 **Detail-level signals embedded in detail responses.** For drawers that have
 been migrated to the signals-first concept (see `docs/UI_UX_GUIDE.md`), the
 detail response envelope additionally carries a `detailSignals` array of

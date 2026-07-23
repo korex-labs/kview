@@ -7,6 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -20,15 +21,9 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		return nil, err
 	}
 
-	//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-	endpointsByName := map[string]*corev1.Endpoints{}
-	if endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		//nolint:staticcheck // Deferred migration to EndpointSlice; keep legacy Endpoints rollup behavior for now.
-		endpointsByName = make(map[string]*corev1.Endpoints, len(endpoints.Items))
-		for i := range endpoints.Items {
-			ep := endpoints.Items[i]
-			endpointsByName[ep.Name] = &ep
-		}
+	endpointSlicesByName := map[string][]discoveryv1.EndpointSlice{}
+	if slices, err := ListEndpointSlicesByService(ctx, c, namespace); err == nil {
+		endpointSlicesByName = slices
 	}
 
 	now := time.Now()
@@ -39,7 +34,7 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 			age = int64(now.Sub(svc.CreationTimestamp.Time).Seconds())
 		}
 
-		ready, notReady := EndpointsCounts(endpointsByName[svc.Name])
+		ready, notReady := EndpointSlicesCounts(endpointSlicesByName[svc.Name])
 
 		out = append(out, dto.ServiceListItemDTO{
 			Name:              svc.Name,
@@ -80,20 +75,6 @@ func FormatServicePortsSummary(ports []corev1.ServicePort) string {
 	return strings.Join(parts, ", ")
 }
 
-//nolint:staticcheck // Deferred migration to EndpointSlice; callers still pass Endpoints.
-func EndpointsCounts(ep *corev1.Endpoints) (int, int) {
-	if ep == nil {
-		return 0, 0
-	}
-	ready := 0
-	notReady := 0
-	for _, subset := range ep.Subsets {
-		ready += len(subset.Addresses)
-		notReady += len(subset.NotReadyAddresses)
-	}
-	return ready, notReady
-}
-
 func serviceClusterIPs(spec corev1.ServiceSpec) []string {
 	if len(spec.ClusterIPs) > 0 {
 		return append([]string{}, spec.ClusterIPs...)
@@ -124,23 +105,12 @@ func serviceIntOrString(v intstr.IntOrString) string {
 // ResolveServiceTargetPod returns a Pod name backing the Service.
 // It prefers ready endpoint addresses and falls back to not-ready ones.
 func ResolveServiceTargetPod(ctx context.Context, c *cluster.Clients, namespace, serviceName string) (string, error) {
-	ep, err := c.Clientset.CoreV1().Endpoints(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	slices, err := ListServiceEndpointSlices(ctx, c, namespace, serviceName)
 	if err != nil {
 		return "", err
 	}
-	for _, subset := range ep.Subsets {
-		for _, addr := range subset.Addresses {
-			if addr.TargetRef != nil && addr.TargetRef.Kind == "Pod" && addr.TargetRef.Name != "" {
-				return addr.TargetRef.Name, nil
-			}
-		}
-	}
-	for _, subset := range ep.Subsets {
-		for _, addr := range subset.NotReadyAddresses {
-			if addr.TargetRef != nil && addr.TargetRef.Kind == "Pod" && addr.TargetRef.Name != "" {
-				return addr.TargetRef.Name, nil
-			}
-		}
+	if podName := EndpointSliceTargetPodName(slices); podName != "" {
+		return podName, nil
 	}
 	return "", fmt.Errorf("service has no endpoint pods")
 }
