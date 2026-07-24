@@ -3,8 +3,6 @@
 package launcher
 
 import (
-	"os"
-
 	"github.com/webview/webview_go"
 )
 
@@ -18,8 +16,5 @@ func launchWebview(url string) error {
 	w.SetSize(1200, 800, webview.HintNone)
 	w.Navigate(url)
 	w.Run()
-	// When the webview window is closed, terminate the whole process so that
-	// the kview backend exits along with the desktop shell.
-	os.Exit(0)
 	return nil
 }

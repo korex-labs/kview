@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/korex-labs/kview/v5/internal/buildinfo"
@@ -134,20 +135,59 @@ func main() {
 	}
 	rt.Log(runtime.LogLevelInfo, "startup", fmt.Sprintf("launch mode: %s", mode))
 
-	if mode != launcher.ModeServer {
-		go func() {
-			if err := launcher.Launch(mode, url); err != nil {
-				log.Printf("launcher error: %v", err)
-				rt.Log(runtime.LogLevelError, "launcher", err.Error())
-			} else {
-				rt.Log(runtime.LogLevelInfo, "launcher", "launcher started")
-			}
-		}()
-	}
-
-	if err := http.ListenAndServe(*addr, srv.Router()); err != nil {
+	listener, err := net.Listen("tcp", *addr)
+	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
+
+	serve := func() error {
+		return http.Serve(listener, srv.Router())
+	}
+	launch := func() error {
+		if err := launcher.Launch(mode, url); err != nil {
+			log.Printf("launcher error: %v", err)
+			rt.Log(runtime.LogLevelError, "launcher", err.Error())
+			return err
+		}
+		rt.Log(runtime.LogLevelInfo, "launcher", "launcher started")
+		return nil
+	}
+
+	if err := runApplication(mode, serve, launch); err != nil {
+		log.Fatalf("run: %v", err)
+	}
+}
+
+// runApplication keeps native webview creation on the calling goroutine. The
+// webview package locks main.main to the process main OS thread during init, and
+// Cocoa requires window creation and its event loop to stay on that thread.
+func runApplication(mode launcher.Mode, serve, launch func() error) error {
+	if mode == launcher.ModeWebview {
+		serverStarted := make(chan struct{})
+		serverErr := make(chan error, 1)
+		go func() {
+			close(serverStarted)
+			serverErr <- serve()
+		}()
+		<-serverStarted
+
+		if err := launch(); err != nil {
+			return err
+		}
+		select {
+		case err := <-serverErr:
+			return err
+		default:
+			return nil
+		}
+	}
+
+	if mode == launcher.ModeBrowser {
+		go func() {
+			_ = launch()
+		}()
+	}
+	return serve()
 }
 
 func randomToken(nbytes int) string {
