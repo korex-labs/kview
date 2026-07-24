@@ -200,6 +200,19 @@ investigation logic.
 
 ## Architecture And Reliability Packs
 
+### Optional In-Cluster Deployment And Multi-User RBAC
+
+kview remains local-first, but a future hosted mode may run one read-side
+dataplane per cluster while authenticating users through OIDC and preserving
+their individual Kubernetes RBAC. The design options, security invariants,
+configuration shape, and staged implementation path are recorded in
+[IN_CLUSTER_AUTH_ARCHITECTURE.md](IN_CLUSTER_AUTH_ARCHITECTURE.md).
+
+This pack is deferred. If activated, begin with local-mode-preserving interfaces
+and live user-authorized reads; enable shared cached surfaces resource by
+resource only after exact authorization contracts and cross-user isolation tests
+exist.
+
 ### Backend-Owned View And Workflow Contracts
 
 Keep moving reusable product rules into backend-owned descriptors/catalogs where

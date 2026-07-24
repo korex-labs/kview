@@ -20,6 +20,13 @@ declared there, such as `kubectl`, `kubelogin`, a cloud-provider CLI, or another
 configured helper. Those commands must be installed and available on `PATH` in
 the environment where kview runs.
 
+Local mode remains the current product default. A future optional in-cluster,
+multi-user deployment is explored in
+[IN_CLUSTER_AUTH_ARCHITECTURE.md](IN_CLUSTER_AUTH_ARCHITECTURE.md). That design
+keeps application authentication, Kubernetes user identity, RBAC authorization,
+and shared-dataplane access as separate security boundaries; it does not describe
+currently implemented behavior.
+
 ---
 
 ## View-first UI
