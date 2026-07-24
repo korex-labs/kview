@@ -3,6 +3,17 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.14.1 - 2026-07-24
+
+- Fixed desktop startup reliability for native webview builds by ensuring the
+  application window launches on the main thread, avoiding startup failures on
+  platforms that require UI creation from the primary process thread.
+- Added targeted startup test coverage around native window launch behavior to
+  help catch desktop initialization regressions earlier in release
+  verification.
+- Documented future in-cluster deployment options in the architecture notes to
+  guide upcoming deployment and authentication planning work.
+
 ## v5.14.0 - 2026-07-23
 
 - Added saved investigation snapshots so operators can keep local copies of

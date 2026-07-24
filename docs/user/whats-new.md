@@ -6,6 +6,9 @@ repository.
 
 ## Recent Highlights
 
+- Native desktop builds now launch their application window on the main
+  thread, improving startup reliability on platforms that require UI creation
+  from the primary process thread.
 - You can now save signal investigations as local snapshots and reopen them
   later, making it easier to preserve triage context without rebuilding the
   same investigation.
