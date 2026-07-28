@@ -35,6 +35,7 @@ import CableIcon from "@mui/icons-material/Cable";
 import DownloadIcon from "@mui/icons-material/Download";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
 import TerminalIcon from "@mui/icons-material/Terminal";
+import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -53,6 +54,7 @@ import JobDrawer from "../jobs/JobDrawer";
 import NodeDrawer from "../nodes/NodeDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
 import PodActions from "./PodActions";
+import PodDebugDialog from "./PodDebugDialog";
 import EnvValueDisplay from "./EnvValueDisplay";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
@@ -109,6 +111,7 @@ type PodDetails = {
   conditions: PodCondition[];
   lifecycle: PodLifecycle;
   containers: PodContainer[];
+  ephemeralContainers?: PodEphemeralContainer[];
   resources: PodResources;
   metadata?: {
     labels?: Record<string, string>;
@@ -126,6 +129,7 @@ type PodDetailsResponse = ApiItemResponse<PodDetails> & {
 };
 
 type PodSummary = {
+  uid: string;
   name: string;
   namespace: string;
   node?: string;
@@ -141,6 +145,19 @@ type PodSummary = {
   controllerKind?: string;
   controllerName?: string;
   serviceAccount?: string;
+};
+
+type PodEphemeralContainer = {
+  name: string;
+  image?: string;
+  imageId?: string;
+  targetContainer?: string;
+  state?: string;
+  reason?: string;
+  message?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  exitCode?: number;
 };
 
 type PodCondition = {
@@ -543,6 +560,7 @@ export default function PodDrawer(props: {
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
   const [tab, setTab] = useState(0);
+  const [detailRefreshNonce, setDetailRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<PodDetails | null>(null);
   const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
@@ -591,6 +609,7 @@ export default function PodDrawer(props: {
   const ns = props.namespace;
   const name = props.podName;
   const [creatingTerminal, setCreatingTerminal] = useState(false);
+  const [podDebugDialogOpen, setPodDebugDialogOpen] = useState(false);
   const [creatingPortForward, setCreatingPortForward] = useState(false);
   const [terminalContainer, setTerminalContainer] = useState<string>("");
   const [terminalMenuAnchor, setTerminalMenuAnchor] = useState<null | HTMLElement>(null);
@@ -959,7 +978,7 @@ export default function PodDrawer(props: {
     })()
       .catch((e) => setErr(String(e)))
       .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce, offline, stopLogs]);
+  }, [props.open, name, ns, props.token, retryNonce, detailRefreshNonce, offline, stopLogs]);
 
   // Snapshot-level per-resource signals from the dataplane cache
   // (pod_restarts, pod_oomkilled, etc.). Detail-level signals
@@ -1512,6 +1531,16 @@ export default function PodDrawer(props: {
                       >
                         Terminal
                       </AppButton>
+                      {settings.podDebug.enabled ? (
+                        <AppButton
+                          startIcon={<BugReportOutlinedIcon />}
+                          tooltip={summary?.phase !== "Running" ? "Pod Debug requires a running Pod" : "Add an ephemeral debug container"}
+                          disabled={offline || !activeContext || summary?.phase !== "Running" || !summary?.uid || actionableContainers.length === 0}
+                          onClick={() => setPodDebugDialogOpen(true)}
+                        >
+                          Debug
+                        </AppButton>
+                      ) : null}
                       <AppButton
                         startIcon={<CableIcon />}
                         disabled={offline || creatingPortForward || actionableContainers.length === 0}
@@ -1991,6 +2020,36 @@ export default function PodDrawer(props: {
                       );
                     })
                   )}
+                  {(details?.ephemeralContainers || []).length > 0 ? (
+                    <Section title="Ephemeral Containers" dividerPlacement="content">
+                      <Alert severity="info" sx={{ mb: 1.5 }}>
+                        Ephemeral containers cannot be removed or changed after Kubernetes adds them. Terminated entries remain until the Pod is recreated.
+                      </Alert>
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {(details?.ephemeralContainers || []).map((ephemeral) => (
+                          <Box key={ephemeral.name} sx={panelBoxSx}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                              <Typography variant="subtitle2">{ephemeral.name}</Typography>
+                              <Chip size="small" label="Ephemeral" variant="outlined" />
+                              <Chip size="small" label={ephemeral.state || "Pending"} color={containerStateColor(ephemeral.state)} />
+                            </Box>
+                            <KeyValueTable
+                              columns={2}
+                              rows={[
+                                { label: "Image", value: <ContainerImageLabel image={ephemeral.image} imageId={ephemeral.imageId} /> },
+                                { label: "Target Container", value: valueOrDash(ephemeral.targetContainer) },
+                                { label: "Reason", value: valueOrDash(ephemeral.reason) },
+                                { label: "Message", value: valueOrDash(ephemeral.message) },
+                                { label: "Started At", value: ephemeral.startedAt ? fmtTimeAgo(ephemeral.startedAt) : "-" },
+                                { label: "Finished At", value: ephemeral.finishedAt ? fmtTimeAgo(ephemeral.finishedAt) : "-" },
+                                { label: "Exit Code", value: ephemeral.state === "Terminated" ? ephemeral.exitCode ?? "-" : "-" },
+                              ]}
+                            />
+                          </Box>
+                        ))}
+                      </Box>
+                    </Section>
+                  ) : null}
                 </Box>
               )}
 
@@ -2483,6 +2542,28 @@ export default function PodDrawer(props: {
                 />
               )}
       </Box>
+      <PodDebugDialog
+        open={podDebugDialogOpen}
+        token={props.token}
+        contextName={activeContext}
+        namespace={ns}
+        pod={name || ""}
+        podUID={details?.summary?.uid || ""}
+        containers={(details?.containers || []).map((containerItem) => ({ name: containerItem.name, state: containerItem.state }))}
+        defaultImage={settings.podDebug.defaultImage}
+        defaultShell={settings.podDebug.defaultShell}
+        onClose={() => setPodDebugDialogOpen(false)}
+        onCreated={(sessionId, targetContainer) => {
+          emitOpenTerminalSession({
+            sessionId,
+            source: "pod-debug",
+            namespace: ns,
+            pod: name || "",
+            container: targetContainer,
+          });
+          setDetailRefreshNonce((value) => value + 1);
+        }}
+      />
       <PortForwardDialog
         open={portForwardDialogOpen}
         busy={creatingPortForward}

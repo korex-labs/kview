@@ -939,7 +939,7 @@ export default function ActivityTabs({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void terminateSession(id);
+                            window.dispatchEvent(new CustomEvent("kview-terminal-close-request", { detail: { id } }));
                           }}
                         >
                           <CloseIcon sx={{ fontSize: 14 }} />

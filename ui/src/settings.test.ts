@@ -73,6 +73,24 @@ describe("user settings", () => {
     expect(validateUserSettings({ v: 1 })?.keyboard).toEqual(defaultUserSettings().keyboard);
   });
 
+  it("provides safe Pod Debug defaults and validates overrides", () => {
+    expect(defaultUserSettings().podDebug).toEqual({
+      enabled: true,
+      defaultImage: "docker.io/library/busybox:1.36",
+      defaultShell: "/bin/sh",
+    });
+    const normalized = validateUserSettings({
+      ...defaultUserSettings(),
+      podDebug: { enabled: false, defaultImage: " registry.example/debug:v2 ", defaultShell: "bin/bash" },
+    });
+    expect(normalized?.podDebug).toEqual({
+      enabled: false,
+      defaultImage: "registry.example/debug:v2",
+      defaultShell: "/bin/sh",
+    });
+    expect(validateUserSettings({ v: 1 })?.podDebug).toEqual(defaultUserSettings().podDebug);
+  });
+
   it("keeps resource tags disabled by default with namespace inheritance ready", () => {
     expect(defaultUserSettings().resourceTags).toEqual({
       enabled: false,
@@ -647,6 +665,26 @@ describe("user settings", () => {
     expect(applied.settings.resourceTags.definitions).toEqual([
       { id: "imported", name: "Imported", color: "#43a047" },
     ]);
+  });
+
+  it("round-trips Pod Debug defaults through settings transfer", () => {
+    const incoming = defaultUserSettings();
+    incoming.podDebug = { enabled: false, defaultImage: "registry.example/debug:v2", defaultShell: "/bin/bash" };
+    const bundle = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: incoming,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      sections: ["podDebug"],
+    }));
+    expect(settingsTransferSectionIds(bundle)).toEqual(["podDebug"]);
+
+    const applied = applySettingsTransferBundle({
+      settings: defaultUserSettings(),
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      bundle,
+      sections: ["podDebug"],
+      strategy: "useImported",
+    });
+    expect(applied.settings.podDebug).toEqual(incoming.podDebug);
   });
 
   it("migrates v1 context overrides to v2 dataplane context overrides", () => {

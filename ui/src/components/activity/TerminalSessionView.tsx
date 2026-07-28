@@ -14,6 +14,7 @@ type SessionSummary = {
   targetNamespace?: string;
   targetResource?: string;
   targetContainer?: string;
+  metadata?: Record<string, string>;
 };
 
 type Props = {
@@ -166,6 +167,26 @@ export default function TerminalSessionView({
     requestKeyboardFocus({ id: "terminal.session.active", focus: focusTerminal });
   }, [active, focusNonce, focusTerminal, requestKeyboardFocus]);
 
+  const closeTerminal = useCallback(() => {
+    if (!onClose) return;
+    const socket = socketRef.current;
+    if (session?.metadata?.terminalKind === "pod-debug" && socket?.readyState === WebSocket.OPEN) {
+      socket.send(new TextEncoder().encode("exit\r"));
+      window.setTimeout(onClose, 150);
+      return;
+    }
+    onClose();
+  }, [onClose, session?.metadata?.terminalKind]);
+
+  useEffect(() => {
+    const handleCloseRequest = (event: Event) => {
+      const closeEvent = event as CustomEvent<{ id?: string }>;
+      if (closeEvent.detail?.id === id) closeTerminal();
+    };
+    window.addEventListener("kview-terminal-close-request", handleCloseRequest);
+    return () => window.removeEventListener("kview-terminal-close-request", handleCloseRequest);
+  }, [closeTerminal, id]);
+
   return (
     <Box
       sx={{
@@ -191,7 +212,7 @@ export default function TerminalSessionView({
           {session?.targetNamespace || "-"} / {session?.targetResource || "-"} / {session?.targetContainer || "-"}
         </Typography>
         {onClose && (
-          <AppIconButton tooltip="Close terminal" label="Close terminal" onClick={onClose}>
+          <AppIconButton tooltip="Close terminal" label="Close terminal" onClick={closeTerminal}>
             <CloseIcon fontSize="small" />
           </AppIconButton>
         )}

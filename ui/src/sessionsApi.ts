@@ -43,12 +43,33 @@ type TerminalSessionRequest = {
 type TerminalSessionResponse = {
   item: {
     id: string;
+    targetContainer?: string;
   };
 };
 
 export async function createTerminalSession(req: TerminalSessionRequest, token: string): Promise<string> {
   const res = await apiPost<TerminalSessionResponse>("/api/sessions/terminal", token, req);
   return res.item.id;
+}
+
+export type PodDebugSessionRequest = {
+  namespace: string;
+  pod: string;
+  expectedUID: string;
+  targetContainer: string;
+  image: string;
+  shell: string;
+  profile: "baseline";
+  requestId: string;
+};
+
+export async function createPodDebugSession(
+  req: PodDebugSessionRequest,
+  token: string,
+  contextName: string,
+): Promise<{ sessionID: string; debugContainer: string }> {
+  const res = await apiPostWithContext<TerminalSessionResponse>("/api/sessions/pod-debug", token, contextName, req);
+  return { sessionID: res.item.id, debugContainer: res.item.targetContainer || "" };
 }
 
 type PortForwardSessionRequest = {

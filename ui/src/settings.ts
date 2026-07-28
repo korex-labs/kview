@@ -18,6 +18,7 @@ export type SettingsTransferSection =
   | "resourceMacros"
   | "dynamicLinks"
   | "customCommands"
+  | "podDebug"
   | "customActions"
   | "favourites"
   | "savedViews"
@@ -96,6 +97,7 @@ export type OperatorProfileSnapshot = {
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KeyboardSettings;
+  podDebug: PodDebugSettings;
   dataplane: DataplaneSettingsV2;
 };
 
@@ -170,6 +172,12 @@ export type KeyboardSettings = {
   vimTableNavigation: boolean;
   homeRowTableNavigation: boolean;
   singleLetterGlobalSearch: boolean;
+};
+
+export type PodDebugSettings = {
+  enabled: boolean;
+  defaultImage: string;
+  defaultShell: string;
 };
 
 export type SmartFilterRule = {
@@ -256,6 +264,7 @@ export type KviewUserSettingsV2 = {
   customCommands: KviewUserSettingsV1["customCommands"];
   customActions: KviewUserSettingsV1["customActions"];
   keyboard: KviewUserSettingsV1["keyboard"];
+  podDebug: PodDebugSettings;
   dataplane: DataplaneSettingsV2;
 };
 
@@ -283,6 +292,7 @@ export type SettingsTransferBundleV1 = {
     resourceMacros: KviewUserSettingsV2["resourceMacros"];
     dynamicLinks: KviewUserSettingsV2["dynamicLinks"];
     customCommands: KviewUserSettingsV2["customCommands"];
+    podDebug: KviewUserSettingsV2["podDebug"];
     customActions: KviewUserSettingsV2["customActions"];
     favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
     savedViews: KviewUserSettingsV2["savedViews"];
@@ -610,6 +620,14 @@ export function defaultKeyboardSettings(): KeyboardSettings {
   };
 }
 
+export function defaultPodDebugSettings(): PodDebugSettings {
+  return {
+    enabled: true,
+    defaultImage: "docker.io/library/busybox:1.36",
+    defaultShell: "/bin/sh",
+  };
+}
+
 export function defaultResourceTagsSettings(): ResourceTagsSettings {
   return {
     enabled: false,
@@ -674,6 +692,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     customCommands: v1.customCommands,
     customActions: v1.customActions,
     keyboard: v1.keyboard,
+    podDebug: defaultPodDebugSettings(),
     dataplane: {
       global,
       contextOverrides: dataplaneContextOverridesFromLegacy(v1.dataplane.signals.contextOverrides),
@@ -708,6 +727,7 @@ export function operatorProfileSnapshotFromSettings(settings: KviewUserSettingsV
     customCommands: settings.customCommands,
     customActions: settings.customActions,
     keyboard: settings.keyboard,
+    podDebug: settings.podDebug,
     dataplane: settings.dataplane,
   });
 }
@@ -2239,6 +2259,10 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
   if (!fallbackAsV1) return null;
   const global = fallbackAsV1.dataplane;
   const rawV2Dataplane = (root.dataplane ?? {}) as Partial<DataplaneSettingsV2>;
+  const rawPodDebug = (root.podDebug ?? {}) as Partial<PodDebugSettings>;
+  const defaultPodDebug = defaults.podDebug;
+  const defaultImage = typeof rawPodDebug.defaultImage === "string" ? rawPodDebug.defaultImage.trim().slice(0, 1024) : "";
+  const defaultShell = typeof rawPodDebug.defaultShell === "string" ? rawPodDebug.defaultShell.trim().slice(0, 256) : "";
   return {
     v: 2,
     appearance: fallbackAsV1.appearance,
@@ -2251,6 +2275,11 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     customCommands: fallbackAsV1.customCommands,
     customActions: fallbackAsV1.customActions,
     keyboard: fallbackAsV1.keyboard,
+    podDebug: {
+      enabled: typeof rawPodDebug.enabled === "boolean" ? rawPodDebug.enabled : defaultPodDebug.enabled,
+      defaultImage: defaultImage || defaultPodDebug.defaultImage,
+      defaultShell: defaultShell.startsWith("/") ? defaultShell : defaultPodDebug.defaultShell,
+    },
     dataplane: {
       global,
       contextOverrides: normalizeDataplaneContextOverrides(rawV2Dataplane.contextOverrides) || defaults.dataplane.contextOverrides,
@@ -2357,6 +2386,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "savedViews", label: "Saved views" },
   { id: "smartFilters", label: "Smart filters" },
   { id: "customCommands", label: "Custom commands" },
+  { id: "podDebug", label: "Pod Debug defaults" },
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
   { id: "signalAcknowledgements", label: "Signal acknowledgements" },
@@ -2391,6 +2421,7 @@ export function exportSettingsTransferJSON(input: {
   if (selected.has("resourceMacros")) bundle.sections.resourceMacros = serialized.resourceMacros;
   if (selected.has("dynamicLinks")) bundle.sections.dynamicLinks = serialized.dynamicLinks;
   if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
+  if (selected.has("podDebug")) bundle.sections.podDebug = serialized.podDebug;
   if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
   if (selected.has("savedViews")) bundle.sections.savedViews = serialized.savedViews;
   if (selected.has("favourites")) {
@@ -2463,6 +2494,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   if ("customCommands" in sections) {
     out.sections.customCommands = validateUserSettings({ ...defaults, customCommands: sections.customCommands })?.customCommands;
   }
+  if ("podDebug" in sections) {
+    out.sections.podDebug = validateUserSettings({ ...defaults, podDebug: sections.podDebug })?.podDebug;
+  }
   if ("customActions" in sections) {
     out.sections.customActions = validateUserSettings({ ...defaults, customActions: sections.customActions })?.customActions;
   }
@@ -2522,6 +2556,9 @@ export function applySettingsTransferBundle(input: {
   }
   if (selected.has("customCommands") && input.bundle.sections.customCommands) {
     nextSettings = mergeSettingsSection(nextSettings, "customCommands", input.bundle.sections.customCommands, input.strategy);
+  }
+  if (selected.has("podDebug") && input.bundle.sections.podDebug && input.strategy !== "keepMine") {
+    nextSettings = { ...nextSettings, podDebug: input.bundle.sections.podDebug };
   }
   if (selected.has("customActions") && input.bundle.sections.customActions) {
     nextSettings = mergeSettingsSection(nextSettings, "customActions", input.bundle.sections.customActions, input.strategy);

@@ -186,7 +186,7 @@ const sections: Array<{ id: SettingsSection; label: string; icon: SettingsIconNa
   { id: "smartFilters", label: "Smart Filters", icon: "smartFilters" },
   { id: "resourceTags", label: "Resource Tags", icon: "resourceTags" },
   { id: "linksMacros", label: "Links & Macros", icon: "linksMacros" },
-  { id: "commands", label: "Custom Commands", icon: "commands" },
+  { id: "commands", label: "Pod Debug & Commands", icon: "commands" },
   { id: "actions", label: "Custom Actions", icon: "actions" },
   { id: "dataplane", label: "Dataplane", icon: "dataplane" },
   { id: "importExport", label: "Import / Export", icon: "importExport" },
@@ -417,6 +417,16 @@ function updateCustomCommands(
   return {
     ...settings,
     customCommands: { ...settings.customCommands, ...patch },
+  };
+}
+
+function updatePodDebug(
+  settings: KviewUserSettingsV2,
+  patch: Partial<KviewUserSettingsV2["podDebug"]>,
+): KviewUserSettingsV2 {
+  return {
+    ...settings,
+    podDebug: { ...settings.podDebug, ...patch },
   };
 }
 
@@ -2676,34 +2686,61 @@ export default function SettingsView({
     );
   };
 
-  const renderCustomCommands = () => (
-    <SettingSection
-      title="Custom Commands"
-      icon={<SettingsIcon name="commands" />}
-      hint="Commands are stored in this browser profile and become available on matching Pod containers."
-      actions={
-        <AppButton
-          intent="primary"
-          onClick={() =>
-            setSettings((prev) =>
-              updateCustomCommands(prev, {
-                commands: [...prev.customCommands.commands, newCustomCommandDefinition()],
-              }),
-            )
-          }
-        >
-          Add command
-        </AppButton>
-      }
-    >
-      {settings.customCommands.commands.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          No custom commands are defined.
-        </Typography>
-      ) : (
-        settings.customCommands.commands.map(renderCommand)
-      )}
-    </SettingSection>
+  const renderPodTools = () => (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <SettingSection
+        title="Pod Debug"
+        icon={<SettingsIcon name="commands" />}
+        hint="Defaults for ephemeral debug containers opened from Pod drawers. Kubernetes cannot remove an ephemeral container after it is added to a Pod."
+      >
+        <SettingRow
+          label="Enable Pod Debug"
+          checked={settings.podDebug.enabled}
+          onChange={(enabled) => setSettings((prev) => updatePodDebug(prev, { enabled }))}
+        />
+        <SettingGrid variant="auto">
+          <SettingField
+            label="Default debug image"
+            value={settings.podDebug.defaultImage}
+            onChange={(defaultImage) => setSettings((prev) => updatePodDebug(prev, { defaultImage }))}
+            hint="Use an organization-approved image with a shell. Avoid mutable latest tags."
+          />
+          <SettingField
+            label="Default shell"
+            value={settings.podDebug.defaultShell}
+            onChange={(defaultShell) => setSettings((prev) => updatePodDebug(prev, { defaultShell }))}
+            hint="Absolute path executed as the debug container's main process."
+          />
+        </SettingGrid>
+      </SettingSection>
+      <SettingSection
+        title="Custom Commands"
+        icon={<SettingsIcon name="commands" />}
+        hint="Commands are stored in this browser profile and become available on matching Pod containers."
+        actions={
+          <AppButton
+            intent="primary"
+            onClick={() =>
+              setSettings((prev) =>
+                updateCustomCommands(prev, {
+                  commands: [...prev.customCommands.commands, newCustomCommandDefinition()],
+                }),
+              )
+            }
+          >
+            Add command
+          </AppButton>
+        }
+      >
+        {settings.customCommands.commands.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No custom commands are defined.
+          </Typography>
+        ) : (
+          settings.customCommands.commands.map(renderCommand)
+        )}
+      </SettingSection>
+    </Box>
   );
 
   const renderAction = (action: CustomActionDefinition, index: number) => {
@@ -3928,7 +3965,7 @@ export default function SettingsView({
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "resourceTags" ? renderResourceTags() : null}
         {section === "linksMacros" ? renderLinksMacros() : null}
-        {section === "commands" ? renderCustomCommands() : null}
+        {section === "commands" ? renderPodTools() : null}
         {section === "actions" ? renderCustomActions() : null}
         {section === "dataplane" ? renderDataplane() : null}
         {section === "importExport" ? renderImportExport() : null}

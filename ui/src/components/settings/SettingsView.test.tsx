@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
@@ -62,5 +62,16 @@ describe("SettingsView keyboard handling", () => {
     fireEvent.keyDown(button, { key: "Escape" });
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("SettingsView Pod tools navigation", () => {
+  it("makes Pod Debug and custom commands discoverable from one menu section", () => {
+    renderSettings();
+
+    fireEvent.click(screen.getByText("Pod Debug & Commands"));
+
+    expect(screen.getByText("Pod Debug")).toBeTruthy();
+    expect(screen.getByText("Custom Commands")).toBeTruthy();
   });
 });
