@@ -10,11 +10,12 @@ import (
 )
 
 type AccessReviewRequest struct {
-	Verb      string
-	Resource  string
-	Group     string
-	Namespace *string
-	Name      string
+	Verb        string
+	Group       string
+	Resource    string
+	Subresource string
+	Namespace   *string
+	Name        string
 }
 
 type AccessReviewResult struct {
@@ -24,9 +25,10 @@ type AccessReviewResult struct {
 
 func SelfSubjectAccessReview(ctx context.Context, c *cluster.Clients, req AccessReviewRequest) (AccessReviewResult, error) {
 	attrs := &authorizationv1.ResourceAttributes{
-		Verb:     req.Verb,
-		Resource: req.Resource,
-		Group:    req.Group,
+		Verb:        req.Verb,
+		Resource:    req.Resource,
+		Subresource: req.Subresource,
+		Group:       req.Group,
 	}
 	if req.Namespace != nil && *req.Namespace != "" {
 		attrs.Namespace = *req.Namespace

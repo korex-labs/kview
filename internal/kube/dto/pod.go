@@ -45,13 +45,14 @@ type PodListItemDTO struct {
 }
 
 type PodDetailsDTO struct {
-	Summary    PodSummaryDTO     `json:"summary"`
-	Conditions []PodConditionDTO `json:"conditions"`
-	Lifecycle  PodLifecycleDTO   `json:"lifecycle"`
-	Containers []PodContainerDTO `json:"containers"`
-	Resources  PodResourcesDTO   `json:"resources"`
-	Metadata   PodMetadataDTO    `json:"metadata"`
-	YAML       string            `json:"yaml"`
+	Summary             PodSummaryDTO              `json:"summary"`
+	Conditions          []PodConditionDTO          `json:"conditions"`
+	Lifecycle           PodLifecycleDTO            `json:"lifecycle"`
+	Containers          []PodContainerDTO          `json:"containers"`
+	EphemeralContainers []PodEphemeralContainerDTO `json:"ephemeralContainers,omitempty"`
+	Resources           PodResourcesDTO            `json:"resources"`
+	Metadata            PodMetadataDTO             `json:"metadata"`
+	YAML                string                     `json:"yaml"`
 }
 
 // PodMetadataDTO carries the pod's labels and annotations for the
@@ -64,6 +65,7 @@ type PodMetadataDTO struct {
 }
 
 type PodSummaryDTO struct {
+	UID            string `json:"uid"`
 	Name           string `json:"name"`
 	Namespace      string `json:"namespace"`
 	Node           string `json:"node,omitempty"`
@@ -79,6 +81,19 @@ type PodSummaryDTO struct {
 	ControllerKind string `json:"controllerKind,omitempty"`
 	ControllerName string `json:"controllerName,omitempty"`
 	ServiceAccount string `json:"serviceAccount,omitempty"`
+}
+
+type PodEphemeralContainerDTO struct {
+	Name            string `json:"name"`
+	Image           string `json:"image,omitempty"`
+	ImageID         string `json:"imageId,omitempty"`
+	TargetContainer string `json:"targetContainer,omitempty"`
+	State           string `json:"state,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Message         string `json:"message,omitempty"`
+	StartedAt       int64  `json:"startedAt,omitempty"`
+	FinishedAt      int64  `json:"finishedAt,omitempty"`
+	ExitCode        int32  `json:"exitCode"`
 }
 
 type PodConditionDTO struct {

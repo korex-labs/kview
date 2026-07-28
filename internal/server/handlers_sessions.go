@@ -22,6 +22,8 @@ import (
 )
 
 func (s *Server) registerSessionRoutes(api chi.Router) {
+	s.registerPodDebugSessionRoute(api)
+
 	api.Get("/sessions", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
 		defer cancel()

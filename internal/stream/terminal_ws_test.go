@@ -1,8 +1,14 @@
 package stream
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestNewTerminalSizeQueue_InitialSize(t *testing.T) {
@@ -108,5 +114,47 @@ func TestTerminalSizeQueue_NextReturnsNilAfterClose(t *testing.T) {
 	size := q.Next()
 	if size != nil {
 		t.Errorf("expected nil after Close, got %+v", size)
+	}
+}
+
+func TestWaitForEphemeralContainerRunning(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "api-0", Namespace: "default"},
+		Spec: corev1.PodSpec{EphemeralContainers: []corev1.EphemeralContainer{{
+			EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: "kview-debug-123"},
+		}}},
+		Status: corev1.PodStatus{EphemeralContainerStatuses: []corev1.ContainerStatus{{
+			Name:  "kview-debug-123",
+			State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+		}}},
+	}
+	client := fake.NewSimpleClientset(pod)
+	var statuses []string
+	err := waitForEphemeralContainer(context.Background(), client.CoreV1().Pods("default"), pod.Name, "kview-debug-123", func(status string) {
+		statuses = append(statuses, status)
+	})
+	if err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	if len(statuses) != 1 || !strings.Contains(statuses[0], "running") {
+		t.Fatalf("statuses: %#v", statuses)
+	}
+}
+
+func TestWaitForEphemeralContainerTerminated(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "api-0", Namespace: "default"},
+		Spec: corev1.PodSpec{EphemeralContainers: []corev1.EphemeralContainer{{
+			EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: "kview-debug-123"},
+		}}},
+		Status: corev1.PodStatus{EphemeralContainerStatuses: []corev1.ContainerStatus{{
+			Name:  "kview-debug-123",
+			State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Reason: "Error", ExitCode: 1, Message: "shell failed"}},
+		}}},
+	}
+	client := fake.NewSimpleClientset(pod)
+	err := waitForEphemeralContainer(context.Background(), client.CoreV1().Pods("default"), pod.Name, "kview-debug-123", func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "shell failed") {
+		t.Fatalf("error: %v", err)
 	}
 }

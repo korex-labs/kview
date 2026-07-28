@@ -518,10 +518,12 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 
 	api.Post("/auth/can-i", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Verb      string  `json:"verb"`
-			Resource  string  `json:"resource"`
-			Group     string  `json:"group"`
-			Namespace *string `json:"namespace"`
+			Verb        string  `json:"verb"`
+			Resource    string  `json:"resource"`
+			Subresource string  `json:"subresource"`
+			Group       string  `json:"group"`
+			Namespace   *string `json:"namespace"`
+			Name        string  `json:"name"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Verb == "" || body.Resource == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid body"})
@@ -539,10 +541,12 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		}
 
 		res, err := kube.SelfSubjectAccessReview(ctx, clients, kube.AccessReviewRequest{
-			Verb:      body.Verb,
-			Resource:  body.Resource,
-			Group:     body.Group,
-			Namespace: body.Namespace,
+			Verb:        body.Verb,
+			Resource:    body.Resource,
+			Subresource: body.Subresource,
+			Group:       body.Group,
+			Namespace:   body.Namespace,
+			Name:        body.Name,
 		})
 		if err != nil {
 			status := http.StatusInternalServerError

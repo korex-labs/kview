@@ -830,6 +830,53 @@ func TestPostSessionsTerminal_Validation(t *testing.T) {
 	}
 }
 
+func TestPostSessionsPodDebug_Validation(t *testing.T) {
+	validBody := map[string]any{
+		"namespace": "default", "pod": "api-0", "expectedUID": "pod-uid",
+		"targetContainer": "app", "image": "busybox:1.36", "requestId": "request-1",
+	}
+	cases := []struct {
+		name       string
+		headers    map[string]string
+		body       []byte
+		wantStatus int
+	}{
+		{
+			name:       "missing context header",
+			headers:    map[string]string{"Authorization": "Bearer " + testToken},
+			body:       toJSON(t, validBody),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid json",
+			headers:    map[string]string{"Authorization": "Bearer " + testToken, "X-Kview-Context": "test-context"},
+			body:       []byte("{bad"),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing target container",
+			headers:    map[string]string{"Authorization": "Bearer " + testToken, "X-Kview-Context": "test-context"},
+			body:       toJSON(t, map[string]any{"namespace": "default", "pod": "api-0", "expectedUID": "pod-uid", "image": "busybox:1.36", "requestId": "request-1"}),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unknown field",
+			headers:    map[string]string{"Authorization": "Bearer " + testToken, "X-Kview-Context": "test-context"},
+			body:       toJSON(t, map[string]any{"namespace": "default", "pod": "api-0", "expectedUID": "pod-uid", "targetContainer": "app", "image": "busybox:1.36", "requestId": "request-1", "privileged": true}),
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, h := newTestServer(t)
+			rec := doReqWithHeader(t, h, http.MethodPost, "/api/sessions/pod-debug", tc.headers, tc.body)
+			if rec.Code != tc.wantStatus {
+				t.Errorf("status: got %d, want %d (body=%s)", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+		})
+	}
+}
+
 // ── POST /api/sessions/portforward ──────────────────────────────────────────
 
 func TestPostSessionsPortforward_Validation(t *testing.T) {
@@ -1365,6 +1412,16 @@ func TestReadOnlyBlocksMutationEndpoints(t *testing.T) {
 			body:   toJSON(t, map[string]any{"namespace": "default", "pod": "pod-1"}),
 			headers: map[string]string{
 				"Authorization": "Bearer " + testToken,
+			},
+		},
+		{
+			name:   "pod debug session",
+			method: http.MethodPost,
+			path:   "/api/sessions/pod-debug",
+			body:   toJSON(t, map[string]any{"namespace": "default", "pod": "pod-1", "expectedUID": "uid", "targetContainer": "app", "image": "busybox:1.36", "requestId": "request-1"}),
+			headers: map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "test-context",
 			},
 		},
 		{

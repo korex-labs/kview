@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,9 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/poddebug"
 	"github.com/korex-labs/kview/v5/internal/session"
 )
 
@@ -149,13 +153,32 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cmd []string
-	if shell, ok := sess.Metadata["shell"]; ok && shell != "" {
-		// Explicit shell requested for this session.
-		cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; exec \"$0\"", shell}
-	} else {
-		// Prefer bash when available, otherwise fall back to POSIX sh.
-		cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; [ -x /bin/bash ] && exec /bin/bash || exec /bin/sh"}
+	// Update session to starting/connecting before waiting for a debug container.
+	sess.Status = session.StatusStarting
+	sess.ConnectionState = session.ConnectionConnecting
+	sess.UpdatedAt = time.Now().UTC()
+	_ = t.Sessions.Update(ctx, sess)
+
+	streamMode := sess.Metadata["streamMode"]
+	if sess.Metadata["terminalKind"] == poddebug.TerminalKindPodDebug {
+		waitCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		lastStatus := ""
+		err := waitForEphemeralContainer(waitCtx, clients.Clientset.CoreV1().Pods(ns), pod, container, func(status string) {
+			if status == "" || status == lastStatus {
+				return
+			}
+			lastStatus = status
+			_ = conn.WriteMessage(websocket.TextMessage, []byte("\r\n\x1b[36m[pod-debug]\x1b[0m "+status+"\r\n"))
+		})
+		if err != nil {
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nerror: debug container did not become ready: %v", err)))
+			sess.Status = session.StatusFailed
+			sess.ConnectionState = session.ConnectionClosed
+			sess.UpdatedAt = time.Now().UTC()
+			_ = t.Sessions.Update(ctx, sess)
+			return
+		}
 	}
 
 	restClient := clients.Clientset.CoreV1().RESTClient()
@@ -163,15 +186,27 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Resource("pods").
 		Namespace(ns).
 		Name(pod).
-		SubResource("exec").
 		Param("container", container).
 		Param("stdin", "true").
 		Param("stdout", "true").
 		Param("stderr", "true").
 		Param("tty", "true")
 
-	for _, c := range cmd {
-		req = req.Param("command", c)
+	if streamMode == poddebug.StreamModeAttach {
+		req = req.SubResource("attach")
+	} else {
+		req = req.SubResource("exec")
+		var cmd []string
+		if shell, ok := sess.Metadata["shell"]; ok && shell != "" {
+			// Explicit shell requested for this session.
+			cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; exec \"$0\"", shell}
+		} else {
+			// Prefer bash when available, otherwise fall back to POSIX sh.
+			cmd = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; [ -x /bin/bash ] && exec /bin/bash || exec /bin/sh"}
+		}
+		for _, c := range cmd {
+			req = req.Param("command", c)
+		}
 	}
 
 	exec, err := remotecommand.NewSPDYExecutor(clients.RestConfig, http.MethodPost, req.URL())
@@ -183,12 +218,6 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = t.Sessions.Update(ctx, sess)
 		return
 	}
-
-	// Update session to starting/connecting.
-	sess.Status = session.StatusStarting
-	sess.ConnectionState = session.ConnectionConnecting
-	sess.UpdatedAt = time.Now().UTC()
-	_ = t.Sessions.Update(ctx, sess)
 
 	stdinReader, stdinWriter := io.Pipe()
 	sizeQueue := newTerminalSizeQueue()
@@ -245,4 +274,62 @@ func (t *TerminalWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sess.ConnectionState = session.ConnectionClosed
 	sess.UpdatedAt = time.Now().UTC()
 	_ = t.Sessions.Update(ctx, sess)
+}
+
+func waitForEphemeralContainer(ctx context.Context, pods corev1client.PodInterface, podName, containerName string, onStatus func(string)) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		foundSpec := false
+		for _, container := range pod.Spec.EphemeralContainers {
+			if container.Name == containerName {
+				foundSpec = true
+				break
+			}
+		}
+		if !foundSpec {
+			return fmt.Errorf("ephemeral container %q is no longer present", containerName)
+		}
+
+		statusFound := false
+		for _, status := range pod.Status.EphemeralContainerStatuses {
+			if status.Name != containerName {
+				continue
+			}
+			statusFound = true
+			switch {
+			case status.State.Running != nil:
+				onStatus("debug container is running; attaching")
+				return nil
+			case status.State.Terminated != nil:
+				terminated := status.State.Terminated
+				return fmt.Errorf("container terminated (reason=%s, exitCode=%d): %s", terminated.Reason, terminated.ExitCode, terminated.Message)
+			case status.State.Waiting != nil:
+				waiting := status.State.Waiting
+				message := "waiting for debug container"
+				if waiting.Reason != "" {
+					message += ": " + waiting.Reason
+				}
+				if waiting.Message != "" {
+					message += " — " + waiting.Message
+				}
+				onStatus(message)
+			}
+			break
+		}
+		if !statusFound {
+			onStatus("waiting for kubelet to create the debug container")
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

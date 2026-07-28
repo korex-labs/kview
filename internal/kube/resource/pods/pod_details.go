@@ -60,6 +60,7 @@ func GetPodDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 	controllerKind, controllerName := findController(pod.OwnerReferences)
 
 	summary := dto.PodSummaryDTO{
+		UID:            string(pod.UID),
 		Name:           pod.Name,
 		Namespace:      pod.Namespace,
 		Node:           pod.Spec.NodeName,
@@ -140,6 +141,8 @@ func GetPodDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 		})
 	}
 
+	ephemeralContainers := MapEphemeralContainers(pod.Spec.EphemeralContainers, pod.Status.EphemeralContainerStatuses)
+
 	resources := dto.PodResourcesDTO{
 		Volumes:                   MapVolumes(pod.Spec.Volumes),
 		ImagePullSecrets:          MapImagePullSecrets(pod.Spec.ImagePullSecrets),
@@ -151,11 +154,12 @@ func GetPodDetails(ctx context.Context, c *cluster.Clients, namespace, name stri
 	}
 
 	return &dto.PodDetailsDTO{
-		Summary:    summary,
-		Conditions: conditions,
-		Lifecycle:  lifecycle,
-		Containers: containers,
-		Resources:  resources,
+		Summary:             summary,
+		Conditions:          conditions,
+		Lifecycle:           lifecycle,
+		Containers:          containers,
+		EphemeralContainers: ephemeralContainers,
+		Resources:           resources,
 		Metadata: dto.PodMetadataDTO{
 			Labels:      pod.Labels,
 			Annotations: pod.Annotations,
@@ -260,6 +264,38 @@ func mapContainerState(state corev1.ContainerState) (string, string, string, int
 		return "Terminated", state.Terminated.Reason, state.Terminated.Message, started, finished
 	}
 	return "Unknown", "", "", 0, 0
+}
+
+func MapEphemeralContainers(containers []corev1.EphemeralContainer, statuses []corev1.ContainerStatus) []dto.PodEphemeralContainerDTO {
+	statusByName := make(map[string]corev1.ContainerStatus, len(statuses))
+	for _, status := range statuses {
+		statusByName[status.Name] = status
+	}
+	out := make([]dto.PodEphemeralContainerDTO, 0, len(containers))
+	for _, container := range containers {
+		status, ok := statusByName[container.Name]
+		state, reason, message, startedAt, finishedAt := mapContainerState(status.State)
+		if !ok {
+			state = "Pending"
+		}
+		exitCode := int32(0)
+		if status.State.Terminated != nil {
+			exitCode = status.State.Terminated.ExitCode
+		}
+		out = append(out, dto.PodEphemeralContainerDTO{
+			Name:            container.Name,
+			Image:           container.Image,
+			ImageID:         status.ImageID,
+			TargetContainer: container.TargetContainerName,
+			State:           state,
+			Reason:          reason,
+			Message:         message,
+			StartedAt:       startedAt,
+			FinishedAt:      finishedAt,
+			ExitCode:        exitCode,
+		})
+	}
+	return out
 }
 
 func mapLastTermination(state corev1.ContainerState) (string, string, int64) {
