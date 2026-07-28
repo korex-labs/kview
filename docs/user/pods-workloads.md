@@ -39,6 +39,31 @@ Pod drawer **Logs** controls include:
 Logs depend on Pod log access for the selected container. kview streams current
 container logs; it does not expose previous-container logs as a separate toggle.
 
+## Pod Debug
+
+Running Linux Pods can show **Debug** in the Pod drawer action bar. The dialog
+adds one Kubernetes ephemeral container and opens it as a terminal in the
+Activity Panel.
+
+- **Target container** selects the regular container whose process namespace the
+  runtime should target. Process visibility still depends on runtime support.
+- **Debug image** and **Shell** use the defaults configured in Settings and can
+  be changed for the current launch.
+- **Baseline** is the only current profile. kview does not request privileged mode
+  or added Linux capabilities. Baseline is intentionally not the stricter
+  Restricted profile: it does not force non-root execution, `drop: ALL`, seccomp,
+  or `allowPrivilegeEscalation: false`, because those settings require a
+  compatible debug image. Cluster admission policy remains authoritative and can
+  accept, default, or reject the image and container specification.
+- Startup status, including image-pull waiting reasons, appears in the terminal
+  before kview attaches to the shell.
+
+Kubernetes does not allow an ephemeral container to be removed or changed after
+it is added. Exiting or explicitly closing the Pod Debug terminal terminates its
+shell, but the container entry and terminated status remain until the Pod is
+recreated. Closing the browser or losing the connection alone does not promise
+that the shell has terminated.
+
 ## Jobs And Cron Jobs
 
 Job drawers include **Rerun**. This creates a fresh Job from the selected Job's
@@ -73,8 +98,8 @@ CronJob action succeeded without checking the final Job state.
 - Use **Rerun** or **Run now** for batch workloads when you need a new Job from
   the existing template. Use **Open debug run** when you also want live status,
   events, and logs for that manual run.
-- Use guarded actions such as restart, scale, delete, terminal, port forward,
-  or custom commands only after reviewing current state.
+- Use guarded actions such as restart, scale, delete, terminal, Pod Debug, port
+  forward, or custom commands only after reviewing current state.
 
 ## Permission And Data Notes
 
@@ -87,10 +112,17 @@ appear only when metrics.k8s.io is available and allowed. During a background
 metrics refresh, kview keeps the previous sample visible until a replacement is
 available instead of briefly clearing the CPU and Memory columns.
 
+Pod Debug additionally requires `get` on `pods`, `patch` on
+`pods/ephemeralcontainers`, and `create` on `pods/attach`. It is unavailable in
+read-only mode and does not support Windows Pods or static/mirror Pods. A
+positive permission check only enables the workflow; Kubernetes RBAC, admission,
+image pulling, kubelet state, and the container runtime make the final decision.
+
 ## Related Settings
 
 - **Smart Filters**
 - **Resource Tags**
 - **Custom Commands**
+- **Pod Debug** defaults are configured on the **Custom Commands** settings page.
 - **Custom Actions**
 - **Dataplane**

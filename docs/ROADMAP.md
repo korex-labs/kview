@@ -34,6 +34,10 @@ Recently completed foundation work:
   go through `KeyboardProvider`; see `docs/KEYBOARD_FOCUS.md`.
 - **In-app Help and release hygiene**: bundled user docs, curated What's New,
   Docker-backed verification, and release notes are part of the normal workflow.
+- **Kubernetes-native Pod Debug**: Running Linux Pods can add a baseline,
+  non-privileged ephemeral container through backend-owned orchestration, wait
+  for runtime status, and attach through the existing terminal Activity surface
+  with exact RBAC checks and request-id idempotency.
 
 ## Product Direction
 

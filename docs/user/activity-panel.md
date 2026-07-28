@@ -30,7 +30,10 @@ and includes cluster, kind, namespace, priority, source, queued time, running
 time, and work key.
 
 **Terminals** shows open terminal sessions. Multiple terminal sessions can be
-open at once and are represented as tabs inside the Activity Panel.
+open at once and are represented as tabs inside the Activity Panel. Pod Debug
+sessions use the same terminal surface. Explicitly closing a connected Pod Debug
+terminal first sends `exit` to its shell; an ordinary connection loss does not
+guarantee that the ephemeral container has terminated.
 
 **Port forwards** shows active port-forward sessions with local endpoint,
 remote port, service, pod, and actions to open or stop the forward.

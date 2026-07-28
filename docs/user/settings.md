@@ -59,8 +59,9 @@ the current settings when you want to preserve a workflow setup, such as daily
 monitoring, incident triage, or Helm review.
 
 Profile snapshots include appearance, keyboard, smart filters, resource tags,
-links and macros, saved views, custom commands, custom actions, and dataplane
-settings. The profile library itself is not nested into snapshots.
+links and macros, saved views, custom commands, Pod Debug defaults, custom
+actions, and dataplane settings. The profile library itself is not nested into
+snapshots.
 
 Applying a profile replaces those captured settings sections and marks that
 profile as active. Updating a profile overwrites its snapshot with the current
@@ -138,7 +139,25 @@ assign manual macros to the current namespace, pod, or resource without typing
 the scope by hand. The same menu can show inherited and extracted macros when
 that extra context is needed.
 
-## Custom Commands
+## Pod Debug & Commands
+
+Open **Pod Debug & Commands** in the Settings menu for both Pod Debug defaults
+and reusable container commands.
+
+### Pod Debug
+
+- **Enable Pod Debug** controls whether Pod drawers show the **Debug** action.
+- **Default debug image** supplies the initial image in the launch dialog.
+- **Default shell** supplies the absolute shell path used as the ephemeral
+  container command.
+
+These are browser-local defaults, not a cluster allowlist or authorization
+policy. The launch dialog still checks Kubernetes permissions and the backend
+still relies on Kubernetes RBAC and admission for the final operation. Full
+settings export/import includes them, and **Pod Debug defaults** is available as
+an explicit Settings transfer section.
+
+### Custom Commands
 
 Custom commands run against matching pod containers. Define the command, output
 format, target matching rules, and safety level.

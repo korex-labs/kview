@@ -196,6 +196,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 | `GET /api/sessions`, `GET /api/sessions/{id}` | Session manager. |
 | `GET …/logs/ws`, `GET …/terminal/ws` | Streaming (not snapshot reads). |
 | `POST /api/auth/can-i` | SSA review (write-shaped; authz read). |
+| `POST /api/sessions/pod-debug` | Backend-owned mutating workflow: exact SSAR preflight, direct Pod GET, strategic patch of `pods/ephemeralcontainers`, and terminal session creation. The terminal WebSocket waits on ephemeral-container status and streams through `pods/attach`. Not a dataplane or projection route. |
 | `GET /api/dataplane/revision` | Cheap list-cell revision metadata; does not schedule kube fetches. |
 | `GET /api/dataplane/work/live` | In-process snapshot of scheduler running/queued work (observability). |
 | `GET /api/dataplane/config`, `POST /api/dataplane/config` | Process-local dataplane policy read/update, synced from browser-local Settings. Does not itself read the Kubernetes API. |

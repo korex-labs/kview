@@ -45,7 +45,7 @@ Lists stay visible while a **drawer** shows resource context. Navigation is list
 
 - HTTP API (chi), embedded static UI
 - `client-go` for Kubernetes
-- Generic mutations: `POST /api/actions` via a central **ActionRegistry**; resource mutation handlers live under `internal/kube/actions`
+- Generic mutations: `POST /api/actions` via a central **ActionRegistry**; resource mutation handlers live under `internal/kube/actions`. Specialized runtime/session workflows such as Pod Debug use explicit session endpoints when mutation, lifecycle waiting, and streaming must share backend-owned orchestration.
 - Capability detection: `POST /api/capabilities` and read access checks via `POST /api/auth/can-i`
 - **Read-side dataplane** under `internal/dataplane`: snapshots, scheduler, observers, projections, and optional `metrics.k8s.io` integration (see [DATAPLANE.md](DATAPLANE.md))
 - **Runtime**: activities, sessions, terminals, port-forwards, structured logs
@@ -69,7 +69,7 @@ Repeated UI patterns should be **extracted** (tables, drawers, mutation dialogs,
 
 ## Action framework
 
-All mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capability checks.
+Generic resource mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capability checks. Specialized session workflows may use explicit endpoints, but must retain guarded UI review, exact authorization checks, read-only enforcement, and Kubernetes as the final authorization/admission boundary.
 
 ---
 

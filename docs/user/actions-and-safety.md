@@ -22,6 +22,7 @@ Depending on resource type and permissions, actions may include:
 - Restart
 - Scale
 - Port forward
+- Pod Debug
 - Container command presets
 - Workload action presets
 - RBAC operations
@@ -31,6 +32,11 @@ Depending on resource type and permissions, actions may include:
 
 Mutating operations go through a review dialog. Destructive or high-impact
 changes require explicit confirmation before kview sends the request.
+
+**Pod Debug** is an irreversible Pod-spec mutation: Kubernetes can add an
+ephemeral container but cannot remove or change it afterwards. The launch dialog
+states this before creation. Exiting the shell terminates the container process;
+the Pod retains the ephemeral container entry until recreation.
 
 ## YAML Patching
 
