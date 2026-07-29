@@ -6,6 +6,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
+import { defaultUserSettings, saveUserSettings } from "../../settings";
+
+vi.mock("../../api", () => ({
+  apiGet: vi.fn(async () => ({})),
+  apiGetWithContext: vi.fn(async (path: string) => path.includes("/api/dataplane/signals/catalog")
+    ? {
+        items: [{
+          type: "pod_restarts",
+          label: "Pod restarts",
+          defaultEnabled: true,
+          defaultPriority: 10,
+          defaultSeverity: "medium",
+        }],
+      }
+    : {}),
+  apiPost: vi.fn(async () => ({})),
+}));
 
 function renderSettings(onClose = vi.fn()) {
   render(
@@ -74,4 +91,26 @@ describe("SettingsView Pod tools navigation", () => {
     expect(screen.getByText("Pod Debug")).toBeTruthy();
     expect(screen.getByText("Custom Commands")).toBeTruthy();
   });
+});
+
+describe("SettingsView signal exclusions", () => {
+  it("shows the effective rule count on the Exclusions button", async () => {
+    const settings = defaultUserSettings();
+    settings.dataplane.global.signals.overrides.pod_restarts = {
+      exclusions: {
+        rules: [
+          { id: "enabled", conditions: [{ source: "name", pattern: "^api-0$" }] },
+          { id: "disabled", enabled: false, conditions: [{ source: "name", pattern: "^api-1$" }] },
+        ],
+      },
+    };
+    saveUserSettings(settings);
+    renderSettings();
+
+    fireEvent.click(screen.getByText("Dataplane"));
+    fireEvent.click(screen.getByTestId("settings-dataplane-tab-signals"));
+
+    expect(await screen.findByRole("button", { name: "Exclusions: 2 rules, 1 enabled" })).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+  }, 30_000);
 });

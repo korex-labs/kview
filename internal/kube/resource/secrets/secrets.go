@@ -31,12 +31,14 @@ func ListSecrets(ctx context.Context, c *cluster.Clients, namespace string) ([]d
 		}
 
 		out = append(out, dto.SecretDTO{
-			Name:      s.Name,
-			Namespace: s.Namespace,
-			Type:      string(s.Type),
-			KeysCount: keysCount,
-			Immutable: immutable,
-			AgeSec:    age,
+			Name:        s.Name,
+			Namespace:   s.Namespace,
+			Labels:      s.Labels,
+			Annotations: s.Annotations,
+			Type:        string(s.Type),
+			KeysCount:   keysCount,
+			Immutable:   immutable,
+			AgeSec:      age,
 		})
 	}
 

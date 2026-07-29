@@ -146,9 +146,11 @@ func mapResourceQuota(rq corev1.ResourceQuota, now time.Time) dto.ResourceQuotaD
 	})
 
 	return dto.ResourceQuotaDTO{
-		Name:      rq.Name,
-		Namespace: rq.Namespace,
-		AgeSec:    age,
-		Entries:   entries,
+		Name:        rq.Name,
+		Namespace:   rq.Namespace,
+		Labels:      rq.Labels,
+		Annotations: rq.Annotations,
+		AgeSec:      age,
+		Entries:     entries,
 	}
 }

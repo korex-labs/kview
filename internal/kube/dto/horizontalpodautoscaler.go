@@ -3,6 +3,8 @@ package dto
 type HorizontalPodAutoscalerDTO struct {
 	Name               string            `json:"name"`
 	Namespace          string            `json:"namespace"`
+	Labels             map[string]string `json:"-"`
+	Annotations        map[string]string `json:"-"`
 	ScaleTargetRef     ScaleTargetRefDTO `json:"scaleTargetRef"`
 	MinReplicas        int32             `json:"minReplicas"`
 	MaxReplicas        int32             `json:"maxReplicas"`

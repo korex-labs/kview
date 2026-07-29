@@ -101,6 +101,21 @@ each day was a separate incident or that an absent signal was resolved. Hover a
 saved-context state to review the snapshot title and latest operator note. Select
 the state to open the snapshot's primary resource.
 
+Per-signal exclusion rules in **Settings → Dataplane → Signals** can suppress
+known noisy resources by name, namespace, label, or annotation. Suppression is
+performed by the backend before dashboard counts, namespace/resource health,
+drawer projections, and signal-history updates. It does not delete prior
+history, acknowledgements, Signal Memory, or saved Investigation Snapshots.
+
+Use **Exclude this signal** on a dashboard signal, namespace signal, or resource
+drawer attention row to open the same rules editor with an exact anchored
+namespace-and-resource-name rule already filled in for that signal type. The
+safe default is the current kube context; the dialog can switch to the global
+default before previewing and saving. Context-specific replacements still take
+precedence over that global policy.
+Preview always reports cached candidates from the currently active context,
+including when the rule is being saved as the global default.
+
 Opening a focused resource list from a dashboard or namespace signal is
 transient navigation. It changes the active list, namespace, and text filter,
 and clears stale quick-filter chips, but it does not select or modify a saved
@@ -141,6 +156,7 @@ signals:
 - signal reason and calculated detail
 - **Acknowledge signal**
 - **Investigate signal**
+- **Exclude this signal**
 
 Some detail signals are created from drawer-only or list-level evidence. When
 the backend has not assigned a stored signal history key yet, kview derives a

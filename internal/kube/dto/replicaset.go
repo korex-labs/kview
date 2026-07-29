@@ -26,6 +26,7 @@ type ReplicaSetDetailsDTO struct {
 	Pods       []ReplicaSetPodDTO       `json:"pods"`
 	Spec       ReplicaSetSpecDTO        `json:"spec"`
 	LinkedPods ReplicaSetPodsSummaryDTO `json:"linkedPods"`
+	Metadata   ReplicaSetMetadataDTO    `json:"metadata"`
 	YAML       string                   `json:"yaml"`
 }
 

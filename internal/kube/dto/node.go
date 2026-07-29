@@ -1,26 +1,28 @@
 package dto
 
 type NodeListItemDTO struct {
-	Name              string   `json:"name"`
-	Status            string   `json:"status"`
-	Roles             []string `json:"roles,omitempty"`
-	CPUAllocatable    string   `json:"cpuAllocatable,omitempty"`
-	MemoryAllocatable string   `json:"memoryAllocatable,omitempty"`
-	PodsAllocatable   string   `json:"podsAllocatable,omitempty"`
-	PodsCount         int      `json:"podsCount"`
-	KubeletVersion    string   `json:"kubeletVersion,omitempty"`
-	AgeSec            int64    `json:"ageSec"`
-	HealthBucket      string   `json:"healthBucket,omitempty"`
-	PodDensityBucket  string   `json:"podDensityBucket,omitempty"`
-	PodDensityRatio   float64  `json:"podDensityRatio,omitempty"`
-	NeedsAttention    bool     `json:"needsAttention,omitempty"`
-	Derived           bool     `json:"derived,omitempty"`
-	DerivedSource     string   `json:"derivedSource,omitempty"`
-	DerivedCoverage   string   `json:"derivedCoverage,omitempty"`
-	DerivedNote       string   `json:"derivedNote,omitempty"`
-	NamespaceCount    int      `json:"namespaceCount,omitempty"`
-	ProblematicPods   int      `json:"problematicPods,omitempty"`
-	RestartCount      int32    `json:"restartCount,omitempty"`
+	Name              string            `json:"name"`
+	Labels            map[string]string `json:"-"`
+	Annotations       map[string]string `json:"-"`
+	Status            string            `json:"status"`
+	Roles             []string          `json:"roles,omitempty"`
+	CPUAllocatable    string            `json:"cpuAllocatable,omitempty"`
+	MemoryAllocatable string            `json:"memoryAllocatable,omitempty"`
+	PodsAllocatable   string            `json:"podsAllocatable,omitempty"`
+	PodsCount         int               `json:"podsCount"`
+	KubeletVersion    string            `json:"kubeletVersion,omitempty"`
+	AgeSec            int64             `json:"ageSec"`
+	HealthBucket      string            `json:"healthBucket,omitempty"`
+	PodDensityBucket  string            `json:"podDensityBucket,omitempty"`
+	PodDensityRatio   float64           `json:"podDensityRatio,omitempty"`
+	NeedsAttention    bool              `json:"needsAttention,omitempty"`
+	Derived           bool              `json:"derived,omitempty"`
+	DerivedSource     string            `json:"derivedSource,omitempty"`
+	DerivedCoverage   string            `json:"derivedCoverage,omitempty"`
+	DerivedNote       string            `json:"derivedNote,omitempty"`
+	NamespaceCount    int               `json:"namespaceCount,omitempty"`
+	ProblematicPods   int               `json:"problematicPods,omitempty"`
+	RestartCount      int32             `json:"restartCount,omitempty"`
 
 	// Usage enrichment merged from cached NodeMetricsSnapshot.
 	CPUMilli           int64   `json:"cpuMilli,omitempty"`

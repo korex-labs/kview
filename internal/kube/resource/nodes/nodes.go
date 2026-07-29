@@ -42,6 +42,8 @@ func ListNodes(ctx context.Context, c *cluster.Clients) ([]dto.NodeListItemDTO, 
 
 		out = append(out, dto.NodeListItemDTO{
 			Name:              n.Name,
+			Labels:            n.Labels,
+			Annotations:       n.Annotations,
 			Status:            nodeReadyStatus(n.Status.Conditions),
 			Roles:             deriveNodeRoles(n.Labels),
 			CPUAllocatable:    kubepods.QuantityString(n.Status.Allocatable[corev1.ResourceCPU]),

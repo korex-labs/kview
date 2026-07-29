@@ -29,6 +29,8 @@ func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		out = append(out, dto.JobDTO{
 			Name:        job.Name,
 			Namespace:   job.Namespace,
+			Labels:      job.Labels,
+			Annotations: job.Annotations,
 			Active:      job.Status.Active,
 			Succeeded:   job.Status.Succeeded,
 			Failed:      job.Status.Failed,

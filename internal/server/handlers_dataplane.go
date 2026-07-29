@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -338,6 +340,39 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		})
 	})
 
+	api.Post("/dataplane/signals/exclusions/preview", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		var req struct {
+			SignalType string                       `json:"signalType"`
+			Exclusions dataplane.SignalExclusionSet `json:"exclusions"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid preview request"})
+			return
+		}
+		if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid preview request"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
+		defer cancel()
+		result, err := s.dp.PreviewSignalExclusions(ctx, s.readContextName(r), strings.TrimSpace(req.SignalType), req.Exclusions)
+		if err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				status = http.StatusGatewayTimeout
+			}
+			writeJSON(w, status, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+
 	api.Post("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
@@ -362,6 +397,10 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 			}
 			bundle = s.dp.PolicyBundle()
 			bundle.Global = policy
+		}
+		if err := dataplane.ValidateSignalExclusions(bundle); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
 		}
 		next := s.dp.SetPolicyBundle(bundle)
 		writeJSON(w, http.StatusOK, map[string]any{

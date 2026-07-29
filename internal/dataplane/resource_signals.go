@@ -113,19 +113,27 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	policy := m.EffectivePolicy(clusterName)
 	thresholds := signalThresholdsFromPolicy(policy)
 	store := newDashboardSignalStore()
+	rawStore := newDashboardSignalStore()
 	now := time.Now()
 	var meta SnapshotMetadata
 
 	switch scope {
 	case ResourceSignalsScopeNamespace:
 		s := buildSnapshotSetForNamespace(plane, namespace, thresholds)
-		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectDashboardSignals(now, namespace, s), policy, clusterName)...)...)
+		namespaceSnapshot, _ := peekClusterSnapshot(&plane.nsStore)
+		rawSignals := enrichSignalsFromMetadataIndex(detectDashboardSignals(now, namespace, s), namespaceSignalMetadataIndex(namespaceSnapshot))
+		rawStore.Add(rawSignals...)
+		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(rawSignals, policy, clusterName)...)...)
 		meta = mergeSnapshotMetaForResourceSignals(s)
 	case ResourceSignalsScopeCluster:
 		nodesSnap, _ := peekClusterSnapshot(&plane.nodesStore)
-		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), policy, clusterName)...)...)
+		rawNodeSignals := enrichNodeSignalMetadata(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), nodesSnap)
+		rawStore.Add(rawNodeSignals...)
+		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(rawNodeSignals, policy, clusterName)...)...)
 		pvsSnap, _ := peekClusterSnapshot(&plane.persistentVolumesStore)
-		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectClusterPVNodeBoundStorageSignals(pvsSnap), policy, clusterName)...)...)
+		rawPVSignals := enrichPersistentVolumeSignalMetadata(detectClusterPVNodeBoundStorageSignals(pvsSnap), pvsSnap)
+		rawStore.Add(rawPVSignals...)
+		store.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(rawPVSignals, policy, clusterName)...)...)
 		meta = nodesSnap.Meta
 		if strings.EqualFold(kind, "PersistentVolume") {
 			meta = pvsSnap.Meta
@@ -138,7 +146,7 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	}
 	items := store.SignalsForResource(kind, name, scope, scopeLocation)
 	out := namespaceInsightSignalsFromDashboard(items)
-	if len(out) == 0 {
+	if len(out) == 0 && len(rawStore.SignalsForResource(kind, name, scope, scopeLocation)) == 0 {
 		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, thresholds.PodRestartCount), policy, clusterName)...)
 	}
 	out = dedupeNamespaceSignals(out)
@@ -485,9 +493,26 @@ func applyNamespaceSignalPolicy(items []dto.NamespaceInsightSignalDTO, policy Da
 		return nil
 	}
 	out := make([]dto.NamespaceInsightSignalDTO, 0, len(items))
+	effectiveByType := make(map[string]effectiveSignalPolicy)
+	compiledExclusions := make(map[string]compiledSignalExclusionSet)
 	for _, item := range items {
-		effective := effectiveSignalSettings(policy, contextName, item.SignalType)
+		effective, ok := effectiveByType[item.SignalType]
+		if !ok {
+			effective = effectiveSignalSettings(policy, contextName, item.SignalType)
+			effectiveByType[item.SignalType] = effective
+			compiledExclusions[item.SignalType] = compileSignalExclusionSet(effective.exclusions)
+		}
 		if !effective.enabled {
+			continue
+		}
+		candidate := ClusterDashboardSignal{
+			SignalType: item.SignalType, ResourceKind: item.ResourceKind, ResourceName: item.ResourceName,
+			Scope: item.Scope, ScopeLocation: item.ScopeLocation,
+		}
+		if item.Scope == "namespace" {
+			candidate.Namespace = item.ScopeLocation
+		}
+		if compiledExclusions[item.SignalType].excludes(candidate) {
 			continue
 		}
 		if isSignalSeverityOverride(effective.severity) {

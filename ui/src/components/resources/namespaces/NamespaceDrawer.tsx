@@ -37,6 +37,7 @@ import type {
   ResourceQuotaEntry,
 } from "../../../types/api";
 import { useConnectionState } from "../../../connectionState";
+import { useSignalExclusionsRevision } from "../../../signalExclusions";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import {
   helmStatusChipColor,
@@ -221,6 +222,7 @@ export default function NamespaceDrawer(props: {
   onNavigate?: (section: string, namespace: string, filter?: string) => void;
 }) {
   const { health, retryNonce } = useConnectionState();
+  const signalExclusionsRevision = useSignalExclusionsRevision();
   const offline = health === "unhealthy";
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
@@ -298,6 +300,20 @@ export default function NamespaceDrawer(props: {
       })
       .finally(() => setInsightsLoading(false));
   }, [props.open, name, props.token, retryNonce, offline]);
+
+  useEffect(() => {
+    if (signalExclusionsRevision === 0 || !props.open || !name || offline) return;
+    const encodedName = encodeURIComponent(name);
+    setInsightsLoading(true);
+    apiGet<ApiItemResponse<NamespaceInsights>>(`/api/namespaces/${encodedName}/insights`, props.token)
+      .then((res) => {
+        const item = res?.item ?? null;
+        setInsights(item);
+        if (item) insightsCacheRef.current[name] = item;
+      })
+      .catch((error) => setInsightsErr(String(error)))
+      .finally(() => setInsightsLoading(false));
+  }, [signalExclusionsRevision, props.open, name, props.token, offline]);
 
   useEffect(() => {
     if (!props.open || !name || offline) return;

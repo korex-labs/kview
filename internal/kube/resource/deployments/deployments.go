@@ -42,6 +42,8 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 		out = append(out, dto.DeploymentListItemDTO{
 			Name:                d.Name,
 			Namespace:           d.Namespace,
+			Labels:              d.Labels,
+			Annotations:         d.Annotations,
 			Ready:               pods.FmtReady(int(d.Status.AvailableReplicas), int(desired)),
 			UpToDate:            d.Status.UpdatedReplicas,
 			Available:           d.Status.AvailableReplicas,

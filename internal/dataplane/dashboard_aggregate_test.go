@@ -96,7 +96,7 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}}})
 	setNamespacedSnapshot(&plane.lrStore, ns, LimitRangesSnapshot{Meta: meta, Items: []dto.LimitRangeDTO{{Name: "limits", Namespace: ns}}})
 
-	res, signalPanel, derived, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, NodesSnapshot{}, "denied", ClusterDashboardListOptions{})
+	res, signalPanel, derived, cov := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "denied", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: %d", res.Pods)
 	}
@@ -135,7 +135,7 @@ func TestAggregateClusterDashboard_NoCacheUnknownTotals(t *testing.T) {
 	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx2")
 	plane := planeAny.(*clusterPlane)
 
-	res, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"x", "y"}, 2, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	res, _, _, cov := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{"x", "y"}, 2, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 0 || cov.ResourceTotalsCompleteness != "unknown" || cov.NamespacesInResourceTotals != 0 {
 		t.Fatalf("res=%+v cov=%+v", res, cov)
 	}
@@ -149,7 +149,7 @@ func TestAggregateClusterDashboard_ReportsPersistenceHydration(t *testing.T) {
 	plane.persistHydrating.Store(true)
 	defer plane.persistHydrating.Store(false)
 
-	_, _, _, cov := mm.aggregateClusterDashboard(plane, []string{"app"}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	_, _, _, cov := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{"app"}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if !cov.PersistenceHydrating {
 		t.Fatalf("expected persistence hydration coverage flag, got %+v", cov)
 	}
@@ -169,7 +169,7 @@ func TestAggregateClusterDashboard_PodRestartsAreSignals(t *testing.T) {
 		},
 	})
 
-	res, signalPanel, _, cov := mm.aggregateClusterDashboard(plane, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	res, signalPanel, _, cov := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	if res.Pods != 1 {
 		t.Fatalf("pods: got %d, want 1", res.Pods)
 	}
@@ -264,7 +264,7 @@ func TestAggregateClusterDashboard_PodAndDeploymentFailureSignals(t *testing.T) 
 		{Name: "api", Namespace: ns, Ready: "0/3", Available: 0, AgeSec: int64((20 * time.Minute).Seconds()), HealthBucket: deployBucketDegraded, RolloutNeedsAttention: true, Status: "Unavailable"},
 	}})
 
-	_, signalPanel, _, _ := mm.aggregateClusterDashboard(plane, []string{ns}, 10, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
+	_, signalPanel, _, _ := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 10, NodesSnapshot{}, "empty", ClusterDashboardListOptions{})
 	wantTypes := map[string]bool{
 		"pod_image_pull_failure": false,
 		"pod_crash_loop_waiting": false,

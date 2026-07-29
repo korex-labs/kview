@@ -94,7 +94,7 @@ func EnrichPodListItemsWithMetrics(items []dto.PodListItemDTO, metrics PodMetric
 //
 // This keeps UI list chips aligned with backend-derived signals (same source
 // as per-resource signals endpoint) and avoids client-side warning heuristics.
-func EnrichPodListItemsWithSignalSummary(items []dto.PodListItemDTO, namespace string, podMetricsItems []dto.PodMetricsDTO, policy DataplanePolicy, now time.Time) []dto.PodListItemDTO {
+func EnrichPodListItemsWithSignalSummary(items []dto.PodListItemDTO, namespace string, podMetricsItems []dto.PodMetricsDTO, policy DataplanePolicy, contextName string, now time.Time) []dto.PodListItemDTO {
 	if len(items) == 0 {
 		return items
 	}
@@ -111,7 +111,7 @@ func EnrichPodListItemsWithSignalSummary(items []dto.PodListItemDTO, namespace s
 		set.podMetricsOK = true
 		set.podMetrics = PodMetricsSnapshot{Items: podMetricsItems}
 	}
-	signals := detectDashboardSignals(now, namespace, set)
+	signals := applySignalPolicy(detectDashboardSignals(now, namespace, set), policy, contextName)
 	if len(signals) == 0 {
 		out := append([]dto.PodListItemDTO(nil), items...)
 		for i := range out {

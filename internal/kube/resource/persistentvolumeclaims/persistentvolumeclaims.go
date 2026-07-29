@@ -29,6 +29,8 @@ func ListPersistentVolumeClaims(ctx context.Context, c *cluster.Clients, namespa
 		out = append(out, dto.PersistentVolumeClaimDTO{
 			Name:             pvc.Name,
 			Namespace:        pvc.Namespace,
+			Labels:           pvc.Labels,
+			Annotations:      pvc.Annotations,
 			Phase:            string(pvc.Status.Phase),
 			StorageClassName: StringPtrValue(pvc.Spec.StorageClassName),
 			VolumeName:       pvc.Spec.VolumeName,

@@ -3,6 +3,7 @@ import { Box } from "@mui/material";
 import type { DashboardSignalItem } from "../../types/api";
 import SignalAckButton from "./SignalAckButton";
 import SignalInvestigationButton from "./SignalInvestigationButton";
+import { QuickSignalExclusionButton } from "./QuickSignalExclusion";
 
 type Props = {
   token?: string;
@@ -26,6 +27,7 @@ export default function SignalActions({ token, signal, onInvestigate, onAckChang
     >
       {token ? <SignalAckButton token={token} signal={signal} onChanged={onAckChanged} /> : null}
       <SignalInvestigationButton signal={signal} onInvestigate={onInvestigate} />
+      <QuickSignalExclusionButton signal={signal} />
     </Box>
   );
 }

@@ -224,6 +224,8 @@ type DataPlaneManager interface {
 	// scope must be one of ResourceSignalsScopeNamespace / ResourceSignalsScopeCluster.
 	// kind is the canonical Kubernetes kind (e.g. "Pod", "Deployment", "Node").
 	ResourceSignals(ctx context.Context, clusterName, scope, namespace, kind, name string) (ResourceSignalsResult, error)
+	// PreviewSignalExclusions evaluates draft rules against cached raw signal candidates without mutating policy or history.
+	PreviewSignalExclusions(ctx context.Context, clusterName, signalType string, exclusions SignalExclusionSet) (SignalExclusionPreviewResult, error)
 	// AcknowledgeSignal records local operator acknowledgement metadata for a stable signal history key.
 	AcknowledgeSignal(clusterName string, req SignalAcknowledgementRequest) (SignalAcknowledgementRecord, error)
 	// UnacknowledgeSignal removes local acknowledgement metadata for a stable signal history key.

@@ -25,6 +25,8 @@ func ListNamespaces(ctx context.Context, c *cluster.Clients) ([]dto.NamespaceLis
 		}
 		out = append(out, dto.NamespaceListItemDTO{
 			Name:                   ns.Name,
+			Labels:                 ns.Labels,
+			Annotations:            ns.Annotations,
 			Phase:                  string(ns.Status.Phase),
 			AgeSec:                 age,
 			HasUnhealthyConditions: hasUnhealthyNamespaceConditions(ns.Status.Conditions),

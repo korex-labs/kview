@@ -40,6 +40,8 @@ func ListIngresses(ctx context.Context, c *cluster.Clients, namespace string) ([
 		out = append(out, dto.IngressListItemDTO{
 			Name:             ing.Name,
 			Namespace:        ing.Namespace,
+			Labels:           ing.Labels,
+			Annotations:      ing.Annotations,
 			IngressClassName: className,
 			Hosts:            hosts,
 			TLSCount:         int32(len(ing.Spec.TLS)),

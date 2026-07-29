@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Badge,
   Box,
   Checkbox,
   Chip,
@@ -43,6 +44,7 @@ import {
   addOperatorProfile,
   applyDataplaneProfile,
   applyOperatorProfile,
+  compactSignalOverrideForScope,
   customActionResourceKeys,
   defaultDataplaneSettings,
   dataplaneNamespaceWarmResourceKeys,
@@ -117,6 +119,7 @@ import {
 import type { InvestigationSnapshot } from "../../types/api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
+import SignalExclusionsDialog, { type SignalExclusionPreview } from "./SignalExclusionsDialog";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
@@ -1071,6 +1074,7 @@ export default function SettingsView({
   const [signalCatalogError, setSignalCatalogError] = useState<string | null>(null);
   const [dataplaneEditScope, setDataplaneEditScope] = useState<"global" | "context">("global");
   const [signalCatalogQuery, setSignalCatalogQuery] = useState("");
+  const [signalExclusionsEditor, setSignalExclusionsEditor] = useState<{ type: string; label: string } | null>(null);
 
   const contextOptions = useMemo(
     () => Array.from(new Set([activeContext, ...contexts.map((c) => c.name)].filter(Boolean))),
@@ -1257,16 +1261,9 @@ export default function SettingsView({
     if (!signalType) return;
     setSettings((prev) => {
       const signals = prev.dataplane.global.signals;
-      const cleanOverride = (override: SignalOverride): SignalOverride | null => {
-        const next: SignalOverride = { ...override, ...patch };
-        if (next.enabled === undefined) delete next.enabled;
-        if (next.severity === undefined) delete next.severity;
-        if (next.priority === undefined) delete next.priority;
-        if (next.enabled !== undefined && next.enabled === inherited.enabled) delete next.enabled;
-        if (next.severity !== undefined && next.severity === inherited.severity) delete next.severity;
-        if (next.priority !== undefined && next.priority === inherited.priority) delete next.priority;
-        return Object.keys(next).length > 0 ? next : null;
-      };
+      const cleanOverride = (override: SignalOverride): SignalOverride | null => (
+        compactSignalOverrideForScope({ ...override, ...patch }, inherited, scope)
+      );
       if (scope === "global") {
         const overrides = { ...signals.overrides };
         const next = cleanOverride(overrides[signalType] || {});
@@ -3167,6 +3164,16 @@ export default function SettingsView({
       fn(v);
       if (isContextEditing && v === getGblAt(path)) resetOverridePath(path);
     };
+    const editedGlobalSignalOverride: SignalOverride = signalExclusionsEditor
+      ? (settings.dataplane.global.signals.overrides[signalExclusionsEditor.type] || {})
+      : {};
+    const editedContextSignalOverride: SignalOverride = signalExclusionsEditor
+      ? (activeContextSignalOverrides[signalExclusionsEditor.type] || {})
+      : {};
+    const editedInheritedExclusions = editedGlobalSignalOverride.exclusions || { rules: [] };
+    const editedExclusions = dataplaneEditScope === "global"
+      ? editedGlobalSignalOverride.exclusions
+      : editedContextSignalOverride.exclusions;
 
     return (
       <Box data-testid="settings-section-dataplane" sx={[settingsStackSx, { maxWidth: 900 }]}>
@@ -3544,6 +3551,10 @@ export default function SettingsView({
                   const inheritedEnabled = dataplaneEditScope === "context" ? (globalOverride.enabled ?? item.defaultEnabled) : item.defaultEnabled;
                   const inheritedSeverity = dataplaneEditScope === "context" ? (globalOverride.severity || item.defaultSeverity || "low") : (item.defaultSeverity || "low");
                   const inheritedPriority = dataplaneEditScope === "context" ? (globalOverride.priority ?? item.defaultPriority) : item.defaultPriority;
+                  const inheritedExclusions = dataplaneEditScope === "context" ? (globalOverride.exclusions || { rules: [] }) : { rules: [] };
+                  const effectiveExclusions = override.exclusions || inheritedExclusions;
+                  const exclusionCount = effectiveExclusions.rules.length;
+                  const enabledExclusionCount = effectiveExclusions.rules.filter((rule) => rule.enabled !== false).length;
                   const enabledChecked = override.enabled ?? inheritedEnabled;
                   const severityValue = override.severity || inheritedSeverity;
                   const priorityValue = signalPriorityFor(item);
@@ -3552,6 +3563,7 @@ export default function SettingsView({
                     enabled: inheritedEnabled,
                     severity: inheritedSeverity as SignalOverride["severity"],
                     priority: inheritedPriority,
+                    exclusions: inheritedExclusions,
                   };
                   const signalThresholdChangedLabels = (): string[] => {
                     const contextPathChanged = (path: string[]) => dataplaneEditScope === "context" && isContextEditing && hasOverrideAtPath(path);
@@ -3622,6 +3634,7 @@ export default function SettingsView({
                     ...(override.enabled !== undefined ? ["enabled state"] : []),
                     ...(override.severity !== undefined ? ["severity"] : []),
                     ...(override.priority !== undefined ? ["display priority"] : []),
+                    ...(override.exclusions !== undefined ? ["exclusion rules"] : []),
                     ...signalThresholdChangedLabels(),
                   ];
                   const customTooltip = `Custom settings: ${changedControls.join(", ")}. Reset returns this signal to ${dataplaneEditScope === "context" ? "global" : "default"} values.`;
@@ -3666,6 +3679,21 @@ export default function SettingsView({
                           {changed ? <ScopeTag state="overridden" onReset={() => resetSignalCard(item.type)} tooltip={customTooltip} /> : null}
                         </Box>
                         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
+                          <Badge
+                            badgeContent={exclusionCount}
+                            color={enabledExclusionCount > 0 ? "primary" : "default"}
+                            max={50}
+                            sx={{ "& .MuiBadge-badge": { right: -2, top: 2 } }}
+                          >
+                            <AppButton
+                              variant="outlined"
+                              size="small"
+                              aria-label={`Exclusions: ${exclusionCount} rule${exclusionCount === 1 ? "" : "s"}, ${enabledExclusionCount} enabled`}
+                              onClick={() => setSignalExclusionsEditor({ type: item.type, label: item.label })}
+                            >
+                              Exclusions
+                            </AppButton>
+                          </Badge>
                           <ReorderButtons
                             label={`${item.label} signal`}
                             index={orderedSignalIndex.get(item.type) ?? 0}
@@ -3728,6 +3756,35 @@ export default function SettingsView({
             )}
           </SettingSection>
         )}
+        {signalExclusionsEditor ? (
+          <SignalExclusionsDialog
+            open
+            signalLabel={signalExclusionsEditor.label}
+            scope={dataplaneEditScope}
+            contextName={activeContext}
+            inheritedRules={dataplaneEditScope === "context" ? editedInheritedExclusions.rules : []}
+            exclusions={editedExclusions}
+            onClose={() => setSignalExclusionsEditor(null)}
+            onSave={(exclusions) => setSignalOverride(
+              signalExclusionsEditor.type,
+              dataplaneEditScope,
+              { exclusions },
+              { exclusions: dataplaneEditScope === "context" ? editedInheritedExclusions : { rules: [] } },
+            )}
+            onUseInherited={() => setSignalOverride(
+              signalExclusionsEditor.type,
+              "context",
+              { exclusions: undefined },
+              { exclusions: editedInheritedExclusions },
+            )}
+            onPreview={(exclusions) => apiPost<SignalExclusionPreview>(
+              "/api/dataplane/signals/exclusions/preview",
+              token,
+              { signalType: signalExclusionsEditor.type, exclusions },
+              { headers: activeContext ? { "X-Kview-Context": activeContext } : undefined },
+            )}
+          />
+        ) : null}
       </Box>
     );
   };

@@ -85,13 +85,14 @@ describe("AttentionSummary", () => {
     }
   });
 
-  it("shows acknowledgement and investigation actions when historyKey is missing", () => {
-    render(<AttentionSummary token="token" signals={[signal({ reason: "Missing key" })]} />);
+  it("shows acknowledgement, investigation, and exclusion actions when historyKey is missing", () => {
+    render(<AttentionSummary token="token" signals={[signal({ signalType: "pod_restarts", name: "api-0", reason: "Missing key" })]} />);
     const row = screen.getByText("Missing key").closest("[data-signal-row]");
     expect(row).toBeTruthy();
     if (row) {
       expect(within(row as HTMLElement).getAllByLabelText("Acknowledge signal").length).toBeGreaterThan(0);
       expect(within(row as HTMLElement).getAllByLabelText("Investigate signal").length).toBeGreaterThan(0);
+      expect(within(row as HTMLElement).getAllByLabelText("Exclude this signal").length).toBeGreaterThan(0);
     }
   });
 });

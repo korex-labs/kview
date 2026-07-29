@@ -55,6 +55,8 @@ import {
 } from "./utils/performanceDiagnostics";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import { SignalMemoryProvider } from "./signalMemory";
+import { QuickSignalExclusionProvider } from "./components/shared/QuickSignalExclusion";
+import { dispatchSignalExclusionsChanged } from "./signalExclusions";
 import "./styles/theme.css";
 
 const SettingsView = React.lazy(() => import("./components/settings/SettingsView"));
@@ -688,6 +690,7 @@ function AppInner() {
           });
         }}
       >
+      <QuickSignalExclusionProvider token={token}>
       <MutationProvider>
         <KeyboardProvider
           settingsOpen={settingsOpen || helpOpen}
@@ -978,6 +981,7 @@ function AppInner() {
         </Box>
         </KeyboardProvider>
       </MutationProvider>
+      </QuickSignalExclusionProvider>
       </SignalMemoryProvider>
     </ActiveContextProvider>
   );
@@ -1004,6 +1008,7 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
       if (cancelled) return;
       apiPost("/api/dataplane/config", token, dataplaneBundle)
         .then(() => {
+          dispatchSignalExclusionsChanged();
           const sweep = effectiveDataplane.namespaceEnrichment.sweep;
           const warmKey = effectiveDataplane.namespaceEnrichment.enabled && sweep.enabled
             ? [

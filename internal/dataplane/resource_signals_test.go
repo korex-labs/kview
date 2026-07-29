@@ -61,6 +61,31 @@ func TestResourceSignals_ValidatesInputs(t *testing.T) {
 	}
 }
 
+func TestResourceSignals_ExcludedDetectorSignalDoesNotFallBack(t *testing.T) {
+	mm := NewManager(ManagerConfig{}).(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx-excluded-fallback")
+	plane := planeAny.(*clusterPlane)
+	setNamespacedSnapshot(&plane.podsStore, "apps", PodsSnapshot{
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.PodListItemDTO{{Name: "api-0", Namespace: "apps", Restarts: 12, Phase: "Running", Ready: "1/1"}},
+	})
+	bundle := DefaultDataplanePolicyBundle()
+	bundle.Global.Signals.Overrides = map[string]SignalOverride{
+		"pod_restarts": {Exclusions: &SignalExclusionSet{Rules: []SignalExclusionRule{{
+			ID: "api", Conditions: []SignalExclusionCondition{{Source: "name", Pattern: "^api-0$"}},
+		}}}},
+	}
+	mm.SetPolicyBundle(bundle)
+
+	got, err := mm.ResourceSignals(t.Context(), "ctx-excluded-fallback", ResourceSignalsScopeNamespace, "apps", "Pod", "api-0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Signals) != 0 {
+		t.Fatalf("excluded detector signal resurfaced as fallback: %+v", got.Signals)
+	}
+}
+
 func TestResourceSignals_NamespaceScope_ReturnsAttributedSignals(t *testing.T) {
 	dm := NewManager(ManagerConfig{})
 	mm := dm.(*manager)

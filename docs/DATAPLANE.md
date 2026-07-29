@@ -81,6 +81,15 @@ fields. The additive `observedDays7d`, `observedDays30d`, and `recurring` fields
 provide refresh-resistant recurrence hints: they count days on which kview
 observed the stable signal identity, not separate resolved incidents. Observation
 days are retained for at most 30 days in the local dataplane history record.
+
+Per-signal exclusion rules are applied centrally before signal history and all
+downstream dashboard/list/detail projections. Rules support RE2 matching over
+resource name, namespace, label values, and annotation values, plus label or
+annotation existence checks. Matching metadata is retained only in typed in-memory
+snapshots, so evaluation and preview remain cache-only without expanding list API
+responses or the persistent cache; metadata-based matching resumes after the
+corresponding list snapshot is refreshed. Annotation values used for matching are
+not exposed in signal responses.
 Signal acknowledgements are local operator metadata stored in the dataplane
 persistence database, keyed by cluster/context plus `historyKey`. They do not
 write Kubernetes annotations or require cluster mutation permissions.

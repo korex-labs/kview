@@ -481,6 +481,14 @@ func (s *stubDataplane) NamespaceInsightsProjection(_ context.Context, _, _ stri
 func (s *stubDataplane) ResourceSignals(_ context.Context, _, _, _, _, _ string) (dataplane.ResourceSignalsResult, error) {
 	panic("stubDataplane: ResourceSignals")
 }
+func (s *stubDataplane) PreviewSignalExclusions(_ context.Context, _ string, signalType string, exclusions dataplane.SignalExclusionSet) (dataplane.SignalExclusionPreviewResult, error) {
+	bundle := dataplane.DefaultDataplanePolicyBundle()
+	bundle.Global.Signals.Overrides = map[string]dataplane.SignalOverride{signalType: {Exclusions: &exclusions}}
+	if err := dataplane.ValidateSignalExclusions(bundle); err != nil {
+		return dataplane.SignalExclusionPreviewResult{}, err
+	}
+	return dataplane.SignalExclusionPreviewResult{SignalType: signalType, CacheOnly: true}, nil
+}
 
 // ── auth middleware ───────────────────────────────────────────────────────────
 
@@ -1008,6 +1016,8 @@ func TestPostDataplaneConfig(t *testing.T) {
 		wantStatus int
 	}{
 		{"invalid json", []byte("{bad"), http.StatusBadRequest},
+		{"invalid signal exclusion regex", []byte(`{"global":{"signals":{"overrides":{"pod_restarts":{"exclusions":{"rules":[{"id":"bad","conditions":[{"source":"name","operator":"regex","pattern":"["}]}]}}}}}}`), http.StatusBadRequest},
+		{"valid signal exclusion", []byte(`{"global":{"signals":{"overrides":{"pod_restarts":{"exclusions":{"rules":[{"id":"canary","conditions":[{"source":"name","operator":"regex","pattern":"^canary-"}]}]}}}}}}`), http.StatusOK},
 		{"valid empty object", []byte(`{}`), http.StatusOK},
 	}
 	for _, tc := range cases {
@@ -1016,6 +1026,28 @@ func TestPostDataplaneConfig(t *testing.T) {
 			rec := doReq(t, h, http.MethodPost, "/api/dataplane/config", testToken, tc.body)
 			if rec.Code != tc.wantStatus {
 				t.Errorf("status: got %d, want %d (body=%s)", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestPostDataplaneSignalExclusionsPreview(t *testing.T) {
+	cases := []struct {
+		name       string
+		body       []byte
+		wantStatus int
+	}{
+		{"valid empty preview", []byte(`{"signalType":"pod_restarts","exclusions":{"rules":[]}}`), http.StatusOK},
+		{"invalid regex", []byte(`{"signalType":"pod_restarts","exclusions":{"rules":[{"id":"bad","conditions":[{"source":"name","pattern":"["}]}]}}`), http.StatusBadRequest},
+		{"trailing json", []byte(`{"signalType":"pod_restarts","exclusions":{"rules":[]}} {}`), http.StatusBadRequest},
+		{"unknown signal", []byte(`{"signalType":"not_real","exclusions":{"rules":[]}}`), http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, h := newTestServer(t)
+			rec := doReq(t, h, http.MethodPost, "/api/dataplane/signals/exclusions/preview", testToken, tc.body)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status: got %d, want %d (body=%s)", rec.Code, tc.wantStatus, rec.Body.String())
 			}
 		})
 	}

@@ -48,20 +48,22 @@ type ServiceEndpointPodDTO struct {
 }
 
 type ServiceListItemDTO struct {
-	Name                 string   `json:"name"`
-	Namespace            string   `json:"namespace"`
-	Type                 string   `json:"type"`
-	ClusterIPs           []string `json:"clusterIPs"`
-	PortsSummary         string   `json:"portsSummary,omitempty"`
-	EndpointsReady       int32    `json:"endpointsReady"`
-	EndpointsNotReady    int32    `json:"endpointsNotReady"`
-	AgeSec               int64    `json:"ageSec"`
-	EndpointHealthBucket string   `json:"endpointHealthBucket,omitempty"`
-	ExposureHint         string   `json:"exposureHint,omitempty"`
-	NeedsAttention       bool     `json:"needsAttention,omitempty"`
-	ListStatus           string   `json:"listStatus,omitempty"`
-	ListSignalSeverity   string   `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount      int      `json:"listSignalCount,omitempty"`
+	Name                 string            `json:"name"`
+	Namespace            string            `json:"namespace"`
+	Labels               map[string]string `json:"-"`
+	Annotations          map[string]string `json:"-"`
+	Type                 string            `json:"type"`
+	ClusterIPs           []string          `json:"clusterIPs"`
+	PortsSummary         string            `json:"portsSummary,omitempty"`
+	EndpointsReady       int32             `json:"endpointsReady"`
+	EndpointsNotReady    int32             `json:"endpointsNotReady"`
+	AgeSec               int64             `json:"ageSec"`
+	EndpointHealthBucket string            `json:"endpointHealthBucket,omitempty"`
+	ExposureHint         string            `json:"exposureHint,omitempty"`
+	NeedsAttention       bool              `json:"needsAttention,omitempty"`
+	ListStatus           string            `json:"listStatus,omitempty"`
+	ListSignalSeverity   string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount      int               `json:"listSignalCount,omitempty"`
 }
 
 type ServiceLinkDTO struct {

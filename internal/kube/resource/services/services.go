@@ -39,6 +39,8 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		out = append(out, dto.ServiceListItemDTO{
 			Name:              svc.Name,
 			Namespace:         svc.Namespace,
+			Labels:            svc.Labels,
+			Annotations:       svc.Annotations,
 			Type:              ServiceType(svc.Spec.Type),
 			ClusterIPs:        serviceClusterIPs(svc.Spec),
 			PortsSummary:      FormatServicePortsSummary(svc.Spec.Ports),

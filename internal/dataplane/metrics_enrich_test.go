@@ -134,7 +134,7 @@ func TestEnrichPodListItemsWithSignalSummary_UsesBackendSignals(t *testing.T) {
 		},
 	}
 	enriched := EnrichPodListItemsWithMetrics(items, BuildPodMetricsIndex(podMetrics))
-	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, now)
+	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, "", now)
 	if out[0].ListSignalSeverity != "high" || out[0].ListSignalCount != 2 {
 		t.Fatalf("api pod should summarize 2 backend signals with high severity: %+v", out[0])
 	}
@@ -166,7 +166,7 @@ func TestEnrichPodListItemsWithSignalSummary_RespectsConfiguredThreshold(t *test
 		},
 	}
 	enriched := EnrichPodListItemsWithMetrics(items, BuildPodMetricsIndex(podMetrics))
-	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, now)
+	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, "", now)
 	if out[0].ListSignalSeverity != listSignalOK || out[0].ListSignalCount != 0 {
 		t.Fatalf("92%% of limit should not trigger signal when threshold is 95%%: %+v", out[0])
 	}
@@ -196,7 +196,7 @@ func TestEnrichPodListItemsWithSignalSummary_IgnoresLegacyMetricsThresholdsWhenD
 		},
 	}
 	enriched := EnrichPodListItemsWithMetrics(items, BuildPodMetricsIndex(podMetrics))
-	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, now)
+	out := EnrichPodListItemsWithSignalSummary(enriched, "team-a", podMetrics, policy, "", now)
 	if out[0].ListSignalSeverity != listSignalOK || out[0].ListSignalCount != 0 {
 		t.Fatalf("92%% of limit should not trigger signal with detector threshold 95%%: %+v", out[0])
 	}

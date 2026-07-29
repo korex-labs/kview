@@ -1,21 +1,23 @@
 package dto
 
 type CronJobDTO struct {
-	Name               string         `json:"name"`
-	Namespace          string         `json:"namespace"`
-	Schedule           string         `json:"schedule"`
-	ScheduleHint       string         `json:"scheduleHint,omitempty"`
-	Suspend            bool           `json:"suspend"`
-	Active             int32          `json:"active"`
-	LastScheduleTime   int64          `json:"lastScheduleTime,omitempty"`
-	LastSuccessfulTime int64          `json:"lastSuccessfulTime,omitempty"`
-	AgeSec             int64          `json:"ageSec"`
-	LastEvent          *EventBriefDTO `json:"lastEvent,omitempty"`
-	HealthBucket       string         `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
-	NeedsAttention     bool           `json:"needsAttention,omitempty"`
-	ListStatus         string         `json:"listStatus,omitempty"`
-	ListSignalSeverity string         `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int            `json:"listSignalCount,omitempty"`
+	Name               string            `json:"name"`
+	Namespace          string            `json:"namespace"`
+	Labels             map[string]string `json:"-"`
+	Annotations        map[string]string `json:"-"`
+	Schedule           string            `json:"schedule"`
+	ScheduleHint       string            `json:"scheduleHint,omitempty"`
+	Suspend            bool              `json:"suspend"`
+	Active             int32             `json:"active"`
+	LastScheduleTime   int64             `json:"lastScheduleTime,omitempty"`
+	LastSuccessfulTime int64             `json:"lastSuccessfulTime,omitempty"`
+	AgeSec             int64             `json:"ageSec"`
+	LastEvent          *EventBriefDTO    `json:"lastEvent,omitempty"`
+	HealthBucket       string            `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention     bool              `json:"needsAttention,omitempty"`
+	ListStatus         string            `json:"listStatus,omitempty"`
+	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount    int               `json:"listSignalCount,omitempty"`
 }
 
 type CronJobDetailsDTO struct {

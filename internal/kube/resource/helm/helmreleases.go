@@ -66,6 +66,7 @@ func releaseToListDTO(rel *release.Release, namespace string) dto.HelmReleaseDTO
 	d := dto.HelmReleaseDTO{
 		Name:           rel.Name,
 		Namespace:      namespace,
+		Labels:         rel.Labels,
 		Status:         releaseStatus(rel),
 		Revision:       rel.Version,
 		Chart:          chartString(rel),

@@ -179,6 +179,31 @@ Signal display priority is controlled by moving signal cards up or down in the
 Signal Catalog. Higher cards are considered earlier when signals have similar
 severity and freshness.
 
+Each signal card also has **Exclusions** for suppressing expected noise from
+specific resources. A badge on the button shows the number of effective rules
+for the selected global/context scope; a neutral badge means every stored rule
+is currently disabled. Rules are combined with OR; conditions inside a rule can
+use **Match all** (AND) or **Match any** (OR). Conditions can match resource
+name, namespace, an exact label key, or an exact annotation key. Values use
+RE2 regular expressions; label and annotation conditions can alternatively
+test whether the key exists.
+
+Global rules are inherited by every context. A context can replace the global
+set, explicitly save an empty set to clear it, or return to inheritance with
+**Use global rules**. **Preview matches** evaluates the draft against cached
+raw signal candidates only and does not read Kubernetes or change settings.
+Saving an exclusion suppresses the signal before counters, health projections,
+drawers, and new signal-history observations. Existing history, Signal Memory,
+acknowledgements, and Investigation Snapshots are retained.
+
+For a faster workflow, select **Exclude this signal** directly on a signal row.
+kview opens this editor for the correct signal type and prefills exact anchored
+namespace and resource-name conditions. Current-context scope is the safe
+default; select **Global default** to write the rule to the global signal policy.
+Contexts with their own replacement rules remain isolated from that policy.
+Global-default preview still evaluates cached candidates from the active context
+only; it is not a cross-context scan.
+
 ## Permission And Data Notes
 
 Most settings only change local UI behavior. Dataplane settings can change how

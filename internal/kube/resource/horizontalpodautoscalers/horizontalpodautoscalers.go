@@ -89,6 +89,8 @@ func summarizeHPA(hpa autoscalingv2.HorizontalPodAutoscaler, now time.Time) dto.
 	out := dto.HorizontalPodAutoscalerDTO{
 		Name:             hpa.Name,
 		Namespace:        hpa.Namespace,
+		Labels:           hpa.Labels,
+		Annotations:      hpa.Annotations,
 		ScaleTargetRef:   scaleTargetRef(hpa.Spec.ScaleTargetRef),
 		MinReplicas:      minReplicas(hpa.Spec.MinReplicas),
 		MaxReplicas:      hpa.Spec.MaxReplicas,

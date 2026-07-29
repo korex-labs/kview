@@ -92,6 +92,8 @@ func ListRoleBindingsForServiceAccount(
 		out = append(out, dto.RoleBindingListItemDTO{
 			Name:          rb.Name,
 			Namespace:     rb.Namespace,
+			Labels:        rb.Labels,
+			Annotations:   rb.Annotations,
 			RoleRefKind:   rb.RoleRef.Kind,
 			RoleRefName:   rb.RoleRef.Name,
 			SubjectsCount: len(rb.Subjects),

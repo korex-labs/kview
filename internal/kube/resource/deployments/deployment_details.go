@@ -178,7 +178,11 @@ func GetDeploymentDetails(ctx context.Context, c *cluster.Clients, namespace, na
 		ReplicaSets: replicaSets,
 		Pods:        pods,
 		Spec:        spec,
-		YAML:        string(y),
+		Metadata: dto.DeploymentMetadataDTO{
+			Labels:      dep.Labels,
+			Annotations: dep.Annotations,
+		},
+		YAML: string(y),
 	}, nil
 }
 

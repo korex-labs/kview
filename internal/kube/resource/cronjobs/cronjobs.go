@@ -42,6 +42,8 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		out = append(out, dto.CronJobDTO{
 			Name:               cj.Name,
 			Namespace:          cj.Namespace,
+			Labels:             cj.Labels,
+			Annotations:        cj.Annotations,
 			Schedule:           cj.Spec.Schedule,
 			ScheduleHint:       cronScheduleHint(cj.Spec.Schedule),
 			Suspend:            suspend,

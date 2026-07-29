@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "../api";
 import type { DashboardSignalItem } from "../types/api";
+import { useSignalExclusionsRevision } from "../signalExclusions";
 
 /**
  * Scope of a resource for the per-resource signals endpoint. Mirrors the
@@ -68,6 +69,7 @@ function buildSignalsPath(scope: ResourceSignalsScope, namespace: string | undef
  */
 export default function useResourceSignals(opts: UseResourceSignalsOptions): UseResourceSignalsResult {
   const { token, scope, namespace, kind, name, enabled = true, refreshKey = 0 } = opts;
+  const signalExclusionsRevision = useSignalExclusionsRevision();
 
   const [signals, setSignals] = useState<DashboardSignalItem[]>([]);
   const [meta, setMeta] = useState<ResourceSignalsResponse["meta"]>();
@@ -117,7 +119,7 @@ export default function useResourceSignals(opts: UseResourceSignalsOptions): Use
         if (reqId === lastReqId.current) setLoading(false);
       }
     })();
-  }, [token, scope, namespace, kind, name, enabled, refreshKey, internalKey]);
+  }, [token, scope, namespace, kind, name, enabled, refreshKey, internalKey, signalExclusionsRevision]);
 
   return { signals, meta, loading, error, refetch };
 }

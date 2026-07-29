@@ -5,10 +5,12 @@ type ResourceQuotaListDTO struct {
 }
 
 type ResourceQuotaDTO struct {
-	Name      string                  `json:"name"`
-	Namespace string                  `json:"namespace"`
-	AgeSec    int64                   `json:"ageSec"`
-	Entries   []ResourceQuotaEntryDTO `json:"entries"`
+	Name        string                  `json:"name"`
+	Namespace   string                  `json:"namespace"`
+	Labels      map[string]string       `json:"-"`
+	Annotations map[string]string       `json:"-"`
+	AgeSec      int64                   `json:"ageSec"`
+	Entries     []ResourceQuotaEntryDTO `json:"entries"`
 }
 
 type ResourceQuotaDetailsDTO struct {

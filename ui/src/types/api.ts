@@ -387,10 +387,27 @@ export type InvestigationSnapshotListResponse = {
   items: InvestigationSnapshot[];
 };
 
+export type SignalExclusionCondition = {
+  source: "name" | "namespace" | "label" | "annotation";
+  operator?: "regex" | "exists";
+  key?: string;
+  pattern?: string;
+  flags?: string;
+};
+
+export type SignalExclusionRule = {
+  id: string;
+  enabled?: boolean;
+  description?: string;
+  match?: "all" | "any";
+  conditions: SignalExclusionCondition[];
+};
+
 export type SignalOverride = {
   enabled?: boolean;
   severity?: "low" | "medium" | "high";
   priority?: number;
+  exclusions?: { rules: SignalExclusionRule[] };
 };
 
 export type DataplaneSignalCatalogItem = {

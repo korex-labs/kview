@@ -123,7 +123,10 @@ func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string
 func namespaceDashboardSignalSummary(plane *clusterPlane, namespace string, policy DataplanePolicy) (string, int) {
 	thresholds := signalThresholdsFromPolicy(policy)
 	set := buildSnapshotSetForNamespace(plane, namespace, thresholds)
-	signals := applySignalPolicy(detectDashboardSignals(time.Now(), namespace, set), policy, plane.name)
+	rawSignals := detectDashboardSignals(time.Now(), namespace, set)
+	namespaceSnapshot, _ := peekClusterSnapshot(&plane.nsStore)
+	rawSignals = enrichSignalsFromMetadataIndex(rawSignals, namespaceSignalMetadataIndex(namespaceSnapshot))
+	signals := applySignalPolicy(rawSignals, policy, plane.name)
 	severity := listSignalOK
 	count := 0
 	for _, signal := range signals {

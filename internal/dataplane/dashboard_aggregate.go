@@ -37,7 +37,7 @@ func resourceTotalsCompletenessLabel(visible, withCachedDataplaneLists int) stri
 // aggregateClusterDashboard rolls up workload totals and signals only from namespaces that already
 // have cached dataplane list snapshots (typically from visiting those namespaces or row enrichment),
 // intersected with the current namespace list snapshot. No alphabetical sampling and no implicit cluster-wide totals.
-func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
+func (m *manager) aggregateClusterDashboard(plane *clusterPlane, namespaceSnapshot NamespaceSnapshot, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
 	opts = normalizeClusterDashboardListOptions(opts)
 	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
 	p := m.EffectivePolicy(plane.name)
@@ -79,6 +79,7 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 	var aggregateMetas []SnapshotMetadata
 	signals := newDashboardSignalStore()
 	now := time.Now()
+	namespaceMetadata := namespaceSignalMetadataIndex(namespaceSnapshot)
 
 	for _, ns := range knownNS {
 		s := buildSnapshotSetForNamespace(plane, ns, thresholds)
@@ -161,9 +162,10 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, nsNamesSorted [
 			res.LimitRanges += len(s.limitRanges.Items)
 			aggregateMetas = append(aggregateMetas, s.limitRanges.Meta)
 		}
-		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(detectDashboardSignals(now, ns, s), p, plane.name)...)...)
+		rawSignals := enrichSignalsFromMetadataIndex(detectDashboardSignals(now, ns, s), namespaceMetadata)
+		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(rawSignals, p, plane.name)...)...)
 	}
-	signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), p, plane.name)...)...)
+	signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(enrichNodeSignalMetadata(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), nodesSnap), p, plane.name)...)...)
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
@@ -331,7 +333,7 @@ func detectDashboardSignals(now time.Time, ns string, s dashboardSnapshotSet) []
 	for _, detector := range dashboardSignalDetectors {
 		out = append(out, detector.Detect(now, ns, s)...)
 	}
-	return out
+	return enrichDashboardSignalMetadata(out, s)
 }
 
 func dashboardSignalItem(signalType, kind, namespace, name, severity string, score int, reason, confidence, section string) ClusterDashboardSignal {

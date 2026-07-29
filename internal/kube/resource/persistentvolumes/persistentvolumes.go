@@ -29,6 +29,8 @@ func ListPersistentVolumes(ctx context.Context, c *cluster.Clients) ([]dto.Persi
 
 		out = append(out, dto.PersistentVolumeDTO{
 			Name:             pv.Name,
+			Labels:           pv.Labels,
+			Annotations:      pv.Annotations,
 			Phase:            string(pv.Status.Phase),
 			Capacity:         pvCapacityString(&pv),
 			AccessModes:      pvcs.AccessModesToStrings(pv.Spec.AccessModes),

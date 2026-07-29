@@ -26,6 +26,7 @@ import {
   GAUGE_COLOR_ERROR,
 } from "../../../theme/sxTokens";
 import { useActiveContext } from "../../../activeContext";
+import { useSignalExclusionsRevision } from "../../../signalExclusions";
 import { useConnectionState } from "../../../connectionState";
 import { useUserSettings } from "../../../settingsContext";
 import type { SavedDashboardViewSnapshot, SavedResourceViewDefinition } from "../../../settings";
@@ -382,6 +383,7 @@ export default function DashboardView(props: Props) {
   const [dashboardProfileExistingId, setDashboardProfileExistingId] = useState<string | null>(null);
   const [deleteDashboardProfileId, setDeleteDashboardProfileId] = useState<string | null>(null);
   const activeContext = useActiveContext();
+  const signalExclusionsRevision = useSignalExclusionsRevision();
   const { health } = useConnectionState();
   const { settings, setSettings } = useUserSettings();
   const pageVisible = usePageVisible();
@@ -580,7 +582,7 @@ export default function DashboardView(props: Props) {
           params.set("signalsRecentNamespaces", recentNamespaceFilterParam);
         }
         const signalsParamsKey = params.toString();
-        const cacheKey = `${loadScope}:${signalsParamsKey}:${resourceTagsSignature}`;
+        const cacheKey = `${loadScope}:${signalsParamsKey}:${resourceTagsSignature}:${signalExclusionsRevision}`;
         requestKey = cacheKey;
         const cached = responseCacheRef.current;
         if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
@@ -669,6 +671,7 @@ export default function DashboardView(props: Props) {
     signalsPage,
     signalsRowsPerPage,
     resourceTagsSignature,
+    signalExclusionsRevision,
     settings.resourceTags,
     favouriteNamespaceFilterParam,
     recentNamespaceFilterParam,

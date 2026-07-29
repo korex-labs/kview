@@ -31,11 +31,13 @@ func ListConfigMaps(ctx context.Context, c *cluster.Clients, namespace string) (
 		}
 
 		out = append(out, dto.ConfigMapDTO{
-			Name:      cm.Name,
-			Namespace: cm.Namespace,
-			KeysCount: keysCount,
-			Immutable: immutable,
-			AgeSec:    age,
+			Name:        cm.Name,
+			Namespace:   cm.Namespace,
+			Labels:      cm.Labels,
+			Annotations: cm.Annotations,
+			KeysCount:   keysCount,
+			Immutable:   immutable,
+			AgeSec:      age,
 		})
 	}
 

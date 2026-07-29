@@ -27,6 +27,8 @@ func ListServiceAccounts(ctx context.Context, c *cluster.Clients, namespace stri
 		out = append(out, dto.ServiceAccountListItemDTO{
 			Name:                         sa.Name,
 			Namespace:                    sa.Namespace,
+			Labels:                       sa.Labels,
+			Annotations:                  sa.Annotations,
 			ImagePullSecretsCount:        len(sa.ImagePullSecrets),
 			SecretsCount:                 len(sa.Secrets),
 			AutomountServiceAccountToken: sa.AutomountServiceAccountToken,

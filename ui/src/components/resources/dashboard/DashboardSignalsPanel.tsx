@@ -848,7 +848,7 @@ export default function DashboardSignalsPanel({
                     sx={target ? { cursor: "pointer" } : undefined}
                   >
                     <TableCell sx={statusCellSx}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap", whiteSpace: "nowrap" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, rowGap: 0.25, flexWrap: "wrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
                         <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
                         {signalHasFocusHint(f) ? (

@@ -1,18 +1,20 @@
 package dto
 
 type RoleBindingListItemDTO struct {
-	Name               string `json:"name"`
-	Namespace          string `json:"namespace"`
-	RoleRefKind        string `json:"roleRefKind"`
-	RoleRefName        string `json:"roleRefName"`
-	SubjectsCount      int    `json:"subjectsCount"`
-	AgeSec             int64  `json:"ageSec"`
-	BindingHint        string `json:"bindingHint,omitempty"`
-	SubjectBreadth     string `json:"subjectBreadth,omitempty"`
-	NeedsAttention     bool   `json:"needsAttention,omitempty"`
-	ListStatus         string `json:"listStatus,omitempty"`
-	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int    `json:"listSignalCount,omitempty"`
+	Name               string            `json:"name"`
+	Namespace          string            `json:"namespace"`
+	Labels             map[string]string `json:"-"`
+	Annotations        map[string]string `json:"-"`
+	RoleRefKind        string            `json:"roleRefKind"`
+	RoleRefName        string            `json:"roleRefName"`
+	SubjectsCount      int               `json:"subjectsCount"`
+	AgeSec             int64             `json:"ageSec"`
+	BindingHint        string            `json:"bindingHint,omitempty"`
+	SubjectBreadth     string            `json:"subjectBreadth,omitempty"`
+	NeedsAttention     bool              `json:"needsAttention,omitempty"`
+	ListStatus         string            `json:"listStatus,omitempty"`
+	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount    int               `json:"listSignalCount,omitempty"`
 }
 
 type RoleBindingDetailsDTO struct {

@@ -25,10 +25,12 @@ func ListRoles(ctx context.Context, c *cluster.Clients, namespace string) ([]dto
 		}
 
 		out = append(out, dto.RoleListItemDTO{
-			Name:       role.Name,
-			Namespace:  role.Namespace,
-			RulesCount: len(role.Rules),
-			AgeSec:     age,
+			Name:        role.Name,
+			Namespace:   role.Namespace,
+			Labels:      role.Labels,
+			Annotations: role.Annotations,
+			RulesCount:  len(role.Rules),
+			AgeSec:      age,
 		})
 	}
 

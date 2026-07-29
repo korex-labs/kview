@@ -55,7 +55,7 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 			podMetricsItems = msnap.Items
 		}
 		items := dataplane.EnrichPodListItemsWithMetrics(snap.Items, dataplane.BuildPodMetricsIndex(podMetricsItems))
-		items = dataplane.EnrichPodListItemsWithSignalSummary(items, ns, podMetricsItems, s.dp.EffectivePolicy(active), time.Now())
+		items = dataplane.EnrichPodListItemsWithSignalSummary(items, ns, podMetricsItems, s.dp.EffectivePolicy(active), active, time.Now())
 		writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
 	})
 
@@ -111,7 +111,7 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 				evs = nil
 			}
 			policy := s.dp.EffectivePolicy(active)
-			signals := dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs, dataplane.SignalThresholdsFromPolicy(policy))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectPodDetailSignals(time.Now(), ns, *det, evs, dataplane.SignalThresholdsFromPolicy(policy)), det.Metadata.Labels, det.Metadata.Annotations)
 			signals = dataplane.ApplySignalPolicy(signals, policy, active)
 			detailSignals = dataplane.NamespaceInsightSignalsFromDashboard(signals)
 		}
@@ -214,7 +214,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
 			policy := s.dp.EffectivePolicy(active)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det, dataplane.SignalThresholdsFromPolicy(policy)), policy, active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectDeploymentDetailSignals(time.Now(), ns, *det, dataplane.SignalThresholdsFromPolicy(policy)), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, policy, active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -280,7 +281,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		detailSignals := []dto.NamespaceInsightSignalDTO{}
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectDaemonSetDetailSignals(ns, *det), s.dp.EffectivePolicy(active), active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectDaemonSetDetailSignals(ns, *det), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, s.dp.EffectivePolicy(active), active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -368,7 +370,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		detailSignals := []dto.NamespaceInsightSignalDTO{}
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectStatefulSetDetailSignals(ns, *det), s.dp.EffectivePolicy(active), active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectStatefulSetDetailSignals(ns, *det), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, s.dp.EffectivePolicy(active), active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -456,7 +459,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		detailSignals := []dto.NamespaceInsightSignalDTO{}
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectReplicaSetDetailSignals(ns, *det), s.dp.EffectivePolicy(active), active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectReplicaSetDetailSignals(ns, *det), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, s.dp.EffectivePolicy(active), active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -518,7 +522,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		detailSignals := []dto.NamespaceInsightSignalDTO{}
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.PodTemplate, det.Spec.Volumes)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectJobDetailSignals(ns, *det), s.dp.EffectivePolicy(active), active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectJobDetailSignals(ns, *det), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, s.dp.EffectivePolicy(active), active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})
@@ -580,7 +585,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		detailSignals := []dto.NamespaceInsightSignalDTO{}
 		if det != nil {
 			det.Spec.MissingReferences = missingTemplateRefsFromDataplane(ctx, s.dp, active, ns, det.Spec.JobTemplate, det.Spec.Volumes)
-			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(dataplane.DetectCronJobDetailSignals(ns, *det), s.dp.EffectivePolicy(active), active))
+			signals := dataplane.AttachSignalMatchMetadata(dataplane.DetectCronJobDetailSignals(ns, *det), det.Metadata.Labels, det.Metadata.Annotations)
+			detailSignals = detailSignalsResponse(dataplane.ApplySignalPolicy(signals, s.dp.EffectivePolicy(active), active))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "item": det, "detailSignals": detailSignals})

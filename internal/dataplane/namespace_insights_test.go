@@ -19,7 +19,7 @@ func TestNamespaceFallbackSignalsForProblematic(t *testing.T) {
 
 	got := namespaceFallbackSignalsForProblematic(now, "app", []dto.ProblematicResource{
 		{Kind: "Pod", Name: "bad", Reason: "Pod failed"},
-	}, plane, DefaultDataplanePolicy(), "ctx")
+	}, nil, plane, DefaultDataplanePolicy(), "ctx")
 	if len(got) != 1 {
 		t.Fatalf("expected one fallback signal, got %+v", got)
 	}
@@ -28,6 +28,17 @@ func TestNamespaceFallbackSignalsForProblematic(t *testing.T) {
 	}
 	if got[0].SignalType != "resource_needs_attention_fallback" || got[0].HistoryKey == "" {
 		t.Fatalf("unexpected fallback signal metadata: %+v", got[0])
+	}
+
+	detected := []ClusterDashboardSignal{{
+		SignalType: "pod_failed", ResourceKind: "Pod", ResourceName: "bad", Namespace: "app",
+		Scope: ResourceSignalsScopeNamespace, ScopeLocation: "app",
+	}}
+	got = namespaceFallbackSignalsForProblematic(now, "app", []dto.ProblematicResource{
+		{Kind: "Pod", Name: "bad", Reason: "Pod failed"},
+	}, detected, plane, DefaultDataplanePolicy(), "ctx")
+	if len(got) != 0 {
+		t.Fatalf("detected resource resurfaced as fallback: %+v", got)
 	}
 }
 

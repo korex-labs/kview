@@ -31,6 +31,48 @@ export type SignalOverride = {
   enabled?: boolean;
   severity?: SignalSeverityOverride;
   priority?: number;
+  exclusions?: SignalExclusionSet;
+};
+
+export function compactSignalOverrideForScope(
+  override: SignalOverride,
+  inherited: SignalOverride,
+  scope: "global" | "context",
+): SignalOverride | null {
+  const next = { ...override };
+  if (next.enabled === undefined) delete next.enabled;
+  if (next.severity === undefined) delete next.severity;
+  if (next.priority === undefined) delete next.priority;
+  if (next.exclusions === undefined) delete next.exclusions;
+  if (next.enabled !== undefined && next.enabled === inherited.enabled) delete next.enabled;
+  if (next.severity !== undefined && next.severity === inherited.severity) delete next.severity;
+  if (next.priority !== undefined && next.priority === inherited.priority) delete next.priority;
+  // A context exclusions value is a replacement marker. Preserve it even when
+  // it currently equals the inherited set so later global changes stay isolated.
+  if (scope === "global" && next.exclusions !== undefined && JSON.stringify(next.exclusions) === JSON.stringify(inherited.exclusions)) {
+    delete next.exclusions;
+  }
+  return Object.keys(next).length > 0 ? next : null;
+}
+
+export type SignalExclusionSet = {
+  rules: SignalExclusionRule[];
+};
+
+export type SignalExclusionRule = {
+  id: string;
+  enabled?: boolean;
+  description?: string;
+  match?: "all" | "any";
+  conditions: SignalExclusionCondition[];
+};
+
+export type SignalExclusionCondition = {
+  source: "name" | "namespace" | "label" | "annotation";
+  operator?: "regex" | "exists";
+  key?: string;
+  pattern?: string;
+  flags?: string;
 };
 
 export type ResourceTagDefinition = {
@@ -1107,7 +1149,55 @@ function normalizeSignalOverride(input: unknown): SignalOverride | null {
   if (typeof raw.priority === "number" && Number.isFinite(raw.priority)) {
     out.priority = validNumber(raw.priority, 0, 100, 10);
   }
+  const exclusions = normalizeSignalExclusionSet(raw.exclusions);
+  if (exclusions) out.exclusions = exclusions;
   return Object.keys(out).length > 0 ? out : null;
+}
+
+function normalizeSignalExclusionSet(input: unknown): SignalExclusionSet | null {
+  if (!input || typeof input !== "object" || !Array.isArray((input as SignalExclusionSet).rules)) return null;
+  const rules: SignalExclusionRule[] = [];
+  const seen = new Set<string>();
+  for (const value of (input as SignalExclusionSet).rules.slice(0, 50)) {
+    if (!value || typeof value !== "object") continue;
+    const raw = value as Partial<SignalExclusionRule>;
+    const id = typeof raw.id === "string" ? raw.id.trim().slice(0, 80) : "";
+    if (!id || seen.has(id)) continue;
+    const conditions = Array.isArray(raw.conditions)
+      ? raw.conditions.slice(0, 8).map(normalizeSignalExclusionCondition).filter((item): item is SignalExclusionCondition => !!item)
+      : [];
+    if (conditions.length === 0) continue;
+    seen.add(id);
+    rules.push({
+      id,
+      ...(typeof raw.enabled === "boolean" ? { enabled: raw.enabled } : {}),
+      ...(typeof raw.description === "string" && raw.description.trim() ? { description: raw.description.trim().slice(0, 200) } : {}),
+      match: raw.match === "any" ? "any" : "all",
+      conditions,
+    });
+  }
+  return { rules };
+}
+
+function normalizeSignalExclusionCondition(input: unknown): SignalExclusionCondition | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<SignalExclusionCondition>;
+  if (raw.source !== "name" && raw.source !== "namespace" && raw.source !== "label" && raw.source !== "annotation") return null;
+  const metadataSource = raw.source === "label" || raw.source === "annotation";
+  const key = typeof raw.key === "string" ? raw.key.trim().slice(0, 253) : "";
+  if (metadataSource && !key) return null;
+  const operator = raw.operator === "exists" && metadataSource ? "exists" : "regex";
+  const pattern = typeof raw.pattern === "string" ? raw.pattern.slice(0, 512) : "";
+  if (operator === "regex" && !pattern) return null;
+  const flags = typeof raw.flags === "string"
+    ? ["i", "m", "s"].filter((flag) => raw.flags?.includes(flag)).join("")
+    : "";
+  return {
+    source: raw.source,
+    operator,
+    ...(metadataSource ? { key } : {}),
+    ...(operator === "regex" ? { pattern, ...(flags ? { flags } : {}) } : {}),
+  };
 }
 
 function normalizeSignalOverrides(input: unknown): Record<string, SignalOverride> {

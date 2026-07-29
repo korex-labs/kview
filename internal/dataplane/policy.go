@@ -219,9 +219,10 @@ type SignalResourceQuotaDetectorPolicy struct {
 // SignalOverride customizes a signal type. Nil fields inherit from the next
 // outer layer: built-in defaults -> global overrides -> context overrides.
 type SignalOverride struct {
-	Enabled  *bool  `json:"enabled,omitempty"`
-	Severity string `json:"severity,omitempty"`
-	Priority *int   `json:"priority,omitempty"`
+	Enabled    *bool               `json:"enabled,omitempty"`
+	Severity   string              `json:"severity,omitempty"`
+	Priority   *int                `json:"priority,omitempty"`
+	Exclusions *SignalExclusionSet `json:"exclusions,omitempty"`
 }
 
 type SnapshotPolicy struct {
@@ -685,8 +686,19 @@ func CloneDataplanePolicyBundle(in DataplanePolicyBundle) DataplanePolicyBundle 
 	if len(in.ContextOverrides) > 0 {
 		out.ContextOverrides = make(map[string]DataplanePolicyOverride, len(in.ContextOverrides))
 		for k, v := range in.ContextOverrides {
-			out.ContextOverrides[k] = v
+			out.ContextOverrides[k] = cloneDataplanePolicyOverride(v)
 		}
+	}
+	return out
+}
+
+func cloneDataplanePolicyOverride(in DataplanePolicyOverride) DataplanePolicyOverride {
+	out := in
+	if in.Signals != nil {
+		signals := *in.Signals
+		signals.Overrides = cloneSignalOverrideMap(in.Signals.Overrides)
+		signals.ContextOverrides = cloneContextSignalOverrideMap(in.Signals.ContextOverrides)
+		out.Signals = &signals
 	}
 	return out
 }
@@ -908,7 +920,7 @@ func applyDataplanePolicyOverride(global DataplanePolicy, override DataplanePoli
 			}
 		}
 		if ov.Overrides != nil {
-			out.Signals.Overrides = cloneSignalOverrideMap(ov.Overrides)
+			out.Signals.Overrides = mergeSignalOverrideMaps(out.Signals.Overrides, ov.Overrides)
 		}
 		if ov.ContextOverrides != nil {
 			out.Signals.ContextOverrides = cloneContextSignalOverrideMap(ov.ContextOverrides)
@@ -1034,7 +1046,8 @@ func normalizeContextSignalOverrides(in map[string]map[string]SignalOverride) ma
 
 func normalizeSignalOverride(in SignalOverride) SignalOverride {
 	out := SignalOverride{
-		Enabled: in.Enabled,
+		Enabled:    in.Enabled,
+		Exclusions: normalizeSignalExclusionSet(in.Exclusions),
 	}
 	if isSignalSeverityOverride(in.Severity) {
 		out.Severity = in.Severity
@@ -1047,7 +1060,7 @@ func normalizeSignalOverride(in SignalOverride) SignalOverride {
 }
 
 func signalOverrideEmpty(in SignalOverride) bool {
-	return in.Enabled == nil && in.Severity == "" && in.Priority == nil
+	return in.Enabled == nil && in.Severity == "" && in.Priority == nil && in.Exclusions == nil
 }
 
 func cloneSignalOverrideMap(in map[string]SignalOverride) map[string]SignalOverride {
@@ -1057,6 +1070,32 @@ func cloneSignalOverrideMap(in map[string]SignalOverride) map[string]SignalOverr
 	out := make(map[string]SignalOverride, len(in))
 	for k, v := range in {
 		out[k] = cloneSignalOverride(v)
+	}
+	return out
+}
+
+func mergeSignalOverrideMaps(base, override map[string]SignalOverride) map[string]SignalOverride {
+	out := cloneSignalOverrideMap(base)
+	if out == nil && len(override) > 0 {
+		out = make(map[string]SignalOverride, len(override))
+	}
+	for signalType, incoming := range override {
+		merged := cloneSignalOverride(out[signalType])
+		if incoming.Enabled != nil {
+			value := *incoming.Enabled
+			merged.Enabled = &value
+		}
+		if incoming.Severity != "" {
+			merged.Severity = incoming.Severity
+		}
+		if incoming.Priority != nil {
+			value := *incoming.Priority
+			merged.Priority = &value
+		}
+		if incoming.Exclusions != nil {
+			merged.Exclusions = cloneSignalExclusionSet(incoming.Exclusions)
+		}
+		out[signalType] = merged
 	}
 	return out
 }
@@ -1082,5 +1121,6 @@ func cloneSignalOverride(in SignalOverride) SignalOverride {
 		v := *in.Priority
 		out.Priority = &v
 	}
+	out.Exclusions = cloneSignalExclusionSet(in.Exclusions)
 	return out
 }

@@ -185,36 +185,38 @@ type ClusterDashboardSignalFocus struct {
 }
 
 type ClusterDashboardSignal struct {
-	Kind            string                       `json:"kind"`
-	Namespace       string                       `json:"namespace,omitempty"`
-	Name            string                       `json:"name,omitempty"`
-	Labels          map[string]string            `json:"labels,omitempty"`
-	Annotations     map[string]string            `json:"annotations,omitempty"`
-	Severity        string                       `json:"severity"`
-	Score           int                          `json:"score"`
-	Reason          string                       `json:"reason"`
-	LikelyCause     string                       `json:"likelyCause,omitempty"`
-	SuggestedAction string                       `json:"suggestedAction,omitempty"`
-	Confidence      string                       `json:"confidence,omitempty"`
-	Section         string                       `json:"section,omitempty"`
-	SignalType      string                       `json:"signalType,omitempty"`
-	SignalPriority  int                          `json:"signalPriority,omitempty"`
-	ResourceKind    string                       `json:"resourceKind,omitempty"`
-	ResourceName    string                       `json:"resourceName,omitempty"`
-	Scope           string                       `json:"scope,omitempty"`         // cluster | namespace
-	ScopeLocation   string                       `json:"scopeLocation,omitempty"` // namespace, node, or another scope-specific location
-	Focus           *ClusterDashboardSignalFocus `json:"focus,omitempty"`
-	ActualData      string                       `json:"actualData,omitempty"`
-	CalculatedData  string                       `json:"calculatedData,omitempty"`
-	FirstSeenAt     int64                        `json:"firstSeenAt,omitempty"`
-	LastSeenAt      int64                        `json:"lastSeenAt,omitempty"`
-	ObservedDays7d  int                          `json:"observedDays7d,omitempty"`
-	ObservedDays30d int                          `json:"observedDays30d,omitempty"`
-	Recurring       bool                         `json:"recurring,omitempty"`
-	Acknowledged    bool                         `json:"acknowledged,omitempty"`
-	AcknowledgedAt  int64                        `json:"acknowledgedAt,omitempty"`
-	AckComment      string                       `json:"acknowledgementComment,omitempty"`
-	HistoryKey      string                       `json:"historyKey,omitempty"`
+	Kind             string                       `json:"kind"`
+	Namespace        string                       `json:"namespace,omitempty"`
+	Name             string                       `json:"name,omitempty"`
+	Labels           map[string]string            `json:"labels,omitempty"`
+	Annotations      map[string]string            `json:"annotations,omitempty"`
+	MatchLabels      map[string]string            `json:"-"`
+	MatchAnnotations map[string]string            `json:"-"`
+	Severity         string                       `json:"severity"`
+	Score            int                          `json:"score"`
+	Reason           string                       `json:"reason"`
+	LikelyCause      string                       `json:"likelyCause,omitempty"`
+	SuggestedAction  string                       `json:"suggestedAction,omitempty"`
+	Confidence       string                       `json:"confidence,omitempty"`
+	Section          string                       `json:"section,omitempty"`
+	SignalType       string                       `json:"signalType,omitempty"`
+	SignalPriority   int                          `json:"signalPriority,omitempty"`
+	ResourceKind     string                       `json:"resourceKind,omitempty"`
+	ResourceName     string                       `json:"resourceName,omitempty"`
+	Scope            string                       `json:"scope,omitempty"`         // cluster | namespace
+	ScopeLocation    string                       `json:"scopeLocation,omitempty"` // namespace, node, or another scope-specific location
+	Focus            *ClusterDashboardSignalFocus `json:"focus,omitempty"`
+	ActualData       string                       `json:"actualData,omitempty"`
+	CalculatedData   string                       `json:"calculatedData,omitempty"`
+	FirstSeenAt      int64                        `json:"firstSeenAt,omitempty"`
+	LastSeenAt       int64                        `json:"lastSeenAt,omitempty"`
+	ObservedDays7d   int                          `json:"observedDays7d,omitempty"`
+	ObservedDays30d  int                          `json:"observedDays30d,omitempty"`
+	Recurring        bool                         `json:"recurring,omitempty"`
+	Acknowledged     bool                         `json:"acknowledged,omitempty"`
+	AcknowledgedAt   int64                        `json:"acknowledgedAt,omitempty"`
+	AckComment       string                       `json:"acknowledgementComment,omitempty"`
+	HistoryKey       string                       `json:"historyKey,omitempty"`
 }
 
 type ClusterDashboardListOptions struct {
@@ -371,7 +373,7 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboard(plane, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
+	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboard(plane, nsSnap, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
 	usagePanel := m.aggregateClusterDashboardUsage(plane, nsNames)
 	if derivedPanel.Nodes.Total > nodeTotal {
 		nodeTotal = derivedPanel.Nodes.Total

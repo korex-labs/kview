@@ -23,8 +23,9 @@ Recently completed foundation work:
   dataplane search results include kind, namespace, health/status, signal count,
   severity, attention state, and match reason context without live cluster scans.
 - **Signals**: dashboard filters, local acknowledgements, resource attention
-  ranking, pod/workload failure detectors, and richer failure/search context are
-  in place.
+  ranking, pod/workload failure detectors, richer failure/search context, and
+  structured per-signal resource exclusion rules with cache-only preview and
+  prefilled quick exclusion actions on signal rows are in place.
 - **Adaptive dataplane**: scheduler health, adaptive profiles, namespace sweep
   coverage, and pressure-aware polling/freshness are visible to operators.
 - **Local resource notes**: resources have a local **Notes** tab, triage state,

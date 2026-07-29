@@ -106,7 +106,11 @@ func GetReplicaSetDetails(ctx context.Context, c *cluster.Clients, namespace, na
 		Pods:       pods,
 		Spec:       spec,
 		LinkedPods: linked,
-		YAML:       string(y),
+		Metadata: dto.ReplicaSetMetadataDTO{
+			Labels:      rs.Labels,
+			Annotations: rs.Annotations,
+		},
+		YAML: string(y),
 	}, nil
 }
 

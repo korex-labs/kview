@@ -6,6 +6,7 @@ import {
   applyDataplaneProfile,
   applyOperatorProfile,
   applySettingsTransferBundle,
+  compactSignalOverrideForScope,
   defaultDataplaneSettings,
   defaultUserSettings,
   exportSettingsTransferJSON,
@@ -726,6 +727,92 @@ describe("user settings", () => {
       },
     });
     expect(parsed?.dataplane.contextOverrides["stage-us"]?.signals?.overrides.pod_restarts?.priority).toBe(7);
+  });
+
+  it("preserves explicit context exclusions even when they equal inherited rules", () => {
+    expect(compactSignalOverrideForScope(
+      { exclusions: { rules: [] } },
+      { exclusions: { rules: [] } },
+      "context",
+    )).toEqual({ exclusions: { rules: [] } });
+    expect(compactSignalOverrideForScope(
+      { exclusions: { rules: [] } },
+      { exclusions: { rules: [] } },
+      "global",
+    )).toBeNull();
+  });
+
+  it("keeps structured signal exclusion rules and explicit empty replacements", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      dataplane: {
+        ...defaultUserSettings().dataplane,
+        global: {
+          ...defaultUserSettings().dataplane.global,
+          signals: {
+            ...defaultUserSettings().dataplane.global.signals,
+            overrides: {
+              pod_restarts: {
+                exclusions: {
+                  rules: [{
+                    id: "ignore-canary",
+                    enabled: true,
+                    description: "Expected canary restarts",
+                    match: "all",
+                    conditions: [
+                      { source: "namespace", operator: "regex", pattern: "^testing$" },
+                      { source: "label", key: "track", operator: "regex", pattern: "^canary$", flags: "i" },
+                    ],
+                  }],
+                },
+              },
+            },
+          },
+        },
+        contextOverrides: {
+          "stage-us": {
+            signals: {
+              overrides: {
+                pod_restarts: { exclusions: { rules: [] } },
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(parsed?.dataplane.global.signals.overrides.pod_restarts?.exclusions?.rules[0]).toMatchObject({
+      id: "ignore-canary",
+      match: "all",
+      conditions: [
+        { source: "namespace", operator: "regex", pattern: "^testing$" },
+        { source: "label", key: "track", operator: "regex", pattern: "^canary$", flags: "i" },
+      ],
+    });
+    expect(parsed?.dataplane.contextOverrides["stage-us"]?.signals?.overrides.pod_restarts?.exclusions).toEqual({ rules: [] });
+  });
+
+  it("round-trips signal exclusions through selective settings transfer", () => {
+    const incoming = defaultUserSettings();
+    incoming.dataplane.global.signals.overrides.pod_restarts = {
+      exclusions: { rules: [{ id: "apps", conditions: [{ source: "namespace", pattern: "^apps$" }] }] },
+    };
+    incoming.dataplane.contextOverrides.ctx = {
+      signals: { overrides: { pod_restarts: { exclusions: { rules: [] } } } },
+    };
+    const bundle = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: incoming,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      sections: ["signalSettings"],
+    }));
+    const applied = applySettingsTransferBundle({
+      settings: defaultUserSettings(),
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      bundle,
+      sections: ["signalSettings"],
+      strategy: "replaceSections",
+    });
+    expect(applied.settings.dataplane.global.signals.overrides.pod_restarts?.exclusions?.rules[0].id).toBe("apps");
+    expect(applied.settings.dataplane.contextOverrides.ctx?.signals?.overrides.pod_restarts?.exclusions).toEqual({ rules: [] });
   });
 
   it("supports sparse context metric-enabled overrides in v2 imports", () => {

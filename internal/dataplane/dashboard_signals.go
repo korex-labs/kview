@@ -186,9 +186,19 @@ func applySignalPolicy(items []ClusterDashboardSignal, policy DataplanePolicy, c
 		return nil
 	}
 	out := make([]ClusterDashboardSignal, 0, len(items))
+	effectiveByType := make(map[string]effectiveSignalPolicy)
+	compiledExclusions := make(map[string]compiledSignalExclusionSet)
 	for _, item := range items {
-		effective := effectiveSignalSettings(policy, contextName, item.SignalType)
+		effective, ok := effectiveByType[item.SignalType]
+		if !ok {
+			effective = effectiveSignalSettings(policy, contextName, item.SignalType)
+			effectiveByType[item.SignalType] = effective
+			compiledExclusions[item.SignalType] = compileSignalExclusionSet(effective.exclusions)
+		}
 		if !effective.enabled {
+			continue
+		}
+		if compiledExclusions[item.SignalType].excludes(item) {
 			continue
 		}
 		if isSignalSeverityOverride(effective.severity) {
@@ -208,9 +218,10 @@ func ApplySignalPolicy(items []ClusterDashboardSignal, policy DataplanePolicy, c
 }
 
 type effectiveSignalPolicy struct {
-	enabled  bool
-	severity string
-	priority int
+	enabled    bool
+	severity   string
+	priority   int
+	exclusions *SignalExclusionSet
 }
 
 func effectiveSignalSettings(policy DataplanePolicy, contextName, signalType string) effectiveSignalPolicy {
@@ -235,6 +246,9 @@ func applySignalOverrideToEffective(out *effectiveSignalPolicy, override SignalO
 	}
 	if override.Priority != nil {
 		out.priority = *override.Priority
+	}
+	if override.Exclusions != nil {
+		out.exclusions = override.Exclusions
 	}
 }
 

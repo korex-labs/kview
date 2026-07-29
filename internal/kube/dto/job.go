@@ -1,19 +1,21 @@
 package dto
 
 type JobDTO struct {
-	Name               string `json:"name"`
-	Namespace          string `json:"namespace"`
-	Active             int32  `json:"active"`
-	Succeeded          int32  `json:"succeeded"`
-	Failed             int32  `json:"failed"`
-	DurationSec        int64  `json:"durationSec,omitempty"`
-	AgeSec             int64  `json:"ageSec"`
-	Status             string `json:"status"`
-	HealthBucket       string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
-	NeedsAttention     bool   `json:"needsAttention,omitempty"`
-	ListStatus         string `json:"listStatus,omitempty"`
-	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int    `json:"listSignalCount,omitempty"`
+	Name               string            `json:"name"`
+	Namespace          string            `json:"namespace"`
+	Labels             map[string]string `json:"-"`
+	Annotations        map[string]string `json:"-"`
+	Active             int32             `json:"active"`
+	Succeeded          int32             `json:"succeeded"`
+	Failed             int32             `json:"failed"`
+	DurationSec        int64             `json:"durationSec,omitempty"`
+	AgeSec             int64             `json:"ageSec"`
+	Status             string            `json:"status"`
+	HealthBucket       string            `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention     bool              `json:"needsAttention,omitempty"`
+	ListStatus         string            `json:"listStatus,omitempty"`
+	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount    int               `json:"listSignalCount,omitempty"`
 }
 
 type JobDetailsDTO struct {

@@ -1,14 +1,16 @@
 package dto
 
 type PodListItemDTO struct {
-	Name      string         `json:"name"`
-	Namespace string         `json:"namespace"`
-	Node      string         `json:"node,omitempty"`
-	Phase     string         `json:"phase"`
-	Ready     string         `json:"ready"`
-	Restarts  int32          `json:"restarts"`
-	AgeSec    int64          `json:"ageSec"`
-	LastEvent *EventBriefDTO `json:"lastEvent,omitempty"`
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace"`
+	Labels      map[string]string `json:"-"`
+	Annotations map[string]string `json:"-"`
+	Node        string            `json:"node,omitempty"`
+	Phase       string            `json:"phase"`
+	Ready       string            `json:"ready"`
+	Restarts    int32             `json:"restarts"`
+	AgeSec      int64             `json:"ageSec"`
+	LastEvent   *EventBriefDTO    `json:"lastEvent,omitempty"`
 	// ContainerWaitingReasons carries distinct waiting reasons from init and regular
 	// container status, such as CrashLoopBackOff, ImagePullBackOff, or ErrImagePull.
 	// It is populated by the list layer so dashboard detectors can surface

@@ -84,7 +84,7 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 
 	signals := newDashboardSignalStore()
 	now := time.Now()
-	signals.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(detectDashboardSignals(now, namespace, dashboardSnapshotSet{
+	snapshotSet := dashboardSnapshotSet{
 		restartThreshold:       thresholds.PodRestartCount,
 		pods:                   snaps.pods,
 		podsOK:                 snaps.podsErr == nil,
@@ -131,10 +131,14 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 		unusedResourceAge:      thresholds.UnusedResourceAge,
 		quotaWarnRatio:         thresholds.QuotaWarnRatio,
 		quotaCritRatio:         thresholds.QuotaCritRatio,
-	}), policy, clusterName)...)...)
+	}
+	rawSignals := detectDashboardSignals(now, namespace, snapshotSet)
+	namespaceSnapshot, _ := peekClusterSnapshot(&plane.nsStore)
+	rawSignals = enrichSignalsFromMetadataIndex(rawSignals, namespaceSignalMetadataIndex(namespaceSnapshot))
+	signals.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(rawSignals, policy, clusterName)...)...)
 	sorted := signals.Summary(signals.Len(), ClusterDashboardListOptions{SignalsLimit: signals.Len()})
 	out.Insights.Signals = namespaceInsightSignalsFromDashboard(sorted.Items)
-	fallbackSignals := namespaceFallbackSignalsForProblematic(now, namespace, out.Insights.Summary.Problematic, plane, policy, clusterName)
+	fallbackSignals := namespaceFallbackSignalsForProblematic(now, namespace, out.Insights.Summary.Problematic, rawSignals, plane, policy, clusterName)
 	if len(fallbackSignals) > 0 {
 		out.Insights.Signals = dedupeNamespaceSignals(append(out.Insights.Signals, fallbackSignals...))
 	}
@@ -142,13 +146,21 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	return out, nil
 }
 
-func namespaceFallbackSignalsForProblematic(now time.Time, namespace string, problematic []dto.ProblematicResource, plane *clusterPlane, policy DataplanePolicy, clusterName string) []dto.NamespaceInsightSignalDTO {
+func namespaceFallbackSignalsForProblematic(now time.Time, namespace string, problematic []dto.ProblematicResource, rawSignals []ClusterDashboardSignal, plane *clusterPlane, policy DataplanePolicy, clusterName string) []dto.NamespaceInsightSignalDTO {
 	if len(problematic) == 0 || plane == nil || namespace == "" {
 		return nil
+	}
+	detectedResources := make(map[dashboardSignalResourceKey]struct{}, len(rawSignals))
+	for _, signal := range rawSignals {
+		detectedResources[dashboardSignalResourceKeyFor(signal)] = struct{}{}
 	}
 	out := make([]dto.NamespaceInsightSignalDTO, 0, len(problematic))
 	for _, resource := range problematic {
 		if resource.Kind == "" || resource.Name == "" {
+			continue
+		}
+		key := dashboardSignalResourceKey{kind: resource.Kind, name: resource.Name, scope: ResourceSignalsScopeNamespace, scopeLocation: namespace}
+		if _, detected := detectedResources[key]; detected {
 			continue
 		}
 		out = append(out, fallbackSignalsForResource(now, ResourceSignalsScopeNamespace, namespace, resource.Kind, resource.Name, plane, 0)...)
