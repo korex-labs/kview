@@ -119,7 +119,33 @@ If missing and clearly beneficial, suggest adding:
 
 ## Testing & Verification
 
-- Run existing verification steps before finishing:
+Use risk-proportional verification. Do not turn every small change into a full
+release-candidate run.
+
+### Verification tiers
+
+- **Read-only analysis, planning, or advice:** inspect only the minimum relevant
+  context; do not run tests or builds.
+- **Docs/text-only change:** run the relevant formatter or `git diff --check`;
+  do not run the application build unless the docs pipeline itself changed.
+- **Small UI change:** run the directly affected UI test(s), and typecheck only
+  when TypeScript changed. Do not run full `make check` plus `make build` for a
+  local layout/copy adjustment.
+- **Small backend change:** run the directly affected Go package test(s). Add a
+  broader package test only when the changed contract is shared.
+- **Coherent feature tranche / commit boundary:** run targeted tests first, then
+  one `make check DOCKER_BUILD=0` and one `make build DOCKER_BUILD=0` after the
+  tranche is complete.
+- **Release boundary or cross-cutting infrastructure change:** run the full clean
+  verification matrix and any release-specific audit.
+
+Do not repeat a passing expensive gate after a follow-up that cannot affect it.
+When a bounded build/test is started in the background, request completion
+notification and continue other independent work; do not poll it every minute.
+Use subagents only for genuinely independent or review-heavy workstreams, not
+for ordinary scoped fixes or planning questions.
+
+Run existing verification steps appropriate to the selected tier:
   - tests
   - linters
   - build checks
