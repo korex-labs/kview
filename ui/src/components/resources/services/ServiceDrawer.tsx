@@ -392,11 +392,11 @@ export default function ServiceDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
-              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
-              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.pods" icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
+              <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

@@ -17,6 +17,8 @@ import {
   GridRowId,
   GridRowSelectionModel,
   GridSortModel,
+  gridPaginatedVisibleSortedGridRowIdsSelector,
+  gridVisibleColumnDefinitionsSelector,
   useGridApiRef,
 } from "@mui/x-data-grid";
 import useListQuery from "../../utils/useListQuery";
@@ -32,6 +34,8 @@ import DataplaneListMetaStrip from "./DataplaneListMetaStrip";
 import { useActiveContext } from "../../activeContext";
 import { useConnectionState } from "../../connectionState";
 import { useKeyboardControls, useTableKeyboardControls } from "../../keyboard/KeyboardProvider";
+import { eventToBinding } from "../../keyboard/keyboardUtils";
+import { tableNavigationDirectionForBinding, type TableNavigationDirection } from "../../keyboard/shortcuts";
 import { useUserSettings } from "../../settingsContext";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import { recordListSnapshot } from "../../utils/performanceDiagnostics";
@@ -133,18 +137,12 @@ function escapeAttributeValue(value: string): string {
   return value.replace(/["\\]/g, "\\$&");
 }
 
-const tableNavigationKeys: Record<string, { rowDelta: number; colDelta: number }> = {
-  h: { rowDelta: 0, colDelta: -1 },
-  j: { rowDelta: 1, colDelta: 0 },
-  k: { rowDelta: -1, colDelta: 0 },
-  l: { rowDelta: 0, colDelta: 1 },
-  a: { rowDelta: 0, colDelta: -1 },
-  s: { rowDelta: 1, colDelta: 0 },
-  d: { rowDelta: -1, colDelta: 0 },
-  f: { rowDelta: 0, colDelta: 1 },
+const tableNavigationDeltas: Record<TableNavigationDirection, { rowDelta: number; colDelta: number }> = {
+  up: { rowDelta: -1, colDelta: 0 },
+  down: { rowDelta: 1, colDelta: 0 },
+  left: { rowDelta: 0, colDelta: -1 },
+  right: { rowDelta: 0, colDelta: 1 },
 };
-const vimTableNavigationKeys = new Set(["h", "j", "k", "l"]);
-const homeRowTableNavigationKeys = new Set(["a", "s", "d", "f"]);
 const emptyRowSelectionModel: GridRowSelectionModel = { type: "include", ids: new Set() };
 
 function singleRowSelectionModel(id: GridRowId): GridRowSelectionModel {
@@ -689,21 +687,19 @@ export default function ResourceListPage<TRow extends { id: string }>({
     return focusGridCell(targetId, field);
   }, [apiRef, filteredRows, focusGridCell, gridColumns, selectedId]);
 
-  const handleMoveGridFocus = useCallback((key: string, rowId: string, field: string) => {
-    const normalizedKey = key.toLowerCase();
-    if (vimTableNavigationKeys.has(normalizedKey) && !keyboardSettings.vimTableNavigation) return false;
-    if (homeRowTableNavigationKeys.has(normalizedKey) && !keyboardSettings.homeRowTableNavigation) return false;
-    const move = tableNavigationKeys[normalizedKey];
-    if (!move) return false;
-    const rowIds = apiRef.current?.getAllRowIds?.().map(String) || filteredRows.map((row) => row.id);
-    const fields = gridColumns.map((col) => String(col.field));
+  const handleMoveGridFocus = useCallback((binding: string, rowId: string, field: string) => {
+    const direction = tableNavigationDirectionForBinding(keyboardSettings, binding);
+    if (!direction) return false;
+    const move = tableNavigationDeltas[direction];
+    const rowIds = gridPaginatedVisibleSortedGridRowIdsSelector(apiRef).map(String);
+    const fields = gridVisibleColumnDefinitionsSelector(apiRef).map((column) => String(column.field));
     const rowIndex = rowIds.indexOf(rowId);
     const colIndex = fields.indexOf(field);
     if (rowIndex < 0 || colIndex < 0) return false;
     const nextRowIndex = Math.max(0, Math.min(rowIds.length - 1, rowIndex + move.rowDelta));
     const nextColIndex = Math.max(0, Math.min(fields.length - 1, colIndex + move.colDelta));
     return focusGridCell(rowIds[nextRowIndex], fields[nextColIndex]);
-  }, [apiRef, filteredRows, focusGridCell, keyboardSettings.homeRowTableNavigation, keyboardSettings.vimTableNavigation, gridColumns]);
+  }, [apiRef, focusGridCell, keyboardSettings]);
 
   const handleCloseDrawer = useCallback(() => {
     const returnId = drawerSelectedId;
@@ -985,13 +981,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
             });
           }}
           onCellKeyDown={(params, event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.stopPropagation();
-              handleOpenRowId(String(params.id));
-              return;
-            }
-            if (!handleMoveGridFocus(event.key, String(params.id), String(params.field))) return;
+            if (!handleMoveGridFocus(eventToBinding(event), String(params.id), String(params.field))) return;
             event.preventDefault();
             event.stopPropagation();
           }}

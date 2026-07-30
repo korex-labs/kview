@@ -8,7 +8,9 @@ import {
   applySettingsTransferBundle,
   compactSignalOverrideForScope,
   defaultDataplaneSettings,
+  defaultKeyboardSettings,
   defaultUserSettings,
+  normalizeKeyboardSettings,
   exportSettingsTransferJSON,
   exportUserSettingsJSON,
   customCommandsForContainer,
@@ -22,6 +24,7 @@ import {
   settingsTransferSectionIds,
   smartFilterResourceKeysForScope,
   updateOperatorProfileSnapshot,
+  updateKeyboardConvenienceSettings,
   validateUserSettings,
   USER_SETTINGS_KEY,
 } from "./settings";
@@ -67,11 +70,85 @@ describe("user settings", () => {
 
   it("enables keyboard convenience bindings by default", () => {
     expect(defaultUserSettings().keyboard).toEqual({
+      preset: "kview-classic",
+      overrides: {},
       vimTableNavigation: true,
       homeRowTableNavigation: true,
       singleLetterGlobalSearch: true,
     });
     expect(validateUserSettings({ v: 1 })?.keyboard).toEqual(defaultUserSettings().keyboard);
+  });
+
+  it("fails safe for persisted collisions involving enabled dynamic actions", () => {
+    const settings = defaultUserSettings();
+    settings.customCommands.commands = [{
+      ...settings.customCommands.commands[0],
+      id: "inspect-notes",
+      enabled: true,
+      name: "Inspect notes",
+    }];
+    settings.customActions.actions = [{
+      ...settings.customActions.actions[0],
+      id: "restart-api",
+      enabled: true,
+      name: "Restart API",
+    }];
+    settings.keyboard.overrides = {
+      "custom-command.inspect-notes": [["n"]],
+      "custom-action.restart-api": [["n"]],
+      "custom-command.deleted": [["ctrl+d"]],
+    };
+
+    const normalized = validateUserSettings(settings)!;
+    expect(normalized.keyboard.overrides["drawer.tab.notes"]).toEqual([]);
+    expect(normalized.keyboard.overrides["custom-command.inspect-notes"]).toEqual([]);
+    expect(normalized.keyboard.overrides["custom-action.restart-api"]).toEqual([]);
+    expect(normalized.keyboard.overrides["custom-command.deleted"]).toEqual([["ctrl+d"]]);
+  });
+
+  it("excludes disabled dynamic definitions and retains non-colliding bindings", () => {
+    const settings = defaultUserSettings();
+    settings.customCommands.commands = [{
+      ...settings.customCommands.commands[0],
+      id: "disabled-command",
+      enabled: false,
+    }];
+    settings.customActions.actions = [{
+      ...settings.customActions.actions[0],
+      id: "safe-action",
+      enabled: true,
+    }];
+    settings.keyboard.overrides = {
+      "custom-command.disabled-command": [["n"]],
+      "custom-action.safe-action": [["ctrl+alt+u"]],
+    };
+
+    const normalized = validateUserSettings(settings)!;
+    expect(normalized.keyboard.overrides["drawer.tab.notes"]).toBeUndefined();
+    expect(normalized.keyboard.overrides["custom-command.disabled-command"]).toEqual([["n"]]);
+    expect(normalized.keyboard.overrides["custom-action.safe-action"]).toEqual([["ctrl+alt+u"]]);
+  });
+
+  it("disables every enabled dynamic action in a dynamic-to-dynamic collision", () => {
+    const settings = defaultUserSettings();
+    settings.customCommands.commands = [{
+      ...settings.customCommands.commands[0],
+      id: "inspect-env",
+      enabled: true,
+    }];
+    settings.customActions.actions = [{
+      ...settings.customActions.actions[0],
+      id: "restart-api",
+      enabled: true,
+    }];
+    settings.keyboard.overrides = {
+      "custom-command.inspect-env": [["ctrl+alt+u"]],
+      "custom-action.restart-api": [["ctrl+alt+u"]],
+    };
+
+    const normalized = validateUserSettings(settings)!;
+    expect(normalized.keyboard.overrides["custom-command.inspect-env"]).toEqual([]);
+    expect(normalized.keyboard.overrides["custom-action.restart-api"]).toEqual([]);
   });
 
   it("provides safe Pod Debug defaults and validates overrides", () => {
@@ -166,6 +243,30 @@ describe("user settings", () => {
     expect(removeOperatorProfile(updated, profile.id).operatorProfiles).toEqual({ activeProfileId: "", definitions: [] });
   });
 
+  it("preserves the keyboard preset and overrides exactly through operator profiles", () => {
+    const initial = defaultUserSettings();
+    initial.keyboard = normalizeKeyboardSettings({
+      preset: "vim-k9s",
+      overrides: {
+        "nav.pods": [["ctrl+alt+u"]],
+        "custom-command.temporarily-missing": [["g", "e"]],
+      },
+    });
+    const profiled = addOperatorProfile(initial, { name: "Keyboard profile", now: 100 });
+    const profileId = profiled.operatorProfiles.definitions[0].id;
+    const drifted = {
+      ...profiled,
+      keyboard: normalizeKeyboardSettings({ preset: "browser-safe", overrides: {} }),
+    };
+
+    const applied = applyOperatorProfile(drifted, profileId);
+    expect(applied.keyboard.preset).toBe("vim-k9s");
+    expect(applied.keyboard.overrides).toEqual({
+      "nav.pods": [["ctrl+alt+u"]],
+      "custom-command.temporarily-missing": [["g", "e"]],
+    });
+  });
+
   it("validates imported operator profiles and drops invalid active ids", () => {
     const base = defaultUserSettings();
     const parsed = validateUserSettings({
@@ -180,9 +281,10 @@ describe("user settings", () => {
             snapshot: {
               ...base,
               keyboard: {
-                ...base.keyboard,
                 vimTableNavigation: false,
-              },
+                homeRowTableNavigation: true,
+                singleLetterGlobalSearch: true,
+              } as unknown as typeof base.keyboard,
             },
             createdAt: 10,
             updatedAt: 20,
@@ -461,10 +563,65 @@ describe("user settings", () => {
     });
 
     expect(parsed?.keyboard).toEqual({
+      preset: "kview-classic",
+      overrides: {
+        "search.focus": [["ctrl+k"]],
+        "table.cell.up": [["arrowup"], ["d"]],
+        "table.cell.down": [["arrowdown"], ["s"]],
+        "table.cell.left": [["arrowleft"], ["a"]],
+        "table.cell.right": [["arrowright"], ["f"]],
+      },
       vimTableNavigation: false,
       homeRowTableNavigation: true,
       singleLetterGlobalSearch: false,
     });
+  });
+
+  it("preserves new and dynamic keyboard settings while dropping malformed bindings safely", () => {
+    const parsed = validateUserSettings({
+      ...defaultUserSettings(),
+      keyboard: {
+        preset: "vim-k9s",
+        overrides: {
+          "search.focus": [["g", ";"]],
+          "nav.pods": [["ctrl+"]],
+          "custom-command.logs": [["Shift+Ctrl+K"]],
+          "custom-action.restart": [],
+        },
+      },
+    });
+
+    expect(parsed?.keyboard).toEqual({
+      preset: "vim-k9s",
+      overrides: {
+        "search.focus": [["g", ";"]],
+        "nav.pods": [],
+        "custom-command.logs": [["ctrl+shift+k"]],
+        "custom-action.restart": [],
+      },
+      vimTableNavigation: true,
+      homeRowTableNavigation: false,
+      singleLetterGlobalSearch: false,
+    });
+    const roundTripped = parseUserSettingsJSON(exportUserSettingsJSON(parsed!));
+    expect(roundTripped.keyboard.overrides["custom-command.logs"]).toEqual([["ctrl+shift+k"]]);
+    expect(roundTripped.keyboard.overrides["custom-action.restart"]).toEqual([]);
+    expect(roundTripped.keyboard.overrides["nav.pods"]).toEqual([]);
+  });
+
+  it("fails safe by disabling invalid persisted actions", () => {
+    const colliding = normalizeKeyboardSettings({
+      preset: "kview-classic",
+      overrides: { "help.open": [["ctrl+g"]], "search.focus": [["ctrl+g"]] },
+    });
+    expect(colliding.overrides["help.open"]).toEqual([]);
+    expect(colliding.overrides["search.focus"]).toEqual([]);
+
+    const overLength = normalizeKeyboardSettings({
+      preset: "kview-classic",
+      overrides: { "table.cell.up": [["g", "u"]] },
+    });
+    expect(overLength.overrides["table.cell.up"]).toEqual([]);
   });
 
   it("rejects invalid imported JSON", () => {
@@ -485,6 +642,50 @@ describe("user settings", () => {
     const settings = defaultUserSettings();
     const exported = exportUserSettingsJSON(settings);
     expect(parseUserSettingsJSON(exported)).toEqual(settings);
+  });
+
+  it("persists keyboard settings and operator profile snapshots as preset plus overrides", () => {
+    const settings = defaultUserSettings();
+    settings.keyboard = {
+      ...defaultKeyboardSettings(),
+      overrides: { "search.focus": [["g", ";"]] },
+      singleLetterGlobalSearch: false,
+    };
+    const profiled = addOperatorProfile(settings, { name: "Browser safe", now: 100 });
+    const exported = JSON.parse(exportUserSettingsJSON(profiled));
+
+    expect(exported.keyboard).toEqual({ preset: "kview-classic", overrides: { "search.focus": [["g", ";"]] } });
+    expect(exported.operatorProfiles.definitions[0].snapshot.keyboard).toEqual(exported.keyboard);
+    expect(parseUserSettingsJSON(JSON.stringify(exported)).keyboard).toEqual(profiled.keyboard);
+  });
+
+  it("preserves modern presets and unrelated overrides when changing compatibility toggles", () => {
+    const initial = validateUserSettings({
+      ...defaultUserSettings(),
+      keyboard: {
+        preset: "browser-safe",
+        overrides: { "nav.pods": [["meta+p"]], "help.open": [["meta+?"]] },
+      },
+    })!.keyboard;
+    const updated = updateKeyboardConvenienceSettings(initial, { vimTableNavigation: true });
+    expect(updated.preset).toBe("browser-safe");
+    expect(updated.overrides["nav.pods"]).toEqual([["meta+p"]]);
+    expect(updated.overrides["help.open"]).toEqual([["meta+?"]]);
+    expect(updated.vimTableNavigation).toBe(true);
+  });
+
+  it("parses and applies an imported operator profile keymap", () => {
+    const settings = defaultUserSettings();
+    settings.keyboard = validateUserSettings({
+      ...settings,
+      keyboard: { preset: "browser-safe", overrides: { "nav.pods": [["meta+p"]] } },
+    })!.keyboard;
+    const profiled = addOperatorProfile(settings, { name: "Imported keyboard", now: 100 });
+    const parsed = parseUserSettingsJSON(exportUserSettingsJSON(profiled));
+    const drifted = { ...parsed, keyboard: defaultKeyboardSettings() };
+    const applied = applyOperatorProfile(drifted, parsed.operatorProfiles.definitions[0].id);
+    expect(applied.keyboard.preset).toBe("browser-safe");
+    expect(applied.keyboard.overrides["nav.pods"]).toEqual([["meta+p"]]);
   });
 
   it("exports v2 detector-based thresholds without legacy metric/dashboard mirrors", () => {
@@ -686,6 +887,45 @@ describe("user settings", () => {
       strategy: "useImported",
     });
     expect(applied.settings.podDebug).toEqual(incoming.podDebug);
+  });
+
+  it("round-trips keyboard settings and applies scalar merge semantics", () => {
+    const incoming = defaultUserSettings();
+    incoming.keyboard = normalizeKeyboardSettings({
+      preset: "vim-k9s",
+      overrides: {
+        "nav.pods": [["ctrl+alt+u"]],
+        "custom-action.temporarily-missing": [["g", "e"]],
+      },
+    });
+    const bundle = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: incoming,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      sections: ["keyboard"],
+    }));
+    expect(settingsTransferSectionIds(bundle)).toEqual(["keyboard"]);
+    expect(bundle.sections.keyboard?.preset).toBe("vim-k9s");
+    expect(bundle.sections.keyboard?.overrides).toEqual(incoming.keyboard.overrides);
+
+    const current = defaultUserSettings();
+    const kept = applySettingsTransferBundle({
+      settings: current,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      bundle,
+      sections: ["keyboard"],
+      strategy: "keepMine",
+    });
+    expect(kept.settings.keyboard).toEqual(current.keyboard);
+
+    const imported = applySettingsTransferBundle({
+      settings: current,
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      bundle,
+      sections: ["keyboard"],
+      strategy: "useImported",
+    });
+    expect(imported.settings.keyboard.preset).toBe("vim-k9s");
+    expect(imported.settings.keyboard.overrides).toEqual(incoming.keyboard.overrides);
   });
 
   it("migrates v1 context overrides to v2 dataplane context overrides", () => {
@@ -1094,6 +1334,28 @@ describe("user settings", () => {
     });
     expect(customActionsForResource(parsed?.customActions.actions || [], "deployments")).toHaveLength(1);
     expect(customActionsForResource(parsed?.customActions.actions || [], "daemonsets")).toHaveLength(0);
+  });
+
+  it("deduplicates imported custom definition ids with a deterministic first-wins policy", () => {
+    const defaults = defaultUserSettings();
+    const command = defaults.customCommands.commands[0];
+    const action = defaults.customActions.actions[0];
+    const parsed = validateUserSettings({
+      ...defaults,
+      customCommands: { commands: [
+        { ...command, id: "duplicate-command", name: "First command" },
+        { ...command, id: "duplicate-command", name: "Second command" },
+      ] },
+      customActions: { actions: [
+        { ...action, id: "duplicate-action", name: "First action" },
+        { ...action, id: "duplicate-action", name: "Second action" },
+      ] },
+    });
+
+    expect(parsed?.customCommands.commands).toHaveLength(1);
+    expect(parsed?.customCommands.commands[0].name).toBe("First command");
+    expect(parsed?.customActions.actions).toHaveLength(1);
+    expect(parsed?.customActions.actions[0].name).toBe("First action");
   });
 
   it("matches ordered scoped smart filter rules and uses JS replacement templates", () => {

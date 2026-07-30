@@ -16,11 +16,15 @@ import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import Section from "../../shared/Section";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import { drawerBodySx, drawerTabContentSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 import LimitRangeActions from "./LimitRangeActions";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 
 const tabs = ["Overview", "Events", "Metadata", "YAML"];
+const tabActionIds = [
+  "drawer.tab.overview", "drawer.tab.events", "drawer.tab.metadata", "drawer.tab.yaml",
+] satisfies DrawerTabActionId[];
 
 function mapSummary(values?: Record<string, string>): string {
   return Object.entries(values || {}).map(([key, value]) => `${key}=${value}`).join(", ") || "-";
@@ -132,8 +136,8 @@ export default function LimitRangeDrawer({
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              {tabs.map((label) => (
-                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
+              {tabs.map((label, index) => (
+                <Tab key={label} {...drawerTabProps(tabActionIds[index])} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
             <Box sx={drawerBodySx}>

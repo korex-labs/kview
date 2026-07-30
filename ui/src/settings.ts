@@ -1,6 +1,11 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
 import { isSection, type AppStateV1 } from "./state";
 import type { InvestigationSnapshot } from "./types/api";
+import type { KeyboardActionId, KeyboardPresetId, KeySequence } from "./keyboard/actions";
+import { compileKeymap, isKeyboardPresetId, type KeyboardBindingOverrides } from "./keyboard/keymaps";
+import { canonicalizeKeyChord } from "./keyboard/keyboardUtils";
+import { validateKeymap } from "./keyboard/keymapValidation";
+import { customActionKeyboardActionId, customCommandKeyboardActionId } from "./keyboard/dynamicActionIds";
 
 export type SettingsScopeMode = "all" | "cluster" | "namespace";
 export type SettingsResourceScopeMode = "any" | "selected";
@@ -18,6 +23,7 @@ export type SettingsTransferSection =
   | "resourceMacros"
   | "dynamicLinks"
   | "customCommands"
+  | "keyboard"
   | "podDebug"
   | "customActions"
   | "favourites"
@@ -211,6 +217,9 @@ export type DynamicLinksSettings = {
 };
 
 export type KeyboardSettings = {
+  preset: KeyboardPresetId;
+  overrides: KeyboardBindingOverrides;
+  /** Transitional runtime fields used by the existing keyboard settings UI. */
   vimTableNavigation: boolean;
   homeRowTableNavigation: boolean;
   singleLetterGlobalSearch: boolean;
@@ -334,6 +343,7 @@ export type SettingsTransferBundleV1 = {
     resourceMacros: KviewUserSettingsV2["resourceMacros"];
     dynamicLinks: KviewUserSettingsV2["dynamicLinks"];
     customCommands: KviewUserSettingsV2["customCommands"];
+    keyboard: KviewUserSettingsV2["keyboard"];
     podDebug: KviewUserSettingsV2["podDebug"];
     customActions: KviewUserSettingsV2["customActions"];
     favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
@@ -655,11 +665,7 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
 }
 
 export function defaultKeyboardSettings(): KeyboardSettings {
-  return {
-    vimTableNavigation: true,
-    homeRowTableNavigation: true,
-    singleLetterGlobalSearch: true,
-  };
+  return normalizeKeyboardSettings({ preset: "kview-classic", overrides: {} });
 }
 
 export function defaultPodDebugSettings(): PodDebugSettings {
@@ -1119,6 +1125,170 @@ function validNumber(value: unknown, min: number, max: number, fallback: number)
   const rounded = Math.round(value);
   if (rounded < min || rounded > max) return fallback;
   return rounded;
+}
+
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 31 || codePoint === 127;
+  });
+}
+
+function normalizeKeyboardOverrides(input: unknown): KeyboardBindingOverrides {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: KeyboardBindingOverrides = {};
+  let acceptedEntries = 0;
+  for (const [actionId, value] of Object.entries(input as Record<string, unknown>)) {
+    if (acceptedEntries >= 256) break;
+    if (!actionId || actionId.length > 160 || hasControlCharacters(actionId) || !Array.isArray(value)) continue;
+    const sequences: KeySequence[] = [];
+    let malformed = false;
+    for (const sequence of value) {
+      if (!Array.isArray(sequence) || sequence.length < 1 || sequence.length > 4) {
+        malformed = true;
+        continue;
+      }
+      const canonical = sequence.map((chord) => typeof chord === "string" ? canonicalizeKeyChord(chord) : null);
+      if (canonical.some((chord) => chord === null)) {
+        malformed = true;
+        continue;
+      }
+      sequences.push(canonical as string[]);
+    }
+    // An explicit empty list disables an action. If every saved binding is
+    // malformed, fail safe by disabling instead of unexpectedly inheriting.
+    if (value.length === 0 || sequences.length > 0) {
+      out[actionId] = malformed ? [] : sequences.slice(0, 32);
+      acceptedEntries += 1;
+    } else if (value.length > 0) {
+      // Corrupted explicit overrides must fail safe. Inheriting the preset here
+      // could unexpectedly reactivate a shortcut the user intended to replace.
+      out[actionId] = [];
+      acceptedEntries += 1;
+    }
+  }
+  return out;
+}
+
+function bindingExists(bindings: KeySequence[], sequence: KeySequence): boolean {
+  const target = sequence.join(" ");
+  return bindings.some((binding) => binding.join(" ") === target);
+}
+
+export function normalizeKeyboardSettings(
+  input: unknown,
+  customCommands: readonly CustomCommandDefinition[] = [],
+  customActions: readonly CustomActionDefinition[] = [],
+): KeyboardSettings {
+  const raw = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : {};
+  const preset = isKeyboardPresetId(raw.preset) ? raw.preset : "kview-classic";
+  const overrides = normalizeKeyboardOverrides(raw.overrides);
+  const modernShape = Object.prototype.hasOwnProperty.call(raw, "preset")
+    || Object.prototype.hasOwnProperty.call(raw, "overrides");
+  const compiled = compileKeymap(preset, overrides);
+  const bindingsFor = (id: KeyboardActionId) => compiled.find((action) => action.id === id)?.bindings ?? [];
+  const legacyVim = !modernShape && typeof raw.vimTableNavigation === "boolean" ? raw.vimTableNavigation : undefined;
+  const legacyHome = !modernShape && typeof raw.homeRowTableNavigation === "boolean" ? raw.homeRowTableNavigation : undefined;
+  const legacySearch = !modernShape && typeof raw.singleLetterGlobalSearch === "boolean" ? raw.singleLetterGlobalSearch : undefined;
+
+  if (legacySearch !== undefined) {
+    const bindings = bindingsFor("search.focus").filter((binding) => binding.join(" ") !== "s");
+    if (legacySearch) bindings.push(["s"]);
+    overrides["search.focus"] = bindings;
+  }
+  if (legacyVim !== undefined || legacyHome !== undefined) {
+    const directions = [
+      { id: "table.cell.up" as const, vim: "k", home: "d" },
+      { id: "table.cell.down" as const, vim: "j", home: "s" },
+      { id: "table.cell.left" as const, vim: "h", home: "a" },
+      { id: "table.cell.right" as const, vim: "l", home: "f" },
+    ];
+    const vimEnabled = legacyVim ?? directions.every(({ id, vim }) => bindingExists(bindingsFor(id), [vim]));
+    const homeEnabled = legacyHome ?? directions.every(({ id, home }) => bindingExists(bindingsFor(id), [home]));
+    for (const { id, vim, home } of directions) {
+      const current = bindingsFor(id).filter((binding) => binding.join(" ") !== vim && binding.join(" ") !== home);
+      overrides[id] = [...current, ...(vimEnabled ? [[vim]] : []), ...(homeEnabled ? [[home]] : [])];
+    }
+  }
+
+  const dynamicActions = [
+    ...customCommands.filter((command) => command.enabled).map((command) => ({
+      id: customCommandKeyboardActionId(command.id),
+      label: `Custom Command: ${command.name}`,
+      scopes: ["pod-drawer" as const],
+      bindings: Object.prototype.hasOwnProperty.call(overrides, customCommandKeyboardActionId(command.id))
+        ? overrides[customCommandKeyboardActionId(command.id)] ?? []
+        : [],
+    })),
+    ...customActions.filter((action) => action.enabled).map((action) => ({
+      id: customActionKeyboardActionId(action.id),
+      label: `Custom Action: ${action.name}`,
+      scopes: ["drawer" as const],
+      bindings: Object.prototype.hasOwnProperty.call(overrides, customActionKeyboardActionId(action.id))
+        ? overrides[customActionKeyboardActionId(action.id)] ?? []
+        : [],
+    })),
+  ];
+  const invalidActionIds = new Set(
+    validateKeymap([...compileKeymap(preset, overrides), ...dynamicActions])
+      .filter((diagnostic) => diagnostic.severity === "error")
+      .flatMap((diagnostic) => [diagnostic.actionId, diagnostic.conflictingActionId].filter(Boolean)),
+  );
+  for (const actionId of invalidActionIds) overrides[actionId!] = [];
+
+  const effective = compileKeymap(preset, overrides);
+  const effectiveBindings = (id: KeyboardActionId) => effective.find((action) => action.id === id)?.bindings ?? [];
+  const tableDirections = [
+    { id: "table.cell.up" as const, vim: "k", home: "d" },
+    { id: "table.cell.down" as const, vim: "j", home: "s" },
+    { id: "table.cell.left" as const, vim: "h", home: "a" },
+    { id: "table.cell.right" as const, vim: "l", home: "f" },
+  ];
+  return {
+    preset,
+    overrides,
+    vimTableNavigation: tableDirections.every(({ id, vim }) => bindingExists(effectiveBindings(id), [vim])),
+    homeRowTableNavigation: tableDirections.every(({ id, home }) => bindingExists(effectiveBindings(id), [home])),
+    singleLetterGlobalSearch: bindingExists(effectiveBindings("search.focus"), ["s"]),
+  };
+}
+
+export function updateKeyboardConvenienceSettings(
+  settings: KeyboardSettings,
+  patch: Partial<Pick<KeyboardSettings, "vimTableNavigation" | "homeRowTableNavigation" | "singleLetterGlobalSearch">>,
+): KeyboardSettings {
+  const normalized = normalizeKeyboardSettings(settings);
+  const overrides: KeyboardBindingOverrides = Object.fromEntries(
+    Object.entries(normalized.overrides).map(([id, bindings]) => [id, bindings?.map((binding) => [...binding])]),
+  ) as KeyboardBindingOverrides;
+  const compiled = compileKeymap(normalized.preset, overrides);
+  const bindingsFor = (id: KeyboardActionId): KeySequence[] =>
+    compiled.find((action) => action.id === id)?.bindings.map((binding) => [...binding]) ?? [];
+
+  if (patch.singleLetterGlobalSearch !== undefined) {
+    const bindings = bindingsFor("search.focus").filter((binding) => binding.join(" ") !== "s");
+    if (patch.singleLetterGlobalSearch) bindings.push(["s"]);
+    overrides["search.focus"] = bindings;
+  }
+
+  if (patch.vimTableNavigation !== undefined || patch.homeRowTableNavigation !== undefined) {
+    const vimEnabled = patch.vimTableNavigation ?? normalized.vimTableNavigation;
+    const homeEnabled = patch.homeRowTableNavigation ?? normalized.homeRowTableNavigation;
+    const directions = [
+      { id: "table.cell.up" as const, vim: "k", home: "d" },
+      { id: "table.cell.down" as const, vim: "j", home: "s" },
+      { id: "table.cell.left" as const, vim: "h", home: "a" },
+      { id: "table.cell.right" as const, vim: "l", home: "f" },
+    ];
+    for (const { id, vim, home } of directions) {
+      const bindings = bindingsFor(id).filter((binding) => binding.join(" ") !== vim && binding.join(" ") !== home);
+      overrides[id] = [...bindings, ...(vimEnabled ? [[vim]] : []), ...(homeEnabled ? [[home]] : [])];
+    }
+  }
+
+  return normalizeKeyboardSettings({ preset: normalized.preset, overrides });
 }
 
 function isListResourceKey(value: unknown): value is ListResourceKey {
@@ -2062,6 +2232,15 @@ function normalizeDataplaneSettings(input: unknown): DataplaneSettings {
   return normalized;
 }
 
+function uniqueDefinitionsById<T extends { id: string }>(definitions: T[]): T[] {
+  const seen = new Set<string>();
+  return definitions.filter((definition) => {
+    if (seen.has(definition.id)) return false;
+    seen.add(definition.id);
+    return true;
+  });
+}
+
 function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Partial<KviewUserSettingsV1>;
@@ -2072,7 +2251,6 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
   const rawSmartFilters = (raw.smartFilters ?? {}) as Partial<KviewUserSettingsV1["smartFilters"]>;
   const rawCustomCommands = (raw.customCommands ?? {}) as Partial<KviewUserSettingsV1["customCommands"]>;
   const rawCustomActions = (raw.customActions ?? {}) as Partial<KviewUserSettingsV1["customActions"]>;
-  const rawKeyboard = (raw.keyboard ?? {}) as Partial<KeyboardSettings>;
   const rulesProvided = Array.isArray(rawSmartFilters.rules);
   const rawRules: unknown[] = rulesProvided ? (rawSmartFilters.rules as unknown[]) : [];
   const normalizedRules = rawRules
@@ -2081,16 +2259,18 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
   if (rulesProvided && normalizedRules.length !== rawRules.length) return null;
   const commandsProvided = Array.isArray(rawCustomCommands.commands);
   const rawCommands: unknown[] = commandsProvided ? (rawCustomCommands.commands as unknown[]) : [];
-  const normalizedCommands = rawCommands
+  const validCommands = rawCommands
     .map((cmd: unknown, index: number) => normalizeCustomCommand(cmd, `imported-command-${index + 1}`))
     .filter((cmd): cmd is CustomCommandDefinition => Boolean(cmd));
-  if (commandsProvided && normalizedCommands.length !== rawCommands.length) return null;
+  if (commandsProvided && validCommands.length !== rawCommands.length) return null;
+  const normalizedCommands = uniqueDefinitionsById(validCommands);
   const actionsProvided = Array.isArray(rawCustomActions.actions);
   const rawActions: unknown[] = actionsProvided ? (rawCustomActions.actions as unknown[]) : [];
-  const normalizedActions = rawActions
+  const validActions = rawActions
     .map((action: unknown, index: number) => normalizeCustomAction(action, `imported-action-${index + 1}`))
     .filter((action): action is CustomActionDefinition => Boolean(action));
-  if (actionsProvided && normalizedActions.length !== rawActions.length) return null;
+  if (actionsProvided && validActions.length !== rawActions.length) return null;
+  const normalizedActions = uniqueDefinitionsById(validActions);
 
   return {
     v: 1,
@@ -2162,20 +2342,7 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
     customActions: {
       actions: actionsProvided ? normalizedActions : defaults.customActions.actions,
     },
-    keyboard: {
-      vimTableNavigation:
-        typeof rawKeyboard.vimTableNavigation === "boolean"
-          ? rawKeyboard.vimTableNavigation
-          : defaults.keyboard.vimTableNavigation,
-      homeRowTableNavigation:
-        typeof rawKeyboard.homeRowTableNavigation === "boolean"
-          ? rawKeyboard.homeRowTableNavigation
-          : defaults.keyboard.homeRowTableNavigation,
-      singleLetterGlobalSearch:
-        typeof rawKeyboard.singleLetterGlobalSearch === "boolean"
-          ? rawKeyboard.singleLetterGlobalSearch
-          : defaults.keyboard.singleLetterGlobalSearch,
-    },
+    keyboard: normalizeKeyboardSettings(raw.keyboard, normalizedCommands, normalizedActions),
     dataplane: normalizeDataplaneSettings(raw.dataplane),
   };
 }
@@ -2476,6 +2643,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "savedViews", label: "Saved views" },
   { id: "smartFilters", label: "Smart filters" },
   { id: "customCommands", label: "Custom commands" },
+  { id: "keyboard", label: "Keyboard shortcuts" },
   { id: "podDebug", label: "Pod Debug defaults" },
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
@@ -2511,6 +2679,7 @@ export function exportSettingsTransferJSON(input: {
   if (selected.has("resourceMacros")) bundle.sections.resourceMacros = serialized.resourceMacros;
   if (selected.has("dynamicLinks")) bundle.sections.dynamicLinks = serialized.dynamicLinks;
   if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
+  if (selected.has("keyboard")) bundle.sections.keyboard = serialized.keyboard;
   if (selected.has("podDebug")) bundle.sections.podDebug = serialized.podDebug;
   if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
   if (selected.has("savedViews")) bundle.sections.savedViews = serialized.savedViews;
@@ -2584,6 +2753,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   if ("customCommands" in sections) {
     out.sections.customCommands = validateUserSettings({ ...defaults, customCommands: sections.customCommands })?.customCommands;
   }
+  if ("keyboard" in sections) {
+    out.sections.keyboard = normalizeKeyboardSettings(sections.keyboard);
+  }
   if ("podDebug" in sections) {
     out.sections.podDebug = validateUserSettings({ ...defaults, podDebug: sections.podDebug })?.podDebug;
   }
@@ -2647,6 +2819,9 @@ export function applySettingsTransferBundle(input: {
   if (selected.has("customCommands") && input.bundle.sections.customCommands) {
     nextSettings = mergeSettingsSection(nextSettings, "customCommands", input.bundle.sections.customCommands, input.strategy);
   }
+  if (selected.has("keyboard") && input.bundle.sections.keyboard && input.strategy !== "keepMine") {
+    nextSettings = { ...nextSettings, keyboard: input.bundle.sections.keyboard };
+  }
   if (selected.has("podDebug") && input.bundle.sections.podDebug && input.strategy !== "keepMine") {
     nextSettings = { ...nextSettings, podDebug: input.bundle.sections.podDebug };
   }
@@ -2662,7 +2837,7 @@ export function applySettingsTransferBundle(input: {
   if (selected.has("signalSettings") && input.bundle.sections.signalSettings) {
     nextSettings = mergeSignalSettings(nextSettings, input.bundle.sections.signalSettings, input.strategy);
   }
-  return { settings: nextSettings, appState: nextAppState };
+  return { settings: validateUserSettings(nextSettings) ?? nextSettings, appState: nextAppState };
 }
 
 function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resourceMacros" | "dynamicLinks" | "customCommands" | "customActions" | "savedViews">(
@@ -3088,6 +3263,26 @@ function normalizeSignalHistoryTransfer(input: unknown): Record<string, Record<s
 
 function serializeUserSettingsV2(settings: KviewUserSettingsV2): KviewUserSettingsV2 {
   const next = JSON.parse(JSON.stringify(settings)) as KviewUserSettingsV2;
+  const persistedKeyboard = (
+    keyboard: KeyboardSettings,
+    customCommands: readonly CustomCommandDefinition[],
+    customActions: readonly CustomActionDefinition[],
+  ) => {
+    const normalized = normalizeKeyboardSettings(keyboard, customCommands, customActions);
+    return { preset: normalized.preset, overrides: normalized.overrides };
+  };
+  next.keyboard = persistedKeyboard(
+    next.keyboard,
+    next.customCommands.commands,
+    next.customActions.actions,
+  ) as KeyboardSettings;
+  for (const profile of next.operatorProfiles.definitions) {
+    profile.snapshot.keyboard = persistedKeyboard(
+      profile.snapshot.keyboard,
+      profile.snapshot.customCommands.commands,
+      profile.snapshot.customActions.actions,
+    ) as KeyboardSettings;
+  }
   // Persist detector thresholds as the v2 source of truth.
   delete (next.dataplane.global.dashboard as unknown as { restartElevatedThreshold?: number }).restartElevatedThreshold;
   delete (next.dataplane.global.metrics as unknown as { containerNearLimitPct?: number }).containerNearLimitPct;

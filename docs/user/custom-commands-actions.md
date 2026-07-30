@@ -56,6 +56,23 @@ Safety controls alter confirmation behavior. **Safe** commands use simple
 confirmation. **Dangerous** commands require typed confirmation before
 execution.
 
+## Keyboard Bindings
+
+Each configured definition appears in **Settings → Keyboard** under **Custom
+Commands** or **Custom Actions**. Dynamic definitions have no preset shortcut and
+start **Unbound**. Add one or more bindings, then select **Apply keyboard
+changes**.
+
+Bindings invoke the same guarded workflow as the visible menu action. Commands
+remain limited to matching actionable containers; when several containers match,
+kview asks for an explicit target. Actions remain limited by resource matching,
+connection state, capability checks, and RBAC. Dangerous definitions still
+require typed confirmation, and runtime-value actions still prompt for their
+value.
+
+Disabled or deleted definitions are inert. kview retains their keyboard override
+so restoring a definition with the same stable ID also restores its binding.
+
 ## Common Workflows
 
 - Keep names clear and specific.

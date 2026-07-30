@@ -20,6 +20,7 @@ import { fetchNamespacedResourceDetailWithWarnings } from "../../../utils/resour
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import Section from "../../shared/Section";
 import KeyValueTable from "../../shared/KeyValueTable";
 import EmptyState from "../../shared/EmptyState";
@@ -45,6 +46,9 @@ import GaugeTableRow from "../../shared/GaugeTableRow";
 import { drawerBodySx, drawerTabContentCompactSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 
 const tabs = ["Signals", "Events", "Metadata", "YAML"] as const;
+const tabActionIds = [
+  "drawer.tab.signals", "drawer.tab.events", "drawer.tab.metadata", "drawer.tab.yaml",
+] satisfies DrawerTabActionId[];
 const eventsTabIndex = tabs.indexOf("Events");
 const metadataTabIndex = tabs.indexOf("Metadata");
 const yamlTabIndex = tabs.indexOf("YAML");
@@ -267,8 +271,8 @@ export default function HorizontalPodAutoscalerDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              {tabs.map((label) => (
-                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
+              {tabs.map((label, index) => (
+                <Tab key={label} {...drawerTabProps(tabActionIds[index])} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
 

@@ -224,12 +224,12 @@ export default function IngressDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Rules" />} iconPosition="start" label="Rules" />
-              <Tab icon={<DetailTabIcon label="TLS" />} iconPosition="start" label="TLS" />
-              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
-              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.rules" icon={<DetailTabIcon label="Rules" />} iconPosition="start" label="Rules" />
+              <Tab data-keyboard-action-id="drawer.tab.tls" icon={<DetailTabIcon label="TLS" />} iconPosition="start" label="TLS" />
+              <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

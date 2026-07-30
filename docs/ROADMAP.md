@@ -30,8 +30,9 @@ Recently completed foundation work:
   coverage, and pressure-aware polling/freshness are visible to operators.
 - **Local resource notes**: resources have a local **Notes** tab, triage state,
   and list/tab indicators for note presence.
-- **Keyboard and focus registry**: app-owned shortcut registration, focus scopes,
-  Escape ownership, contextual actions, table controls, and focus retry requests
+- **Configurable keyboard actions**: the typed Action Registry, compiled presets,
+  per-action overrides, multi-chord sequences, conflict validation, effective
+  Help, contextual drawer actions, and bindable guarded Custom Commands/Actions
   go through `KeyboardProvider`; see `docs/KEYBOARD_FOCUS.md`.
 - **In-app Help and release hygiene**: bundled user docs, curated What's New,
   Docker-backed verification, and release notes are part of the normal workflow.

@@ -12,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { Section } from "../state";
-import type { KeyboardSettings } from "../settings";
+import { defaultKeyboardSettings, type KeyboardSettings } from "../settings";
 import { panelBoxSx } from "../theme/sxTokens";
 import { buildShortcutHelpSections } from "./help";
 import {
@@ -29,14 +29,21 @@ import {
   type ShortcutCommand,
   type ShortcutCommandId,
 } from "./shortcuts";
+import { actionDefinitionById, type KeyboardActionHandlers, type KeySequence } from "./actions";
+import { compileKeymap } from "./keymaps";
 import ShortcutKey from "./ShortcutKey";
 
 export type ContextualKeyboardAction = {
   id: string;
   label: string;
-  binding: string[];
+  /** Fallback for unregistered callers. Built-in action IDs use compiled bindings. */
+  binding?: KeySequence;
+  /** Multiple fallback bindings for unregistered callers. */
+  bindings?: KeySequence[];
   run: () => boolean | void;
   disabled?: boolean;
+  /** Higher-priority owners win duplicate IDs/bindings regardless of registration timing. */
+  priority?: number;
 };
 
 export type KeyboardFocusScope = {
@@ -76,23 +83,53 @@ const KeyboardContext = createContext<KeyboardContextValue>({
   registerKeyboardScope: () => () => undefined,
   requestKeyboardFocus: () => undefined,
   activeKeyboardScope: null,
-  keyboardSettings: {
-    vimTableNavigation: true,
-    homeRowTableNavigation: true,
-    singleLetterGlobalSearch: true,
-  },
+  keyboardSettings: defaultKeyboardSettings(),
 });
+const ContextualKeyboardSurfaceActiveContext = createContext(true);
 
-function effectiveContextActions(stack: ContextualKeyboardAction[][]): ContextualKeyboardAction[] {
+export function ContextualKeyboardSurface({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return (
+    <ContextualKeyboardSurfaceActiveContext.Provider value={active}>
+      {children}
+    </ContextualKeyboardSurfaceActiveContext.Provider>
+  );
+}
+
+export function useContextualKeyboardSurfaceActive() {
+  return useContext(ContextualKeyboardSurfaceActiveContext);
+}
+
+type EffectiveContextualKeyboardAction = ContextualKeyboardAction & { bindings: KeySequence[] };
+
+function effectiveContextActions(
+  stack: ContextualKeyboardAction[][],
+  compiledBindings: ReadonlyMap<string, KeySequence[]>,
+): EffectiveContextualKeyboardAction[] {
   const seenBindings = new Set<string>();
-  const actions: ContextualKeyboardAction[] = [];
-  for (let i = stack.length - 1; i >= 0; i -= 1) {
-    for (const action of stack[i]) {
-      const bindingKey = action.binding.join(" ");
-      if (seenBindings.has(bindingKey)) continue;
+  const seenActionIds = new Set<string>();
+  const actions: EffectiveContextualKeyboardAction[] = [];
+  const candidates = stack.flatMap((group, stackIndex) => group.map((action, actionIndex) => ({
+    action,
+    stackIndex,
+    actionIndex,
+  }))).sort((left, right) =>
+    (right.action.priority ?? 0) - (left.action.priority ?? 0)
+    || right.stackIndex - left.stackIndex
+    || left.actionIndex - right.actionIndex);
+  for (const { action } of candidates) {
+    if (seenActionIds.has(action.id)) continue;
+    seenActionIds.add(action.id);
+    const definition = actionDefinitionById.get(action.id as never);
+    const bindings = definition
+      ? (compiledBindings.get(action.id) ?? [])
+      : (action.bindings ?? (action.binding ? [action.binding] : []));
+    const availableBindings = bindings.filter((binding) => {
+      const bindingKey = binding.join(" ");
+      if (seenBindings.has(bindingKey)) return false;
       seenBindings.add(bindingKey);
-      actions.push(action);
-    }
+      return true;
+    });
+    actions.push({ ...action, bindings: availableBindings, disabled: action.disabled || availableBindings.length === 0 });
   }
   return actions;
 }
@@ -122,10 +159,11 @@ export function useKeyboardScope(scope: KeyboardFocusScope | null | undefined) {
 
 export function useContextualKeyboardActions(actions: ContextualKeyboardAction[] | null | undefined) {
   const { registerContextActions } = useKeyboardControls();
+  const surfaceActive = useContext(ContextualKeyboardSurfaceActiveContext);
   useEffect(() => {
-    if (!actions?.length) return undefined;
+    if (!surfaceActive || !actions?.length) return undefined;
     return registerContextActions(actions);
-  }, [actions, registerContextActions]);
+  }, [actions, registerContextActions, surfaceActive]);
 }
 
 export function useTableKeyboardControls(controls: TableKeyboardControls | null | undefined) {
@@ -164,6 +202,9 @@ export default function KeyboardProvider({
   const contextActionStackRef = useRef<ContextualKeyboardAction[][]>([]);
   const keyboardScopeStackRef = useRef<KeyboardFocusScope[]>([]);
   const activeShortcutCommands = useMemo(() => shortcutCommandsForSettings(keyboardSettings), [keyboardSettings]);
+  const compiledContextBindings = useMemo(() => new Map(
+    compileKeymap(keyboardSettings.preset, keyboardSettings.overrides).map((action) => [action.id, action.bindings]),
+  ), [keyboardSettings]);
   const activeKeyboardScope = useMemo(() => effectiveKeyboardScope(keyboardScopeStack), [keyboardScopeStack]);
 
   useEffect(() => {
@@ -173,60 +214,36 @@ export default function KeyboardProvider({
     keyboardScopeStackRef.current = keyboardScopeStack;
   }, [keyboardScopeStack]);
 
-  const runCommand = useCallback((command: ShortcutCommandId) => {
-    const nav = activeShortcutCommands.find((item) => item.id === command);
-    if (nav?.section) {
-      onSelectSection(nav.section);
-      return true;
+  const actionHandlers = useMemo<KeyboardActionHandlers>(() => {
+    const handlers: KeyboardActionHandlers = {
+      "help.open": () => { setHelpOpen(true); return true; },
+      "search.focus": () => { onFocusGlobalSearch(""); return true; },
+      "table.filter.focus": () => tableControlsRef.current?.focusFilter() ?? false,
+      "table.grid.focus": () => tableControlsRef.current?.focusGrid() ?? false,
+      "table.page.previous": () => tableControlsRef.current?.pagePrevious() ?? false,
+      "table.page.next": () => tableControlsRef.current?.pageNext() ?? false,
+      "table.row.open": () => tableControlsRef.current?.openSelectedRow() ?? false,
+      "command.open": () => { onFocusGlobalSearch(":"); return true; },
+      "activity.panel.toggle": () => { emitToggleActivityPanel(); return true; },
+      "activity.panel.activities": () => { emitFocusActivityPanelTab(0); return true; },
+      "activity.panel.work": () => { emitFocusActivityPanelTab(1); return true; },
+      "activity.panel.terminals": () => { emitFocusActivityPanelTab(2); return true; },
+      "activity.panel.portForwards": () => { emitFocusActivityPanelTab(3); return true; },
+      "activity.panel.logs": () => { emitFocusActivityPanelTab(4); return true; },
+      "nav.context": () => { onFocusGlobalSearch("ctx "); return true; },
+      "nav.settings": () => { onOpenSettings(); return true; },
+    };
+    for (const command of activeShortcutCommands) {
+      if (command.section) handlers[command.id] = () => { onSelectSection(command.section!); return true; };
     }
-    switch (command) {
-      case "help.open":
-        setHelpOpen(true);
-        return true;
-      case "search.focus":
-        onFocusGlobalSearch("");
-        return true;
-      case "table.filter.focus":
-        return tableControlsRef.current?.focusFilter() ?? false;
-      case "table.grid.focus":
-        return tableControlsRef.current?.focusGrid() ?? false;
-      case "table.page.previous":
-        return tableControlsRef.current?.pagePrevious() ?? false;
-      case "table.page.next":
-        return tableControlsRef.current?.pageNext() ?? false;
-      case "command.open":
-        onFocusGlobalSearch(":");
-        return true;
-      case "activity.panel.toggle":
-        emitToggleActivityPanel();
-        return true;
-      case "activity.panel.activities":
-        emitFocusActivityPanelTab(0);
-        return true;
-      case "activity.panel.work":
-        emitFocusActivityPanelTab(1);
-        return true;
-      case "activity.panel.terminals":
-        emitFocusActivityPanelTab(2);
-        return true;
-      case "activity.panel.portForwards":
-        emitFocusActivityPanelTab(3);
-        return true;
-      case "activity.panel.logs":
-        emitFocusActivityPanelTab(4);
-        return true;
-      case "table.row.open":
-        return tableControlsRef.current?.openSelectedRow() ?? false;
-      case "nav.context":
-        onFocusGlobalSearch("ctx ");
-        return true;
-      case "nav.settings":
-        onOpenSettings();
-        return true;
-      default:
-        return false;
-    }
+    return handlers;
   }, [activeShortcutCommands, onFocusGlobalSearch, onOpenSettings, onSelectSection]);
+
+  const runCommand = useCallback((command: ShortcutCommandId) => actionHandlers[command]?.() ?? false, [actionHandlers]);
+  const activeDispatchCommands = useMemo(
+    () => activeShortcutCommands.filter((command) => Boolean(actionHandlers[command.id])),
+    [actionHandlers, activeShortcutCommands],
+  );
 
   const clearSequence = useCallback(() => {
     sequenceRef.current = [];
@@ -261,16 +278,11 @@ export default function KeyboardProvider({
       if (helpOpen || settingsOpen) return;
       const activeScope = effectiveKeyboardScope(keyboardScopeStackRef.current);
       const key = eventToBinding(event);
-      if (key === "?" && !activeScope?.suppressContextShortcuts && !shouldIgnoreContextShortcut(event.target)) {
-        event.preventDefault();
-        event.stopPropagation();
-        setHelpOpen(true);
-        clearSequence();
-        return;
-      }
-      const contextActions = effectiveContextActions(contextActionStackRef.current);
-      if (contextActions.length && !activeScope?.suppressContextShortcuts && !shouldIgnoreContextShortcut(event.target)) {
-        const action = contextActions.find((item) => !item.disabled && matchKeySequence(item.binding, [key]) === "matched");
+      const contextActions = effectiveContextActions(contextActionStackRef.current, compiledContextBindings);
+      const contextualSurfaceActive = activeScope?.kind === "drawer" && !activeScope.suppressContextShortcuts;
+      if (contextActions.length && contextualSurfaceActive && !shouldIgnoreContextShortcut(event.target)) {
+        const pressed = [...sequenceRef.current, key];
+        const action = contextActions.find((item) => !item.disabled && item.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
         if (action) {
           const handled = action.run();
           if (handled !== false) {
@@ -280,12 +292,29 @@ export default function KeyboardProvider({
           clearSequence();
           return;
         }
+        const partial = contextActions.some((item) => !item.disabled && item.bindings.some((binding) => matchKeySequence(binding, pressed) === "partial"));
+        if (partial) {
+          event.preventDefault();
+          sequenceRef.current = pressed;
+          if (sequenceTimerRef.current !== null) window.clearTimeout(sequenceTimerRef.current);
+          sequenceTimerRef.current = window.setTimeout(clearSequence, sequenceTimeoutMs);
+          return;
+        }
+        if (sequenceRef.current.length) {
+          clearSequence();
+          return;
+        }
       }
-      if (activeScope?.suppressGlobalShortcuts) return;
-      if (shouldIgnoreGlobalShortcut(event.target)) return;
+      const allowScopedHelp = Boolean(
+        activeScope?.suppressGlobalShortcuts && !shouldIgnoreContextShortcut(event.target),
+      );
+      if (shouldIgnoreGlobalShortcut(event.target) && !allowScopedHelp) return;
 
       const pressed = [...sequenceRef.current, key];
-      const exact = activeShortcutCommands.find((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
+      const commandsForScope = activeScope?.suppressGlobalShortcuts
+        ? activeDispatchCommands.filter((command) => command.id === "help.open")
+        : activeDispatchCommands;
+      const exact = commandsForScope.find((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "matched"));
       if (exact) {
         const handled = runCommand(exact.id);
         if (handled) event.preventDefault();
@@ -293,7 +322,7 @@ export default function KeyboardProvider({
         return;
       }
 
-      const partial = activeShortcutCommands.some((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "partial"));
+      const partial = commandsForScope.some((command) => command.bindings.some((binding) => matchKeySequence(binding, pressed) === "partial"));
       if (partial) {
         event.preventDefault();
         sequenceRef.current = pressed;
@@ -310,7 +339,7 @@ export default function KeyboardProvider({
       window.removeEventListener("keydown", onKeyDown);
       clearSequence();
     };
-  }, [activeShortcutCommands, clearSequence, helpOpen, runCommand, settingsOpen]);
+  }, [activeDispatchCommands, clearSequence, compiledContextBindings, helpOpen, runCommand, settingsOpen]);
 
   const registerTableControls = useCallback((controls: TableKeyboardControls) => {
     tableControlsRef.current = controls;
@@ -371,7 +400,9 @@ export default function KeyboardProvider({
       <KeyboardHelpDialog
         open={helpOpen}
         commands={activeShortcutCommands}
-        contextActions={effectiveContextActions(contextActionStack)}
+        contextActions={activeKeyboardScope?.kind === "drawer"
+          ? effectiveContextActions(contextActionStack, compiledContextBindings)
+          : []}
         onClose={() => setHelpOpen(false)}
       />
     </KeyboardContext.Provider>
@@ -386,7 +417,7 @@ function KeyboardHelpDialog({
 }: {
   open: boolean;
   commands: ShortcutCommand[];
-  contextActions: ContextualKeyboardAction[];
+  contextActions: EffectiveContextualKeyboardAction[];
   onClose: () => void;
 }) {
   const sectionEntries = useMemo(

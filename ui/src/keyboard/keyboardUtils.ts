@@ -12,6 +12,44 @@ export type KeyboardTargetScope = "app" | "editable" | "overlay" | "drawer" | "t
 
 type KeyboardLike = Pick<KeyboardEvent | ReactKeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">;
 
+const modifierOrder = ["ctrl", "meta", "alt", "shift"] as const;
+const modifierSet = new Set<string>(modifierOrder);
+const canonicalNamedKeys = new Set([
+  "enter", "escape", "tab", "backspace", "delete", "home", "end", "pageup", "pagedown",
+  "arrowup", "arrowdown", "arrowleft", "arrowright", "space", "plus",
+]);
+
+function canonicalKeyName(value: string): string {
+  const key = value.toLowerCase();
+  if (key === " " || key === "spacebar") return "space";
+  if (key === "+") return "plus";
+  if (key === "esc") return "escape";
+  if (key === "return") return "enter";
+  return key;
+}
+
+export function canonicalizeKeyChord(chord: string): string | null {
+  const raw = chord === " " ? "space" : chord === "+" ? "plus" : chord.trim().toLowerCase();
+  if (!raw || /\s/.test(raw)) return null;
+  const pieces = raw.split("+");
+  if (pieces.some((piece) => !piece)) return null;
+  const key = canonicalKeyName(pieces[pieces.length - 1]);
+  const modifiers = pieces.slice(0, -1);
+  if (modifiers.some((piece) => !modifierSet.has(piece))) return null;
+  if (new Set(modifiers).size !== modifiers.length || modifierSet.has(key)) return null;
+  if (!(key.length === 1 || canonicalNamedKeys.has(key) || /^f(?:[1-9]|1[0-2])$/.test(key))) return null;
+  // KeyboardEvent.key reports the produced character, not the physical key.
+  // Reject layout-dependent Shift+physical-punctuation forms that could never
+  // match semantic event output; the recorder stores reachable forms such as
+  // `shift+!`, while `?` and `:` intentionally omit their implicit Shift.
+  if (modifiers.includes("shift") && /^[0-9`\-=[\]\\;',./]$/.test(key)) return null;
+  const normalizedModifiers = modifierOrder.filter((modifier) => modifiers.includes(modifier));
+  const effectiveModifiers = key === "?" || key === ":"
+    ? normalizedModifiers.filter((modifier) => modifier !== "shift")
+    : normalizedModifiers;
+  return [...effectiveModifiers, key].join("+");
+}
+
 const ignoredInputTypes = new Set([
   "button",
   "checkbox",
@@ -38,7 +76,7 @@ const terminalSurfaceSelector = ".xterm";
 const ignoreShortcutSurfaceSelector = "[data-kview-ignore-shortcuts='true']";
 
 export function normalizeKeyboardEvent(event: KeyboardLike): NormalizedKey {
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
+  const key = canonicalKeyName(event.key);
   const printableShortcut = key === "?" || key === ":";
   return {
     key,
@@ -92,8 +130,12 @@ export function keyboardTargetScope(target: EventTarget | null): KeyboardTargetS
   if (!(target instanceof HTMLElement)) return "app";
   if (isEditableElement(target)) return "editable";
   if (target.closest(ignoreShortcutSurfaceSelector)) return "editable";
-  if (target.closest(overlaySurfaceSelector)) return "overlay";
-  if (target.closest(drawerSurfaceSelector)) return "drawer";
+  const drawer = target.closest(drawerSurfaceSelector);
+  const overlay = target.closest(overlaySurfaceSelector);
+  // MUI Drawer papers carry role="dialog". Treat that paper as the drawer
+  // surface, while preserving ownership for a real nested dialog/menu.
+  if (overlay && !(drawer && overlay.classList.contains("MuiDrawer-paper"))) return "overlay";
+  if (drawer) return "drawer";
   if (target.closest(terminalSurfaceSelector)) return "terminal";
   return "app";
 }

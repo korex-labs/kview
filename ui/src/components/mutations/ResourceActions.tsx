@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Box, Menu, MenuItem } from "@mui/material";
 import { useActiveContext } from "../../activeContext";
 import ActionButton from "./ActionButton";
@@ -18,6 +18,8 @@ import {
 import { customActionsForResource, type CustomActionDefinition } from "../../settings";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import { actionPresentationIcon, getActionPresentation } from "../../utils/actionPresentation";
+import { useContextualKeyboardActions } from "../../keyboard/KeyboardProvider";
+import { buildCustomActionContextualActions } from "./contextualCustomActions";
 
 function runtimeParamSpec(action: CustomActionDefinition) {
   if (!action.runtimeValue || action.action !== "set") return undefined;
@@ -55,12 +57,14 @@ function useCustomActionMenu(opts: {
     name: opts.name,
   });
   const canPatch = canPatchOrUpdate(caps);
-  const actions = customActionsForResource(settings.customActions.actions, opts.resourceKey);
-  if (actions.length === 0) return null;
-  const presentation = getActionPresentation("custom.workload");
+  const actions = useMemo(
+    () => customActionsForResource(settings.customActions.actions, opts.resourceKey),
+    [opts.resourceKey, settings.customActions.actions],
+  );
 
-  const run = (action: CustomActionDefinition) => {
+  const run = useCallback((action: CustomActionDefinition) => {
     setAnchor(null);
+    if (!canPatch) return false;
     const title = action.name || "Custom action";
     open({
       token: opts.token,
@@ -100,7 +104,34 @@ function useCustomActionMenu(opts: {
       initialParams: action.runtimeValue ? { value: action.value } : undefined,
       onSuccess: opts.onSuccess,
     });
-  };
+    return true;
+  }, [
+    activeContext,
+    canPatch,
+    open,
+    opts.apiVersion,
+    opts.group,
+    opts.kind,
+    opts.name,
+    opts.namespace,
+    opts.onSuccess,
+    opts.resource,
+    opts.token,
+  ]);
+
+  const contextualActions = useMemo(
+    () => buildCustomActionContextualActions({
+      actions,
+      overrides: settings.keyboard.overrides,
+      disabled: !canPatch,
+      run,
+    }),
+    [actions, canPatch, run, settings.keyboard.overrides],
+  );
+  useContextualKeyboardActions(contextualActions);
+
+  if (actions.length === 0) return null;
+  const presentation = getActionPresentation("custom.workload");
 
   return (
     <>

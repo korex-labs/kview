@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  canonicalizeKeyChord,
   eventToBinding,
   isKeyboardOwnedOverlayTarget,
   keyboardTargetScope,
@@ -15,6 +16,16 @@ describe("keyboardUtils", () => {
     expect(eventToBinding({ key: "?", shiftKey: true, ctrlKey: false, metaKey: false, altKey: false })).toBe("?");
     expect(eventToBinding({ key: ":", shiftKey: true, ctrlKey: false, metaKey: false, altKey: false })).toBe(":");
     expect(eventToBinding({ key: "k", shiftKey: false, ctrlKey: true, metaKey: false, altKey: false })).toBe("ctrl+k");
+    expect(eventToBinding({ key: " ", shiftKey: false, ctrlKey: true, metaKey: false, altKey: false })).toBe("ctrl+space");
+    expect(canonicalizeKeyChord("Shift+Ctrl+K")).toBe("ctrl+shift+k");
+    expect(canonicalizeKeyChord("ctrl+space")).toBe("ctrl+space");
+    expect(canonicalizeKeyChord("shift+1")).toBeNull();
+    expect(canonicalizeKeyChord("shift+/")).toBeNull();
+    expect(canonicalizeKeyChord("shift+!")).toBe("shift+!");
+    expect(eventToBinding({ key: "!", shiftKey: true, ctrlKey: false, metaKey: false, altKey: false })).toBe("shift+!");
+    expect(canonicalizeKeyChord("+")).toBe("plus");
+    expect(canonicalizeKeyChord("shift+plus")).toBe("shift+plus");
+    expect(eventToBinding({ key: "+", shiftKey: true, ctrlKey: false, metaKey: false, altKey: false })).toBe("shift+plus");
   });
 
   it("matches full and partial key sequences", () => {
@@ -56,9 +67,19 @@ describe("keyboardUtils", () => {
   it("classifies drawers and terminals separately", () => {
     const drawer = document.createElement("div");
     drawer.className = "MuiDrawer-root";
+    const drawerPaper = document.createElement("div");
+    drawerPaper.className = "MuiDrawer-paper";
+    drawerPaper.setAttribute("role", "dialog");
     const drawerButton = document.createElement("button");
-    drawer.appendChild(drawerButton);
+    drawerPaper.appendChild(drawerButton);
+    drawer.appendChild(drawerPaper);
     document.body.appendChild(drawer);
+
+    const nestedDialog = document.createElement("div");
+    nestedDialog.setAttribute("role", "dialog");
+    const nestedDialogButton = document.createElement("button");
+    nestedDialog.appendChild(nestedDialogButton);
+    drawerPaper.appendChild(nestedDialog);
 
     const terminal = document.createElement("div");
     terminal.className = "xterm";
@@ -69,6 +90,8 @@ describe("keyboardUtils", () => {
     expect(keyboardTargetScope(drawerButton)).toBe("drawer");
     expect(shouldIgnoreContextShortcut(drawerButton)).toBe(false);
     expect(shouldIgnoreGlobalShortcut(drawerButton)).toBe(true);
+    expect(keyboardTargetScope(nestedDialogButton)).toBe("overlay");
+    expect(shouldIgnoreContextShortcut(nestedDialogButton)).toBe(true);
 
     expect(keyboardTargetScope(terminalCell)).toBe("terminal");
     expect(shouldIgnoreContextShortcut(terminalCell)).toBe(true);

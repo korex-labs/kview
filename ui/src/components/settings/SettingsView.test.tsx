@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
-import { defaultUserSettings, saveUserSettings } from "../../settings";
+import { defaultKeyboardSettings, defaultUserSettings, saveUserSettings } from "../../settings";
 
 vi.mock("../../api", () => ({
   apiGet: vi.fn(async () => ({})),
@@ -29,11 +29,7 @@ function renderSettings(onClose = vi.fn()) {
     <UserSettingsProvider>
       <KeyboardProvider
         settingsOpen={false}
-        keyboardSettings={{
-          vimTableNavigation: true,
-          homeRowTableNavigation: true,
-          singleLetterGlobalSearch: true,
-        }}
+        keyboardSettings={defaultKeyboardSettings()}
         onFocusGlobalSearch={vi.fn()}
         onSelectSection={vi.fn()}
         onOpenSettings={vi.fn()}
@@ -90,6 +86,58 @@ describe("SettingsView Pod tools navigation", () => {
 
     expect(screen.getByText("Pod Debug")).toBeTruthy();
     expect(screen.getByText("Custom Commands")).toBeTruthy();
+  });
+});
+
+describe("SettingsView keyboard shortcuts", () => {
+  it("offers keyboard shortcuts as a transfer bundle section", () => {
+    renderSettings();
+
+    fireEvent.click(screen.getByText("Import / Export"));
+
+    expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
+  });
+
+  it("renders the production shortcut editor instead of legacy convenience toggles", () => {
+    renderSettings();
+
+    fireEvent.click(screen.getByText("Keyboard"));
+
+    expect(screen.getByLabelText("Keyboard preset")).toBeTruthy();
+    expect(screen.getByLabelText("Search keyboard actions")).toBeTruthy();
+    expect(screen.queryByText("Vim table navigation")).toBeNull();
+    expect(screen.queryByText("Home-row table navigation")).toBeNull();
+    expect(screen.queryByText("Single-letter global search")).toBeNull();
+  });
+
+  it("derives keyboard definitions from custom commands and actions", () => {
+    const settings = defaultUserSettings();
+    settings.customCommands.commands = [{
+      ...settings.customCommands.commands[0],
+      id: "inspect-env",
+      name: "Inspect environment",
+      safety: "dangerous",
+    }];
+    settings.customActions.actions = [{
+      ...settings.customActions.actions[0],
+      id: "restart-api",
+      name: "Restart API",
+      enabled: false,
+    }];
+    saveUserSettings(settings);
+    renderSettings();
+
+    fireEvent.click(screen.getByText("Keyboard"));
+    const search = screen.getByLabelText("Search keyboard actions");
+    fireEvent.click(screen.getByRole("tab", { name: /^Custom Commands \(\d+\)$/ }));
+    fireEvent.change(search, { target: { value: "inspect-env" } });
+    expect(screen.getByText("Custom Command: Inspect environment")).toBeTruthy();
+    expect(screen.getByText("Safety: dangerous")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Custom Actions \(\d+\)$/ }));
+    fireEvent.change(search, { target: { value: "restart api" } });
+    expect(screen.getByText("Custom Action: Restart API")).toBeTruthy();
+    expect(screen.getByText("Definition disabled")).toBeTruthy();
   });
 });
 

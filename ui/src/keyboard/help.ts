@@ -3,7 +3,7 @@ import type { ShortcutCommand, ShortcutGroup } from "./shortcuts";
 type ContextualKeyboardActionHelp = {
   id: string;
   label: string;
-  binding: string[];
+  bindings: string[][];
   disabled?: boolean;
 };
 
@@ -28,10 +28,13 @@ export function buildShortcutHelpSections(
     Navigation: [],
     Table: [],
     "Command Mode": [],
+    Drawer: [],
   };
   for (const command of commands) groups[command.group].push(command);
 
-  const entries: ShortcutHelpSection[] = (Object.keys(groups) as ShortcutGroup[]).map((group) => ({
+  const entries: ShortcutHelpSection[] = (Object.keys(groups) as ShortcutGroup[])
+    .filter((group) => group !== "Drawer")
+    .map((group) => ({
     title: group,
     rows: groups[group].map((command) => ({
       id: command.id,
@@ -40,13 +43,14 @@ export function buildShortcutHelpSections(
     })),
   }));
 
-  if (contextActions.length) {
+  const boundContextActions = contextActions.filter((action) => action.bindings.length > 0);
+  if (boundContextActions.length) {
     entries.push({
       title: "Current Resource",
-      rows: contextActions.map((action) => ({
+      rows: boundContextActions.map((action) => ({
         id: action.id,
         label: action.label,
-        bindings: [action.binding],
+        bindings: action.bindings,
         disabled: action.disabled,
       })),
     });

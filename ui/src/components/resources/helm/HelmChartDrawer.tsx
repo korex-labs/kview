@@ -232,9 +232,9 @@ export default function HelmChartDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Versions" />} iconPosition="start" label="Versions" />
-              <Tab icon={<DetailTabIcon label="Namespaces" />} iconPosition="start" label="Namespaces" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.versions" icon={<DetailTabIcon label="Versions" />} iconPosition="start" label="Versions" />
+              <Tab data-keyboard-action-id="drawer.tab.namespaces" icon={<DetailTabIcon label="Namespaces" />} iconPosition="start" label="Namespaces" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

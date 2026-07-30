@@ -18,11 +18,15 @@ import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import Section from "../../shared/Section";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import { drawerBodySx, drawerTabContentSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 import ResourceQuotaActions from "./ResourceQuotaActions";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 
 const tabs = ["Overview", "Events", "Metadata", "YAML"];
+const tabActionIds = [
+  "drawer.tab.overview", "drawer.tab.events", "drawer.tab.metadata", "drawer.tab.yaml",
+] satisfies DrawerTabActionId[];
 
 function quotaGaugeTone(ratio?: number): GaugeTone {
   if (ratio == null) return "success";
@@ -104,8 +108,8 @@ export default function ResourceQuotaDrawer({
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              {tabs.map((label) => (
-                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
+              {tabs.map((label, index) => (
+                <Tab key={label} {...drawerTabProps(tabActionIds[index])} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
             <Box sx={drawerBodySx}>

@@ -163,12 +163,12 @@ export default function ClusterRoleBindingDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Subjects" />} iconPosition="start" label="Subjects" />
-              <Tab icon={<DetailTabIcon label="Role Ref" />} iconPosition="start" label="Role Ref" />
-              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
-              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.subjects" icon={<DetailTabIcon label="Subjects" />} iconPosition="start" label="Subjects" />
+              <Tab data-keyboard-action-id="drawer.tab.role-ref" icon={<DetailTabIcon label="Role Ref" />} iconPosition="start" label="Role Ref" />
+              <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

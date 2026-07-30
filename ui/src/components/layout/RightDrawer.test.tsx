@@ -2,22 +2,21 @@
 
 import React, { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Tab, Tabs } from "@mui/material";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RightDrawer from "./RightDrawer";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
 import ResourceDrawerShell from "../shared/ResourceDrawerShell";
 import { UserSettingsProvider } from "../../settingsContext";
+import { defaultKeyboardSettings } from "../../settings";
+import { drawerTabProps } from "../../keyboard/actions";
 
 function KeyboardHarness({ children }: { children: React.ReactNode }) {
   return (
     <UserSettingsProvider>
       <KeyboardProvider
         settingsOpen={false}
-        keyboardSettings={{
-          vimTableNavigation: true,
-          homeRowTableNavigation: true,
-          singleLetterGlobalSearch: true,
-        }}
+        keyboardSettings={defaultKeyboardSettings()}
         onFocusGlobalSearch={vi.fn()}
         onSelectSection={vi.fn()}
         onOpenSettings={vi.fn()}
@@ -125,5 +124,56 @@ describe("RightDrawer", () => {
     fireEvent.keyDown(window, { key: "?" });
 
     expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
+  });
+
+  it("registers tab shortcuts only for the open drawer", async () => {
+    function PodContents({ title }: { title: string }) {
+      const [tab, setTab] = useState(0);
+      return (
+        <ResourceDrawerShell title={title} resourceIcon="pods" onClose={vi.fn()}>
+          <>
+            <Tabs value={tab} onChange={(_event, value: number) => setTab(value)}>
+              <Tab {...drawerTabProps("drawer.tab.overview")} label="Overview" />
+              <Tab {...drawerTabProps("drawer.tab.containers")} label="Containers" />
+            </Tabs>
+            <div>{title} {tab === 0 ? "overview" : "containers"}</div>
+          </>
+        </ResourceDrawerShell>
+      );
+    }
+
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button
+            type="button"
+            data-testid="grid-cell"
+            onClick={() => setOpen(true)}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            Open selected row
+          </button>
+          <RightDrawer open={false} onClose={vi.fn()}>
+            <PodContents title="Hidden pod" />
+          </RightDrawer>
+          <RightDrawer open={open} onClose={vi.fn()}>
+            <PodContents title="Visible pod" />
+          </RightDrawer>
+        </>
+      );
+    }
+
+    render(<KeyboardHarness><Harness /></KeyboardHarness>);
+
+    const gridCell = screen.getByTestId("grid-cell");
+    gridCell.focus();
+    expect(document.activeElement).toBe(gridCell);
+    fireEvent.click(gridCell);
+    await waitFor(() => expect(document.activeElement?.textContent).toContain("Visible pod"));
+    fireEvent.keyDown(document.activeElement!, { key: "c" });
+    await waitFor(() => expect(screen.getByText("Visible pod containers")).toBeTruthy());
+    fireEvent.keyDown(document.activeElement!, { key: "o" });
+    await waitFor(() => expect(screen.getByText("Visible pod overview")).toBeTruthy());
   });
 });

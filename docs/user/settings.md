@@ -69,18 +69,34 @@ settings. Deleting a profile removes only that local snapshot.
 
 ## Keyboard
 
-Keyboard settings control optional bindings:
+Keyboard settings provide a complete, searchable action catalog rather than a
+small set of optional toggles. Choose a preset as the starting point:
 
-- **Vim-style table navigation**: on by default. Adds <kbd>h/j/k/l</kbd>
-  table cell movement in addition to arrow keys.
-- **Home-row table navigation**: on by default. Adds <kbd>a/s/d/f</kbd>
-  table cell movement in addition to arrow keys.
-- **Single-letter global search**: on by default. Adds <kbd>s</kbd> as a
-  shortcut for focusing the header search and command input.
-  <kbd>Ctrl+K</kbd> remains available regardless of this setting.
+- **kview Classic** preserves the familiar kview navigation, table, activity,
+  command-mode, and drawer shortcuts.
+- **Vim/k9s** emphasizes Vim-style table movement and operator navigation.
+- **Browser Safe** uses modifier-first global bindings to reduce conflicts with
+  normal typing and browser shortcuts.
 
-Press <kbd>?</kbd> in the app to see the effective shortcuts after optional
-bindings are applied.
+Each action can have multiple bindings, and each binding may contain several
+key chords. Use **Add** to record a binding, remove individual bindings, choose
+**Disable** to replace the preset bindings with none, or **Reset** to inherit
+that action from the selected preset again. **Reset built-ins** removes all
+built-in overrides while preserving bindings for custom definitions.
+
+Changes are staged locally in the editor. **Apply keyboard changes** becomes
+available only when the draft differs from the saved settings and has no exact
+or prefix collisions. **Cancel keyboard changes** discards the draft. Reserved
+browser or operating-system combinations are warnings; malformed bindings and
+collisions are errors.
+
+Use the search field to find actions by label, group, stable ID, or scope, and
+page through the matching catalog. Press <kbd>?</kbd> in the app to see the same
+compiled effective bindings. While a resource drawer is open, Help also shows
+only contextual actions currently available for that resource.
+
+Older saved Vim, home-row, and single-letter-search preferences are migrated to
+behavior-equivalent preset overrides when loaded.
 
 ## Smart Filters
 

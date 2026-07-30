@@ -17,11 +17,15 @@ import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import RightDrawer from "../../layout/RightDrawer";
 import Section from "../../shared/Section";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import { drawerBodySx, drawerTabContentSx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 import NetworkPolicyActions from "./NetworkPolicyActions";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 
 const tabs = ["Overview", "Rules", "Events", "Metadata", "YAML"];
+const tabActionIds = [
+  "drawer.tab.overview", "drawer.tab.rules", "drawer.tab.events", "drawer.tab.metadata", "drawer.tab.yaml",
+] satisfies DrawerTabActionId[];
 
 function renderList(items?: string[]): string {
   return items?.length ? items.join(", ") : "all";
@@ -128,8 +132,8 @@ export default function NetworkPolicyDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              {tabs.map((label) => (
-                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
+              {tabs.map((label, index) => (
+                <Tab key={label} {...drawerTabProps(tabActionIds[index])} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
             <Box sx={drawerBodySx}>

@@ -8,6 +8,7 @@ import dataplaneSettings from "../../../docs/user/dataplane-settings.md?raw";
 import gettingStarted from "../../../docs/user/getting-started.md?raw";
 import helm from "../../../docs/user/helm.md?raw";
 import importExport from "../../../docs/user/import-export.md?raw";
+import keyboardShortcuts from "../../../docs/user/keyboard-shortcuts.md?raw";
 import namespaces from "../../../docs/user/namespaces.md?raw";
 import navigation from "../../../docs/user/navigation.md?raw";
 import networking from "../../../docs/user/networking.md?raw";
@@ -62,6 +63,7 @@ const pageBodies: Record<string, string> = {
   "getting-started": gettingStarted,
   helm,
   "import-export": importExport,
+  "keyboard-shortcuts": keyboardShortcuts,
   namespaces,
   navigation,
   networking,

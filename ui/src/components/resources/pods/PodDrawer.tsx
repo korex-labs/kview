@@ -105,6 +105,13 @@ import { useContextualKeyboardActions } from "../../../keyboard/KeyboardProvider
 import { customCommandsForContainer, type CustomCommandDefinition } from "../../../settings";
 import { useMutationDialog } from "../../mutations/useMutationDialog";
 import type { ExecuteActionResult } from "../../../lib/actions/types";
+import {
+  buildCustomCommandContextualActions,
+  customCommandTargets,
+  resolveCustomCommandChooserTarget,
+  type CustomCommandChooserRequest,
+} from "./contextualCustomCommands";
+import { buildPodKeyboardActions } from "./podKeyboardActions";
 
 type PodDetails = {
   summary: PodSummary;
@@ -615,6 +622,7 @@ export default function PodDrawer(props: {
   const [terminalMenuAnchor, setTerminalMenuAnchor] = useState<null | HTMLElement>(null);
   const [commandMenuAnchor, setCommandMenuAnchor] = useState<null | HTMLElement>(null);
   const [commandMenuContainer, setCommandMenuContainer] = useState<string>("");
+  const [commandTargetChooserRequest, setCommandTargetChooserRequest] = useState<CustomCommandChooserRequest | null>(null);
   const [runningCommand, setRunningCommand] = useState(false);
   const [commandResult, setCommandResult] = useState<{
     command: CustomCommandDefinition;
@@ -658,6 +666,24 @@ export default function PodDrawer(props: {
       ),
     [commandContainers, matchingCommandsByContainer],
   );
+  const contextualCommandTargets = useMemo(
+    () => customCommandTargets(settings.customCommands.commands, commandContainers),
+    [commandContainers, settings.customCommands.commands],
+  );
+  const commandTargetChooser = useMemo(
+    () => resolveCustomCommandChooserTarget(
+      commandTargetChooserRequest,
+      activeContext || "",
+      ns,
+      name || "",
+      contextualCommandTargets,
+    ),
+    [activeContext, commandTargetChooserRequest, contextualCommandTargets, name, ns],
+  );
+
+  useEffect(() => {
+    setCommandTargetChooserRequest(null);
+  }, [activeContext, name, ns]);
 
   const stopLogs = useCallback(() => {
     setFollowing(false);
@@ -790,9 +816,9 @@ export default function PodDrawer(props: {
     }
   };
 
-  const runConfiguredCommand = async (containerName: string, command: CustomCommandDefinition) => {
+  const runConfiguredCommand = useCallback((containerName: string, command: CustomCommandDefinition) => {
     const target = (details?.containers || []).find((ctn) => ctn.name === containerName);
-    if (!name || !containerName || offline || runningCommand || !isContainerActionAvailable(target)) return;
+    if (!name || !containerName || offline || runningCommand || !isContainerActionAvailable(target)) return false;
     const label = command.name || command.command;
     openMutationDialog({
       token: props.token,
@@ -859,7 +885,8 @@ export default function PodDrawer(props: {
       },
       closeOnSuccess: true,
     });
-  };
+    return true;
+  }, [activeContext, details?.containers, name, ns, offline, openMutationDialog, props.token, runningCommand]);
 
   const handleCreatePortForward = async () => {
     if (!name || offline || actionableContainers.length === 0) return;
@@ -1156,39 +1183,53 @@ export default function PodDrawer(props: {
     setPortForwardDialogOpen(true);
   }, [actionableContainers.length, knownPodPortOptions, offline]);
 
+  const customCommandKeyboardActions = useMemo(
+    () => buildCustomCommandContextualActions({
+      targets: contextualCommandTargets,
+      overrides: settings.keyboard.overrides,
+      disabled: offline || runningCommand || !name,
+      runCommand: (containerName, command) => {
+        runConfiguredCommand(containerName, command);
+      },
+      chooseContainer: (command) => setCommandTargetChooserRequest({
+        commandId: command.id,
+        context: activeContext || "",
+        namespace: ns,
+        podName: name || "",
+      }),
+    }),
+    [
+      activeContext,
+      contextualCommandTargets,
+      name,
+      ns,
+      offline,
+      runConfiguredCommand,
+      runningCommand,
+      settings.keyboard.overrides,
+    ],
+  );
+
   const podKeyboardActions = useMemo(() => [
-    {
-      id: "pod.logs",
-      label: "Open logs and follow",
-      binding: ["l"],
-      disabled: !name,
-      run: () => {
-        if (!name) return false;
+    ...buildPodKeyboardActions({
+      logsDisabled: !name,
+      portForwardDisabled: offline || creatingPortForward || actionableContainers.length === 0,
+      openLogsAndFollow: () => {
         setTab(5);
         window.setTimeout(() => startLogsFollow(), 0);
-        return true;
       },
-    },
-    {
-      id: "pod.portForward",
-      label: "Open port-forward dialog",
-      binding: ["p"],
-      disabled: offline || creatingPortForward || actionableContainers.length === 0,
-      run: () => {
-        handleOpenPortForwardDialog();
-        return true;
-      },
-    },
-    {
-      id: "drawer.yaml",
-      label: "Open YAML tab",
-      binding: ["y"],
-      run: () => {
-        setTab(7);
-        return true;
-      },
-    },
-  ], [actionableContainers.length, creatingPortForward, handleOpenPortForwardDialog, name, offline, startLogsFollow]);
+      openPortForward: handleOpenPortForwardDialog,
+    }),
+    ...customCommandKeyboardActions,
+  ], [
+    actionableContainers.length,
+    creatingPortForward,
+    customCommandKeyboardActions,
+    handleOpenPortForwardDialog,
+    name,
+    offline,
+    startLogsFollow,
+  ]);
   useContextualKeyboardActions(podKeyboardActions);
 
   const eventContainers = (details?.containers || []).map((c) => c.name).filter((n): n is string => !!n);
@@ -1506,14 +1547,14 @@ export default function PodDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Containers" />} iconPosition="start" label="Containers" />
-              <Tab icon={<DetailTabIcon label="Resources" />} iconPosition="start" label="Resources" />
-              <Tab icon={<DetailTabIcon label="Networking" />} iconPosition="start" label="Networking" />
-              <Tab icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
-              <Tab icon={<DetailTabIcon label="Logs" />} iconPosition="start" label="Logs" />
-              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.containers" icon={<DetailTabIcon label="Containers" />} iconPosition="start" label="Containers" />
+              <Tab data-keyboard-action-id="drawer.tab.resources" icon={<DetailTabIcon label="Resources" />} iconPosition="start" label="Resources" />
+              <Tab data-keyboard-action-id="drawer.tab.networking" icon={<DetailTabIcon label="Networking" />} iconPosition="start" label="Networking" />
+              <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
+              <Tab data-keyboard-action-id="drawer.tab.logs" icon={<DetailTabIcon label="Logs" />} iconPosition="start" label="Logs" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
             <Box sx={{ ...drawerBodySx, mt: 3 }}>
               {/* OVERVIEW */}
@@ -2610,6 +2651,39 @@ export default function PodDrawer(props: {
           </MenuItem>
         ))}
       </Menu>
+      <Dialog
+        open={!!commandTargetChooser}
+        onClose={() => setCommandTargetChooserRequest(null)}
+        aria-labelledby="custom-command-container-title"
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle id="custom-command-container-title">
+          Choose container for {commandTargetChooser?.command.name || "custom command"}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {(commandTargetChooser?.containerNames || []).map((containerName) => (
+              <AppButton
+                key={containerName}
+                disabled={offline || runningCommand}
+                onClick={() => {
+                  const target = commandTargetChooser;
+                  setCommandTargetChooserRequest(null);
+                  if (!target) return;
+                  runConfiguredCommand(containerName, target.command);
+                }}
+                sx={{ justifyContent: "flex-start" }}
+              >
+                {containerName}
+              </AppButton>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <DialogActionButton action="cancel" onClick={() => setCommandTargetChooserRequest(null)}>Cancel</DialogActionButton>
+        </DialogActions>
+      </Dialog>
       <Dialog open={!!commandResult} onClose={() => setCommandResult(null)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pr: 1 }}>
           <Box sx={{ flexGrow: 1 }}>{selectedCommand?.name || "Command output"}</Box>

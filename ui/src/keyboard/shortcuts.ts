@@ -1,35 +1,14 @@
 import type { Section } from "../state";
-import type { KeyboardSettings } from "../settings";
+import { normalizeKeyboardSettings, type KeyboardSettings } from "../settings";
+import {
+  type EffectiveKeyboardAction,
+  type KeyboardActionGroup,
+  type KeyboardActionId,
+} from "./actions";
+import { compileKeymap } from "./keymaps";
 
-export type ShortcutGroup = "Global" | "Navigation" | "Table" | "Command Mode";
-
-export type ShortcutCommandId =
-  | "help.open"
-  | "search.focus"
-  | "table.filter.focus"
-  | "table.grid.focus"
-  | "table.cell.navigate"
-  | "table.page.previous"
-  | "table.page.next"
-  | "command.open"
-  | "activity.panel.toggle"
-  | "activity.panel.activities"
-  | "activity.panel.work"
-  | "activity.panel.terminals"
-  | "activity.panel.portForwards"
-  | "activity.panel.logs"
-  | "table.row.open"
-  | "nav.pods"
-  | "nav.deployments"
-  | "nav.services"
-  | "nav.ingresses"
-  | "nav.namespaces"
-  | "nav.nodes"
-  | "nav.jobs"
-  | "nav.configmaps"
-  | "nav.helm"
-  | "nav.context"
-  | "nav.settings";
+export type ShortcutGroup = KeyboardActionGroup;
+export type ShortcutCommandId = KeyboardActionId;
 
 export type ShortcutCommand = {
   id: ShortcutCommandId;
@@ -39,51 +18,43 @@ export type ShortcutCommand = {
   section?: Section;
 };
 
-export const shortcutCommands: ShortcutCommand[] = [
-  { id: "help.open", label: "Show keyboard shortcuts", group: "Global", bindings: [["?"]] },
-  { id: "search.focus", label: "Focus header search and command input", group: "Global", bindings: [["ctrl+k"], ["s"]] },
-  { id: "activity.panel.toggle", label: "Toggle activity panel", group: "Global", bindings: [["alt+a"], ["g", "a"]] },
-  { id: "activity.panel.activities", label: "Open Activities tab", group: "Global", bindings: [["alt+1"], ["g", "1"]] },
-  { id: "activity.panel.work", label: "Open Work tab", group: "Global", bindings: [["alt+2"], ["g", "2"]] },
-  { id: "activity.panel.terminals", label: "Open Terminals tab", group: "Global", bindings: [["alt+3"], ["g", "3"]] },
-  { id: "activity.panel.portForwards", label: "Open Port forwards tab", group: "Global", bindings: [["alt+4"], ["g", "4"]] },
-  { id: "activity.panel.logs", label: "Open Logs tab", group: "Global", bindings: [["alt+5"], ["g", "5"]] },
-  { id: "table.filter.focus", label: "Focus current table filter", group: "Table", bindings: [["/"]] },
-  { id: "table.grid.focus", label: "Focus resource table", group: "Table", bindings: [["t"]] },
-  { id: "table.cell.navigate", label: "Move around the table", group: "Table", bindings: [["Arrow keys"], ["h/j/k/l"], ["a/s/d/f"]] },
-  { id: "table.page.previous", label: "Previous table page", group: "Table", bindings: [["["]] },
-  { id: "table.page.next", label: "Next table page", group: "Table", bindings: [["]"]] },
-  { id: "command.open", label: "Open command suggestions", group: "Command Mode", bindings: [[":"]] },
-  { id: "table.row.open", label: "Open selected row", group: "Table", bindings: [["enter"]] },
-  { id: "nav.pods", label: "Go to Pods", group: "Navigation", bindings: [["g", "p"]], section: "pods" },
-  { id: "nav.deployments", label: "Go to Deployments", group: "Navigation", bindings: [["g", "d"]], section: "deployments" },
-  { id: "nav.services", label: "Go to Services", group: "Navigation", bindings: [["g", "s"]], section: "services" },
-  { id: "nav.ingresses", label: "Go to Ingresses", group: "Navigation", bindings: [["g", "i"]], section: "ingresses" },
-  { id: "nav.namespaces", label: "Go to Namespaces", group: "Navigation", bindings: [["g", "n"]], section: "namespaces" },
-  { id: "nav.nodes", label: "Go to Nodes", group: "Navigation", bindings: [["g", "o"]], section: "nodes" },
-  { id: "nav.jobs", label: "Go to Jobs", group: "Navigation", bindings: [["g", "j"]], section: "jobs" },
-  { id: "nav.configmaps", label: "Go to Config Maps", group: "Navigation", bindings: [["g", "c"]], section: "configmaps" },
-  { id: "nav.helm", label: "Go to Helm Releases", group: "Navigation", bindings: [["g", "h"]], section: "helm" },
-  { id: "nav.context", label: "Open context command suggestions", group: "Navigation", bindings: [["g", "x"]] },
-  { id: "nav.settings", label: "Open settings", group: "Navigation", bindings: [["g", ","]] },
-];
+function toShortcutCommand(action: EffectiveKeyboardAction): ShortcutCommand {
+  return {
+    id: action.id,
+    label: action.label,
+    group: action.group,
+    bindings: action.bindings,
+    ...(action.section ? { section: action.section } : {}),
+  };
+}
+
+export const shortcutCommands: ShortcutCommand[] = compileKeymap("kview-classic", {}).map(toShortcutCommand);
 
 export function shortcutCommandsForSettings(settings: KeyboardSettings): ShortcutCommand[] {
-  return shortcutCommands.map((command) => {
-    if (command.id === "search.focus" && !settings.singleLetterGlobalSearch) {
-      return {
-        ...command,
-        bindings: command.bindings.filter((binding) => binding.join(" ") !== "s"),
-      };
-    }
-    if (command.id === "table.cell.navigate") {
-      const bindings: string[][] = [["Arrow keys"]];
-      if (settings.vimTableNavigation) bindings.push(["h/j/k/l"]);
-      if (settings.homeRowTableNavigation) bindings.push(["a/s/d/f"]);
-      return { ...command, bindings };
-    }
-    return command;
-  });
+  const normalized = normalizeKeyboardSettings(settings);
+  return compileKeymap(normalized.preset, normalized.overrides).map(toShortcutCommand);
+}
+
+export type TableNavigationDirection = "up" | "down" | "left" | "right";
+
+const tableDirectionActions: Array<{ id: KeyboardActionId; direction: TableNavigationDirection }> = [
+  { id: "table.cell.up", direction: "up" },
+  { id: "table.cell.down", direction: "down" },
+  { id: "table.cell.left", direction: "left" },
+  { id: "table.cell.right", direction: "right" },
+];
+
+export function tableNavigationDirectionForBinding(
+  settings: KeyboardSettings,
+  binding: string,
+): TableNavigationDirection | null {
+  const normalized = normalizeKeyboardSettings(settings);
+  const compiled = compileKeymap(normalized.preset, normalized.overrides);
+  for (const { id, direction } of tableDirectionActions) {
+    const action = compiled.find((candidate) => candidate.id === id);
+    if (action?.bindings.some((sequence) => sequence.length === 1 && sequence[0] === binding)) return direction;
+  }
+  return null;
 }
 
 export function formatBinding(binding: string[]): string {

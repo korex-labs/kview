@@ -16,9 +16,10 @@ settings with a team. A transfer bundle can include only the sections selected
 at export time.
 
 Exportable sections include Smart Filters, Resource Tags, Resource Macros,
-Dynamic Links, Saved Views, Custom Commands, Custom Actions, Dataplane signal
-settings, favourite namespaces, recent namespaces, signal acknowledgements when
-available, bounded **Signal memory**, and saved Investigation Snapshots.
+Dynamic Links, Saved Views, Custom Commands, Custom Actions, Keyboard Shortcuts,
+Dataplane signal settings, favourite namespaces, recent namespaces, signal
+acknowledgements when available, bounded **Signal memory**, and saved
+Investigation Snapshots.
 
 When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
@@ -43,6 +44,11 @@ Use **Keep mine** when you are trying a shared bundle without overwriting local
 customizations. Use **Replace selected sections** when the imported bundle should
 be the source of truth for the selected sections.
 
+**Keyboard Shortcuts** transfers the selected preset and all explicit action
+overrides together. **Keep mine** leaves the local keymap unchanged. **Use
+imported** and **Replace selected sections** use the imported keymap. Unknown or
+temporarily unavailable Custom Command and Custom Action bindings are retained.
+
 ## Full Profile Backup
 
 Full profile export writes the complete kview user settings profile. This is
@@ -53,6 +59,8 @@ profile import replaces the current settings profile after confirmation.
 
 - Export a transfer bundle with only **Custom Commands** and **Custom Actions**
   to share operator workflows without changing someone else's UI preferences.
+- Include **Keyboard Shortcuts** when the shared workflow also depends on a
+  preset or custom bindings.
 - Export **Resource Tags** and favourites when moving investigation context to
   another browser profile.
 - Export **Saved Views** to share both resource-list layouts and dashboard

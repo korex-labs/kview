@@ -56,6 +56,7 @@ import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import ResourceLinkChip from "../../shared/ResourceLinkChip";
 import ScopedCountChip from "../../shared/ScopedCountChip";
 import StatusChip from "../../shared/StatusChip";
@@ -78,6 +79,10 @@ import LimitRangeDrawer from "../limitranges/LimitRangeDrawer";
 import { drawerBodySx, loadingCenterSx, panelBoxSx } from "../../../theme/sxTokens";
 
 const tabs = ["Signals", "Inventory", "Capacity", "Events", "Metadata", "YAML"] as const;
+const tabActionIds = [
+  "drawer.tab.signals", "drawer.tab.inventory", "drawer.tab.capacity",
+  "drawer.tab.events", "drawer.tab.metadata", "drawer.tab.yaml",
+] satisfies DrawerTabActionId[];
 const eventsTabIndex = tabs.indexOf("Events");
 const metadataTabIndex = tabs.indexOf("Metadata");
 const yamlTabIndex = tabs.indexOf("YAML");
@@ -407,8 +412,8 @@ export default function NamespaceDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-              {tabs.map((label) => (
-                <Tab key={label} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
+              {tabs.map((label, index) => (
+                <Tab key={label} {...drawerTabProps(tabActionIds[index])} icon={<DetailTabIcon label={label} />} iconPosition="start" label={label} />
               ))}
             </Tabs>
 

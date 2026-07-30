@@ -134,6 +134,13 @@
       "surfaces": ["app", "repo", "website"]
     },
     {
+      "id": "keyboard-shortcuts",
+      "title": "Keyboard Shortcuts",
+      "category": "Configuration",
+      "source": "keyboard-shortcuts.md",
+      "surfaces": ["app", "repo", "website"]
+    },
+    {
       "id": "smart-filters",
       "title": "Smart Filters",
       "category": "Configuration",

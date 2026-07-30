@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer, type DrawerProps } from "@mui/material";
-import { useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
+import { ContextualKeyboardSurface, useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
 
 type Props = DrawerProps;
 
@@ -13,7 +13,7 @@ let nextRightDrawerId = 1;
 const rightDrawerStack: RightDrawerStackEntry[] = [];
 
 export default function RightDrawer(props: Props) {
-  const { ModalProps, slotProps, onClose, ...rest } = props;
+  const { ModalProps, slotProps, onClose, children, ...rest } = props;
   const [drawerDepth, setDrawerDepth] = useState(0);
   const [keyboardScopeId, setKeyboardScopeId] = useState("");
   const onCloseRef = useRef(props.onClose);
@@ -88,6 +88,10 @@ export default function RightDrawer(props: Props) {
           },
         },
       }}
-    />
+    >
+      <ContextualKeyboardSurface active={Boolean(props.open)}>
+        {children}
+      </ContextualKeyboardSurface>
+    </Drawer>
   );
 }

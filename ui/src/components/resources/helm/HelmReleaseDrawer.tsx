@@ -54,6 +54,7 @@ import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import RightDrawer from "../../layout/RightDrawer";
 import ResourceDrawerShell from "../../shared/ResourceDrawerShell";
 import DetailTabIcon from "../../shared/DetailTabIcon";
+import { drawerTabProps, type DrawerTabActionId } from "../../../keyboard/actions";
 import type { ApiItemResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
 import { panelBoxSx, drawerBodySx, loadingCenterSx } from "../../../theme/sxTokens";
@@ -186,14 +187,16 @@ export default function HelmReleaseDrawer(props: {
 
   // Build tab labels dynamically, hiding empty optional tabs.
   const tabDefs = useMemo(() => {
-    const tabs: { label: string; id: string }[] = [{ label: "Overview", id: "overview" }];
-    if (values.trim()) tabs.push({ label: "Values", id: "values" });
-    if (manifest.trim()) tabs.push({ label: "Manifest", id: "manifest" });
-    if (hooks.length > 0) tabs.push({ label: "Hooks", id: "hooks" });
-    tabs.push({ label: "History", id: "history" });
-    if (notes.trim()) tabs.push({ label: "Notes", id: "notes" });
-    tabs.push({ label: "Metadata", id: "metadata" });
-    if (yaml.trim()) tabs.push({ label: "YAML", id: "yaml" });
+    const tabs: { label: string; id: string; actionId: DrawerTabActionId }[] = [
+      { label: "Overview", id: "overview", actionId: "drawer.tab.overview" },
+    ];
+    if (values.trim()) tabs.push({ label: "Values", id: "values", actionId: "drawer.tab.values" });
+    if (manifest.trim()) tabs.push({ label: "Manifest", id: "manifest", actionId: "drawer.tab.manifest" });
+    if (hooks.length > 0) tabs.push({ label: "Hooks", id: "hooks", actionId: "drawer.tab.hooks" });
+    tabs.push({ label: "History", id: "history", actionId: "drawer.tab.history" });
+    if (notes.trim()) tabs.push({ label: "Notes", id: "notes", actionId: "drawer.tab.notes" });
+    tabs.push({ label: "Metadata", id: "metadata", actionId: "drawer.tab.metadata" });
+    if (yaml.trim()) tabs.push({ label: "YAML", id: "yaml", actionId: "drawer.tab.yaml" });
     return tabs;
   }, [values, manifest, hooks, notes, yaml]);
 
@@ -278,7 +281,7 @@ export default function HelmReleaseDrawer(props: {
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
               {tabDefs.map((t) => (
-                <Tab key={t.id} icon={<DetailTabIcon label={t.label} />} iconPosition="start" label={t.label} />
+                <Tab key={t.id} {...drawerTabProps(t.actionId)} icon={<DetailTabIcon label={t.label} />} iconPosition="start" label={t.label} />
               ))}
             </Tabs>
 

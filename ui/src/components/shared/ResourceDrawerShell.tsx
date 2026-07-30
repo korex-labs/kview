@@ -11,8 +11,8 @@ import {
 import { useUserSettings } from "../../settingsContext";
 import {
   useContextualKeyboardActions,
+  useContextualKeyboardSurfaceActive,
   useKeyboardControls,
-  useKeyboardScope,
   type ContextualKeyboardAction,
 } from "../../keyboard/KeyboardProvider";
 import ResourceIcon from "../icons/resources/ResourceIcon";
@@ -24,6 +24,12 @@ import { ResourceDrawerTags } from "./ResourceTags";
 import { ResourceDrawerMacros } from "./ResourceMacros";
 import { ResourceMemoryPanel, ResourceMemoryTabLabel } from "./ResourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
+import {
+  actionDefinitionById,
+  drawerTabActionAttribute,
+  drawerTabProps,
+  type DrawerTabActionId,
+} from "../../keyboard/actions";
 
 type ResourceDrawerIdentity = {
   resource: ListResourceKey;
@@ -52,32 +58,6 @@ export type ResourceDrawerShellProps = {
   contentWidth?: number;
 };
 
-const tabShortcutBindings: Record<string, string> = {
-  notes: "n",
-  overview: "o",
-  signals: "s",
-  containers: "c",
-  resources: "u",
-  networking: "n",
-  events: "v",
-  logs: "l",
-  metadata: "m",
-  yaml: "y",
-  pods: "p",
-  spec: "x",
-  keys: "k",
-  rules: "u",
-  tls: "t",
-  versions: "b",
-  namespaces: "n",
-  conditions: "c",
-  inventory: "i",
-  capacity: "a",
-  subjects: "b",
-  "role bindings": "b",
-  "role ref": "f",
-  jobs: "j",
-};
 
 const resourceNotesTabValue = "__kview_resource_notes__";
 
@@ -107,6 +87,7 @@ export default function ResourceDrawerShell({
 }: ResourceDrawerShellProps) {
   const { settings, setSettings } = useUserSettings();
   const { requestKeyboardFocus } = useKeyboardControls();
+  const contextualSurfaceActive = useContextualKeyboardSurfaceActive();
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
   const [showResourceNotes, setShowResourceNotes] = useState(false);
@@ -181,6 +162,7 @@ export default function ResourceDrawerShell({
   }, [clampWidth, isResizing, setSettings]);
 
   useEffect(() => {
+    if (!contextualSurfaceActive) return;
     requestKeyboardFocus({
       id: "resource-drawer.shell",
       focus: () => {
@@ -188,14 +170,8 @@ export default function ResourceDrawerShell({
         return document.activeElement === shellRef.current;
       },
     });
-  }, [requestKeyboardFocus]);
+  }, [contextualSurfaceActive, requestKeyboardFocus]);
 
-  useKeyboardScope(useMemo(() => ({
-    id: "resource-drawer",
-    label: "Resource drawer",
-    kind: "drawer",
-    suppressGlobalShortcuts: true,
-  }), []));
 
   const clickDrawerControl = useCallback((predicate: (el: HTMLElement) => boolean) => {
     const root = shellRef.current;
@@ -215,8 +191,9 @@ export default function ResourceDrawerShell({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["aria-disabled", "disabled", "role"],
+      attributeFilter: ["aria-disabled", "disabled", "role", drawerTabActionAttribute],
     });
+    bump();
     return () => observer.disconnect();
   }, []);
 
@@ -225,20 +202,17 @@ export default function ResourceDrawerShell({
     const root = shellRef.current;
     const actions: ContextualKeyboardAction[] = [];
 
-    const tabs = Array.from(root?.querySelectorAll<HTMLElement>("[role='tab']") || [])
+    const tabs = Array.from(root?.querySelectorAll<HTMLElement>(`[role='tab'][${drawerTabActionAttribute}]`) || [])
       .filter(isUsableControl)
-      .map((el) => normalizedControlText(el))
-      .filter(Boolean);
-    const usedBindings = new Set(actions.map((action) => action.binding.join(" ")));
-    for (const tabLabel of tabs) {
-      const binding = tabShortcutBindings[tabLabel];
-      if (!binding || usedBindings.has(binding)) continue;
-      usedBindings.add(binding);
+      .map((el) => el.getAttribute(drawerTabActionAttribute) as DrawerTabActionId | null)
+      .filter((actionId): actionId is DrawerTabActionId => Boolean(actionId));
+    for (const actionId of tabs) {
+      const definition = actionDefinitionById.get(actionId);
+      if (!definition || !actionId.startsWith("drawer.tab.")) continue;
       actions.push({
-        id: `drawer.tab.${tabLabel}`,
-        label: `Open ${tabLabel.replace(/\b\w/g, (ch) => ch.toUpperCase())} tab`,
-        binding: [binding],
-        run: () => clickDrawerControl((el) => el.getAttribute("role") === "tab" && normalizedControlText(el) === tabLabel),
+        id: actionId,
+        label: definition.label,
+        run: () => clickDrawerControl((el) => el.getAttribute("role") === "tab" && el.getAttribute(drawerTabActionAttribute) === actionId),
       });
     }
 
@@ -246,7 +220,7 @@ export default function ResourceDrawerShell({
       actions.push({
         id: "drawer.editYaml",
         label: "Edit YAML when available",
-        binding: ["e"],
+
         run: () => clickDrawerControl((el) => normalizedControlText(el) === "edit"),
       });
     }
@@ -255,7 +229,7 @@ export default function ResourceDrawerShell({
       actions.push({
         id: "drawer.refresh",
         label: "Refresh current resource when available",
-        binding: ["r"],
+
         run: () => clickDrawerControl((el) => normalizedControlText(el) === "refresh"),
       });
     }
@@ -312,6 +286,7 @@ export default function ResourceDrawerShell({
             ...React.Children.toArray(tabsElement.props.children),
             <Tab
               key="resource-notes"
+              {...drawerTabProps("drawer.tab.notes")}
               icon={<DetailTabIcon label="Notes" />}
               iconPosition="start"
               label={(

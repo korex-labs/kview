@@ -54,6 +54,7 @@ import {
   newCustomActionDefinition,
   newCustomCommandDefinition,
   newSmartFilterRule,
+  normalizeKeyboardSettings,
   parseFullProfileJSON,
   parseSettingsTransferJSON,
   parseUserSettingsJSON,
@@ -120,9 +121,12 @@ import type { InvestigationSnapshot } from "../../types/api";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import SignalExclusionsDialog, { type SignalExclusionPreview } from "./SignalExclusionsDialog";
+import KeyboardShortcutsEditor from "./KeyboardShortcutsEditor";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
+import { dynamicKeyboardActionDefinitions } from "../../keyboard/dynamicActions";
+import { settingsTabsSx } from "./settingsTabs";
 
 type SettingsSection = "appearance" | "profiles" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -243,37 +247,7 @@ const settingsPanelChromeSx = {
 const settingsItemCardSx = { ...settingsPanelChromeSx, display: "flex", flexDirection: "column", gap: 1 } as const;
 const settingsSubsectionHeaderSx = { ...headerRowSx, mt: 0.5, minHeight: 32 } as const;
 const settingsSummaryPanelSx = { ...settingsPanelChromeSx, display: "grid", gap: 0.75 } as const;
-const settingsTabsSx = {
-  minHeight: 40,
-  borderBottom: "1px solid",
-  borderColor: "divider",
-  "& .MuiTabs-flexContainer": {
-    alignItems: "stretch",
-  },
-  "& .MuiTab-root": {
-    minHeight: 40,
-    py: 0,
-    px: 1.5,
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 1.25,
-    lineHeight: 1.2,
-    textTransform: "none",
-    whiteSpace: "nowrap",
-  },
-  "& .MuiTab-root.Mui-selected": {
-    fontWeight: 600,
-  },
-  "& .MuiTab-root.MuiTab-labelIcon": {
-    minHeight: 40,
-    pt: 0,
-    pb: 0,
-  },
-  "& .MuiTab-root .MuiTab-iconWrapper": {
-    mr: 0,
-    mb: 0,
-  },
-};
+
 const denseSelectMenuProps = {
   slotProps: {
     paper: {
@@ -409,7 +383,7 @@ function updateKeyboard(
 ): KviewUserSettingsV2 {
   return {
     ...settings,
-    keyboard: { ...settings.keyboard, ...patch },
+    keyboard: normalizeKeyboardSettings({ ...settings.keyboard, ...patch }),
   };
 }
 
@@ -830,6 +804,12 @@ function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: Set
       const count = bundle.sections.customActions?.actions.length || 0;
       return `${count} action${count === 1 ? "" : "s"}`;
     }
+    case "keyboard": {
+      const keyboard = bundle.sections.keyboard;
+      if (!keyboard) return "No keyboard shortcuts";
+      const overrideCount = Object.keys(keyboard.overrides).length;
+      return `${keyboard.preset} preset, ${overrideCount} override${overrideCount === 1 ? "" : "s"}`;
+    }
     case "signalSettings": {
       const signalSettings = bundle.sections.signalSettings;
       if (!signalSettings) return "No signal settings";
@@ -1049,6 +1029,13 @@ export default function SettingsView({
   onClose,
 }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
+  const dynamicKeyboardActions = useMemo(
+    () => dynamicKeyboardActionDefinitions(
+      settings.customCommands.commands,
+      settings.customActions.actions,
+    ),
+    [settings.customActions.actions, settings.customCommands.commands],
+  );
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [dataplaneTab, setDataplaneTab] = useState<DataplaneTab>("overview");
   const [linksMacrosTab, setLinksMacrosTab] = useState<LinksMacrosTab>("manual");
@@ -1775,89 +1762,19 @@ export default function SettingsView({
     );
   };
 
-  const renderKeyboard = () => {
-    const summaryRows = [
-      {
-        label: "Always on",
-        keys: ["?", ":", "Ctrl+K", "/", "t", "Enter", "g sequences", "[", "]"],
-      },
-      {
-        label: "Table movement",
-        keys: [
-          "Arrow keys",
-          ...(settings.keyboard.vimTableNavigation ? ["h/j/k/l"] : []),
-          ...(settings.keyboard.homeRowTableNavigation ? ["a/s/d/f"] : []),
-        ],
-      },
-      {
-        label: "Header search",
-        keys: [
-          "Ctrl+K",
-          ...(settings.keyboard.singleLetterGlobalSearch ? ["s"] : []),
-        ],
-      },
-    ];
-    return (
-      <SettingSection
-        title="Keyboard"
-        icon={<SettingsIcon name="keyboard" />}
-        hint="Command mode and core browser-safe shortcuts stay enabled; these options tune the extra convenience bindings."
-      >
-        <Box sx={settingsSummaryPanelSx}>
-          {summaryRows.map((row) => (
-            <Box
-              key={row.label}
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "150px minmax(0, 1fr)" },
-                gap: 0.75,
-                alignItems: "center",
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                {row.label}
-              </Typography>
-              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
-                {row.keys.map((key) => (
-                  <Chip
-                    key={key}
-                    size="small"
-                    variant="outlined"
-                    label={key}
-                    sx={{
-                      height: 22,
-                      borderRadius: 1,
-                      fontFamily: "monospace",
-                      fontSize: "0.72rem",
-                      "& .MuiChip-label": { px: 0.75 },
-                    }}
-                  />
-                ))}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-        <SettingRow
-          label="Vim table navigation"
-          hint="Enables h/j/k/l for focused resource tables."
-          checked={settings.keyboard.vimTableNavigation}
-          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { vimTableNavigation: v }))}
-        />
-        <SettingRow
-          label="Home-row table navigation"
-          hint="Enables a/s/d/f for focused resource tables."
-          checked={settings.keyboard.homeRowTableNavigation}
-          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { homeRowTableNavigation: v }))}
-        />
-        <SettingRow
-          label="Single-letter global search"
-          hint="Lets s focus the header search and command input when you are not typing. Ctrl+K always remains enabled."
-          checked={settings.keyboard.singleLetterGlobalSearch}
-          onChange={(v) => setSettings((prev) => updateKeyboard(prev, { singleLetterGlobalSearch: v }))}
-        />
-      </SettingSection>
-    );
-  };
+  const renderKeyboard = () => (
+    <SettingSection
+      title="Keyboard"
+      icon={<SettingsIcon name="keyboard" />}
+      hint="Choose a preset and customize bindings for built-in and custom actions."
+    >
+      <KeyboardShortcutsEditor
+        settings={settings.keyboard}
+        dynamicActions={dynamicKeyboardActions}
+        onChange={(keyboard) => setSettings((prev) => updateKeyboard(prev, keyboard))}
+      />
+    </SettingSection>
+  );
 
   const renderRule = (rule: SmartFilterRule, index: number) => {
     const error = rulePatternError(rule);

@@ -198,11 +198,11 @@ export default function NodeDrawer(props: {
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
-              <Tab icon={<DetailTabIcon label="Conditions" />} iconPosition="start" label="Conditions" />
-              <Tab icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.pods" icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
+              <Tab data-keyboard-action-id="drawer.tab.conditions" icon={<DetailTabIcon label="Conditions" />} iconPosition="start" label="Conditions" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
             <Box sx={drawerBodySx}>

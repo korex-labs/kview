@@ -9,6 +9,11 @@ Escape handling, and focus restoration.
 shortcuts, contextual shortcuts, active focus scopes, Escape ownership, shortcut
 help metadata, and focus retry requests should go through this provider.
 
+Built-in actions have stable IDs and typed definitions in the Action Registry.
+Preset bindings and user overrides compile into one effective keymap used by
+runtime dispatch, Settings, and Help. Keep action definitions, preset bindings,
+and runtime handlers separate. Never derive persisted IDs from visible labels.
+
 Use direct component `onKeyDown` handlers only for input-local behavior, for
 example submitting a dialog text field on <kbd>Enter</kbd> or clearing a text
 input on <kbd>Escape</kbd>. Do not add direct `window` keydown listeners for
@@ -38,6 +43,17 @@ Actions must be memoized by the caller so registration is stable.
 Contextual actions should describe visible controls or actions in the current
 surface. Avoid registering generic app behavior such as navigation or search
 from a component; those belong in `shortcutCommands`.
+
+Known built-in contextual IDs receive bindings from the compiled effective
+keymap. Dynamic IDs use the `custom-command.<definition-id>` and
+`custom-action.<definition-id>` namespaces and have no default binding. A
+contextual handler must call the same execution callback as its visible control;
+it must not bypass availability, RBAC, confirmation, target selection, or output
+handling.
+
+When an action can target more than one resource or container, capture and
+validate the complete target identity, including Kubernetes context, before
+executing a selection made in a later render.
 
 ## Table Controls
 

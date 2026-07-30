@@ -13,26 +13,42 @@ import {
 } from "../../resourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 import ResourceDrawerShell from "./ResourceDrawerShell";
+import KeyboardProvider, { useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
+import { defaultKeyboardSettings, type KeyboardSettings } from "../../settings";
+import type { Section } from "../../state";
+import { drawerTabProps } from "../../keyboard/actions";
 
-function DrawerHarness() {
-  const [tab, setTab] = useState(0);
+const drawerScope: KeyboardFocusScope = { id: "drawer-test", label: "Drawer", kind: "drawer", suppressGlobalShortcuts: true };
+function DrawerScope() { useKeyboardScope(drawerScope); return null; }
+
+function DrawerHarness({ initialTab = 0, keyboardSettings = defaultKeyboardSettings() }: { initialTab?: number; keyboardSettings?: KeyboardSettings }) {
+  const [tab, setTab] = useState(initialTab);
   return (
     <ActiveContextProvider value="kind-dev">
       <UserSettingsProvider>
-        <ResourceDrawerShell
-          title="Pod: api-7f"
-          resourceIcon="pods"
-          resourceIdentity={{ resource: "pods", namespace: "app-prod", name: "api-7f" }}
-          onClose={vi.fn()}
+        <KeyboardProvider
+          settingsOpen={false}
+          keyboardSettings={keyboardSettings}
+          onFocusGlobalSearch={vi.fn()}
+          onSelectSection={vi.fn<(section: Section) => void>()}
+          onOpenSettings={vi.fn()}
         >
-          <>
-            <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-              <Tab icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
-              <Tab icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
-            </Tabs>
-            <div>{tab === 0 ? "Overview content" : "YAML content"}</div>
-          </>
-        </ResourceDrawerShell>
+          <DrawerScope />
+          <ResourceDrawerShell
+            title="Pod: api-7f"
+            resourceIcon="pods"
+            resourceIdentity={{ resource: "pods", namespace: "app-prod", name: "api-7f" }}
+            onClose={vi.fn()}
+          >
+            <>
+              <Tabs value={tab} onChange={(_, value) => setTab(value)}>
+                <Tab {...drawerTabProps("drawer.tab.overview")} icon={<DetailTabIcon label="Summary" />} iconPosition="start" label="Summary" />
+                <Tab {...drawerTabProps("drawer.tab.yaml")} icon={<DetailTabIcon label="Source" />} iconPosition="start" label="Source" />
+              </Tabs>
+              <div>{tab === 0 ? "Overview content" : "YAML content"}</div>
+            </>
+          </ResourceDrawerShell>
+        </KeyboardProvider>
       </UserSettingsProvider>
     </ActiveContextProvider>
   );
@@ -44,6 +60,19 @@ afterEach(() => {
 });
 
 describe("ResourceDrawerShell", () => {
+  it("uses the effective remapped tab binding instead of the old drawer default", () => {
+    render(<DrawerHarness
+      initialTab={1}
+      keyboardSettings={{ ...defaultKeyboardSettings(), overrides: { "drawer.tab.overview": [["ctrl+g", "v"]] } }}
+    />);
+    expect(screen.getByText("YAML content")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "o" });
+    expect(screen.getByText("YAML content")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "g", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v" });
+    expect(screen.getByText("Overview content")).toBeTruthy();
+  });
+
   it("injects operator notes into the existing drawer tab row", () => {
     saveResourceMemoryStore(upsertResourceMemoryRecord(defaultResourceMemoryStore(), {
       context: "kind-dev",
@@ -60,8 +89,8 @@ describe("ResourceDrawerShell", () => {
 
     expect(screen.queryByRole("tab", { name: /details/i })).toBeNull();
     expect(screen.getAllByRole("tablist")).toHaveLength(1);
-    expect(screen.getByRole("tab", { name: /overview/i })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /yaml/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /summary/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /source/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /notes/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /notes/i }).textContent).toContain("Investigating");
     expect(screen.getByText("Overview content")).toBeTruthy();

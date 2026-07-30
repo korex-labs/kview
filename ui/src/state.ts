@@ -30,7 +30,7 @@ export type Section =
   | "helm"
   | "helmcharts";
 
-const sections: Section[] = [
+export const sections: readonly Section[] = [
   "dashboard",
   "pods",
   "nodes",
