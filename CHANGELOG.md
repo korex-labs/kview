@@ -3,6 +3,33 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.15.0 - 2026-08-05
+
+- Added native Pod Debug sessions for supported Linux pods, so operators can
+  launch an ephemeral debug container from the pod drawer and attach to it in
+  the Activity Panel without leaving kview.
+- Expanded workload debugging with a guided pod debug dialog and optional
+  **Open debug run** flows for Job reruns and CronJob manual runs, bringing
+  live timeline, log, and event feedback into the same workflow.
+- Added configurable keyboard shortcuts with preset keymaps, searchable action
+  bindings, validation for collisions and reserved combinations, and support
+  for carrying shortcut preferences through settings transfer and profiles.
+- Added per-signal exclusion rules in Dataplane settings, including preview
+  support and quick exclusion entry points from signal rows, so expected noise
+  can be suppressed without hiding other signal types.
+- Tightened dashboard signal presentation by compacting labels and separating
+  signal and dataplane views more cleanly, improving scanability while keeping
+  the underlying dashboard workflow intact.
+- Refined the internal UI and dataplane structure around dashboard, settings,
+  pod, and snapshot management paths to reduce maintenance hotspots without
+  changing the overall product model.
+- Refreshed audited Go, npm, frontend-tooling, Playwright, and GitHub Actions
+  dependencies to keep the release and CI stack current.
+- Expanded automated coverage across pod debugging, keyboard customization,
+  signal exclusions, dashboard behavior, backend HTTP handlers, and related
+  help content, while also updating in-app documentation for the new operator
+  workflows.
+
 ## v5.14.1 - 2026-07-24
 
 - Fixed desktop startup reliability for native webview builds by ensuring the

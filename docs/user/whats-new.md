@@ -6,25 +6,28 @@ repository.
 
 ## Recent Highlights
 
+- Pod drawers can now start native **Pod Debug** sessions for supported Linux
+  pods, attaching an ephemeral debug container directly into the Activity Panel
+  terminal workflow.
+- Job reruns and CronJob manual runs can now open a debug run view with live
+  timeline, logs, and events, making one-off batch troubleshooting easier to
+  follow from inside kview.
+- Keyboard shortcuts are now fully configurable with presets, per-action
+  bindings, collision checks, and Help integration that reflects the active
+  effective keymap.
+- Dataplane signal settings now support exclusion rules, so expected noise can
+  be suppressed by resource name, namespace, labels, or annotations without
+  muting unrelated signals.
+- Dashboard signal labels are now more compact, improving scanability when
+  reviewing busy signal sets.
 - Native desktop builds now launch their application window on the main
   thread, improving startup reliability on platforms that require UI creation
   from the primary process thread.
-- You can now save signal investigations as local snapshots and reopen them
-  later, making it easier to preserve triage context without rebuilding the
-  same investigation.
+- Signal investigations can still be saved as local snapshots and reopened
+  later, helping preserve triage context between sessions.
 - Saved investigation snapshots now appear in resource drawers, search results,
-  and activity views, so saved context stays visible while you move between
+  and activity views, keeping prior investigation context visible across
   workflows.
-- Signal workflows now show recurring observation history, helping you tell
-  when an issue is repeating instead of appearing for the first time.
-- Current signals can now link back to saved decisions, giving operators faster
-  access to prior conclusions while reviewing active issues.
-- Signal memory can now be transferred with settings or reset when needed,
-  making it easier to carry forward or clear operator decision history.
-- Saved investigation snapshots are now included in settings transfer bundles,
-  improving portability for investigation workflows across environments.
-- Dataplane refreshes now preserve previously collected metrics more reliably
-  when joined refresh work overlaps.
 
 ## Full History
 
