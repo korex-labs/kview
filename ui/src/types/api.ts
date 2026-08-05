@@ -253,6 +253,7 @@ export type ApiNamespacesListResponse = {
 
 export type DashboardSignalItem = {
   kind: string;
+  kindLabel?: string;
   namespace?: string;
   name?: string;
   severity: string;

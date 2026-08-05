@@ -28,6 +28,7 @@ type dashboardSignalResourceKey struct {
 type dashboardSignalDefinition struct {
 	Type            string
 	Label           string
+	FilterLabel     string
 	SummaryCounter  string
 	ActualData      string
 	CalculatedData  string
@@ -165,6 +166,21 @@ func dashboardSignalDefinitionForType(signalType string) dashboardSignalDefiniti
 
 func dashboardSignalTypeKey(signalType string) string {
 	return strings.TrimSpace(signalType)
+}
+
+func dashboardSignalKindLabel(kind string) string {
+	switch kind {
+	case "HorizontalPodAutoscaler":
+		return "HPA"
+	case "PersistentVolumeClaim":
+		return "PVC"
+	case "PersistentVolume":
+		return "PV"
+	case "ServiceAccount":
+		return "SA"
+	default:
+		return kind
+	}
 }
 
 func knownDashboardSignalType(signalType string) bool {
@@ -320,6 +336,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_restarts": {
 		Type:            "pod_restarts",
 		Label:           "Pod restarts",
+		FilterLabel:     "Pod restarts",
 		SummaryCounter:  "pod_restart_signals",
 		CalculatedData:  "restart count exceeds configured threshold",
 		LikelyCause:     "The pod may be repeatedly crashing, failing health checks, or restarting after node/runtime interruptions.",
@@ -329,6 +346,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_image_pull_failure": {
 		Type:            "pod_image_pull_failure",
 		Label:           "Pod image pull failures",
+		FilterLabel:     "Image pull failure",
 		SummaryCounter:  "pod_restart_signals",
 		CalculatedData:  "container status waiting reason indicates image pull or registry access failure",
 		LikelyCause:     "The image name, tag, registry credentials, image pull secret, network path, or registry availability may be wrong or unavailable.",
@@ -338,6 +356,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_crash_loop_waiting": {
 		Type:            "pod_crash_loop_waiting",
 		Label:           "Pods in CrashLoopBackOff",
+		FilterLabel:     "CrashLoopBackOff",
 		SummaryCounter:  "pod_restart_signals",
 		CalculatedData:  "container status waiting reason is CrashLoopBackOff",
 		LikelyCause:     "A container is repeatedly exiting during startup or probe execution and Kubernetes is backing off restarts.",
@@ -347,6 +366,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_unschedulable": {
 		Type:            "pod_unschedulable",
 		Label:           "Pods unschedulable",
+		FilterLabel:     "Unschedulable pods",
 		SummaryCounter:  "pod_restart_signals",
 		CalculatedData:  "PodScheduled condition is False with reason Unschedulable",
 		LikelyCause:     "The pod may not fit available nodes because of resource requests, node selectors, affinity, taints/tolerations, PVC node affinity, or quota constraints.",
@@ -356,6 +376,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"stale_transitional_helm_release": {
 		Type:            "stale_transitional_helm_release",
 		Label:           "Stuck Helm releases",
+		FilterLabel:     "Stuck Helm release",
 		SummaryCounter:  "stuck_helm_releases",
 		CalculatedData:  "transitional Helm status for longer than configured stale duration, or transitional with unknown update time",
 		LikelyCause:     "A Helm upgrade, rollback, or uninstall likely stalled on hooks, failing resources, or an interrupted release operation.",
@@ -365,6 +386,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"abnormal_job": {
 		Type:            "abnormal_job",
 		Label:           "Abnormal jobs",
+		FilterLabel:     "Job failures",
 		SummaryCounter:  "abnormal_jobs",
 		CalculatedData:  "failed status or failed attempts observed",
 		LikelyCause:     "The job probably has failing pods, image/config problems, missing dependencies, or logic that exits unsuccessfully.",
@@ -374,6 +396,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"long_running_job": {
 		Type:            "long_running_job",
 		Label:           "Long-running jobs",
+		FilterLabel:     "Job running long",
 		SummaryCounter:  "abnormal_jobs",
 		CalculatedData:  "running for longer than configured duration",
 		LikelyCause:     "The job may be blocked on external work, stuck waiting on resources, or looping without making progress.",
@@ -383,6 +406,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"abnormal_cronjob": {
 		Type:            "abnormal_cronjob",
 		Label:           "Abnormal CronJobs",
+		FilterLabel:     "CronJob overlap",
 		SummaryCounter:  "abnormal_cronjobs",
 		CalculatedData:  "unusually large active job count",
 		LikelyCause:     "The schedule may be producing overlapping runs, repeatedly failing, or never completing successfully.",
@@ -392,6 +416,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"cronjob_no_recent_success": {
 		Type:            "cronjob_no_recent_success",
 		Label:           "CronJobs without recent success",
+		FilterLabel:     "No recent CronJob success",
 		SummaryCounter:  "abnormal_cronjobs",
 		CalculatedData:  "no recorded successful run after configured duration",
 		LikelyCause:     "The schedule may be producing overlapping runs, repeatedly failing, or never completing successfully.",
@@ -401,6 +426,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"hpa_needs_attention": {
 		Type:            "hpa_needs_attention",
 		Label:           "HPA warnings",
+		FilterLabel:     "HPA scaling issue",
 		SummaryCounter:  "hpa_warnings",
 		CalculatedData:  "HPA status condition or replica bounds need attention",
 		LikelyCause:     "The autoscaler may be unable to read metrics, unable to reach its scale target, pinned at maxReplicas, or below minReplicas.",
@@ -410,6 +436,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"resource_quota_pressure": {
 		Type:            "resource_quota_pressure",
 		Label:           "Quota pressure",
+		FilterLabel:     "Quota near limit",
 		SummaryCounter:  "quota_warnings",
 		CalculatedData:  "quota usage is above configured warning threshold",
 		LikelyCause:     "The namespace is approaching its configured quota because workload growth or a runaway job is consuming the remaining budget.",
@@ -419,6 +446,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pvc_needs_attention": {
 		Type:            "pvc_needs_attention",
 		Label:           "PVC warnings",
+		FilterLabel:     "PVC health issue",
 		SummaryCounter:  "pvc_warnings",
 		CalculatedData:  "PVC phase or resize signal needs attention",
 		LikelyCause:     "The storage class, provisioner, matching PersistentVolume, or resize flow may be blocked, or the claim is stuck in a failed/released binding state.",
@@ -428,6 +456,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"potentially_unused_pvc": {
 		Type:            "potentially_unused_pvc",
 		Label:           "Potentially unused PVCs",
+		FilterLabel:     "Possibly unused PVC",
 		SummaryCounter:  "potentially_unused_pvcs",
 		CalculatedData:  "no pods present in cached namespace snapshot",
 		LikelyCause:     "The claim may belong to a removed workload, a failed rollout, or a namespace that no longer has active consumers.",
@@ -437,6 +466,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pvc_node_bound_storage": {
 		Type:            "pvc_node_bound_storage",
 		Label:           "PVCs tied to nodes",
+		FilterLabel:     "PVC node-bound",
 		SummaryCounter:  "pvc_warnings",
 		CalculatedData:  "bound PV has node affinity, node-local source type, or commonly node-local storage class",
 		LikelyCause:     "The claim is backed by storage that cannot freely move across nodes. If the node is drained, removed, or unavailable, pods using this PVC may be stuck on scheduling or mount.",
@@ -446,6 +476,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pv_node_bound_storage": {
 		Type:            "pv_node_bound_storage",
 		Label:           "PVs tied to nodes",
+		FilterLabel:     "PV node-bound",
 		SummaryCounter:  "pvc_warnings",
 		CalculatedData:  "PV has node affinity, node-local source type, or commonly node-local storage class",
 		LikelyCause:     "The volume is tied to a particular node or node-local provisioner. Workloads using it may not reschedule cleanly if that node becomes unavailable.",
@@ -455,6 +486,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"service_no_ready_endpoints": {
 		Type:            "service_no_ready_endpoints",
 		Label:           "Service endpoints",
+		FilterLabel:     "No ready endpoints",
 		SummaryCounter:  "service_warnings",
 		CalculatedData:  "0 ready endpoints",
 		LikelyCause:     "The service selector may not match any ready pods, or all selected pods are currently not ready.",
@@ -464,6 +496,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"ingress_pending_address": {
 		Type:            "ingress_pending_address",
 		Label:           "Ingress pending address",
+		FilterLabel:     "Ingress address pending",
 		SummaryCounter:  "ingress_warnings",
 		CalculatedData:  "ingress address or routing health needs attention",
 		LikelyCause:     "The ingress controller may not have admitted the route yet, or the backend/service wiring is incomplete.",
@@ -473,6 +506,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"ingress_needs_attention": {
 		Type:            "ingress_needs_attention",
 		Label:           "Ingress routing",
+		FilterLabel:     "Ingress routing issue",
 		SummaryCounter:  "ingress_warnings",
 		CalculatedData:  "ingress address or routing health needs attention",
 		LikelyCause:     "The ingress controller may not have admitted the route yet, or the backend/service wiring is incomplete.",
@@ -482,6 +516,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"potentially_unused_serviceaccount": {
 		Type:            "potentially_unused_serviceaccount",
 		Label:           "Potentially unused service accounts",
+		FilterLabel:     "Possibly unused SA",
 		SummaryCounter:  "potentially_unused_serviceaccounts",
 		CalculatedData:  "non-default service account with no pods present in cached namespace snapshot",
 		LikelyCause:     "The service account may have been created for a workload that no longer runs in this namespace.",
@@ -491,6 +526,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"role_permission_surface": {
 		Type:            "role_permission_surface",
 		Label:           "Roles",
+		FilterLabel:     "Broad/empty Role rules",
 		SummaryCounter:  "role_warnings",
 		CalculatedData:  "empty or broad rule surface",
 		LikelyCause:     "The role may be a placeholder with no rules or a broad permission surface that deserves review.",
@@ -500,6 +536,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"rolebinding_subject_surface": {
 		Type:            "rolebinding_subject_surface",
 		Label:           "RoleBindings",
+		FilterLabel:     "Broad/empty binding subjects",
 		SummaryCounter:  "rolebinding_warnings",
 		CalculatedData:  "empty or broad subject surface",
 		LikelyCause:     "The binding may have no subjects or grant access to an unusually broad subject set.",
@@ -509,6 +546,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"empty_configmap": {
 		Type:            "empty_configmap",
 		Label:           "Empty ConfigMaps",
+		FilterLabel:     "Empty ConfigMap",
 		SummaryCounter:  "empty_configmaps",
 		ActualData:      "0 data keys",
 		LikelyCause:     "The object may be a placeholder, partially applied manifest, or leftover config no workload actually uses.",
@@ -518,6 +556,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"empty_secret": {
 		Type:            "empty_secret",
 		Label:           "Empty Secrets",
+		FilterLabel:     "Empty Secret",
 		SummaryCounter:  "empty_secrets",
 		ActualData:      "0 data keys",
 		LikelyCause:     "The secret may be an incomplete rollout artifact, placeholder, or stale object left behind by an old deployment.",
@@ -527,6 +566,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"empty_namespace": {
 		Type:            "empty_namespace",
 		Label:           "Empty namespaces",
+		FilterLabel:     "Empty namespace",
 		SummaryCounter:  "empty_namespaces",
 		ActualData:      "0 workload, network, storage, and Helm resources in cached snapshots",
 		LikelyCause:     "The workload may have been removed earlier, or the namespace was created temporarily and never cleaned up.",
@@ -536,6 +576,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"container_near_limit": {
 		Type:            "container_near_limit",
 		Label:           "Pods near CPU or memory limit",
+		FilterLabel:     "Container near limit",
 		SummaryCounter:  "container_near_limit",
 		CalculatedData:  "pod usage is at or above the configured percentage of the container limit",
 		LikelyCause:     "Actual workload traffic may have grown past what container limits allow, or the limits may be set too tight for the observed steady state.",
@@ -545,6 +586,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"node_resource_pressure": {
 		Type:            "node_resource_pressure",
 		Label:           "Nodes under CPU or memory pressure",
+		FilterLabel:     "Node resource pressure",
 		SummaryCounter:  "node_resource_pressure",
 		CalculatedData:  "node usage is at or above the configured percentage of allocatable capacity",
 		LikelyCause:     "Too many workloads may have been scheduled on the node, a workload may be consuming more resources than budgeted, or allocatable capacity may be reduced by system daemons.",
@@ -554,6 +596,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_young_frequent_restarts": {
 		Type:            "pod_young_frequent_restarts",
 		Label:           "Pods restarting frequently in short lifetime",
+		FilterLabel:     "Frequent early restarts",
 		SummaryCounter:  "pod_restart_signals",
 		CalculatedData:  "pod accumulated frequent restarts within configured young-pod window",
 		LikelyCause:     "The pod may be crash-looping on startup, failing probes right away, or tripping over image/config errors during initial rollout.",
@@ -563,6 +606,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_succeeded_with_issues": {
 		Type:            "pod_succeeded_with_issues",
 		Label:           "Pods Succeeded with recorded issues",
+		FilterLabel:     "Succeeded pod issues",
 		CalculatedData:  "phase Succeeded while conditions, container states, or Warning events indicate problems",
 		LikelyCause:     "Short-lived pods (init containers, Jobs) can reach Succeeded even when earlier conditions or events captured problems that still matter for troubleshooting.",
 		SuggestedAction: "Treat Succeeded as completion, not health: review the recorded conditions, container last-termination reasons, and Warning events to understand what happened.",
@@ -571,6 +615,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"pod_missing_secret_reference": {
 		Type:            "pod_missing_secret_reference",
 		Label:           "Pods with missing Secret references",
+		FilterLabel:     "Pod missing Secret",
 		CalculatedData:  "pod warning events mention a referenced Secret could not be found or retrieved",
 		LikelyCause:     "The pod spec, environment, volume, or image pull secret references a Secret that is absent, misspelled, or not available in the namespace.",
 		SuggestedAction: "Create or restore the Secret, fix the pod/workload reference, or remove the reference if it is obsolete. Then restart or roll out the owning workload.",
@@ -579,6 +624,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"deployment_unavailable": {
 		Type:            "deployment_unavailable",
 		Label:           "Deployments unavailable for extended time",
+		FilterLabel:     "Deployment unavailable",
 		SummaryCounter:  "workload_warnings",
 		CalculatedData:  "Available=False longer than configured threshold, or no available replicas for a mature deployment",
 		LikelyCause:     "The rollout may be stuck on failing pods, image or config errors, unschedulable replicas, or a bad probe/template change that prevents any replica from becoming available.",
@@ -588,6 +634,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"deployment_missing_template_reference": {
 		Type:            "deployment_missing_template_reference",
 		Label:           "Deployments with missing template references",
+		FilterLabel:     "Deployment missing refs",
 		CalculatedData:  "deployment pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The Deployment template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, update the Deployment template reference, then restart the rollout if pods are stuck on the old template.",
@@ -596,6 +643,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"daemonset_missing_template_reference": {
 		Type:            "daemonset_missing_template_reference",
 		Label:           "DaemonSets with missing template references",
+		FilterLabel:     "DaemonSet missing refs",
 		CalculatedData:  "daemonset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The DaemonSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, update the DaemonSet template reference, then restart the rollout if pods are stuck on the old template.",
@@ -604,6 +652,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"statefulset_missing_template_reference": {
 		Type:            "statefulset_missing_template_reference",
 		Label:           "StatefulSets with missing template references",
+		FilterLabel:     "StatefulSet missing refs",
 		CalculatedData:  "statefulset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The StatefulSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, update the StatefulSet template reference, then restart or continue the rollout if pods are stuck on the old template.",
@@ -612,6 +661,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"replicaset_missing_template_reference": {
 		Type:            "replicaset_missing_template_reference",
 		Label:           "ReplicaSets with missing template references",
+		FilterLabel:     "ReplicaSet missing refs",
 		CalculatedData:  "replicaset pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The ReplicaSet template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, then inspect the owning workload before editing or deleting the ReplicaSet directly.",
@@ -620,6 +670,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"job_missing_template_reference": {
 		Type:            "job_missing_template_reference",
 		Label:           "Jobs with missing template references",
+		FilterLabel:     "Job missing refs",
 		CalculatedData:  "job pod template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The Job template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, then recreate or rerun the Job if failed pods captured the old template.",
@@ -628,6 +679,7 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 	"cronjob_missing_template_reference": {
 		Type:            "cronjob_missing_template_reference",
 		Label:           "CronJobs with missing template references",
+		FilterLabel:     "CronJob missing refs",
 		CalculatedData:  "cronjob job template imagePullSecrets and Secret/ConfigMap volumes reference objects absent from the namespace",
 		LikelyCause:     "The CronJob job template references a Secret or ConfigMap that was deleted, renamed, not yet applied, or created in a different namespace.",
 		SuggestedAction: "Create or restore the missing object, update the CronJob template if needed, then watch the next run or start a manual run to confirm recovery.",

@@ -208,6 +208,7 @@ type ClusterDashboardSignalFocus struct {
 
 type ClusterDashboardSignal struct {
 	Kind             string                       `json:"kind"`
+	KindLabel        string                       `json:"kindLabel,omitempty"`
 	Namespace        string                       `json:"namespace,omitempty"`
 	Name             string                       `json:"name,omitempty"`
 	Labels           map[string]string            `json:"labels,omitempty"`

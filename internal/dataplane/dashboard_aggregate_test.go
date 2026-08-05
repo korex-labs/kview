@@ -740,7 +740,7 @@ func TestSummarizeDashboardSignalsFiltersBySignalType(t *testing.T) {
 	if summary.ItemsTotal != 1 || len(summary.Items) != 1 || summary.Items[0].SignalType != "empty_secret" {
 		t.Fatalf("expected signal-type filtered secret signal, got %+v", summary)
 	}
-	if !dashboardSignalFilterExists(summary.Filters, "signal:empty_secret", "Empty Secrets", 1) {
+	if !dashboardSignalFilterExists(summary.Filters, "signal:empty_secret", "Empty Secret", 1) {
 		t.Fatalf("expected empty-secret filter in %+v", summary.Filters)
 	}
 }
@@ -893,7 +893,7 @@ func TestDashboardResourceQuotaSignalUsesEntryData(t *testing.T) {
 
 func TestDashboardSignalDefinitionRegistryPreservesKnownMetadata(t *testing.T) {
 	secret := dashboardSignalDefinitionForType("empty_secret")
-	if secret.Type != "empty_secret" || secret.Label != "Empty Secrets" {
+	if secret.Type != "empty_secret" || secret.Label != "Empty Secrets" || secret.FilterLabel != "Empty Secret" {
 		t.Fatalf("secret signal identity mismatch: %+v", secret)
 	}
 	if secret.ActualData != "0 data keys" || secret.CalculatedData != "" {
@@ -914,6 +914,54 @@ func TestDashboardSignalDefinitionRegistryPreservesKnownMetadata(t *testing.T) {
 	unknown := dashboardSignalDefinitionForType("unknown_signal")
 	if unknown.Label != "unknown_signal" || unknown.Priority != 10 {
 		t.Fatalf("unknown signal fallback mismatch: %+v", unknown)
+	}
+}
+
+func TestDashboardSignalPresentationLabelsStaySeparateFromCanonicalIdentity(t *testing.T) {
+	signalLabels := map[string]string{
+		"service_no_ready_endpoints":             "No ready endpoints",
+		"role_permission_surface":                "Broad/empty Role rules",
+		"rolebinding_subject_surface":            "Broad/empty binding subjects",
+		"deployment_unavailable":                 "Deployment unavailable",
+		"statefulset_missing_template_reference": "StatefulSet missing refs",
+	}
+	for signalType, want := range signalLabels {
+		if got := dashboardSignalTypeLabel(signalType); got != want {
+			t.Errorf("dashboardSignalTypeLabel(%q) = %q, want %q", signalType, got, want)
+		}
+	}
+
+	kindLabels := map[string]string{
+		"HorizontalPodAutoscaler": "HPA",
+		"PersistentVolumeClaim":   "PVC",
+		"PersistentVolume":        "PV",
+		"ServiceAccount":          "SA",
+		"RoleBinding":             "RoleBinding",
+	}
+	for kind, want := range kindLabels {
+		if got := dashboardSignalKindLabel(kind); got != want {
+			t.Errorf("dashboardSignalKindLabel(%q) = %q, want %q", kind, got, want)
+		}
+	}
+
+	item := dashboardSignalItem("pvc_needs_attention", "PersistentVolumeClaim", "team-a", "data", "medium", 60, "PVC needs attention.", "medium", "persistentvolumeclaims")
+	if item.Kind != "PersistentVolumeClaim" || item.KindLabel != "PVC" {
+		t.Fatalf("canonical and presentation kinds diverged: %+v", item)
+	}
+	summary := summarizeDashboardSignals([]ClusterDashboardSignal{item}, 10, ClusterDashboardListOptions{SignalsLimit: 10})
+	if !dashboardSignalFilterExists(summary.Filters, "kind:PersistentVolumeClaim", "PVC", 1) {
+		t.Fatalf("expected compact PVC kind filter without changing its ID: %+v", summary.Filters)
+	}
+	if !dashboardSignalFilterExists(summary.Filters, "signal:pvc_needs_attention", "PVC health issue", 1) {
+		t.Fatalf("expected compact signal filter: %+v", summary.Filters)
+	}
+}
+
+func TestDashboardSignalDefinitionsHaveFilterLabels(t *testing.T) {
+	for signalType, def := range dashboardSignalDefinitions {
+		if def.FilterLabel == "" {
+			t.Errorf("signal definition %q has no filter label", signalType)
+		}
 	}
 }
 

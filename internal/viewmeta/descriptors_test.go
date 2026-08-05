@@ -19,6 +19,25 @@ func TestBundleHasConsistentDescriptors(t *testing.T) {
 	if len(bundle.Dashboard.SignalFilterCategories) == 0 {
 		t.Fatal("expected dashboard signal filter category policy")
 	}
+	wantSignalCategoryLabels := map[string]string{
+		"severity":            "Severity",
+		"acknowledgement":     "Status",
+		"tag":                 "Tags",
+		"kind":                "Kind",
+		"signal_type":         "Signal",
+		"namespace":           "Top problem namespaces",
+		"namespace_favourite": "Favourites",
+		"namespace_recent":    "Recent",
+	}
+	actualSignalCategoryLabels := map[string]string{}
+	for _, category := range bundle.Dashboard.SignalFilterCategories {
+		actualSignalCategoryLabels[category.Key] = category.Label
+	}
+	for key, want := range wantSignalCategoryLabels {
+		if got := actualSignalCategoryLabels[key]; got != want {
+			t.Errorf("dashboard signal category %q label = %q, want %q", key, got, want)
+		}
+	}
 	if len(bundle.Actions) == 0 {
 		t.Fatal("expected action presentation policy")
 	}

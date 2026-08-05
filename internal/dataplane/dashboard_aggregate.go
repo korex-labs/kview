@@ -430,6 +430,7 @@ func dashboardSignalItem(signalType, kind, namespace, name, severity string, sco
 	}
 	return ClusterDashboardSignal{
 		Kind:            kind,
+		KindLabel:       dashboardSignalKindLabel(kind),
 		Namespace:       namespace,
 		Name:            name,
 		Severity:        severity,
@@ -705,7 +706,7 @@ func buildDashboardSignalFilters(signals []ClusterDashboardSignal, topCount int,
 			id := "kind:" + signal.Kind
 			current := kindFilters[id]
 			current.id = id
-			current.label = signal.Kind
+			current.label = dashboardSignalKindLabel(signal.Kind)
 			current.count++
 			current.severity = worstSignalSeverity(current.severity, signal.Severity)
 			current.priority = dashboardSignalKindPriority(signal.Kind)
@@ -1177,7 +1178,11 @@ func worstSignalSeverity(a, b string) string {
 }
 
 func dashboardSignalTypeLabel(signalType string) string {
-	return dashboardSignalDefinitionForType(signalType).Label
+	def := dashboardSignalDefinitionForType(signalType)
+	if def.FilterLabel != "" {
+		return def.FilterLabel
+	}
+	return def.Label
 }
 
 func normalizeClusterDashboardListOptions(opts ClusterDashboardListOptions) ClusterDashboardListOptions {

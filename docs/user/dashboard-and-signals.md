@@ -38,8 +38,11 @@ request is issued.
 ## Main Controls
 
 - **Signal chips**: filter the signals table by priority, newest detections,
-  severity, acknowledgement state, tags, kind, signal reason, namespace, or
+  severity, acknowledgement state, tags, kind, signal, namespace, or
   derived signal source.
+  Common Kubernetes kinds use their established compact names in the dashboard,
+  such as **HPA**, **PVC**, **PV**, and **SA**; filtering and navigation still use
+  the canonical Kubernetes kind internally.
 - **Signal search**: narrows visible signals by text.
 - **Signal sorting**: changes signal order by priority, severity, resource, or
   seen timestamps.

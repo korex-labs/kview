@@ -82,6 +82,20 @@ function isTagSignalFilter(filter: string): boolean {
   return filter.startsWith("tag:");
 }
 
+function compactKindLabel(kind: string): string {
+  switch (kind) {
+    case "HorizontalPodAutoscaler": return "HPA";
+    case "PersistentVolumeClaim": return "PVC";
+    case "PersistentVolume": return "PV";
+    case "ServiceAccount": return "SA";
+    default: return kind;
+  }
+}
+
+function signalKindLabel(signal: DashboardSignalItem): string {
+  return signal.kindLabel || compactKindLabel(signal.resourceKind || signal.kind);
+}
+
 function signalSortDirection(sort: string, descValue: string, ascValue: string): "asc" | "desc" | undefined {
   if (sort === descValue) return "desc";
   if (sort === ascValue) return "asc";
@@ -135,22 +149,11 @@ function signalFilterLabel(filter: string): string {
     case "high": return "High severity";
     case "medium": return "Medium severity";
     case "low": return "Low severity";
-    case "Namespace": return "Empty namespaces";
-    case "HelmRelease": return "Stuck Helm releases";
-    case "Job": return "Jobs";
-    case "CronJob": return "CronJobs";
-    case "HorizontalPodAutoscaler": return "HPA";
-    case "ConfigMap": return "Empty ConfigMaps";
-    case "Secret": return "Empty Secrets";
-    case "PersistentVolumeClaim": return "PVCs";
-    case "ServiceAccount": return "Potentially unused service accounts";
-    case "Service": return "Service endpoints";
-    case "Ingress": return "Ingress routing";
-    case "Role": return "Roles";
-    case "RoleBinding": return "RoleBindings";
-    case "ResourceQuota": return "Quota pressure";
-    case "Pod": return "Pod restarts";
-    default: return filter;
+    default:
+      if (filter.startsWith("kind:")) return compactKindLabel(filter.slice(5));
+      if (filter.startsWith("signal:")) return filter.slice(7).replace(/_/g, " ");
+      if (filter.startsWith("namespace:")) return filter.slice(10);
+      return compactKindLabel(filter);
   }
 }
 
@@ -661,7 +664,7 @@ export default function DashboardSignalsPanel({
 
       <Box sx={sectionSx}>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 1  }}>
-          Filter direct and derived cached-scope signals by severity, kind, signal reason, namespace, or derived source.
+          Filter direct and derived cached-scope signals by severity, kind, signal, namespace, or derived source.
         </Typography>
         <Box sx={filterGroupsSx}>
           {compactFilterGroups.length > 0 ? (
@@ -868,7 +871,13 @@ export default function DashboardSignalsPanel({
                       </Box>
                     </TableCell>
                     <TableCell sx={kindCellSx}>
-                      <Chip size="small" variant="outlined" label={f.resourceKind || f.kind} sx={{ maxWidth: "100%" }} />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={signalKindLabel(f)}
+                        title={f.resourceKind || f.kind}
+                        sx={{ maxWidth: "100%" }}
+                      />
                     </TableCell>
                     <TableCell sx={resourceCellSx}>
                       <TruncatedText title={signalResourceName(f)} fontWeight={600}>

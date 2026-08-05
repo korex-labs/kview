@@ -163,6 +163,17 @@ describe("view resource descriptors", () => {
       order: 0,
       compact: true,
     });
+    expect(getDashboardSignalFilterCategoryPolicy("kind")).toEqual({
+      label: "Kind",
+      order: 4,
+      compact: false,
+    });
+    expect(getDashboardSignalFilterCategoryPolicy("signal_type")).toEqual({
+      label: "Signal",
+      order: 5,
+      compact: false,
+    });
+    expect(getDashboardSignalFilterCategoryPolicy("namespace").label).toBe("Top problem namespaces");
     expect(getActionPresentation("pod.delete")).toMatchObject({
       label: "Delete",
       icon: "delete",
