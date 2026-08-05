@@ -23,7 +23,7 @@ import {
   type AppStateV1,
   type Section,
 } from "./state";
-import { notifyApiFailure, notifyStatus, useConnectionState, type AppStatus } from "./connectionState";
+import { useConnectionState } from "./connectionState";
 import ConnectionBanner from "./components/shared/ConnectionBanner";
 import { AppIconButton } from "./components/shared/AppActions";
 import ActivityPanel from "./components/activity/ActivityPanel";
@@ -35,7 +35,6 @@ import GlobalSearchInput, { type GlobalSearchFocusRequest } from "./components/s
 import DataplaneSearchDrawer from "./components/search/DataplaneSearchDrawer";
 import type { ApiDataplaneSearchItem } from "./types/api";
 import StartupDialog, { type StartupKubeconfigInfo, type StartupStep, type StartupStepStatus } from "./components/StartupDialog";
-import { POLL_STATUS_INTERVAL_MS } from "./constants/pollIntervals";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
 import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
@@ -48,11 +47,10 @@ import {
 import usePageVisible from "./utils/usePageVisible";
 import { applyViewResourceDescriptors } from "./utils/k8sResources";
 import {
-  performanceDiagnosticsEnabled,
-  recordApiTiming,
   setPerformanceDiagnosticsContext,
   setPerformanceDiagnosticsEnabled,
 } from "./utils/performanceDiagnostics";
+import useBackendStatusPolling from "./hooks/useBackendStatusPolling";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import { SignalMemoryProvider } from "./signalMemory";
 import { QuickSignalExclusionProvider } from "./components/shared/QuickSignalExclusion";
@@ -282,75 +280,14 @@ function AppInner() {
     setRecoveryOpen(true);
   }, [lastRecoverySeenAt, lastRecoveryShownAt]);
 
-  useEffect(() => {
-    if (!pageVisible) return;
-    let cancelled = false;
-
-    const pollStatus = async () => {
-      const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
-      try {
-        const res = await fetch("/api/status", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(activeContext ? { "X-Kview-Context": activeContext } : {}),
-          },
-        });
-        if (!res.ok) {
-          if (startedAt) {
-            recordApiTiming({
-              method: "GET",
-              path: "/api/status",
-              durationMs: window.performance.now() - startedAt,
-              parseMs: 0,
-              bytes: 0,
-              ok: false,
-              status: res.status,
-            });
-          }
-          const message = res.statusText || `Status check failed (${res.status})`;
-          if (!cancelled) notifyApiFailure(res.status >= 500 ? "backend" : "request", message);
-          return;
-        }
-        const text = await res.text();
-        const parseStartedAt = startedAt ? window.performance.now() : 0;
-        const status = JSON.parse(text || "null") as AppStatus;
-        if (startedAt) {
-          recordApiTiming({
-            method: "GET",
-            path: "/api/status",
-            durationMs: window.performance.now() - startedAt,
-            parseMs: parseStartedAt ? window.performance.now() - parseStartedAt : 0,
-            bytes: text.length,
-            ok: true,
-            status: res.status,
-          });
-        }
-        if (!cancelled) notifyStatus(status);
-      } catch (err) {
-        if (startedAt) {
-          recordApiTiming({
-            method: "GET",
-            path: "/api/status",
-            durationMs: window.performance.now() - startedAt,
-            parseMs: 0,
-            bytes: 0,
-            ok: false,
-          });
-        }
-        if (!cancelled) {
-          notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
-        }
-      }
-    };
-
-    void pollStatus();
-    const statusPollIntervalMs = settingsOpen && backendHealth === "healthy" ? 30000 : POLL_STATUS_INTERVAL_MS;
-    const id = window.setInterval(pollStatus, statusPollIntervalMs);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [activeContext, backendHealth, pageVisible, retryNonce, settingsOpen, token]);
+  useBackendStatusPolling({
+    token,
+    activeContext,
+    backendHealth,
+    pageVisible,
+    retryNonce,
+    settingsOpen,
+  });
 
   // initial bootstrap
   useEffect(() => {

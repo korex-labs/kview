@@ -37,7 +37,7 @@ More selected screenshots are available in [docs/screenshots](docs/screenshots/)
 
 ### Binary releases
 
-Pre-built binaries for Linux, macOS, and Windows are published on the [GitHub Releases](../../releases) page for every `v*` tag.
+Pre-built binaries for Linux, macOS, and Windows are published on the [GitHub Releases](https://github.com/korex-labs/kview/releases) page for every `v*` tag.
 
 Each release includes browser/server-mode binaries for all supported platforms and
 additional desktop webview binaries for Linux amd64 and macOS Intel/Apple Silicon.
@@ -256,8 +256,19 @@ Supported families: delete, restart, scale, selected workload and RBAC operation
 
 ### Activity panel
 
-- Terminal sessions, port-forward sessions, runtime/system status
+- Terminal, Pod Debug, port-forward, and runtime/system sessions
 - Namespace row enrichment progress and long-running dataplane snapshot activity
+
+### Local operator workflow
+
+- Configurable keyboard presets and per-action bindings shared by runtime dispatch,
+  Settings, command suggestions, and in-app Help
+- Local Resource Notes, saved Investigation Snapshots, and bounded Signal Memory
+  without writing operator knowledge to Kubernetes resources
+- Reversible per-signal exclusion rules for reducing known noise by resource name,
+  namespace, label, or annotation
+- Kubernetes-native Pod Debug sessions using guarded ephemeral-container creation
+  and the existing terminal Activity surface
 
 ### User settings
 
@@ -266,6 +277,8 @@ Browser-local settings profile (stored in `localStorage`, importable/exportable 
 - Dashboard refresh and initial Activity Panel state
 - Smart-filter chip generation and scoped filter rules
 - Custom container command presets and custom workload action presets
+- Keyboard presets and per-action bindings, Pod Debug defaults, Resource Tags,
+  Dynamic Links, Saved Views, and Operator Profiles
 - Dataplane policy: snapshot TTLs, enrichment caps, observer intervals, scheduler budget, dashboard signal thresholds
 
 ---
@@ -294,13 +307,8 @@ Built with React, Vite, TypeScript, and MUI. Uses shared resource list and drawe
 If you are an AI coding agent using this README as context, read these files before making changes:
 
 - [AGENTS.md](AGENTS.md)
-- [docs/AI_BOOTSTRAP_PROMPT.md](docs/AI_BOOTSTRAP_PROMPT.md)
-- [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/DATAPLANE.md](docs/DATAPLANE.md)
-- [docs/API_READ_OWNERSHIP.md](docs/API_READ_OWNERSHIP.md)
-- [docs/UI_UX_GUIDE.md](docs/UI_UX_GUIDE.md)
-- [docs/KEYBOARD_FOCUS.md](docs/KEYBOARD_FOCUS.md)
+- then the focused architecture, dataplane, read-ownership, keyboard, or UI
+  contract relevant to the scoped change
 
 | Document | Purpose |
 |----------|---------|
@@ -313,7 +321,6 @@ If you are an AI coding agent using this README as context, read these files bef
 | [docs/user/](docs/user/) | End-user documentation consumed by in-app Help |
 | [docs/DEV_CHECKLIST.md](docs/DEV_CHECKLIST.md) | Review checklist for changes |
 | [AGENTS.md](AGENTS.md) | Canonical execution rules for AI-assisted development |
-| [docs/AI_BOOTSTRAP_PROMPT.md](docs/AI_BOOTSTRAP_PROMPT.md) | Bootstrap context for executor agents |
 | [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md) | Compatibility pointer to `AGENTS.md` |
 
 Documentation is a contract. Update it in the same change whenever architecture, read ownership, UI contracts, or operator-visible behavior changes.

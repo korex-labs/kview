@@ -84,10 +84,17 @@ and task-oriented. Resource-specific pages should prefer:
 When adding, renaming, or removing a user-doc page:
 
 - update `docs/user/manifest.json`
+- import/remove the Markdown body and page-id mapping in `ui/src/help/content.ts`
 - choose a stable `id`
 - set the same title as the page `# H1`
 - choose the correct category
 - include `"app"` in `surfaces` only for pages useful inside the product
+- update `docs/user/index.md`
+
+The manifest provides metadata only; Vite still needs a static `?raw` import for
+each in-app page. A manifest entry without a matching `pageBodies` entry renders
+an empty Help page. Keep a focused test that proves every app-surface manifest id
+has a non-empty body.
 
 ## What Not To Include In App Help
 

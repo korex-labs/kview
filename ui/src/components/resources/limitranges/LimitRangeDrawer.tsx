@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Box, CircularProgress, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs } from "@mui/material";
 import { useConnectionState } from "../../../connectionState";
 import type { LimitRangeDetails, LimitRangeItem } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
-import { fetchNamespacedResourceDetailWithWarnings, type ResourceWarningEvent } from "../../../utils/resourceDrawerFetch";
+import useNamespacedResourceDrawerDetail from "../../../utils/useNamespacedResourceDrawerDetail";
 import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ErrorState from "../../shared/ErrorState";
 import EventsList from "../../shared/EventsList";
@@ -78,34 +78,19 @@ export default function LimitRangeDrawer({
 }) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState<LimitRangeDetails | null>(null);
-  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
-  const [err, setErr] = useState("");
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || !limitRangeName) return;
-    setTab(0);
-    setErr("");
-    setDetails(null);
-    setEvents([]);
-    setDrawerNamespace(null);
-    setLoading(true);
-    fetchNamespacedResourceDetailWithWarnings<LimitRangeDetails>({
-      token,
-      namespace,
-      resource: "limitranges",
-      name: limitRangeName,
-    })
-      .then((res) => {
-        setDetails(res.item);
-        setEvents(res.warningEvents);
-      })
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [open, limitRangeName, namespace, token, retryNonce, refreshNonce]);
+  const { loading, details, events, error: err, refresh } = useNamespacedResourceDrawerDetail<LimitRangeDetails>({
+    open,
+    token,
+    namespace,
+    resource: "limitranges",
+    name: limitRangeName,
+    retryNonce,
+    onReset: () => {
+      setTab(0);
+      setDrawerNamespace(null);
+    },
+  });
 
   const summary = details?.summary;
   const summaryRows = useMemo(
@@ -199,7 +184,7 @@ export default function LimitRangeDrawer({
                     namespace,
                     name: limitRangeName || "",
                   }}
-                  onApplied={() => setRefreshNonce((v) => v + 1)}
+                  onApplied={refresh}
                 />
               ) : null}
             </Box>

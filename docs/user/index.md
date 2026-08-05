@@ -27,6 +27,7 @@ documentation remains in the rest of `docs/`.
 - [Storage](storage.md)
 - [Custom Resources](custom-resources.md)
 - [Settings](settings.md)
+- [Keyboard Shortcuts](keyboard-shortcuts.md)
 - [Smart Filters](smart-filters.md)
 - [Resource Tags](resource-tags.md)
 - [Resource Macros And Dynamic Links](resource-macros-dynamic-links.md)

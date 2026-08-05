@@ -31,8 +31,6 @@ import {
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { useTheme, type Theme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
@@ -45,14 +43,11 @@ import {
   applyDataplaneProfile,
   applyOperatorProfile,
   compactSignalOverrideForScope,
-  customActionResourceKeys,
   defaultDataplaneSettings,
   dataplaneNamespaceWarmResourceKeys,
   dataplaneTTLResourceKeys,
   exportFullProfileJSON,
   exportSettingsTransferJSON,
-  newCustomActionDefinition,
-  newCustomCommandDefinition,
   newSmartFilterRule,
   normalizeKeyboardSettings,
   parseFullProfileJSON,
@@ -64,13 +59,7 @@ import {
   applySettingsTransferBundle,
   removeOperatorProfile,
   updateOperatorProfileSnapshot,
-  type CustomActionDefinition,
-  type CustomActionKind,
-  type CustomActionPatchType,
-  type CustomActionTarget,
-  type CustomCommandDefinition,
-  type CustomCommandOutputType,
-  type CustomCommandSafety,
+
   type DataplaneProfile,
   type DataplaneContextOverrideSettings,
   type DataplaneSettings,
@@ -107,10 +96,12 @@ import {
   SettingGrid,
   SettingRow,
   SettingSection,
+  ReorderButtons,
   SettingsMultiSelect,
   type SettingsMultiSelectOption,
   ScopeTag,
 } from "./shared";
+import { moveItem } from "./shared/reorder";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import {
   deleteInvestigationSnapshot,
@@ -127,6 +118,8 @@ import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
 import { dynamicKeyboardActionDefinitions } from "../../keyboard/dynamicActions";
 import { settingsTabsSx } from "./settingsTabs";
+import PodToolsSettingsSection from "./sections/PodToolsSettingsSection";
+import CustomActionsSettingsSection from "./sections/CustomActionsSettingsSection";
 
 type SettingsSection = "appearance" | "profiles" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
 type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
@@ -291,37 +284,6 @@ const settingsMainSurfaceSx = {
   },
 };
 
-function ReorderButtons({
-  label,
-  index,
-  lastIndex,
-  onUp,
-  onDown,
-  onRemove,
-}: {
-  label: string;
-  index: number;
-  lastIndex: number;
-  onUp: () => void;
-  onDown: () => void;
-  onRemove?: () => void;
-}) {
-  return (
-    <Box sx={{ display: "flex", gap: 0.25 }}>
-      <AppIconButton tooltip={`Move ${label} up`} label={`Move ${label} up`} onClick={onUp} disabled={index === 0}>
-        <ArrowUpwardIcon fontSize="inherit" />
-      </AppIconButton>
-      <AppIconButton tooltip={`Move ${label} down`} label={`Move ${label} down`} onClick={onDown} disabled={index === lastIndex}>
-        <ArrowDownwardIcon fontSize="inherit" />
-      </AppIconButton>
-      {onRemove ? (
-        <AppIconButton tooltip={`Remove ${label}`} label={`Remove ${label}`} intent="destructive" onClick={onRemove}>
-          <DeleteOutlineIcon fontSize="inherit" />
-        </AppIconButton>
-      ) : null}
-    </Box>
-  );
-}
 
 function resourceMultiSelectOptions(keys: readonly ListResourceKey[]): Array<SettingsMultiSelectOption<ListResourceKey>> {
   return keys.map((key) => ({ value: key, label: getResourceLabel(key) }));
@@ -387,35 +349,6 @@ function updateKeyboard(
   };
 }
 
-function updateCustomCommands(
-  settings: KviewUserSettingsV2,
-  patch: Partial<KviewUserSettingsV2["customCommands"]>,
-): KviewUserSettingsV2 {
-  return {
-    ...settings,
-    customCommands: { ...settings.customCommands, ...patch },
-  };
-}
-
-function updatePodDebug(
-  settings: KviewUserSettingsV2,
-  patch: Partial<KviewUserSettingsV2["podDebug"]>,
-): KviewUserSettingsV2 {
-  return {
-    ...settings,
-    podDebug: { ...settings.podDebug, ...patch },
-  };
-}
-
-function updateCustomActions(
-  settings: KviewUserSettingsV2,
-  patch: Partial<KviewUserSettingsV2["customActions"]>,
-): KviewUserSettingsV2 {
-  return {
-    ...settings,
-    customActions: { ...settings.customActions, ...patch },
-  };
-}
 
 function updateDataplane(settings: KviewUserSettingsV2, patch: Partial<DataplaneSettings>): KviewUserSettingsV2 {
   return {
@@ -720,46 +653,6 @@ function rulePatternError(rule: SmartFilterRule): string | null {
   }
 }
 
-function commandPatternError(command: CustomCommandDefinition): string | null {
-  if (!command.containerPattern.trim()) return null;
-  try {
-    new RegExp(command.containerPattern);
-    return null;
-  } catch (err) {
-    return (err as Error).message || "Invalid regex.";
-  }
-}
-
-function actionPatternError(action: CustomActionDefinition): string | null {
-  if (!action.containerPattern.trim()) return null;
-  try {
-    new RegExp(action.containerPattern);
-    return null;
-  } catch (err) {
-    return (err as Error).message || "Invalid regex.";
-  }
-}
-
-function actionPatchError(action: CustomActionDefinition): string | null {
-  if (action.action !== "patch") return null;
-  if (!action.patchBody.trim()) return "Patch body is required.";
-  try {
-    JSON.parse(action.patchBody);
-    return null;
-  } catch (err) {
-    return (err as Error).message || "Invalid JSON patch body.";
-  }
-}
-
-function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
-  const nextIndex = index + direction;
-  if (nextIndex < 0 || nextIndex >= items.length) return items;
-  const next = items.slice();
-  const current = next[index];
-  next[index] = next[nextIndex];
-  next[nextIndex] = current;
-  return next;
-}
 
 function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
   switch (scope) {
@@ -1106,23 +999,6 @@ export default function SettingsView({
     });
   };
 
-  const setCommand = (index: number, patch: Partial<CustomCommandDefinition>) => {
-    setSettings((prev) => {
-      const commands = prev.customCommands.commands.map((command, i) =>
-        i === index ? { ...command, ...patch } : command,
-      );
-      return updateCustomCommands(prev, { commands });
-    });
-  };
-
-  const setAction = (index: number, patch: Partial<CustomActionDefinition>) => {
-    setSettings((prev) => {
-      const actions = prev.customActions.actions.map((action, i) =>
-        i === index ? { ...action, ...patch } : action,
-      );
-      return updateCustomActions(prev, { actions });
-    });
-  };
 
   const updateContextDataplaneOverride = (
     prev: KviewUserSettingsV2,
@@ -2468,378 +2344,6 @@ export default function SettingsView({
     </SettingSection>
   );
 
-  const renderCommand = (command: CustomCommandDefinition, index: number) => {
-    const patternError = commandPatternError(command);
-    return (
-      <Box key={command.id} sx={settingsItemCardSx}>
-        <Box sx={headerRowSx}>
-          <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
-            Command {index + 1}
-          </Typography>
-          <ReorderButtons
-            label={`command ${index + 1}`}
-            index={index}
-            lastIndex={settings.customCommands.commands.length - 1}
-            onUp={() =>
-              setSettings((prev) =>
-                updateCustomCommands(prev, {
-                  commands: moveItem(prev.customCommands.commands, index, -1),
-                }),
-              )
-            }
-            onDown={() =>
-              setSettings((prev) =>
-                updateCustomCommands(prev, {
-                  commands: moveItem(prev.customCommands.commands, index, 1),
-                }),
-              )
-            }
-            onRemove={() =>
-              setSettings((prev) =>
-                updateCustomCommands(prev, {
-                  commands: prev.customCommands.commands.filter((_, i) => i !== index),
-                }),
-              )
-            }
-          />
-        </Box>
-        <SettingRow
-          label="Enabled"
-          checked={command.enabled}
-          onChange={(v) => setCommand(index, { enabled: v })}
-        />
-        <SettingGrid variant="auto">
-          <SettingField
-            label="Name"
-            value={command.name}
-            onChange={(v) => setCommand(index, { name: v })}
-            hint="Shown in the container command menu."
-          />
-          <SettingField
-            label="Container pattern"
-            value={command.containerPattern}
-            onChange={(v) => setCommand(index, { containerPattern: v })}
-            error={patternError ?? undefined}
-            hint="Optional regex matched against the container name."
-          />
-          <SettingField
-            label="Workdir"
-            value={command.workdir}
-            onChange={(v) => setCommand(index, { workdir: v })}
-            hint="Optional. Leave blank to use the container default."
-          />
-        </SettingGrid>
-        <SettingField
-          label="Command"
-          required
-          value={command.command}
-          onChange={(v) => setCommand(index, { command: v })}
-          error={!command.command.trim() ? "Required." : undefined}
-          hint="Executed with /bin/sh -lc inside the selected container."
-        />
-        <SettingGrid variant="auto">
-          <SettingField label="Output type">
-            <TextField
-              select
-              size="small"
-              fullWidth
-              value={command.outputType}
-              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-              onChange={(e) => setCommand(index, { outputType: e.target.value as CustomCommandOutputType })}
-            >
-              <MenuItem value="text">Free text</MenuItem>
-              <MenuItem value="keyValue">Key-value</MenuItem>
-              <MenuItem value="csv">CSV / delimited table</MenuItem>
-              <MenuItem value="code">Code / JSON / YAML</MenuItem>
-              <MenuItem value="file">File download</MenuItem>
-            </TextField>
-          </SettingField>
-          <SettingField
-            label="Safety"
-            hint="Dangerous commands require typed confirmation before execution."
-          >
-            <TextField
-              select
-              size="small"
-              fullWidth
-              value={command.safety}
-              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-              onChange={(e) => setCommand(index, { safety: e.target.value as CustomCommandSafety })}
-            >
-              <MenuItem value="safe">Safe: simple confirmation</MenuItem>
-              <MenuItem value="dangerous">Dangerous: typed confirmation</MenuItem>
-            </TextField>
-          </SettingField>
-        </SettingGrid>
-        {command.outputType === "code" && (
-          <FieldGroup label="Code settings">
-            <SettingField
-              label="Code language"
-              value={command.codeLanguage}
-              onChange={(v) => setCommand(index, { codeLanguage: v })}
-              hint="Examples: json, yaml, php, shell. Leave blank to auto-detect."
-            />
-          </FieldGroup>
-        )}
-        {command.outputType === "file" && (
-          <FieldGroup label="File settings">
-            <SettingField
-              label="File name"
-              value={command.fileName}
-              onChange={(v) => setCommand(index, { fileName: v })}
-              hint="Used for the downloaded output."
-            />
-            <SettingRow
-              label="Compress with gzip"
-              checked={command.compress}
-              onChange={(v) => setCommand(index, { compress: v })}
-            />
-          </FieldGroup>
-        )}
-      </Box>
-    );
-  };
-
-  const renderPodTools = () => (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <SettingSection
-        title="Pod Debug"
-        icon={<SettingsIcon name="commands" />}
-        hint="Defaults for ephemeral debug containers opened from Pod drawers. Kubernetes cannot remove an ephemeral container after it is added to a Pod."
-      >
-        <SettingRow
-          label="Enable Pod Debug"
-          checked={settings.podDebug.enabled}
-          onChange={(enabled) => setSettings((prev) => updatePodDebug(prev, { enabled }))}
-        />
-        <SettingGrid variant="auto">
-          <SettingField
-            label="Default debug image"
-            value={settings.podDebug.defaultImage}
-            onChange={(defaultImage) => setSettings((prev) => updatePodDebug(prev, { defaultImage }))}
-            hint="Use an organization-approved image with a shell. Avoid mutable latest tags."
-          />
-          <SettingField
-            label="Default shell"
-            value={settings.podDebug.defaultShell}
-            onChange={(defaultShell) => setSettings((prev) => updatePodDebug(prev, { defaultShell }))}
-            hint="Absolute path executed as the debug container's main process."
-          />
-        </SettingGrid>
-      </SettingSection>
-      <SettingSection
-        title="Custom Commands"
-        icon={<SettingsIcon name="commands" />}
-        hint="Commands are stored in this browser profile and become available on matching Pod containers."
-        actions={
-          <AppButton
-            intent="primary"
-            onClick={() =>
-              setSettings((prev) =>
-                updateCustomCommands(prev, {
-                  commands: [...prev.customCommands.commands, newCustomCommandDefinition()],
-                }),
-              )
-            }
-          >
-            Add command
-          </AppButton>
-        }
-      >
-        {settings.customCommands.commands.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No custom commands are defined.
-          </Typography>
-        ) : (
-          settings.customCommands.commands.map(renderCommand)
-        )}
-      </SettingSection>
-    </Box>
-  );
-
-  const renderAction = (action: CustomActionDefinition, index: number) => {
-    const patternError = actionPatternError(action);
-    const patchError = actionPatchError(action);
-    return (
-      <Box key={action.id} sx={settingsItemCardSx}>
-        <Box sx={headerRowSx}>
-          <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
-            Action {index + 1}
-          </Typography>
-          <ReorderButtons
-            label={`action ${index + 1}`}
-            index={index}
-            lastIndex={settings.customActions.actions.length - 1}
-            onUp={() => setSettings((prev) => updateCustomActions(prev, { actions: moveItem(prev.customActions.actions, index, -1) }))}
-            onDown={() => setSettings((prev) => updateCustomActions(prev, { actions: moveItem(prev.customActions.actions, index, 1) }))}
-            onRemove={() => setSettings((prev) => updateCustomActions(prev, { actions: prev.customActions.actions.filter((_, i) => i !== index) }))}
-          />
-        </Box>
-        <SettingRow
-          label="Enabled"
-          checked={action.enabled}
-          onChange={(v) => setAction(index, { enabled: v })}
-        />
-        <SettingGrid variant="auto">
-          <SettingField
-            label="Name"
-            value={action.name}
-            onChange={(v) => setAction(index, { name: v })}
-          />
-          <SettingField label="Action">
-            <TextField
-              select
-              size="small"
-              fullWidth
-              value={action.action}
-              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-              onChange={(e) => {
-                const nextAction = e.target.value as CustomActionKind;
-                setAction(index, {
-                  action: nextAction,
-                  ...(nextAction === "unset" && action.target === "image" ? { target: "env" as const } : {}),
-                });
-              }}
-            >
-              <MenuItem value="set">Set</MenuItem>
-              <MenuItem value="unset">Unset</MenuItem>
-              <MenuItem value="patch">Patch</MenuItem>
-            </TextField>
-          </SettingField>
-          <SettingField label="Safety" hint="Dangerous actions require typed confirmation before execution.">
-            <TextField
-              select
-              size="small"
-              fullWidth
-              value={action.safety}
-              slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-              onChange={(e) => setAction(index, { safety: e.target.value as CustomCommandSafety })}
-            >
-              <MenuItem value="safe">Safe: simple confirmation</MenuItem>
-              <MenuItem value="dangerous">Dangerous: typed confirmation</MenuItem>
-            </TextField>
-          </SettingField>
-        </SettingGrid>
-        <SettingsMultiSelect<ListResourceKey>
-          id={`action-resources-${action.id}`}
-          label="Resources"
-          value={action.resources}
-          options={resourceMultiSelectOptions(customActionResourceKeys)}
-          onChange={(resources) => setAction(index, { resources })}
-          emptyLabel="No resources selected"
-          menuProps={denseSelectMenuProps}
-        />
-        {action.action === "patch" ? (
-          <FieldGroup label="Patch settings">
-            <Box sx={{ maxWidth: 240 }}>
-              <SettingField label="Patch type">
-                <TextField
-                  select
-                  size="small"
-                  fullWidth
-                  value={action.patchType}
-                  slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-                  onChange={(e) => setAction(index, { patchType: e.target.value as CustomActionPatchType })}
-                >
-                  <MenuItem value="merge">Merge patch</MenuItem>
-                  <MenuItem value="json">JSON patch</MenuItem>
-                </TextField>
-              </SettingField>
-            </Box>
-            <SettingField
-              label="Patch body JSON"
-              error={patchError ?? undefined}
-              hint="Use JSON. JSON patch expects an array of operations; merge patch expects an object."
-            >
-              <TextField
-                size="small"
-                value={action.patchBody}
-                onChange={(e) => setAction(index, { patchBody: e.target.value })}
-                error={Boolean(patchError)}
-                multiline
-                minRows={8}
-                fullWidth
-                slotProps={{ input: { sx: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
-              />
-            </SettingField>
-          </FieldGroup>
-        ) : (
-          <FieldGroup label="Target settings">
-            <SettingGrid variant="auto">
-              <SettingField label="Target">
-                <TextField
-                  select
-                  size="small"
-                  fullWidth
-                  value={action.target}
-                  slotProps={{ select: { MenuProps: denseSelectMenuProps } }}
-                  onChange={(e) => setAction(index, { target: e.target.value as CustomActionTarget })}
-                >
-                  <MenuItem value="env">Environment variable</MenuItem>
-                  <MenuItem value="image" disabled={action.action === "unset"}>Container image</MenuItem>
-                </TextField>
-              </SettingField>
-              {action.target === "env" && (
-                <SettingField
-                  label="Env key"
-                  value={action.key}
-                  onChange={(v) => setAction(index, { key: v })}
-                />
-              )}
-              <SettingField
-                label="Container pattern"
-                value={action.containerPattern}
-                onChange={(v) => setAction(index, { containerPattern: v })}
-                error={patternError ?? undefined}
-                hint="Optional regex. Leave blank for all containers."
-              />
-            </SettingGrid>
-            {action.action === "set" && (
-              <>
-                <SettingField
-                  label={action.target === "image" ? "Image" : "Value"}
-                  value={action.value}
-                  onChange={(v) => setAction(index, { value: v })}
-                  disabled={action.runtimeValue}
-                />
-                <SettingRow
-                  label="Ask at runtime"
-                  hint="If enabled, the user is prompted for the actual value during action execution."
-                  checked={action.runtimeValue}
-                  onChange={(v) => setAction(index, { runtimeValue: v })}
-                />
-              </>
-            )}
-          </FieldGroup>
-        )}
-      </Box>
-    );
-  };
-
-  const renderCustomActions = () => (
-    <SettingSection
-      title="Custom Actions"
-      icon={<SettingsIcon name="actions" />}
-      hint="Custom actions are browser-local presets for patch-capable workload resources."
-      actions={
-        <AppButton
-          intent="primary"
-          onClick={() => setSettings((prev) => updateCustomActions(prev, { actions: [...prev.customActions.actions, newCustomActionDefinition()] }))}
-        >
-          Add action
-        </AppButton>
-      }
-    >
-      {settings.customActions.actions.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          No custom actions are defined.
-        </Typography>
-      ) : (
-        settings.customActions.actions.map(renderAction)
-      )}
-    </SettingSection>
-  );
-
   const currentContextOverride = settings.dataplane.contextOverrides[activeContext.trim()] || {};
   const isContextEditing = dataplaneEditScope === "context" && Boolean(activeContext.trim());
   const getOverrideAtPath = (path: string[]): unknown => {
@@ -3939,8 +3443,8 @@ export default function SettingsView({
         {section === "smartFilters" ? renderSmartFilters() : null}
         {section === "resourceTags" ? renderResourceTags() : null}
         {section === "linksMacros" ? renderLinksMacros() : null}
-        {section === "commands" ? renderPodTools() : null}
-        {section === "actions" ? renderCustomActions() : null}
+        {section === "commands" ? <PodToolsSettingsSection settings={settings} setSettings={setSettings} /> : null}
+        {section === "actions" ? <CustomActionsSettingsSection settings={settings} setSettings={setSettings} /> : null}
         {section === "dataplane" ? renderDataplane() : null}
         {section === "importExport" ? renderImportExport() : null}
       </Box>

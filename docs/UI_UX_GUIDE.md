@@ -333,17 +333,18 @@ Do not render scope chips in global-editing mode.
 
 kview exposes a full-page Settings view from the header, next to the theme selector.
 
-Settings are browser-local and separate from navigation state. The profile currently owns:
+Settings are browser-local. `KviewUserSettingsV2` owns appearance, keyboard,
+smart filters, resource tags, resource macros, dynamic links, saved views,
+operator profiles, custom commands/actions, Pod Debug defaults, and dataplane
+policy. Navigation state remains separate, but explicit transfer bundles may also
+include selected operator-owned state such as favourite namespaces, signal
+acknowledgements/history, and Investigation Snapshots.
 
-- dashboard refresh defaults
-- initial Activity Panel state
-- smart-filter enablement and scoped smart-filter rules
-- custom container command presets
-- custom workload action presets
-- namespace enrichment and dataplane policy controls
-- JSON import/export for the settings profile only
-
-Settings import/export must not include active context, active namespace, favourite namespaces, recent namespace history, or theme.
+Full-profile backup and selective transfer are distinct workflows. Full-profile
+backup preserves the complete supported settings/app-state model. Selective
+transfer exposes named sections and must validate, preview, and report conflict
+handling before applying imported data. Keep this contract synchronized with
+`ui/src/settings.ts` and `docs/user/import-export.md`.
 
 Custom container commands must appear only on matching Pod containers. Safe commands require simple confirmation; dangerous commands require typed confirmation before execution. Command output should render according to the configured output type: free text, key-value, CSV/delimited table, code-highlighted text, or downloadable file.
 
@@ -365,22 +366,21 @@ Shortcuts must not run while focus is inside text inputs, selects, editors, term
 
 The runtime shortcut registry is the source of truth for the Help dialog. When a setting disables optional bindings, help content must reflect the active keymap instead of documenting unavailable keys.
 
-Keyboard settings are part of the browser-local settings profile. Current options:
+Keyboard settings are part of the browser-local settings profile. Users select a
+keymap preset and may override, add, disable, or reset bindings for stable typed
+action IDs. Runtime dispatch, Settings, command suggestions, and shortcut Help
+must consume the same compiled effective registry. Exact and prefix conflicts
+must block Apply; reserved browser/OS bindings should remain visible warnings.
 
-- Vim table navigation (`h/j/k/l`)
-- home-row table navigation (`a/s/d/f`)
-- single-letter global search (`s`)
-
-Command mode, `Ctrl+K`, shortcut help (`?`), table focus/filter/page/open commands, and `g` navigation sequences remain core shortcuts and should stay enabled unless a future configurable profile system replaces the V1 model.
+Dynamic Custom Command and Custom Action bindings must reuse their normal target
+selection, RBAC, confirmation, and dangerous-action workflows. Keyboard dispatch
+must never invoke a mutation API directly.
 
 When a resource table filter is focused, typing must stay in the filter. Pressing Enter from the filter moves focus into the table. Closing a drawer should restore focus to the previously opened table row so keyboard table navigation can continue naturally.
 
-Deferred keyboard work:
-
-- user-selectable keymap profiles
-- persisted custom keybinding remaps
-- broader drawer actions beyond stable resource-specific commands
-- React/jsdom interaction tests once the local test environment supports the current jsdom dependency graph
+`docs/KEYBOARD_FOCUS.md` is the authoritative engineering contract for presets,
+scope ownership, action registration, conflict handling, Escape, and focus
+restoration. `docs/user/keyboard-shortcuts.md` documents the user-facing workflow.
 
 ---
 

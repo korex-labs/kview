@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Box, CircularProgress, Tab, Tabs } from "@mui/material";
 import { useConnectionState } from "../../../connectionState";
 import type { ResourceQuotaDetails } from "../../../types/api";
 import { fmtAge, valueOrDash } from "../../../utils/format";
-import { fetchNamespacedResourceDetailWithWarnings, type ResourceWarningEvent } from "../../../utils/resourceDrawerFetch";
+import useNamespacedResourceDrawerDetail from "../../../utils/useNamespacedResourceDrawerDetail";
 import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import ErrorState from "../../shared/ErrorState";
 import EventsList from "../../shared/EventsList";
@@ -50,34 +50,19 @@ export default function ResourceQuotaDrawer({
 }) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState<ResourceQuotaDetails | null>(null);
-  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
-  const [err, setErr] = useState("");
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || !resourceQuotaName) return;
-    setTab(0);
-    setErr("");
-    setDetails(null);
-    setEvents([]);
-    setDrawerNamespace(null);
-    setLoading(true);
-    fetchNamespacedResourceDetailWithWarnings<ResourceQuotaDetails>({
-      token,
-      namespace,
-      resource: "resourcequotas",
-      name: resourceQuotaName,
-    })
-      .then((res) => {
-        setDetails(res.item);
-        setEvents(res.warningEvents);
-      })
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [open, resourceQuotaName, namespace, token, retryNonce, refreshNonce]);
+  const { loading, details, events, error: err, refresh } = useNamespacedResourceDrawerDetail<ResourceQuotaDetails>({
+    open,
+    token,
+    namespace,
+    resource: "resourcequotas",
+    name: resourceQuotaName,
+    retryNonce,
+    onReset: () => {
+      setTab(0);
+      setDrawerNamespace(null);
+    },
+  });
 
   const summary = details?.summary;
   const summaryRows = useMemo(
@@ -181,7 +166,7 @@ export default function ResourceQuotaDrawer({
                     namespace,
                     name: resourceQuotaName || "",
                   }}
-                  onApplied={() => setRefreshNonce((v) => v + 1)}
+                  onApplied={refresh}
                 />
               ) : null}
             </Box>

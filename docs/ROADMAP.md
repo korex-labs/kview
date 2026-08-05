@@ -53,156 +53,73 @@ model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 
 ## Primary Feature Track
 
-### 1. Investigation Snapshots
+Investigation Snapshots and Signal Memory are complete foundations: snapshots are
+available from resource Notes, Search, Activity, and settings transfer; recurrence
+uses bounded distinct observation days, links explicit prior decisions, supports
+transfer/reset, and never infers resolution from partial data. The active queue
+starts with the next operator-workflow layer below.
 
-Turn the existing **Investigate Signal** output into a durable local artifact.
+### 1. Signal Snooze And Suppression Rules
 
-- Add **Save Investigation** from the investigation dialog.
-- Store signal type/severity, primary resource, related resources, current
-  context, generated Markdown bundle, operator note, triage state, and creation
-  metadata.
-- Surface saved investigations from resource drawers, resource Notes, Activity,
-  and search results.
-- Include investigation snapshots in settings/profile transfer and export/import.
-- Keep snapshots local; never write snapshot metadata back to Kubernetes.
+Per-signal resource exclusion rules already suppress matching candidates by name,
+namespace, label, or annotation. Extend that explicit model with time- and
+state-aware actions such as **Snooze for 1h**, **Snooze for 1d**, or **Ignore until
+changed**.
 
-This pack is implemented: saved investigations now cover local persistence,
-resource drawers/Notes, Search, Activity, and explicit settings transfer.
-
-### 2. Signal Memory And Recurring Incident Detection
-
-Use local signal history to explain when a current signal has been seen before.
-
-- Track local history keyed by context, signal type, resource scope/kind,
-  namespace, and name.
-- Show lightweight hints such as **Seen 4 times in 7d**, **Previously resolved**,
-  **Known noisy**, or **Last note: ...**.
-- Connect the latest note or saved investigation snapshot to the current signal.
-- Keep the history bounded, exportable, and easy to reset.
-- Avoid background cluster reads; update memory from already observed signals.
-
-The first two slices are implemented: bounded distinct observation days surface
-honest **Seen Nd / 7d** or **Seen Nd / 30d** hints, and current signals link to
-the latest matching Investigation Snapshot state and operator note. Explicit
-signal-history transfer, reset, and retention controls remain the final slice.
-
-### 3. Signal Snooze And Suppression Rules
-
-Let operators intentionally reduce known noise while preserving auditability.
-
-- Add local actions such as **Snooze for 1h**, **Snooze for 1d**, **Ignore in
-  this namespace**, or **Ignore until changed**.
 - Scope rules by signal type, context, namespace, resource identity, severity,
   and optional profile.
 - Show suppressed counts and the reason a signal is hidden or downgraded.
 - Include suppression rules in settings/profile transfer.
 - Default to visible, reversible, local rules; do not silently hide signals.
 
-### 4. Connectivity And Routing Detector Pack
+### 2. Connectivity And Routing Detector Pack
 
-Add a focused detector pack for traffic-path failures, separate from the existing
-pod/workload failure pack.
+Add a focused cached-data detector pack for traffic-path failures:
 
-Candidate signals:
+- Services with no matching or no ready cached Pods;
+- missing Ingress backend Services or ports;
+- EndpointSlices with no usable endpoints;
+- later, bounded NetworkPolicy isolation hints when coverage supports them.
 
-- `service_selector_no_pods`: a Service selector matches no cached pods.
-- `service_points_to_unready_pods`: matching pods exist but are not ready.
-- `ingress_backend_service_missing`: an Ingress backend references a missing
-  Service.
-- `ingress_backend_port_missing`: backend Service exists but the referenced port
-  is absent.
-- `endpoint_slice_empty`: EndpointSlice data indicates no usable endpoints.
-- Optional later: network-policy isolation hints when cached policy context is
-  strong enough to avoid false confidence.
+Every result must expose coverage/unknown state instead of triggering live
+exploratory scans.
 
-The pack should rely on cached dataplane/list snapshots and clearly mark coverage
-or unknowns instead of doing live exploratory scans.
+### 3. Impact Path Drawer
 
-### 5. Impact Path Drawer
+Provide compact evidence paths such as Ingress → Service → workload → Pod and PVC
+→ referencing workloads. Show missing/stale links and confidence per edge; avoid a
+general graph hairball.
 
-Provide compact, operator-friendly dependency traces rather than a graph hairball.
+### 4. Dataplane Explanation Drawer
 
-Examples:
+Explain resource/list/dashboard freshness through existing metadata: last
+observed, TTL, source, coverage, completeness, RBAC denial, scheduler pressure,
+sweep state, backoff, and active profile. Reuse current scheduler and coverage
+state instead of adding another diagnostics system.
 
-- Ingress → Service → Deployment → ReplicaSet → Pod → Secret/ConfigMap/PVC.
-- Service → selector → matching pods → readiness/failure reasons.
-- Deployment unavailable → pods → image pull, CrashLoop, scheduling, PVC, or
-  secret/config references.
-- PVC pending → workloads that reference it.
+### 5. Search Query Mini-Language
 
-The drawer should show direct evidence, missing/stale links, and the confidence
-level for each edge.
+Parse simple cached/local `key:value` filters with plain-text fallback and visible
+chips, for example `kind:pod ns:prod signal:high`, `note:watch`, `stale:true`, or
+`service:no-endpoints`. Preserve both keyboard and mouse selection behavior.
 
-### 6. Dataplane Explanation Drawer
+### 6. Investigation Workspaces
 
-Make freshness and coverage explainable at the resource/list/dashboard level.
+Evolve saved views into explicit, exportable incident workspaces containing list
+state, search/signal filters, focused resources, linked notes/snapshots, and a
+dataplane profile. Do not auto-create workspaces for every signal.
 
-- Add a **Why stale?** or **Dataplane details** surface showing last observed,
-  TTL, source (`live`, `cached`, `persisted`, `derived`), coverage, and
-  completeness.
-- Explain why data is not fresher: RBAC denial, scheduler budget, namespace sweep
-  not reached, error/backoff, profile mode, or active-view prioritization.
-- Reuse existing scheduler health and namespace sweep coverage instead of adding
-  a separate diagnostics system.
+### 7. Runbook And Dynamic Link Integration
 
-### 7. Search Query Mini-Language
+Associate local template-based runbook links with signal types/resource kinds and
+surface them from signals, notes, and Investigation Snapshots.
 
-Make enriched search usable for operator filtering without a new query UI.
+### 8. Exportable Incident Reports
 
-Examples:
-
-```text
-kind:pod ns:prod signal:high
-note:watch
-stale:true
-health:degraded
-imagepull
-owner:helm
-service:no-endpoints
-```
-
-- Parse simple `key:value` tokens with a plain-text fallback.
-- Show parsed filters as chips in the search input.
-- Keep matching backed by cached dataplane/local-store data only.
-- Preserve keyboard and mouse selection behavior.
-
-### 8. Investigation Workspaces
-
-Evolve saved views into lightweight local incident workspaces.
-
-- Bundle a saved dashboard/list state, search query, signal filters, focused
-  resources, drawer stack, linked notes, investigation snapshots, and dataplane
-  profile.
-- Make workspaces exportable/importable with the same transfer model as settings
-  profiles.
-- Keep them explicit and local; do not auto-create a workspace for every signal.
-
-### 9. Runbook And Dynamic Link Integration
-
-Connect existing Resource Macros/Dynamic Links with signals and notes.
-
-- Associate runbook links with signal types and resource kinds.
-- Show **Open runbook** on signal rows and investigation snapshots.
-- Allow notes/snapshots to attach runbook URLs.
-- Prefer template-based local configuration over hardcoded product-specific
-  links.
-
-### 10. Exportable Incident Reports
-
-Generate a copyable Markdown report from current investigation state.
-
-Include:
-
-- cluster/context and active profile;
-- selected namespaces/filters/search query;
-- top signals and affected resources;
-- related notes and saved investigation snapshots;
-- dataplane freshness/coverage/degradation;
-- runbook links;
-- suggested next checks and known unknowns.
-
-This should build on saved investigations and impact paths rather than duplicate
-investigation logic.
+Generate a copyable Markdown report from current investigation state: context,
+profile, filters, top signals/resources, local notes/snapshots, dataplane quality,
+runbooks, suggested checks, and known unknowns. Build on saved investigations and
+impact paths rather than duplicating investigation logic.
 
 ## Architecture And Reliability Packs
 
@@ -237,10 +154,10 @@ Completed slices:
 
 Next candidates:
 
-- investigation snapshot schema and API contracts;
-- signal-memory and suppression-rule models;
+- suppression/snooze rule models and audit metadata;
 - impact-path edge/confidence contracts;
-- search query filter contract.
+- search query filter contract;
+- incident workspace/report schemas when those tracks become active.
 
 Maintain `docs/API_READ_OWNERSHIP.md` whenever read ownership moves from UI or
 direct handlers into dataplane/projection APIs.
