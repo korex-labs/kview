@@ -253,10 +253,6 @@ func cloneBool(in *bool) *bool {
 	return &value
 }
 
-func signalExcluded(item ClusterDashboardSignal, set *SignalExclusionSet) bool {
-	return compileSignalExclusionSet(set).excludes(item)
-}
-
 type compiledSignalExclusionSet struct {
 	rules []compiledSignalExclusionRule
 }

@@ -202,7 +202,7 @@ func TestNamespaceSignalExclusionUsesCachedNamespaceMetadata(t *testing.T) {
 func TestSignalMatchingMetadataIsNotSerializedFromListDTOs(t *testing.T) {
 	payload, err := json.Marshal(dto.SecretDTO{
 		Name: "credentials", Namespace: "apps",
-		Labels: map[string]string{"team": "payments"},
+		Labels:      map[string]string{"team": "payments"},
 		Annotations: map[string]string{"example.com/private": "do-not-return"},
 	})
 	if err != nil {
