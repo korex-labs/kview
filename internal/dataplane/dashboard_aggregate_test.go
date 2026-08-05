@@ -1,12 +1,35 @@
 package dataplane
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
+
+func TestSplitDashboardSummariesOmitOtherTabPayload(t *testing.T) {
+	signalsJSON, err := json.Marshal(ClusterDashboardSignalsSummary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"\"plane\"", "\"resources\"", "\"dataplane\"", "\"usage\""} {
+		if strings.Contains(string(signalsJSON), field) {
+			t.Fatalf("signals response contains %s: %s", field, signalsJSON)
+		}
+	}
+
+	dataplaneJSON, err := json.Marshal(ClusterDashboardDataplaneSummary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"\"signals\"", "\"derived\""} {
+		if strings.Contains(string(dataplaneJSON), field) {
+			t.Fatalf("dataplane response contains %s: %s", field, dataplaneJSON)
+		}
+	}
+}
 
 func TestResourceTotalsCompletenessLabel(t *testing.T) {
 	tests := []struct {
@@ -126,6 +149,22 @@ func TestAggregateClusterDashboard_FromCachedPodsOnly(t *testing.T) {
 	}
 	if derived.HelmCharts.Total != 1 || len(derived.HelmCharts.Charts) != 1 {
 		t.Fatalf("derived helm charts %+v", derived.HelmCharts)
+	}
+
+	_, noSignals, noDerivedSignals, _ := mm.aggregateClusterDashboardParts(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "denied", ClusterDashboardListOptions{}, true, false)
+	if noSignals.Total != 0 || len(noSignals.Items) != 0 {
+		t.Fatalf("dataplane-only aggregation returned signals: %+v", noSignals)
+	}
+	if len(noDerivedSignals.Nodes.Nodes) != 0 || len(noDerivedSignals.HelmCharts.Charts) != 0 {
+		t.Fatalf("dataplane-only aggregation built signal projections: %+v", noDerivedSignals)
+	}
+
+	noResources, signalsOnly, derivedOnly, _ := mm.aggregateClusterDashboardParts(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "denied", ClusterDashboardListOptions{}, false, true)
+	if noResources.Pods != 0 || noResources.HelmReleases != 0 {
+		t.Fatalf("signals-only aggregation counted resources: %+v", noResources)
+	}
+	if signalsOnly.Total == 0 || len(derivedOnly.HelmCharts.Charts) != 1 {
+		t.Fatalf("signals-only aggregation omitted signal projections: signals=%+v derived=%+v", signalsOnly, derivedOnly)
 	}
 }
 

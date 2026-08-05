@@ -160,6 +160,41 @@ func TestPerformanceSnapshotReturnsRuntimeStats(t *testing.T) {
 	}
 }
 
+func TestDashboardSplitEndpointsKeepPayloadsSeparate(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+
+	signals := doReq(t, h, http.MethodGet, "/api/dashboard/signals", testToken, nil)
+	if signals.Code != http.StatusOK {
+		t.Fatalf("signals status: got %d body=%s", signals.Code, signals.Body.String())
+	}
+	signalsJSON := mustDecodeJSON(t, signals.Body.Bytes())
+	signalsItem, _ := signalsJSON["item"].(map[string]any)
+	for _, forbidden := range []string{"plane", "resources", "dataplane", "usage"} {
+		if _, ok := signalsItem[forbidden]; ok {
+			t.Fatalf("signals response contains %q", forbidden)
+		}
+	}
+	if dp.dashboardSignalsCalls != 1 || dp.dashboardDataplaneCalls != 0 {
+		t.Fatalf("signals route calls: signals=%d dataplane=%d", dp.dashboardSignalsCalls, dp.dashboardDataplaneCalls)
+	}
+
+	dataplaneRec := doReq(t, h, http.MethodGet, "/api/dashboard/dataplane", testToken, nil)
+	if dataplaneRec.Code != http.StatusOK {
+		t.Fatalf("dataplane status: got %d body=%s", dataplaneRec.Code, dataplaneRec.Body.String())
+	}
+	dataplaneJSON := mustDecodeJSON(t, dataplaneRec.Body.Bytes())
+	dataplaneItem, _ := dataplaneJSON["item"].(map[string]any)
+	for _, forbidden := range []string{"signals", "derived"} {
+		if _, ok := dataplaneItem[forbidden]; ok {
+			t.Fatalf("dataplane response contains %q", forbidden)
+		}
+	}
+	if dp.dashboardSignalsCalls != 1 || dp.dashboardDataplaneCalls != 1 {
+		t.Fatalf("split route calls: signals=%d dataplane=%d", dp.dashboardSignalsCalls, dp.dashboardDataplaneCalls)
+	}
+}
+
 func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 	t.Helper()
 	var m map[string]any
@@ -174,11 +209,13 @@ func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 // others panic so any accidental call fails the test loudly.
 
 type stubDataplane struct {
-	policy    dataplane.DataplanePolicy
-	bundle    dataplane.DataplanePolicyBundle
-	effective map[string]dataplane.DataplanePolicy
-	acks      map[string]dataplane.SignalAcknowledgementRecord
-	history   map[string]dataplane.SignalHistoryRecord
+	policy                  dataplane.DataplanePolicy
+	bundle                  dataplane.DataplanePolicyBundle
+	effective               map[string]dataplane.DataplanePolicy
+	acks                    map[string]dataplane.SignalAcknowledgementRecord
+	history                 map[string]dataplane.SignalHistoryRecord
+	dashboardSignalsCalls   int
+	dashboardDataplaneCalls int
 }
 
 func newStubDataplane() *stubDataplane {
@@ -440,7 +477,7 @@ func (s *stubDataplane) LimitRangesSnapshot(_ context.Context, _, _ string) (dat
 	panic("stubDataplane: LimitRangesSnapshot")
 }
 func (s *stubDataplane) NodeMetricsSnapshot(_ context.Context, _ string) (dataplane.NodeMetricsSnapshot, error) {
-	panic("stubDataplane: NodeMetricsSnapshot")
+	return dataplane.NodeMetricsSnapshot{}, nil
 }
 func (s *stubDataplane) PodMetricsSnapshot(_ context.Context, _, _ string) (dataplane.PodMetricsSnapshot, error) {
 	panic("stubDataplane: PodMetricsSnapshot")
@@ -468,6 +505,14 @@ func (s *stubDataplane) InvalidateJobsSnapshot(_ context.Context, _, _ string) e
 
 func (s *stubDataplane) DashboardSummary(_ context.Context, _ string, _ dataplane.ClusterDashboardListOptions) dataplane.ClusterDashboardSummary {
 	panic("stubDataplane: DashboardSummary")
+}
+func (s *stubDataplane) DashboardSignalsSummary(_ context.Context, _ string, _ dataplane.ClusterDashboardListOptions) dataplane.ClusterDashboardSignalsSummary {
+	s.dashboardSignalsCalls++
+	return dataplane.ClusterDashboardSignalsSummary{}
+}
+func (s *stubDataplane) DashboardDataplaneSummary(_ context.Context, _ string) dataplane.ClusterDashboardDataplaneSummary {
+	s.dashboardDataplaneCalls++
+	return dataplane.ClusterDashboardDataplaneSummary{}
 }
 func (s *stubDataplane) ListSnapshotRevision(_ context.Context, _ string, _ dataplane.ResourceKind, _ string) (dataplane.ListSnapshotRevisionEnvelope, error) {
 	panic("stubDataplane: ListSnapshotRevision")

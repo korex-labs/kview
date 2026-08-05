@@ -96,7 +96,11 @@ func isBackgroundPollingPath(p string) bool {
 		"/api/dataplane/config",
 		"/api/dataplane/signals/catalog",
 		"/api/dataplane/metrics/status",
+		"/api/dashboard/signals",
+		"/api/dashboard/signals/query",
+		"/api/dashboard/dataplane",
 		"/api/dashboard/cluster",
+		"/api/dashboard/cluster/query",
 		"/api/sessions":
 		return true
 	default:

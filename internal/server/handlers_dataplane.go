@@ -441,6 +441,63 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, status)
 	})
 
+	api.Get("/dashboard/signals", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		active := s.readContextName(r)
+		s.dp.EnsureObservers(ctx, active)
+		warmNodeMetricsAsync(s, active)
+
+		summary := s.dp.DashboardSignalsSummary(ctx, active, parseClusterDashboardListOptions(r))
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   summary,
+		})
+	})
+
+	api.Post("/dashboard/signals/query", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		active := s.readContextName(r)
+		opts := parseClusterDashboardListOptions(r)
+		var body struct {
+			ResourceTags dataplane.ClusterDashboardResourceTagsOptions `json:"resourceTags"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid dashboard query payload"})
+			return
+		}
+		opts.ResourceTags = body.ResourceTags
+		opts.ResourceTags.Context = active
+
+		s.dp.EnsureObservers(ctx, active)
+		warmNodeMetricsAsync(s, active)
+
+		summary := s.dp.DashboardSignalsSummary(ctx, active, opts)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   summary,
+		})
+	})
+
+	api.Get("/dashboard/dataplane", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
+		defer cancel()
+
+		active := s.readContextName(r)
+		s.dp.EnsureObservers(ctx, active)
+		warmNodeMetricsAsync(s, active)
+
+		summary := s.dp.DashboardDataplaneSummary(ctx, active)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   summary,
+		})
+	})
+
+	// Legacy combined dashboard routes remain for API compatibility.
 	api.Get("/dashboard/cluster", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutDetail)
 		defer cancel()

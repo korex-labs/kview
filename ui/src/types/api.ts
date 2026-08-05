@@ -675,7 +675,21 @@ export type ApiDashboardClusterResponse = {
   };
 };
 
-/** Cluster-wide resource usage rollup exposed on /api/dashboard/cluster when metrics.k8s.io is available. */
+export type DashboardClusterItem = NonNullable<ApiDashboardClusterResponse["item"]>;
+
+/** Signal-triage payload from /api/dashboard/signals. */
+export type ApiDashboardSignalsResponse = {
+  active?: string;
+  item?: Pick<DashboardClusterItem, "visibility" | "coverage" | "signals" | "derived">;
+};
+
+/** Dataplane diagnostics payload from /api/dashboard/dataplane. */
+export type ApiDashboardDataplaneResponse = {
+  active?: string;
+  item?: Pick<DashboardClusterItem, "plane" | "visibility" | "coverage" | "resources" | "dataplane" | "usage">;
+};
+
+/** Cluster-wide resource usage rollup exposed on dashboard dataplane responses when metrics.k8s.io is available. */
 export type ClusterDashboardUsage = {
   podCpuMilli: number;
   podMemoryBytes: number;

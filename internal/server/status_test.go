@@ -190,7 +190,11 @@ func TestIsBackgroundPollingPath(t *testing.T) {
 	polling := []string{
 		"/api/status",
 		"/api/activity",
+		"/api/dashboard/signals",
+		"/api/dashboard/signals/query",
+		"/api/dashboard/dataplane",
 		"/api/dashboard/cluster",
+		"/api/dashboard/cluster/query",
 		"/api/dataplane/work/live",
 		"/api/dataplane/revision",
 		"/api/namespaces/enrichment",

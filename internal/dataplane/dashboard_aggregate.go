@@ -34,10 +34,15 @@ func resourceTotalsCompletenessLabel(visible, withCachedDataplaneLists int) stri
 	return "partial"
 }
 
-// aggregateClusterDashboard rolls up workload totals and signals only from namespaces that already
+// aggregateClusterDashboard rolls up the legacy combined resources/signals projection.
+func (m *manager) aggregateClusterDashboard(plane *clusterPlane, namespaceSnapshot NamespaceSnapshot, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
+	return m.aggregateClusterDashboardParts(plane, namespaceSnapshot, nsNamesSorted, nsTotal, nodesSnap, nodeState, opts, true, true)
+}
+
+// aggregateClusterDashboardParts rolls up workload totals and optional signals only from namespaces that already
 // have cached dataplane list snapshots (typically from visiting those namespaces or row enrichment),
 // intersected with the current namespace list snapshot. No alphabetical sampling and no implicit cluster-wide totals.
-func (m *manager) aggregateClusterDashboard(plane *clusterPlane, namespaceSnapshot NamespaceSnapshot, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
+func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceSnapshot NamespaceSnapshot, nsNamesSorted []string, nsTotal int, nodesSnap NodesSnapshot, nodeState string, opts ClusterDashboardListOptions, includeResources, includeSignals bool) (ClusterDashboardResourcesPanel, ClusterDashboardSignalsPanel, ClusterDashboardDerivedPanel, ClusterDashboardCoverage) {
 	opts = normalizeClusterDashboardListOptions(opts)
 	cov := m.buildDashboardCoverage(plane.name, nsNamesSorted, nsTotal)
 	p := m.EffectivePolicy(plane.name)
@@ -48,7 +53,14 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, namespaceSnapsh
 	cov.NamespacesInResourceTotals = len(knownNS)
 	cov.PersistenceHydrating = plane.persistHydrating.Load()
 	cov.ResourceTotalsCompleteness = resourceTotalsCompletenessLabel(nsTotal, len(knownNS))
-	derived := buildDerivedDashboardProjections(plane, knownNS, thresholds.PodRestartCount, nodesSnap, nodeState)
+	var derived ClusterDashboardDerivedPanel
+	if includeSignals {
+		derived = buildDerivedDashboardProjections(plane, knownNS, thresholds.PodRestartCount, nodesSnap, nodeState)
+	} else {
+		// Preserve the denied-node-list fallback without building signal-oriented
+		// node severity/restart projections or Helm projections.
+		derived.Nodes.Total = cachedPodNodeTotal(plane, knownNS)
+	}
 
 	res := ClusterDashboardResourcesPanel{
 		TotalNamespaces: nsTotal,
@@ -83,106 +95,173 @@ func (m *manager) aggregateClusterDashboard(plane *clusterPlane, namespaceSnapsh
 
 	for _, ns := range knownNS {
 		s := buildSnapshotSetForNamespace(plane, ns, thresholds)
-		if s.podsOK {
+		if includeResources && s.podsOK {
 			res.Pods += len(s.pods.Items)
+		}
+		if s.podsOK {
 			aggregateMetas = append(aggregateMetas, s.pods.Meta)
 		}
-		if s.depsOK {
+		if includeResources && s.depsOK {
 			res.Deployments += len(s.deps.Items)
 		}
-		if s.dsOK {
+		if includeResources && s.dsOK {
 			res.DaemonSets += len(s.ds.Items)
+		}
+		if s.dsOK {
 			aggregateMetas = append(aggregateMetas, s.ds.Meta)
 		}
-		if s.stsOK {
+		if includeResources && s.stsOK {
 			res.StatefulSets += len(s.sts.Items)
+		}
+		if s.stsOK {
 			aggregateMetas = append(aggregateMetas, s.sts.Meta)
 		}
-		if s.rsOK {
+		if includeResources && s.rsOK {
 			res.ReplicaSets += len(s.rs.Items)
+		}
+		if s.rsOK {
 			aggregateMetas = append(aggregateMetas, s.rs.Meta)
 		}
-		if s.jobsOK {
+		if includeResources && s.jobsOK {
 			res.Jobs += len(s.jobs.Items)
+		}
+		if s.jobsOK {
 			aggregateMetas = append(aggregateMetas, s.jobs.Meta)
 		}
-		if s.cjsOK {
+		if includeResources && s.cjsOK {
 			res.CronJobs += len(s.cjs.Items)
+		}
+		if s.cjsOK {
 			aggregateMetas = append(aggregateMetas, s.cjs.Meta)
 		}
-		if s.hpasOK {
+		if includeResources && s.hpasOK {
 			res.HorizontalPodAutoscalers += len(s.hpas.Items)
+		}
+		if s.hpasOK {
 			aggregateMetas = append(aggregateMetas, s.hpas.Meta)
 		}
-		if s.svcsOK {
+		if includeResources && s.svcsOK {
 			res.Services += len(s.svcs.Items)
+		}
+		if s.svcsOK {
 			aggregateMetas = append(aggregateMetas, s.svcs.Meta)
 		}
-		if s.ingsOK {
+		if includeResources && s.ingsOK {
 			res.Ingresses += len(s.ings.Items)
+		}
+		if s.ingsOK {
 			aggregateMetas = append(aggregateMetas, s.ings.Meta)
 		}
-		if s.pvcsOK {
+		if includeResources && s.pvcsOK {
 			res.PersistentVolumeClaims += len(s.pvcs.Items)
+		}
+		if s.pvcsOK {
 			aggregateMetas = append(aggregateMetas, s.pvcs.Meta)
 		}
-		if s.cmsOK {
+		if includeResources && s.cmsOK {
 			res.ConfigMaps += len(s.cms.Items)
+		}
+		if s.cmsOK {
 			aggregateMetas = append(aggregateMetas, s.cms.Meta)
 		}
-		if s.secsOK {
+		if includeResources && s.secsOK {
 			res.Secrets += len(s.secs.Items)
+		}
+		if s.secsOK {
 			aggregateMetas = append(aggregateMetas, s.secs.Meta)
 		}
-		if s.sasOK {
+		if includeResources && s.sasOK {
 			res.ServiceAccounts += len(s.sas.Items)
+		}
+		if s.sasOK {
 			aggregateMetas = append(aggregateMetas, s.sas.Meta)
 		}
-		if s.rolesOK {
+		if includeResources && s.rolesOK {
 			res.Roles += len(s.roles.Items)
+		}
+		if s.rolesOK {
 			aggregateMetas = append(aggregateMetas, s.roles.Meta)
 		}
-		if s.roleBindingsOK {
+		if includeResources && s.roleBindingsOK {
 			res.RoleBindings += len(s.roleBindings.Items)
+		}
+		if s.roleBindingsOK {
 			aggregateMetas = append(aggregateMetas, s.roleBindings.Meta)
 		}
-		if s.helmOK {
+		if includeResources && s.helmOK {
 			res.HelmReleases += len(s.helmReleases.Items)
+		}
+		if s.helmOK {
 			aggregateMetas = append(aggregateMetas, s.helmReleases.Meta)
 		}
-		if s.customResourcesOK {
+		if includeResources && s.customResourcesOK {
 			res.CustomResources += len(s.customResources.Items)
+		}
+		if s.customResourcesOK {
 			aggregateMetas = append(aggregateMetas, s.customResources.Meta)
 		}
-		if s.quotasOK {
+		if includeResources && s.quotasOK {
 			res.ResourceQuotas += len(s.resourceQuotas.Items)
+		}
+		if s.quotasOK {
 			aggregateMetas = append(aggregateMetas, s.resourceQuotas.Meta)
 		}
-		if s.limitRangesOK {
+		if includeResources && s.limitRangesOK {
 			res.LimitRanges += len(s.limitRanges.Items)
+		}
+		if s.limitRangesOK {
 			aggregateMetas = append(aggregateMetas, s.limitRanges.Meta)
 		}
-		rawSignals := enrichSignalsFromMetadataIndex(detectDashboardSignals(now, ns, s), namespaceMetadata)
-		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(rawSignals, p, plane.name)...)...)
+		if includeSignals {
+			rawSignals := enrichSignalsFromMetadataIndex(detectDashboardSignals(now, ns, s), namespaceMetadata)
+			signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(rawSignals, p, plane.name)...)...)
+		}
 	}
-	signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(enrichNodeSignalMetadata(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), nodesSnap), p, plane.name)...)...)
+	if includeSignals {
+		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(enrichNodeSignalMetadata(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), nodesSnap), p, plane.name)...)...)
+	}
 
 	if len(aggregateMetas) > 0 {
 		wf := string(WorstFreshnessFromSnapshots(aggregateMetas...))
 		wd := string(WorstDegradationFromSnapshots(aggregateMetas...))
 		res.AggregateFreshness = wf
 		res.AggregateDegradation = wd
-		signalPanel.AggregateFreshness = wf
-		signalPanel.AggregateDegradation = wd
+		if includeSignals {
+			signalPanel.AggregateFreshness = wf
+			signalPanel.AggregateDegradation = wd
+		}
 	}
-	signalNote := signalPanel.Note
-	opts.NewestSignalLimit = policy.NewestSignalLimit
-	signalPanel = signals.Summary(policy.SignalLimit, opts)
-	signalPanel.Note = signalNote
-	signalPanel.AggregateFreshness = res.AggregateFreshness
-	signalPanel.AggregateDegradation = res.AggregateDegradation
+	if includeSignals {
+		signalNote := signalPanel.Note
+		opts.NewestSignalLimit = policy.NewestSignalLimit
+		signalPanel = signals.Summary(policy.SignalLimit, opts)
+		signalPanel.Note = signalNote
+		signalPanel.AggregateFreshness = res.AggregateFreshness
+		signalPanel.AggregateDegradation = res.AggregateDegradation
+	}
 
 	return res, signalPanel, derived, cov
+}
+
+func cachedPodNodeTotal(plane *clusterPlane, knownNS []string) int {
+	if plane == nil {
+		return 0
+	}
+	nodes := map[string]struct{}{}
+	for _, ns := range knownNS {
+		snap, ok := plane.podsStore.getCached(ns)
+		if !ok || snap.Err != nil {
+			continue
+		}
+		for _, pod := range snap.Items {
+			name := strings.TrimSpace(pod.Node)
+			if name == "" {
+				name = "(unscheduled)"
+			}
+			nodes[name] = struct{}{}
+		}
+	}
+	return len(nodes)
 }
 
 // buildSnapshotSetForNamespace fetches all cached dataplane list snapshots for

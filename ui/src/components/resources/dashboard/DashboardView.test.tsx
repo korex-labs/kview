@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DashboardView from "./DashboardView";
 import { ActiveContextProvider } from "../../../activeContext";
@@ -198,20 +198,25 @@ function coldContextSwitchDashboardResponse(): ApiDashboardClusterResponse {
   return res;
 }
 
-function renderDashboard() {
-  render(
-    <ActiveContextProvider value="">
+function dashboardElement(context = "") {
+  return (
+    <ActiveContextProvider value={context}>
       <UserSettingsProvider>
         <DashboardView token="test-token" />
       </UserSettingsProvider>
-    </ActiveContextProvider>,
+    </ActiveContextProvider>
   );
+}
+
+function renderDashboard(context = "") {
+  return render(dashboardElement(context));
 }
 
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
   apiGet.mockReset();
   notifyStatus({
     ok: true,
@@ -295,5 +300,151 @@ describe("DashboardView warmup loading", () => {
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2), { timeout: 4_000 });
     await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
     expect(screen.getByText("Signals panel")).toBeTruthy();
+  }, 20_000);
+});
+
+describe("DashboardView sections", () => {
+  it("loads only the active dashboard endpoint and reuses each tab cache", async () => {
+    apiGet.mockResolvedValue(readyDashboardResponse());
+
+    renderDashboard();
+
+    const signalsPanel = document.getElementById("dashboard-panel-signals") as HTMLElement;
+    const dataplanePanel = document.getElementById("dashboard-panel-dataplane") as HTMLElement;
+    expect(signalsPanel).toBeTruthy();
+    expect(dataplanePanel).toBeTruthy();
+    expect(signalsPanel.hidden).toBe(false);
+    expect(dataplanePanel.hidden).toBe(true);
+
+    await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
+    expect(String(apiGet.mock.calls[0][0])).toContain("/api/dashboard/signals?");
+    expect(screen.getByRole("tab", { name: "Signals" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Signals panel")).toBeTruthy();
+    expect(dataplanePanel.textContent).not.toContain("Known Resources");
+    expect(screen.getByLabelText("Saved view")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Dataplane" }));
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
+    expect(String(apiGet.mock.calls[1][0])).toBe("/api/dashboard/dataplane");
+    expect(screen.getByRole("tab", { name: "Dataplane" }).getAttribute("aria-selected")).toBe("true");
+    expect(signalsPanel.hidden).toBe(true);
+    expect(dataplanePanel.hidden).toBe(false);
+    expect(screen.queryByLabelText("Saved view")).toBeNull();
+    expect(screen.getByText("Known Resources")).toBeTruthy();
+    expect(screen.getByText("Dataplane Stats")).toBeTruthy();
+    expect(localStorage.getItem("kview:dashboardTab:v1")).toBe("dataplane");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Signals" }));
+
+    expect(signalsPanel.hidden).toBe(false);
+    expect(dataplanePanel.hidden).toBe(true);
+    expect(screen.getByText("Signals panel")).toBeTruthy();
+    expect(apiGet).toHaveBeenCalledTimes(2);
+  }, 20_000);
+
+  it("does not render inactive-tab data after the context changes", async () => {
+    apiGet.mockImplementation((...args: unknown[]) =>
+      args.includes("new-context") ? new Promise(() => undefined) : Promise.resolve(readyDashboardResponse()),
+    );
+
+    const view = renderDashboard("old-context");
+    await waitFor(() => expect(screen.getByText("Signals panel")).toBeTruthy());
+    fireEvent.click(screen.getByRole("tab", { name: "Dataplane" }));
+    await waitFor(() => expect(screen.getByText("Dataplane Stats")).toBeTruthy());
+
+    view.rerender(dashboardElement("new-context"));
+    await waitFor(() => expect(apiGet.mock.calls.some((call) =>
+      call[0] === "/api/dashboard/dataplane" && call[2] === "new-context",
+    )).toBe(true));
+    fireEvent.click(screen.getByRole("tab", { name: "Signals" }));
+
+    expect(screen.queryByText("Signals panel")).toBeNull();
+    await waitFor(() => expect(apiGet.mock.calls.some((call) =>
+      String(call[0]).startsWith("/api/dashboard/signals?") && call[2] === "new-context",
+    )).toBe(true));
+  }, 20_000);
+
+  it("joins the original tab request during rapid tab switching", async () => {
+    let resolveSignals!: (value: ApiDashboardClusterResponse) => void;
+    const signalsPromise = new Promise<ApiDashboardClusterResponse>((resolve) => {
+      resolveSignals = resolve;
+    });
+    apiGet
+      .mockImplementationOnce(() => signalsPromise)
+      .mockImplementationOnce(() => new Promise(() => undefined));
+
+    renderDashboard();
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("tab", { name: "Dataplane" }));
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("tab", { name: "Signals" }));
+
+    expect(apiGet).toHaveBeenCalledTimes(2);
+    resolveSignals(readyDashboardResponse());
+    await waitFor(() => expect(screen.getByText("Signals panel")).toBeTruthy());
+    expect(apiGet).toHaveBeenCalledTimes(2);
+  }, 20_000);
+
+  it("shows a tab-local error and retries an uncached load", async () => {
+    apiGet
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockResolvedValueOnce(readyDashboardResponse());
+
+    renderDashboard();
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Failed to load dashboard signals.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("Signals panel")).toBeTruthy());
+    expect(apiGet).toHaveBeenCalledTimes(2);
+  }, 20_000);
+
+  it("restores the last selected dashboard section", async () => {
+    localStorage.setItem("kview:dashboardTab:v1", "dataplane");
+    apiGet.mockResolvedValue(readyDashboardResponse());
+
+    renderDashboard();
+
+    await waitFor(() => expect(screen.queryByText("Loading...")).toBeNull());
+    expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(String(apiGet.mock.calls[0][0])).toBe("/api/dashboard/dataplane");
+    expect(screen.getByRole("tab", { name: "Dataplane" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Dataplane Stats")).toBeTruthy();
+    expect((document.getElementById("dashboard-panel-signals") as HTMLElement).hidden).toBe(true);
+    expect((document.getElementById("dashboard-panel-dataplane") as HTMLElement).hidden).toBe(false);
+  }, 20_000);
+
+  it("opens Signals when applying a pending dashboard saved view", async () => {
+    localStorage.setItem("kview:dashboardTab:v1", "dataplane");
+    sessionStorage.setItem("kview:savedResourceView:pending", JSON.stringify({
+      id: "pending-signals",
+      name: "Pending signals",
+      viewType: "dashboard",
+      context: "",
+      resource: "pods",
+      namespace: "",
+      filter: "",
+      sortModel: [],
+      columnVisibilityModel: {},
+      columnWidths: {},
+      dashboardSnapshot: {
+        signalFilter: "severity:high",
+        signalFilters: ["severity:high"],
+        signalsQuery: "api",
+        signalsSort: "last_seen_desc",
+        signalsRowsPerPage: 25,
+      },
+    }));
+    apiGet.mockResolvedValue(readyDashboardResponse());
+
+    renderDashboard();
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Signals" }).getAttribute("aria-selected")).toBe("true"));
+    expect(screen.getByText("Signals panel")).toBeTruthy();
+    expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(String(apiGet.mock.calls[0][0])).toContain("/api/dashboard/signals?");
+    expect(localStorage.getItem("kview:dashboardTab:v1")).toBe("signals");
+    expect(sessionStorage.getItem("kview:savedResourceView:pending")).toBeNull();
   }, 20_000);
 });

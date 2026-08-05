@@ -71,6 +71,16 @@ Rule of thumb: derived projections can support correlation and triage, but the U
 
 ## Dashboard summary
 
+The Dashboard UI uses two cache-backed projections. `GET /api/dashboard/signals`
+returns visibility/coverage readiness metadata, the filtered signal panel, and
+derived node/Helm triage rows; it skips dataplane statistics and cached usage.
+`GET /api/dashboard/dataplane` returns plane/scope, visibility, coverage,
+resource totals, cached usage, and runtime statistics; it skips signal
+detection, signal history updates, and signal sorting. Both routes preserve
+`EnsureObservers`, context pinning, bounded timeouts, and node-metrics warmup.
+The legacy `GET /api/dashboard/cluster` and tagged query route remain available
+with the combined response contract.
+
 `GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **signals** for cached-scope attention, and derived sparse node/Helm chart projections. Signals currently cover empty-looking namespaces, elevated pod restarts, pod image pull failures, CrashLoopBackOff waiting states, unschedulable pods, unavailable Deployments, stale transitional Helm releases, abnormal Jobs/CronJobs, HorizontalPodAutoscaler warnings, empty ConfigMaps/Secrets, quota pressure, service endpoint health, ingress routing health, RBAC surface hints, PVC/PV node-bound storage, container/node resource pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. Detectors populate a single in-memory signal store for the request; the store keeps the signal table plus a resource identity index, so a resource can have multiple signals and projections can retrieve signals by resource kind/name/scope/location without re-running detection. The JSON panel is `signals`. Each item carries a stable signal shape: `signalType`, resource identity (`resourceKind`, `resourceName`), scope (`scope`, `scopeLocation`), `severity`, `actualData`, `calculatedData`, confidence, section/filter key, focused-list hint (`focus.resource`, optional `focus.namespace`, `focus.filter`, and `focus.label`), and advisory text (`likelyCause`, `suggestedAction`). The panel also includes `signals.filters`, a backend-provided quick-filter list with IDs, labels, counts, category, and severity hints for severity, resource kind, signal reason, and the top namespaces with problems, so the UI does not need to hard-code every signal type. The response includes both a capped `signals.top` list for first-glance triage and `signals.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
 
 `GET /api/namespaces/{name}/insights` uses the same signal store for namespace-scoped views. It returns the sorted flat `signals` list plus grouped `resourceSignals`, allowing drawer sections to attach the exact signals for a ResourceQuota, HPA, PVC, Service, or other resource by identity.

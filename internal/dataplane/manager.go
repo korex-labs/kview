@@ -192,8 +192,12 @@ type DataPlaneManager interface {
 	// WarmClusterBackground performs one low-priority background pass for a cluster.
 	WarmClusterBackground(ctx context.Context, clusterName string) error
 
-	// DashboardSummary returns a minimal cluster dashboard backed by dataplane snapshots.
+	// DashboardSummary returns the legacy combined dashboard projection.
 	DashboardSummary(ctx context.Context, clusterName string, opts ClusterDashboardListOptions) ClusterDashboardSummary
+	// DashboardSignalsSummary returns only signal-triage data and readiness metadata.
+	DashboardSignalsSummary(ctx context.Context, clusterName string, opts ClusterDashboardListOptions) ClusterDashboardSignalsSummary
+	// DashboardDataplaneSummary returns only dataplane diagnostics and resource totals.
+	DashboardDataplaneSummary(ctx context.Context, clusterName string) ClusterDashboardDataplaneSummary
 
 	// ListSnapshotRevision returns revision metadata for a list cell without scheduling kube fetches.
 	ListSnapshotRevision(ctx context.Context, clusterName string, kind ResourceKind, namespace string) (ListSnapshotRevisionEnvelope, error)

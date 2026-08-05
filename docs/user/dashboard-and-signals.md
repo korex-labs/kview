@@ -12,6 +12,29 @@ Use the dashboard to answer:
 - Is cached coverage broad enough to trust the summary?
 - Which resource should be inspected next?
 
+## Dashboard Sections
+
+The dashboard separates two operator workflows into tabs backed by independent
+cached projections:
+
+- **Signals** is the default triage section. It contains attention counters,
+  signal filters and search, saved dashboard views, the signal table, and
+  investigation actions. Its request does not transfer dataplane runtime
+  statistics or resource-usage panels.
+- **Dataplane** contains known resource totals, cluster usage, scope and
+  freshness, coverage, cache traffic, and scheduler execution statistics. Its
+  request does not transfer signal rows or derived signal projections.
+
+kview remembers the last selected dashboard tab locally. On first opening a tab,
+kview loads only that tab's endpoint. Returning to a recently loaded tab reuses
+its short-lived local cache; background refresh applies only to the active tab.
+A load failure is shown inside that tab with a **Retry** action and does not
+remove the other tab's cached projection. Switching tabs does not reset signal
+filters, sorting, search, or pagination.
+Dashboard saved views remain part of **Signals** because they store signal-view
+state rather than dataplane statistics. Applying one opens Signals before its
+request is issued.
+
 ## Main Controls
 
 - **Signal chips**: filter the signals table by priority, newest detections,

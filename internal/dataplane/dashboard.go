@@ -22,6 +22,28 @@ type ClusterDashboardSummary struct {
 	Usage *ClusterDashboardUsagePanel `json:"usage,omitempty"`
 }
 
+// ClusterDashboardSignalsSummary is the signal-triage projection of the
+// cluster dashboard. It intentionally omits resource totals, usage, and
+// dataplane runtime statistics.
+type ClusterDashboardSignalsSummary struct {
+	Visibility ClusterDashboardVisibilityPanel `json:"visibility"`
+	Coverage   ClusterDashboardCoverage        `json:"coverage"`
+	Signals    ClusterDashboardSignalsPanel    `json:"signals"`
+	Derived    ClusterDashboardDerivedPanel    `json:"derived"`
+}
+
+// ClusterDashboardDataplaneSummary is the dataplane diagnostics projection of
+// the cluster dashboard. It intentionally omits signal rows and derived signal
+// projections.
+type ClusterDashboardDataplaneSummary struct {
+	Plane      ClusterDashboardPlane           `json:"plane"`
+	Visibility ClusterDashboardVisibilityPanel `json:"visibility"`
+	Coverage   ClusterDashboardCoverage        `json:"coverage"`
+	Resources  ClusterDashboardResourcesPanel  `json:"resources"`
+	Dataplane  ClusterDashboardDataplaneStats  `json:"dataplane"`
+	Usage      *ClusterDashboardUsagePanel     `json:"usage,omitempty"`
+}
+
 // ClusterDashboardUsagePanel is the cluster-wide rollup of point-in-time
 // resource usage sampled from metrics.k8s.io. PodsWithMetrics counts pods
 // that were present in a cached PodMetricsSnapshot; Namespaces counts how
@@ -319,8 +341,36 @@ type ClusterDashboardDataplaneKindStats struct {
 	LiveBytes    uint64 `json:"liveBytes"`
 }
 
-// DashboardSummary builds a bounded cluster dashboard from cached snapshots.
+// DashboardSummary builds the legacy combined cluster dashboard projection.
 func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts ClusterDashboardListOptions) ClusterDashboardSummary {
+	return m.dashboardSummary(ctx, clusterName, opts, true, true)
+}
+
+// DashboardSignalsSummary builds only the signal-triage dashboard projection.
+func (m *manager) DashboardSignalsSummary(ctx context.Context, clusterName string, opts ClusterDashboardListOptions) ClusterDashboardSignalsSummary {
+	summary := m.dashboardSummary(ctx, clusterName, opts, true, false)
+	return ClusterDashboardSignalsSummary{
+		Visibility: summary.Visibility,
+		Coverage:   summary.Coverage,
+		Signals:    summary.Signals,
+		Derived:    summary.Derived,
+	}
+}
+
+// DashboardDataplaneSummary builds only the dataplane diagnostics projection.
+func (m *manager) DashboardDataplaneSummary(ctx context.Context, clusterName string) ClusterDashboardDataplaneSummary {
+	summary := m.dashboardSummary(ctx, clusterName, ClusterDashboardListOptions{}, false, true)
+	return ClusterDashboardDataplaneSummary{
+		Plane:      summary.Plane,
+		Visibility: summary.Visibility,
+		Coverage:   summary.Coverage,
+		Resources:  summary.Resources,
+		Dataplane:  summary.Dataplane,
+		Usage:      summary.Usage,
+	}
+}
+
+func (m *manager) dashboardSummary(ctx context.Context, clusterName string, opts ClusterDashboardListOptions, includeSignals, includeDataplane bool) ClusterDashboardSummary {
 	ctx = ContextWithWorkSourceIfUnset(ctx, WorkSourceDashboard)
 	policy := m.EffectivePolicy(clusterName)
 	planeAny, _ := m.PlaneForCluster(ctx, clusterName)
@@ -373,15 +423,19 @@ func (m *manager) DashboardSummary(ctx context.Context, clusterName string, opts
 		resourceScope = strings.Join(scope.ResourceKinds, ",")
 	}
 
-	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboard(plane, nsSnap, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts))
-	usagePanel := m.aggregateClusterDashboardUsage(plane, nsNames)
+	resPanel, signalsPanel, derivedPanel, cov := m.aggregateClusterDashboardParts(plane, nsSnap, nsNames, nsTotal, nodesSnap, nodeState, normalizeClusterDashboardListOptions(opts), includeDataplane, includeSignals)
+	var usagePanel *ClusterDashboardUsagePanel
+	var dpStats ClusterDashboardDataplaneStats
+	if includeDataplane {
+		usagePanel = m.aggregateClusterDashboardUsage(plane, nsNames)
+		dpStats = dashboardDataplaneStatsFromSnapshots(m.stats.snapshot(), m.scheduler.StatsSnapshot(), time.Now().UTC())
+	}
 	if derivedPanel.Nodes.Total > nodeTotal {
 		nodeTotal = derivedPanel.Nodes.Total
 		if nodeState == "empty" {
 			nodeState = "degraded"
 		}
 	}
-	dpStats := dashboardDataplaneStatsFromSnapshots(m.stats.snapshot(), m.scheduler.StatsSnapshot(), time.Now().UTC())
 	if policy.NamespaceEnrichment.Enabled && policy.NamespaceEnrichment.Sweep.Enabled && len(nsSnap.Items) > 0 && !m.hasNamespaceEnrichmentInFlight(clusterName) {
 		m.BeginNamespaceListProgressiveEnrichment(clusterName, nsSnap.Items, NamespaceEnrichHints{})
 	}
