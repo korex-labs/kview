@@ -23,7 +23,7 @@ import MarkdownContent from "./MarkdownContent";
 import { featuredHelpPages, helpManifest, helpPages, helpPagesByCategory, type HelpPage } from "../../help/content";
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
 
-const changelogUrl = "https://github.com/korex-labs/kview/blob/main/CHANGELOG.md";
+export const changelogUrl = "https://github.com/korex-labs/kview/blob/master/CHANGELOG.md";
 const whatsNewHighlightLimit = 10;
 type ProjectLink = { id: string; label: string; href: string; icon: React.ReactElement };
 

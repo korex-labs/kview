@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { limitWhatsNewHighlights } from "./HelpView";
+import whatsNew from "../../../../docs/user/whats-new.md?raw";
+import { changelogUrl, limitWhatsNewHighlights } from "./HelpView";
+
+describe("Help changelog links", () => {
+  it("targets the repository default branch", () => {
+    expect(changelogUrl).toBe("https://github.com/korex-labs/kview/blob/master/CHANGELOG.md");
+    expect(whatsNew).toContain("https://github.com/korex-labs/kview/blob/master/CHANGELOG.md");
+    expect(whatsNew).not.toContain("https://github.com/korex-labs/kview/blob/main/CHANGELOG.md");
+  });
+});
 
 describe("limitWhatsNewHighlights", () => {
   it("keeps only the first ten Recent Highlights bullets", () => {

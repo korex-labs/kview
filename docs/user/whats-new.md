@@ -31,5 +31,5 @@ repository.
 
 ## Full History
 
-See [CHANGELOG.md](https://github.com/korex-labs/kview/blob/main/CHANGELOG.md)
+See [CHANGELOG.md](https://github.com/korex-labs/kview/blob/master/CHANGELOG.md)
 in the repository for the complete release history.
