@@ -7,6 +7,8 @@ GOOS?=linux
 GOARCH?=amd64
 DOCKER_IMAGE=kview-build:go1.26.5-node22.23.1
 DOCKER_BUILD?=1
+GOVULNCHECK_VERSION=v1.6.0
+ACTIONLINT_VERSION=v1.7.12
 COVERAGE_DIR=.artifacts/coverage
 CODEX?=codex
 KVIEW_E2E_HOST_KUBECONFIG?=
@@ -48,9 +50,9 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
+.PHONY: all check audit security workflow-lint lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-audit local-security local-workflow-lint local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
 
-all: install-git-hooks check build
+all: install-git-hooks check audit build
 
 prepare-cache: install-git-hooks
 	mkdir -p .cache/go-build .cache/go-mod .cache/npm .cache/ms-playwright
@@ -105,6 +107,15 @@ release-tag: install-git-hooks
 check: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-check
 
+audit: install-git-hooks docker-image prepare-cache
+	$(DOCKER_RUN) make local-audit GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) ACTIONLINT_VERSION=$(ACTIONLINT_VERSION)
+
+security: install-git-hooks docker-image prepare-cache
+	$(DOCKER_RUN) make local-security GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION)
+
+workflow-lint: install-git-hooks docker-image prepare-cache
+	$(DOCKER_RUN) make local-workflow-lint ACTIONLINT_VERSION=$(ACTIONLINT_VERSION)
+
 lint-go: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-lint-go
 
@@ -151,6 +162,17 @@ local-check: install-git-hooks
 			exit 1; \
 		fi
 	scripts/test-visibility.sh
+
+local-audit: local-security local-workflow-lint
+
+local-security: install-git-hooks
+	go mod verify
+	cd $(UI_DIR) && npm audit --audit-level=low
+	sh scripts/test-govulncheck-wrapper.sh
+	GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) sh scripts/check-go-vulnerabilities.sh
+
+local-workflow-lint: install-git-hooks
+	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) .github/workflows/*.yml
 
 # npm dependencies can contain nested Go packages (for example flatted/golang).
 # Resolve project package directories explicitly so golangci-lint never scans node_modules.

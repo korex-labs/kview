@@ -33,6 +33,9 @@ jobs:
       - name: Run Go lint in Docker
         run: make lint-go
 
+      - name: Run dependency and workflow audits in Docker
+        run: make audit
+
       - name: Generate coverage in Docker
         run: make coverage
 

@@ -182,10 +182,15 @@ system and architecture. GitHub-hosted Linux and macOS runners build the release
 assets natively. The regular release target remains CGO-free and
 cross-compilable.
 
-`make`, `make check`, `make build`, `make build-webview`, `make build-release`,
-and `make build-webview-release` all run through the pinned Docker toolchain by
+`make`, `make check`, `make audit`, `make build`, `make build-webview`,
+`make build-release`, and `make build-webview-release` all run through the pinned Docker toolchain by
 default and keep Go/npm build caches under `.cache/`, so local rebuilds reuse
 dependency artifacts without requiring a host Go or Node.js installation.
+
+Run `make audit` before pushing dependency or workflow changes. It verifies Go
+modules, runs pinned `govulncheck` with the documented residual-risk allowlist,
+checks npm advisories, and validates GitHub Actions workflows with pinned
+`actionlint`. The same target runs in CI.
 
 `make build`, `make build-webview`, `make build-release`, and
 `make build-webview-release` build a fresh frontend bundle for the binary, but
