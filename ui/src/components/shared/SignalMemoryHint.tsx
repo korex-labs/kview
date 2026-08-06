@@ -9,6 +9,10 @@ export type SignalMemoryHintValue = {
   tooltip: string;
 };
 
+export function signalMemoryHintDisplay(fullRow = false): "flex" | "inline-flex" {
+  return fullRow ? "flex" : "inline-flex";
+}
+
 export function signalMemoryHintValue(signal: DashboardSignalItem): SignalMemoryHintValue | null {
   const observedDays7d = Math.max(0, signal.observedDays7d || 0);
   const observedDays30d = Math.max(observedDays7d, signal.observedDays30d || 0);
@@ -27,14 +31,14 @@ export function signalMemoryHintValue(signal: DashboardSignalItem): SignalMemory
   return null;
 }
 
-export default function SignalMemoryHint({ signal }: { signal: DashboardSignalItem }) {
+export default function SignalMemoryHint({ signal, fullRow = false }: { signal: DashboardSignalItem; fullRow?: boolean }) {
   const hint = signalMemoryHintValue(signal);
   const { decisionForSignal, openSnapshot } = useSignalMemory();
   const decision = decisionForSignal(signal);
   if (!hint && !decision) return null;
   const note = decision?.note ? ` Last note: ${decision.note}` : "";
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+    <Box sx={{ display: signalMemoryHintDisplay(fullRow), alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
       {hint ? (
         <Box title={hint.tooltip} sx={{ display: "inline-flex" }}>
           <StatusChip size="small" color="info" variant="outlined" label={hint.label} />

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { DashboardSignalItem } from "../../types/api";
-import { signalMemoryHintValue } from "./SignalMemoryHint";
+import { signalMemoryHintDisplay, signalMemoryHintValue } from "./SignalMemoryHint";
 
 function signal(patch: Partial<DashboardSignalItem>): DashboardSignalItem {
   return {
@@ -29,5 +29,12 @@ describe("signalMemoryHintValue", () => {
 
   it("hides single-day observations", () => {
     expect(signalMemoryHintValue(signal({ observedDays7d: 1, observedDays30d: 1 }))).toBeNull();
+  });
+});
+
+describe("signalMemoryHintDisplay", () => {
+  it("keeps shared hints inline unless a surface requests a dedicated row", () => {
+    expect(signalMemoryHintDisplay()).toBe("inline-flex");
+    expect(signalMemoryHintDisplay(true)).toBe("flex");
   });
 });

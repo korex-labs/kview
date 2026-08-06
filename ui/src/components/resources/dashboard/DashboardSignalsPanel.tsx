@@ -896,7 +896,7 @@ export default function DashboardSignalsPanel({
                           {signalCalculatedText(f)}
                         </Typography>
                       ) : null}
-                      <SignalMemoryHint signal={f} />
+                      <SignalMemoryHint signal={f} fullRow />
                     </TableCell>
                     <TableCell sx={seenCellSx}>
                       <Typography variant="caption" color="text.secondary">
