@@ -9,6 +9,9 @@ permissions:
   contents: read
   packages: read
 
+env:
+  TAG_NAME: ${{ github.ref_name }}
+
 jobs:
   preflight:
     name: Validate release tag
@@ -19,7 +22,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate Go module major path
-        run: sh scripts/validate-go-module-tag.sh "${{ github.ref_name }}"
+        run: sh scripts/validate-go-module-tag.sh --strict "$TAG_NAME"
 
   build:
     name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
@@ -65,13 +68,26 @@ jobs:
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build release binary in Docker
-        run: make build-release DOCKER_BUILD=0 DOCKER_IMAGE="$TOOLCHAIN_IMAGE" GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} OUTPUT=dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+        run: |
+          make build-release \
+            DOCKER_BUILD=0 \
+            DOCKER_IMAGE="$TOOLCHAIN_IMAGE" \
+            GOOS=${{ matrix.goos }} \
+            GOARCH=${{ matrix.goarch }} \
+            OUTPUT="dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+
+      - name: Verify Windows icon resource
+        if: matrix.goos == 'windows'
+        run: |
+          binary="dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          file "$binary"
+          python3 scripts/verify-windows-resources.py "$binary"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: kview-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          path: dist/kview-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
           if-no-files-found: error
 
   build-webview-linux:
@@ -100,13 +116,23 @@ jobs:
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build release webview binary in Docker
-        run: make build-webview-release DOCKER_BUILD=0 DOCKER_IMAGE="$TOOLCHAIN_IMAGE" GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-${{ github.ref_name }}-linux-amd64-webview
+        run: make build-webview-release DOCKER_BUILD=0 DOCKER_IMAGE="$TOOLCHAIN_IMAGE" GOOS=linux GOARCH=amd64 OUTPUT="dist/kview-${TAG_NAME}-linux-amd64-webview"
+
+      - name: Package Linux desktop bundle
+        run: |
+          scripts/package-linux-desktop.sh \
+            "dist/kview-${TAG_NAME}-linux-amd64-webview" \
+            "$TAG_NAME" \
+            amd64 \
+            "dist/kview-${TAG_NAME}-linux-amd64-desktop.tar.gz"
 
       - name: Upload webview binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: kview-linux-amd64-webview
-          path: dist/kview-${{ github.ref_name }}-linux-amd64-webview
+          path: |
+            dist/kview-${{ env.TAG_NAME }}-linux-amd64-webview
+            dist/kview-${{ env.TAG_NAME }}-linux-amd64-desktop.tar.gz
           if-no-files-found: error
 
   build-webview-macos:
@@ -142,22 +168,32 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Build release webview binary natively
-        run: make local-build-webview-release GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} OUTPUT=dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-webview
+        run: make local-build-webview-release GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} OUTPUT="dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}-webview"
 
       - name: Ad-hoc sign and inspect binary
         run: |
-          binary="dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-webview"
+          binary="dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}-webview"
           codesign --force --sign - "$binary"
           codesign --verify --verbose "$binary"
           file "$binary"
           otool -L "$binary"
           "$binary" --version
 
+      - name: Package macOS app bundle
+        run: |
+          scripts/package-macos-app.sh \
+            "dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}-webview" \
+            "$TAG_NAME" \
+            ${{ matrix.goarch }} \
+            "dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}-app.zip"
+
       - name: Upload webview binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: kview-${{ matrix.goos }}-${{ matrix.goarch }}-webview
-          path: dist/kview-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}-webview
+          path: |
+            dist/kview-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}-webview
+            dist/kview-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}-app.zip
           if-no-files-found: error
 
   publish:
@@ -182,7 +218,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ github.ref_name }}
         run: |
           if gh release view "$TAG_NAME" --repo "$GH_REPO"; then
             gh release upload "$TAG_NAME" dist/* --clobber --repo "$GH_REPO"

@@ -14,21 +14,34 @@ Linux amd64 and macOS releases also include desktop assets named:
 
 ```text
 kview-<version>-linux-amd64-webview
+kview-<version>-linux-amd64-desktop.tar.gz
 kview-<version>-darwin-amd64-webview
 kview-<version>-darwin-arm64-webview
+kview-<version>-darwin-amd64-app.zip
+kview-<version>-darwin-arm64-app.zip
 ```
 
-They open the embedded UI in a native window by default. The Linux asset requires
-GTK 3 and WebKitGTK 4.1 runtime libraries on the host. The macOS assets use the
-system WebKit framework and do not need a separate WebKit installation. Choose
-`darwin-amd64` for an Intel Mac or `darwin-arm64` for Apple Silicon.
+They open the embedded UI in a native window by default. For Linux application-menu
+and desktop integration, extract the `desktop.tar.gz` bundle and run
+`./install.sh`; it installs the binary, launcher, and icon for the current user
+under `~/.local`. Linux requires GTK 3 and WebKitGTK 4.1 runtime libraries.
+
+On macOS, extract the architecture-matching `app.zip` and launch `kview.app` for
+normal Finder and Dock integration. Choose `darwin-amd64` for an Intel Mac or
+`darwin-arm64` for Apple Silicon. The raw webview binaries remain available for
+shell use.
 
 The macOS assets are ad-hoc signed but not Apple-notarized. Depending on your
 Gatekeeper policy, the first launch may require approving kview in **System
-Settings → Privacy & Security**. Webview assets for Linux arm64 and Windows are
-not published yet; use the regular release binary on those platforms.
+Settings → Privacy & Security**. The regular Windows `.exe` includes the kview
+application icon for Explorer and shortcuts, but Windows webview assets are not
+published yet. Webview assets for Linux arm64 are also not published yet; use the
+regular release binary on those platforms. A Finder-launched app inherits the
+macOS GUI environment; if a kubeconfig exec plugin is not on that `PATH`, run the
+raw webview binary from a shell or configure the plugin with an absolute command
+path.
 
-After downloading a Linux or macOS binary, make it executable before running it:
+After downloading a raw Linux or macOS binary, make it executable before running it:
 
 ```bash
 chmod +x kview-*

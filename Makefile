@@ -9,6 +9,7 @@ DOCKER_IMAGE=kview-build:go1.26.5-node22.23.1
 DOCKER_BUILD?=1
 GOVULNCHECK_VERSION=v1.6.0
 ACTIONLINT_VERSION=v1.7.12
+RSRC_VERSION=v0.10.2
 COVERAGE_DIR=.artifacts/coverage
 CODEX?=codex
 KVIEW_E2E_HOST_KUBECONFIG?=
@@ -50,7 +51,7 @@ DOCKER_RUN=docker run --rm \
 
 .DEFAULT_GOAL := all
 
-.PHONY: all check audit security workflow-lint lint-go coverage test-visibility ui e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-audit local-security local-workflow-lint local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
+.PHONY: all check audit security workflow-lint lint-go coverage test-visibility ui generate-app-icons e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-audit local-security local-workflow-lint local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
 
 all: install-git-hooks check audit build
 
@@ -90,7 +91,7 @@ release-notes: install-git-hooks
 		echo "usage: make release-notes TAG=v5.5.0"; \
 		exit 2; \
 	fi
-	sh scripts/validate-go-module-tag.sh "$(TAG)"
+	sh scripts/validate-go-module-tag.sh --strict "$(TAG)"
 	CODEX="$(CODEX)" sh scripts/prepare-release-notes.sh "$(TAG)"
 
 release-tag: install-git-hooks
@@ -98,9 +99,9 @@ release-tag: install-git-hooks
 		echo "usage: make release-tag TAG=v5.5.0"; \
 		exit 2; \
 	fi
-	sh scripts/validate-go-module-tag.sh "$(TAG)"
+	sh scripts/validate-go-module-tag.sh --strict "$(TAG)"
 	CODEX="$(CODEX)" sh scripts/prepare-release-notes.sh "$(TAG)"
-	sh scripts/validate-go-module-tag.sh "$(TAG)"
+	sh scripts/validate-go-module-tag.sh --strict "$(TAG)"
 	git tag -a "$(TAG)" -m "$(TAG)"
 	@echo "Created release tag $(TAG). Push with: git push origin $(TAG)"
 
@@ -127,6 +128,14 @@ test-visibility: install-git-hooks docker-image prepare-cache
 
 ui: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-ui
+
+generate-app-icons: install-git-hooks docker-image prepare-cache
+	sh scripts/generate-app-icons.sh
+	$(DOCKER_RUN) /usr/local/go/bin/go run github.com/akavel/rsrc@$(RSRC_VERSION) \
+		-arch amd64 \
+		-ico packaging/windows/kview.ico \
+		-manifest packaging/windows/kview.exe.manifest \
+		-o cmd/kview/rsrc_windows_amd64.syso
 
 e2e: install-git-hooks docker-image prepare-e2e-kubeconfig
 	$(DOCKER_RUN) make local-e2e

@@ -2,18 +2,38 @@
 set -eu
 
 usage() {
-	printf "%s\n" "usage: $0 [--rev <git-rev>] <tag-name>" >&2
+	printf "%s\n" "usage: $0 [--strict] [--rev <git-rev>] <tag-name>" >&2
 }
 
 rev=""
-if [ "${1:-}" = "--rev" ]; then
-	if [ "$#" -lt 3 ]; then
-		usage
-		exit 2
-	fi
-	rev="$2"
-	shift 2
-fi
+strict=0
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--strict)
+			strict=1
+			shift
+			;;
+		--rev)
+			if [ "$#" -lt 2 ]; then
+				usage
+				exit 2
+			fi
+			rev="$2"
+			shift 2
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			usage
+			exit 2
+			;;
+		*)
+			break
+			;;
+	esac
+done
 
 if [ "$#" -ne 1 ]; then
 	usage
@@ -22,13 +42,13 @@ fi
 
 tag_name="$1"
 
-case "$tag_name" in
-	v[0-9]*.[0-9]*.[0-9]*)
-		;;
-	*)
+if ! printf '%s\n' "$tag_name" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$'; then
+	if [ "$strict" -eq 0 ]; then
 		exit 0
-		;;
-esac
+	fi
+	printf 'Refusing invalid release tag %s. Expected SemVer such as v5.15.0 or v5.16.0-rc.1.\n' "$tag_name" >&2
+	exit 1
+fi
 
 version="${tag_name#v}"
 major="${version%%.*}"

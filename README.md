@@ -40,9 +40,11 @@ More selected screenshots are available in [docs/screenshots](docs/screenshots/)
 Pre-built binaries for Linux, macOS, and Windows are published on the [GitHub Releases](https://github.com/korex-labs/kview/releases) page for every `v*` tag.
 
 Each release includes browser/server-mode binaries for all supported platforms and
-additional desktop webview binaries for Linux amd64 and macOS Intel/Apple Silicon.
-The webview assets start in desktop mode by default and still accept
-`--mode browser` or `--mode server`.
+additional desktop webview packages for Linux amd64 and macOS Intel/Apple Silicon.
+The Windows executable carries the kview application icon for Explorer and desktop
+shortcuts. The Linux desktop bundle installs an application-menu launcher and icon,
+and the macOS app bundle provides Finder and Dock integration. Webview builds still
+accept `--mode browser` or `--mode server`.
 
 Download the binary for your platform, make it executable, and run:
 
@@ -120,21 +122,31 @@ Every tagged release publishes these webview-enabled desktop assets:
 
 ```text
 kview-<version>-linux-amd64-webview
+kview-<version>-linux-amd64-desktop.tar.gz
 kview-<version>-darwin-amd64-webview
 kview-<version>-darwin-arm64-webview
+kview-<version>-darwin-amd64-app.zip
+kview-<version>-darwin-arm64-app.zip
 ```
 
-Download the asset for your platform from GitHub Releases, make it executable,
-and run it directly. The Linux host must provide GTK 3 and WebKitGTK 4.1 runtime
-libraries. Package names vary by distribution; on Debian/Ubuntu the relevant
-runtime packages are `libgtk-3-0` and `libwebkit2gtk-4.1-0`.
+For Linux desktop integration, extract the `desktop.tar.gz` bundle and run its
+`./install.sh`. It installs only for the current user under `~/.local` and adds a
+kview launcher/icon to the desktop application menu. The bundled binary can also
+be run directly. Linux requires GTK 3 and WebKitGTK 4.1 runtime libraries; on
+Debian/Ubuntu the relevant packages are `libgtk-3-0` and
+`libwebkit2gtk-4.1-0`.
 
-The macOS binaries use the system WebKit framework and do not need a separate
-WebKit installation. They are ad-hoc signed but not Apple-notarized. Depending on
-Gatekeeper policy, the first launch may require approving the binary in
-**System Settings → Privacy & Security**. Webview release assets for Linux arm64
-and Windows are not published yet; those platforms continue to use the
-browser/server release binary or a local webview build.
+On macOS, extract the architecture-matching `app.zip` and launch `kview.app` for a
+normal Finder/Dock application icon. The raw webview binaries remain available for
+shell use. macOS uses the system WebKit framework and does not need a separate
+WebKit installation. The app and raw binaries are ad-hoc signed but not
+Apple-notarized. Depending on Gatekeeper policy, the first launch may require
+approval in **System Settings → Privacy & Security**. Webview assets for Linux
+arm64 and Windows are not published yet; those platforms continue to use the
+browser/server release binary or a local webview build. A Finder-launched app
+inherits the macOS GUI environment; if a kubeconfig exec plugin is not on that
+`PATH`, run the raw webview binary from a shell or configure the plugin with an
+absolute command path.
 
 To build kview with Linux webview support through the pinned Docker toolchain:
 
@@ -176,6 +188,10 @@ make build-webview-release GOOS=linux GOARCH=amd64 OUTPUT=dist/kview-linux-amd64
 # Run natively on the matching macOS architecture:
 make local-build-webview-release GOOS=darwin GOARCH=arm64 OUTPUT=dist/kview-darwin-arm64-webview
 ```
+
+Application assets are generated from `packaging/icons/kview.svg`. Maintainers
+with ImageMagick available can regenerate the PNG, ICO, and Windows PE resource
+through the pinned toolchain with `make generate-app-icons`.
 
 Webview release targets require a native CGO toolchain for the target operating
 system and architecture. GitHub-hosted Linux and macOS runners build the release

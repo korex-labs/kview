@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=kview
+GenericName=Kubernetes Explorer
+Comment=Explore Kubernetes clusters in a local desktop UI
+Exec="@KVIEW_EXEC@"
+Icon=kview
+Terminal=false
+Categories=System;
+Keywords=Kubernetes;Cluster;Containers;DevOps;
+StartupNotify=true
+StartupWMClass=kview

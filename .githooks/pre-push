@@ -8,7 +8,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 				continue
 			fi
 			tag_name="${remote_ref#refs/tags/}"
-			sh scripts/validate-go-module-tag.sh --rev "$local_sha" "$tag_name"
+			sh scripts/validate-go-module-tag.sh --strict --rev "$local_sha" "$tag_name"
 			;;
 	esac
 done
