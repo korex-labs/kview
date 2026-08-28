@@ -48,11 +48,13 @@ type NamespaceDetailsDTO struct {
 }
 
 type NamespaceInsightsDTO struct {
-	Summary         NamespaceSummaryResourcesDTO  `json:"summary"`
-	Signals         []NamespaceInsightSignalDTO   `json:"signals,omitempty"`
-	ResourceSignals []NamespaceResourceSignalsDTO `json:"resourceSignals,omitempty"`
-	ResourceQuotas  []ResourceQuotaDTO            `json:"resourceQuotas,omitempty"`
-	LimitRanges     []LimitRangeDTO               `json:"limitRanges,omitempty"`
+	Summary               NamespaceSummaryResourcesDTO  `json:"summary"`
+	Signals               []NamespaceInsightSignalDTO   `json:"signals,omitempty"`
+	ResourceSignals       []NamespaceResourceSignalsDTO `json:"resourceSignals,omitempty"`
+	SuppressedSignalCount int                           `json:"suppressedSignalCount,omitempty"`
+	SuppressedSignals     []NamespaceInsightSignalDTO   `json:"suppressedSignals,omitempty"`
+	ResourceQuotas        []ResourceQuotaDTO            `json:"resourceQuotas,omitempty"`
+	LimitRanges           []LimitRangeDTO               `json:"limitRanges,omitempty"`
 	// ResourceUsage is populated from a cached pod metrics snapshot when
 	// metrics.k8s.io is installed and list-allowed. Missing or unavailable
 	// metrics leave this field nil so the UI can hide the section cleanly.
@@ -198,33 +200,41 @@ type NamespaceSummaryMetaDTO struct {
 	State string `json:"state"`
 }
 
+type NamespaceSignalSuppressionMetadataDTO struct {
+	Mode      string `json:"mode"`
+	ExpiresAt int64  `json:"expiresAt,omitempty"`
+	Comment   string `json:"comment,omitempty"`
+}
+
 type NamespaceInsightSignalDTO struct {
-	Kind            string `json:"kind"`
-	Namespace       string `json:"namespace,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Severity        string `json:"severity"`
-	Score           int    `json:"score"`
-	Reason          string `json:"reason"`
-	LikelyCause     string `json:"likelyCause,omitempty"`
-	SuggestedAction string `json:"suggestedAction,omitempty"`
-	Confidence      string `json:"confidence,omitempty"`
-	Section         string `json:"section,omitempty"`
-	SignalType      string `json:"signalType,omitempty"`
-	ResourceKind    string `json:"resourceKind,omitempty"`
-	ResourceName    string `json:"resourceName,omitempty"`
-	Scope           string `json:"scope,omitempty"`
-	ScopeLocation   string `json:"scopeLocation,omitempty"`
-	ActualData      string `json:"actualData,omitempty"`
-	CalculatedData  string `json:"calculatedData,omitempty"`
-	FirstSeenAt     int64  `json:"firstSeenAt,omitempty"`
-	LastSeenAt      int64  `json:"lastSeenAt,omitempty"`
-	ObservedDays7d  int    `json:"observedDays7d,omitempty"`
-	ObservedDays30d int    `json:"observedDays30d,omitempty"`
-	Recurring       bool   `json:"recurring,omitempty"`
-	HistoryKey      string `json:"historyKey,omitempty"`
-	Acknowledged    bool   `json:"acknowledged,omitempty"`
-	AcknowledgedAt  int64  `json:"acknowledgedAt,omitempty"`
-	AckComment      string `json:"acknowledgementComment,omitempty"`
+	Kind             string                                 `json:"kind"`
+	Namespace        string                                 `json:"namespace,omitempty"`
+	Name             string                                 `json:"name,omitempty"`
+	Severity         string                                 `json:"severity"`
+	Score            int                                    `json:"score"`
+	Reason           string                                 `json:"reason"`
+	LikelyCause      string                                 `json:"likelyCause,omitempty"`
+	SuggestedAction  string                                 `json:"suggestedAction,omitempty"`
+	Confidence       string                                 `json:"confidence,omitempty"`
+	Section          string                                 `json:"section,omitempty"`
+	SignalType       string                                 `json:"signalType,omitempty"`
+	ResourceKind     string                                 `json:"resourceKind,omitempty"`
+	ResourceName     string                                 `json:"resourceName,omitempty"`
+	Scope            string                                 `json:"scope,omitempty"`
+	ScopeLocation    string                                 `json:"scopeLocation,omitempty"`
+	ActualData       string                                 `json:"actualData,omitempty"`
+	CalculatedData   string                                 `json:"calculatedData,omitempty"`
+	FirstSeenAt      int64                                  `json:"firstSeenAt,omitempty"`
+	LastSeenAt       int64                                  `json:"lastSeenAt,omitempty"`
+	ObservedDays7d   int                                    `json:"observedDays7d,omitempty"`
+	ObservedDays30d  int                                    `json:"observedDays30d,omitempty"`
+	Recurring        bool                                   `json:"recurring,omitempty"`
+	HistoryKey       string                                 `json:"historyKey,omitempty"`
+	StateFingerprint string                                 `json:"stateFingerprint,omitempty"`
+	Suppression      *NamespaceSignalSuppressionMetadataDTO `json:"suppression,omitempty"`
+	Acknowledged     bool                                   `json:"acknowledged,omitempty"`
+	AcknowledgedAt   int64                                  `json:"acknowledgedAt,omitempty"`
+	AckComment       string                                 `json:"acknowledgementComment,omitempty"`
 }
 
 type NamespaceResourceSignalsDTO struct {

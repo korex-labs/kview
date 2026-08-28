@@ -15,6 +15,8 @@ import (
 	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
+const signalSuppressionTransferMaxBodyBytes int64 = 2 << 20
+
 func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 	api.Get("/activity", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutStatus)
@@ -102,6 +104,150 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 			"active": contextName,
 			"items":  dataplane.DashboardSignalCatalog(s.dp.EffectivePolicy(contextName), contextName),
 		})
+	})
+
+	api.Post("/dataplane/signals/suppress", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		var req dataplane.SignalSuppressionRequest
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression request")
+			return
+		}
+		if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression request")
+			return
+		}
+		req, err := dataplane.ValidateSignalSuppressionRequest(req)
+		if err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression request")
+			return
+		}
+		active := s.readContextName(r)
+		item, err := s.dp.SuppressSignal(active, req)
+		if err != nil {
+			if errors.Is(err, dataplane.ErrSignalSuppressionCapacity) {
+				writeErrorResponse(w, http.StatusBadRequest, "signal suppression capacity reached")
+				return
+			}
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to suppress signal")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active":     active,
+			"historyKey": req.HistoryKey,
+			"item":       item,
+		})
+	})
+
+	api.Delete("/dataplane/signals/suppress", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		var req struct {
+			HistoryKey string `json:"historyKey"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal unsuppression request")
+			return
+		}
+		if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal unsuppression request")
+			return
+		}
+		historyKey, err := dataplane.ValidateSignalSuppressionHistoryKey(req.HistoryKey)
+		if err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal unsuppression request")
+			return
+		}
+		active := s.readContextName(r)
+		if err := s.dp.UnsuppressSignal(active, historyKey); err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to unsuppress signal")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active":     active,
+			"historyKey": historyKey,
+			"deleted":    true,
+		})
+	})
+
+	api.Get("/dataplane/signals/suppressions/export", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		active := s.readContextName(r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"items":  s.dp.ExportSignalSuppressions(active),
+		})
+	})
+
+	api.Post("/dataplane/signals/suppressions/import", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		var req struct {
+			Strategy string                                       `json:"strategy"`
+			Items    map[string]dataplane.SignalSuppressionRecord `json:"items"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, signalSuppressionTransferMaxBodyBytes))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression import")
+			return
+		}
+		if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression import")
+			return
+		}
+		if req.Items == nil || (req.Strategy != "keepMine" && req.Strategy != "useImported" && req.Strategy != "replaceSections") {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression import")
+			return
+		}
+		active := s.readContextName(r)
+		result, err := s.dp.ImportSignalSuppressions(active, req.Items, req.Strategy)
+		if err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to import signal suppressions")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "result": result})
+	})
+
+	api.Delete("/dataplane/signals/suppressions/reset", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		var req *struct{}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, signalSuppressionTransferMaxBodyBytes))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression reset")
+			return
+		} else if err == nil && req == nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression reset")
+			return
+		}
+		if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid signal suppression reset")
+			return
+		}
+		active := s.readContextName(r)
+		if _, err := s.dp.ResetSignalSuppressions(active, ""); err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to reset signal suppressions")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"active": active, "reset": true})
 	})
 
 	api.Post("/dataplane/signals/investigate", func(w http.ResponseWriter, r *http.Request) {

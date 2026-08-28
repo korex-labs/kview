@@ -56,6 +56,9 @@ request is issued.
   resolved. kview shows this action beside signal severity in the dashboard,
   namespace signal tables, and resource drawer attention banners when signal
   actions are available.
+- **Runtime suppression**: on backend-identified signal rows, choose **Snooze 1
+  hour**, **Snooze 1 day**, or **Ignore until changed**, optionally adding a
+  comment. On a suppressed row, choose **Show now** to remove that decision.
 - **Investigate signal**: opens a read-only investigation dialog for the
   selected signal. The dialog groups the selected signal, primary resource,
   related cached signals, related resources, and a copyable Markdown debug
@@ -127,6 +130,15 @@ each day was a separate incident or that an absent signal was resolved. Hover a
 saved-context state to review the snapshot title and latest operator note. Select
 the state to open the snapshot's primary resource.
 
+Connectivity signals keep missing evidence separate from confirmed routing
+failures. A Service selector mismatch requires complete cached Pod label
+coverage. A no-ready-endpoints signal requires a successful EndpointSlice
+observation. Ingress backend checks require complete cached Service coverage and
+distinguish a missing Service, a missing named or numeric Service port, and a
+backend with no ready endpoints. **Actual data** shows the selector or Ingress
+route and backend identity; **Calculated data** shows the cache coverage and
+matching/endpoint result used for the diagnosis.
+
 Per-signal exclusion rules in **Settings → Dataplane → Signals** can suppress
 known noisy resources by name, namespace, label, or annotation. Suppression is
 performed by the backend before dashboard counts, namespace/resource health,
@@ -141,6 +153,47 @@ default before previewing and saving. Context-specific replacements still take
 precedence over that global policy.
 Preview always reports cached candidates from the currently active context,
 including when the rule is being saved as the global default.
+
+## Snooze And Ignore Until Changed
+
+Runtime suppression is for a current, reversible triage decision. It is local to
+the active kube context, is never inherited, and is separate from signal
+acknowledgements, static exclusions, profiles, and global/context signal
+settings.
+
+- **Snooze 1 hour** and **Snooze 1 day** use fixed elapsed durations from the
+  server timestamp. The row shows the exact expiry boundary.
+- **Ignore until changed** hides the current state only. It wakes automatically
+  when the backend state fingerprint changes.
+- **Show now** removes the active decision immediately.
+- The optional comment travels with the suppression and is visible in the
+  suppressed-signals section.
+
+These controls appear only when the row has a backend-provided signal history
+key. **Ignore until changed** additionally requires a valid backend state
+fingerprint. Legacy or detail-only signals that have only a locally synthesized
+key fail open: they stay visible and do not show suppression controls.
+
+Suppressed signals are removed from visible counters, filters, lists, and
+pagination, but the dashboard shows them separately with an exact total and
+**Snoozed**/**Until changed** split plus a bounded row sample. Namespace and
+resource signal views also show their suppressed count and bounded rows. Signal
+history and recurrence continue while a signal is runtime-suppressed. This
+differs from a static exclusion, which runs before history and does not record
+excluded observations.
+
+Malformed, unsupported, expired, unavailable, or cancelled suppression state
+fails open, so kview shows the signal rather than silently losing it. The v1
+state fingerprint uses backend-normalized effective severity, canonical resource
+identity, and structured evidence. Text normalization only collapses whitespace;
+other wording changes wake the signal. A reused resource name with the same
+evidence may still look unchanged, and legacy signals have no fingerprint.
+
+To move or back up these decisions, use the independent **Signal suppressions**
+section under **Settings → Import / Export**. Review imported active records in
+the suppressed-signals section and use **Show now** for decisions that should not
+remain active. See [Import / Export](import-export.md#signal-suppression-transfer)
+and [Settings](settings.md#runtime-signal-suppressions).
 
 Opening a focused resource list from a dashboard or namespace signal is
 transient navigation. It changes the active list, namespace, and text filter,
@@ -181,14 +234,16 @@ signals:
 - severity chip
 - signal reason and calculated detail
 - **Acknowledge signal**
+- **Snooze or ignore signal** when backend identity is available
 - **Investigate signal**
 - **Exclude this signal**
 
 Some detail signals are created from drawer-only or list-level evidence. When
 the backend has not assigned a stored signal history key yet, kview derives a
 stable local key so acknowledgement and investigation still appear together.
-Acknowledgement remains a triage marker only; it does not change Kubernetes
-state and does not mark the resource healthy.
+That synthesized key does not enable runtime suppression. Acknowledgement remains
+a triage marker only; neither acknowledgement nor suppression changes Kubernetes
+state or marks the resource healthy.
 
 ## Signal Customization
 
@@ -232,3 +287,6 @@ degradation details where available.
 - **Dataplane**
 - **Resource Tags**
 - **Signal thresholds**
+- [Import / Export](import-export.md#signal-suppression-transfer)
+- [Dataplane architecture](../DATAPLANE.md#runtime-signal-suppression)
+- [API read ownership](../API_READ_OWNERSHIP.md#4-local-operator-knowledge-reads)

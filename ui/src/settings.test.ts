@@ -22,6 +22,7 @@ import {
   parseSettingsTransferJSON,
   parseUserSettingsJSON,
   settingsTransferSectionIds,
+  SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS,
   smartFilterResourceKeysForScope,
   updateOperatorProfileSnapshot,
   updateKeyboardConvenienceSettings,
@@ -812,6 +813,163 @@ describe("user settings", () => {
     expect(parsed.sections.investigationSnapshots?.[0].primaryResource.name).toBe("api-7f");
     expect(parsed.sections.investigationSnapshots?.[0].operatorNote).toBe("Known deploy regression.");
     expect(parsed.sections.investigationSnapshots?.[0].investigation?.diagnosis.summary).toBe("Known deploy regression.");
+  });
+
+  it("round-trips active-context signal suppressions as a separate transfer section", () => {
+    const fingerprint = `v1:${"a".repeat(64)}`;
+    const parsed = parseSettingsTransferJSON(exportSettingsTransferJSON({
+      settings: defaultUserSettings(),
+      appState: { v: 1, favouriteNamespacesByContext: {} },
+      sections: ["signalSuppressions"],
+      signalSuppressions: {
+        sourceContext: "  prod-eu  ",
+        items: {
+          snoozed: {
+            mode: "snooze",
+            createdAt: 100,
+            updatedAt: 101,
+            expiresAt: 3700,
+            fingerprintVersion: 1,
+            comment: "  maintenance  ",
+          },
+          changed: {
+            mode: "until_changed",
+            createdAt: 200,
+            updatedAt: 200,
+            baselineFingerprint: fingerprint,
+            fingerprintVersion: 1,
+          },
+        },
+      },
+    }));
+
+    expect(settingsTransferSectionIds(parsed)).toEqual(["signalSuppressions"]);
+    expect(parsed.sections.signalSuppressions).toEqual({
+      sourceContext: "prod-eu",
+      items: {
+        changed: {
+          mode: "until_changed",
+          createdAt: 200,
+          updatedAt: 200,
+          baselineFingerprint: fingerprint,
+          fingerprintVersion: 1,
+        },
+        snoozed: {
+          mode: "snooze",
+          createdAt: 100,
+          updatedAt: 101,
+          expiresAt: 3700,
+          fingerprintVersion: 1,
+          comment: "maintenance",
+        },
+      },
+    });
+  });
+
+  it("drops malformed suppression records individually without applying current-time expiry rules", () => {
+    const fingerprint = `v1:${"b".repeat(64)}`;
+    const validSnooze = { mode: "snooze", createdAt: 1, updatedAt: 1, expiresAt: 3601, fingerprintVersion: 1 };
+    const rawItems: Record<string, unknown> = {
+      "expired-but-structural": validSnooze,
+      " valid-with-space ": validSnooze,
+      badMode: { ...validSnooze, mode: "forever" },
+      badVersion: { ...validSnooze, fingerprintVersion: 2 },
+      fractionalTimestamp: { ...validSnooze, createdAt: 1.5 },
+      reversedTimestamp: { ...validSnooze, updatedAt: 0 },
+      badDuration: { ...validSnooze, expiresAt: 3602 },
+      snoozeFingerprint: { ...validSnooze, baselineFingerprint: fingerprint },
+      untilExpires: { ...validSnooze, mode: "until_changed", expiresAt: 0, baselineFingerprint: fingerprint },
+      uppercaseFingerprint: { mode: "until_changed", createdAt: 1, updatedAt: 1, baselineFingerprint: `v1:${"A".repeat(64)}`, fingerprintVersion: 1 },
+      badFingerprint: { mode: "until_changed", createdAt: 1, updatedAt: 1, baselineFingerprint: "v1:nope", fingerprintVersion: 1 },
+      badCommentType: { ...validSnooze, comment: 7 },
+      longComment: { ...validSnooze, comment: "🙂".repeat(2001) },
+      notAnObject: "nope",
+    };
+    const parsed = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer",
+      v: 1,
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      sections: { signalSuppressions: { sourceContext: "  prod  ", items: rawItems } },
+    }));
+
+    expect(parsed.sections.signalSuppressions).toEqual({
+      sourceContext: "prod",
+      items: { "expired-but-structural": validSnooze },
+    });
+  });
+
+  it("uses Unicode rune limits and exact keys", () => {
+    const valid = { mode: "snooze", createdAt: 1, updatedAt: 1, expiresAt: 3601, fingerprintVersion: 1 };
+    const items: Record<string, unknown> = {
+      ["🙂".repeat(1025)]: valid,
+      ["🙂".repeat(1024)]: { ...valid, comment: ` ${"🙂".repeat(2000)} ` },
+      collision: valid,
+      " collision": valid,
+    };
+    const parsed = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer",
+      v: 1,
+      sections: { signalSuppressions: { sourceContext: "", items } },
+    }));
+    const accepted = parsed.sections.signalSuppressions?.items || {};
+
+    expect(accepted["🙂".repeat(1024)]?.comment).toBe("🙂".repeat(2000));
+    expect(accepted["🙂".repeat(1025)]).toBeUndefined();
+    expect(accepted.collision).toEqual(valid);
+    expect(accepted[" collision"]).toBeUndefined();
+  });
+
+  it("caps suppression records in deterministic key order", () => {
+    const valid = { mode: "snooze", createdAt: 1, updatedAt: 1, expiresAt: 3601, fingerprintVersion: 1 };
+    const items: Record<string, unknown> = {};
+    for (let index = SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS + 1; index >= 0; index -= 1) {
+      items[`key-${String(index).padStart(5, "0")}`] = valid;
+    }
+    const parsed = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer",
+      v: 1,
+      sections: { signalSuppressions: { sourceContext: "", items } },
+    }));
+    const acceptedKeys = Object.keys(parsed.sections.signalSuppressions?.items || {});
+
+    expect(acceptedKeys).toHaveLength(SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS);
+    expect(acceptedKeys).toEqual([...acceptedKeys].sort());
+    expect(acceptedKeys[0]).toBe("key-00000");
+    expect(acceptedKeys[acceptedKeys.length - 1]).toBe(`key-${String(SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS - 1).padStart(5, "0")}`);
+  });
+
+  it("keeps server-owned suppressions out of local settings and remains backward compatible", () => {
+    const settings = defaultUserSettings();
+    const appState = { v: 1 as const, favouriteNamespacesByContext: { prod: ["default"] } };
+    const legacyBundle = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer",
+      v: 1,
+      sections: { favourites: { favouriteNamespacesByContext: { prod: ["apps"] } } },
+    }));
+    expect(settingsTransferSectionIds(legacyBundle)).toEqual(["favourites"]);
+
+    const bundle = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer",
+      v: 1,
+      sections: {
+        signalSuppressions: {
+          sourceContext: "other-context",
+          items: { key: { mode: "snooze", createdAt: 1, updatedAt: 1, expiresAt: 3601, fingerprintVersion: 1 } },
+        },
+      },
+    }));
+    const applied = applySettingsTransferBundle({
+      settings,
+      appState,
+      bundle,
+      sections: ["signalSuppressions"],
+      strategy: "replaceSections",
+    });
+
+    expect(applied.settings).toEqual(settings);
+    expect(applied.appState).toEqual(appState);
+    expect((applied.settings as unknown as Record<string, unknown>).signalSuppressions).toBeUndefined();
+    expect(applied.settings.dataplane.contextOverrides["other-context"]).toBeUndefined();
   });
 
   it("merges transfer sections while keeping local conflicts", () => {

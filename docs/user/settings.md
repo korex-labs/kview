@@ -220,6 +220,28 @@ Contexts with their own replacement rules remain isolated from that policy.
 Global-default preview still evaluates cached candidates from the active context
 only; it is not a cross-context scan.
 
+## Runtime Signal Suppressions
+
+**Snooze 1 hour**, **Snooze 1 day**, and **Ignore until changed** are runtime
+operator decisions made from signal rows, not Dataplane settings. They belong
+only to the active context and do not inherit from global settings. They are also
+separate from acknowledgements, static exclusions, operator profiles, full
+profile backups, and global/context signal overrides.
+
+Use **Settings → Import / Export → Signal suppressions** to transfer these
+records independently. Export captures the active context. During import,
+`sourceContext` identifies where the bundle came from but is informational only:
+kview always writes selected suppressions into the currently active context.
+After import, review the active suppressed rows and choose **Show now** for any
+decision that should not apply there.
+
+See [Dashboard And Signals](dashboard-and-signals.md#snooze-and-ignore-until-changed)
+for the operator workflow and
+[Import / Export](import-export.md#signal-suppression-transfer) for validation,
+strategies, and result counts. Engineering contracts are in
+[Dataplane](../DATAPLANE.md#runtime-signal-suppression) and
+[API read ownership](../API_READ_OWNERSHIP.md#4-local-operator-knowledge-reads).
+
 ## Permission And Data Notes
 
 Most settings only change local UI behavior. Dataplane settings can change how

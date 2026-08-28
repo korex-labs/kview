@@ -234,9 +234,9 @@ function defaultSearchFields(key: ListResourceKey): string[] {
     case "cronjobs":
       return ["name", "schedule", "scheduleHint", "status", "phase", "signalSeverity", "listSignalSeverity"];
     case "services":
-      return ["name", "type", "clusterIP", "externalName", "exposure", "exposureHint", "clusterIPs", "portsSummary", "signalSeverity", "listSignalSeverity"];
+      return ["name", "type", "clusterIP", "externalName", "exposure", "exposureHint", "clusterIPs", "selector", "portsSummary", "endpointCoverage", "signalSeverity", "listSignalSeverity"];
     case "ingresses":
-      return ["name", "className", "ingressClassName", "hosts", "addresses", "addressState", "tlsHint", "signalSeverity", "listSignalSeverity"];
+      return ["name", "className", "ingressClassName", "hosts", "backends", "addresses", "addressState", "tlsHint", "signalSeverity", "listSignalSeverity"];
     case "networkpolicies":
       return ["name", "podSelector", "policyTypes", "types", "signalSeverity", "listSignalSeverity"];
     case "secrets":

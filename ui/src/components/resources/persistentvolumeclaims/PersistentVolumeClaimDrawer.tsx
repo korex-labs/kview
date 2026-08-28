@@ -291,6 +291,8 @@ export default function PersistentVolumeClaimDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={pvcSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                     onJumpToSpec={() => setTab(1)}
                   />

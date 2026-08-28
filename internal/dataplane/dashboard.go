@@ -175,6 +175,8 @@ type ClusterDashboardSignalsPanel struct {
 	HPAWarnings           int                            `json:"hpaWarnings"`
 	ContainerNearLimit    int                            `json:"containerNearLimit"`
 	NodeResourcePressure  int                            `json:"nodeResourcePressure"`
+	Suppressed            SignalSuppressionSummary       `json:"suppressed"`
+	SuppressedItems       []ClusterDashboardSignal       `json:"suppressedItems,omitempty"`
 	Filters               []ClusterDashboardSignalFilter `json:"filters,omitempty"`
 	Top                   []ClusterDashboardSignal       `json:"top,omitempty"`
 	Items                 []ClusterDashboardSignal       `json:"items,omitempty"`
@@ -188,6 +190,18 @@ type ClusterDashboardSignalsPanel struct {
 	Note                  string                         `json:"note,omitempty"`
 	AggregateFreshness    string                         `json:"aggregateFreshness,omitempty"`
 	AggregateDegradation  string                         `json:"aggregateDegradation,omitempty"`
+}
+
+type SignalSuppressionMetadata struct {
+	Mode      string `json:"mode"`
+	ExpiresAt int64  `json:"expiresAt,omitempty"`
+	Comment   string `json:"comment,omitempty"`
+}
+
+type SignalSuppressionSummary struct {
+	Total        int `json:"total"`
+	Snoozed      int `json:"snoozed"`
+	UntilChanged int `json:"untilChanged"`
 }
 
 type ClusterDashboardSignalFilter struct {
@@ -240,6 +254,8 @@ type ClusterDashboardSignal struct {
 	AcknowledgedAt   int64                        `json:"acknowledgedAt,omitempty"`
 	AckComment       string                       `json:"acknowledgementComment,omitempty"`
 	HistoryKey       string                       `json:"historyKey,omitempty"`
+	StateFingerprint string                       `json:"stateFingerprint,omitempty"`
+	Suppression      *SignalSuppressionMetadata   `json:"suppression,omitempty"`
 }
 
 type ClusterDashboardListOptions struct {

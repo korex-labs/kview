@@ -149,3 +149,32 @@ func TestSignalHistoryReplaceSectionsRemovesMissingRecords(t *testing.T) {
 		t.Fatal("missing imported record was not removed")
 	}
 }
+
+func TestSignalHistoryAdvancesBeforeRuntimeSuppression(t *testing.T) {
+	dayOne := time.Date(2026, time.July, 1, 10, 0, 0, 0, time.UTC)
+	m := newSignalSuppressionTestManager(nil)
+	m.signalHistory = map[string]map[string]SignalHistoryRecord{"ctx": {}}
+	m.signalAck = map[string]map[string]SignalAcknowledgementRecord{"ctx": {}}
+	signal := ClusterDashboardSignal{SignalType: "pod_restarts", Scope: "namespace", ScopeLocation: "apps", ResourceKind: "Pod", ResourceName: "api", Namespace: "apps", ActualData: "12 restarts"}
+	key := signalHistoryIdentity(signal)
+	m.signalSuppressions["ctx"] = map[string]SignalSuppressionRecord{key: {
+		Mode: SignalSuppressionModeSnooze, CreatedAt: dayOne.Add(-time.Minute).Unix(), UpdatedAt: dayOne.Add(-time.Minute).Unix(),
+		ExpiresAt: dayOne.Add(-time.Minute).Unix() + SignalSuppressionDurationOneDaySeconds, FingerprintVersion: SignalFingerprintVersion,
+	}}
+
+	for i, observed := range []time.Time{dayOne, dayOne.Add(2 * time.Hour), dayOne.Add(23 * time.Hour)} {
+		attached := m.attachSignalHistory("ctx", observed, signal)
+		visible, suppressed, summary := m.projectSignalSuppressionsAt(t.Context(), "ctx", attached, observed)
+		if len(visible) != 0 || len(suppressed) != 1 || summary.Total != 1 {
+			t.Fatalf("observation %d visibility: visible=%+v suppressed=%+v summary=%+v", i, visible, suppressed, summary)
+		}
+	}
+	rec := m.signalHistory["ctx"][key]
+	if rec.SeenCount != 3 || rec.LastSeenAt != dayOne.Add(23*time.Hour).Unix() {
+		t.Fatalf("history did not advance while hidden: %+v", rec)
+	}
+	latest := m.attachSignalHistory("ctx", dayOne.Add(23*time.Hour), signal)[0]
+	if latest.ObservedDays7d != 2 || !latest.Recurring {
+		t.Fatalf("recurrence did not advance while hidden: %+v", latest)
+	}
+}

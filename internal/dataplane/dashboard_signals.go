@@ -323,9 +323,9 @@ func DashboardSignalCatalog(policy DataplanePolicy, contextName string) []Signal
 
 func defaultDashboardSignalSeverity(signalType string) string {
 	switch signalType {
-	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference", "pod_image_pull_failure", "pod_crash_loop_waiting":
+	case "abnormal_job", "abnormal_cronjob", "stale_transitional_helm_release", "pod_missing_secret_reference", "pod_image_pull_failure", "pod_crash_loop_waiting", "ingress_backend_service_missing", "ingress_backend_port_missing":
 		return "high"
-	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "pod_unschedulable", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference", "daemonset_missing_template_reference", "statefulset_missing_template_reference", "replicaset_missing_template_reference", "job_missing_template_reference", "cronjob_missing_template_reference":
+	case "empty_namespace", "long_running_job", "cronjob_no_recent_success", "hpa_needs_attention", "pod_unschedulable", "resource_quota_pressure", "pvc_needs_attention", "pvc_node_bound_storage", "pv_node_bound_storage", "service_no_matching_cached_pods", "service_no_ready_endpoints", "ingress_backend_no_ready_endpoints", "ingress_pending_address", "ingress_needs_attention", "container_near_limit", "node_resource_pressure", "pod_young_frequent_restarts", "deployment_unavailable", "deployment_missing_template_reference", "daemonset_missing_template_reference", "statefulset_missing_template_reference", "replicaset_missing_template_reference", "job_missing_template_reference", "cronjob_missing_template_reference":
 		return "medium"
 	default:
 		return "low"
@@ -493,6 +493,16 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		SuggestedAction: "Inspect the service endpoints and selector labels, then open the selected workloads or pods to restore ready backends.",
 		Priority:        6,
 	},
+	"service_no_matching_cached_pods": {
+		Type:            "service_no_matching_cached_pods",
+		Label:           "Service selector",
+		FilterLabel:     "No matching cached Pods",
+		SummaryCounter:  "service_warnings",
+		CalculatedData:  "Service selector matches 0 cached Pods with complete Pod coverage",
+		LikelyCause:     "The Service selector labels likely differ from the labels on the intended workload Pods.",
+		SuggestedAction: "Compare the Service selector with workload template and Pod labels, then correct the selector or labels.",
+		Priority:        6,
+	},
 	"ingress_pending_address": {
 		Type:            "ingress_pending_address",
 		Label:           "Ingress pending address",
@@ -512,6 +522,36 @@ var dashboardSignalDefinitions = map[string]dashboardSignalDefinition{
 		LikelyCause:     "The ingress controller may not have admitted the route yet, or the backend/service wiring is incomplete.",
 		SuggestedAction: "Inspect ingress events, address assignment, TLS/backend references, and the services behind the route.",
 		Priority:        6,
+	},
+	"ingress_backend_service_missing": {
+		Type:            "ingress_backend_service_missing",
+		Label:           "Ingress backend Service",
+		FilterLabel:     "Backend Service missing",
+		SummaryCounter:  "ingress_warnings",
+		CalculatedData:  "backend Service absent from a complete cached Service snapshot",
+		LikelyCause:     "The Ingress references a Service that was renamed, removed, or never created in the namespace.",
+		SuggestedAction: "Open the Ingress backend configuration and create or correct the referenced Service.",
+		Priority:        1,
+	},
+	"ingress_backend_port_missing": {
+		Type:            "ingress_backend_port_missing",
+		Label:           "Ingress backend port",
+		FilterLabel:     "Backend port missing",
+		SummaryCounter:  "ingress_warnings",
+		CalculatedData:  "named or numeric backend port absent from cached Service ports",
+		LikelyCause:     "The Ingress backend port no longer matches a port exposed by the referenced Service.",
+		SuggestedAction: "Align the Ingress backend port with an existing Service port name or number.",
+		Priority:        1,
+	},
+	"ingress_backend_no_ready_endpoints": {
+		Type:            "ingress_backend_no_ready_endpoints",
+		Label:           "Ingress backend endpoints",
+		FilterLabel:     "Backend has no ready endpoints",
+		SummaryCounter:  "ingress_warnings",
+		CalculatedData:  "backend Service has 0 ready endpoints with complete EndpointSlice observation",
+		LikelyCause:     "The backend Service exists and exposes the requested port, but its selected workloads are absent or not ready.",
+		SuggestedAction: "Inspect the backend Service selector, Pods, workloads, and EndpointSlices to restore ready endpoints.",
+		Priority:        4,
 	},
 	"potentially_unused_serviceaccount": {
 		Type:            "potentially_unused_serviceaccount",

@@ -2,6 +2,8 @@ package dataplane
 
 import (
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -366,6 +368,316 @@ func TestDetectHPASignalsFailuresStayMediumSeverity(t *testing.T) {
 	}
 }
 
+func TestDetectServiceSignalsRequireCompleteEndpointCoverage(t *testing.T) {
+	completeMeta := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	unknown := detectServiceNoReadyEndpointsSignals(time.Now(), "apps", dashboardSnapshotSet{
+		svcsOK: true,
+		svcs: ServicesSnapshot{Meta: completeMeta, Items: []dto.ServiceListItemDTO{{
+			Name: "api", Namespace: "apps", Type: "ClusterIP", EndpointCoverage: "unknown",
+		}}},
+	})
+	if len(unknown) != 0 {
+		t.Fatalf("unknown EndpointSlice coverage emitted signals: %+v", unknown)
+	}
+
+	complete := detectServiceNoReadyEndpointsSignals(time.Now(), "apps", dashboardSnapshotSet{
+		svcsOK: true,
+		svcs: ServicesSnapshot{Meta: completeMeta, Items: []dto.ServiceListItemDTO{{
+			Name: "api", Namespace: "apps", Type: "ClusterIP", EndpointCoverage: "complete",
+		}}},
+	})
+	if len(complete) != 1 || complete[0].SignalType != "service_no_ready_endpoints" {
+		t.Fatalf("complete zero-endpoint observation = %+v, want one service signal", complete)
+	}
+	for _, meta := range []SnapshotMetadata{
+		{Coverage: CoverageClassPartial, Completeness: CompletenessClassComplete},
+		{Coverage: CoverageClassFull, Completeness: CompletenessClassInexact},
+	} {
+		candidate := dashboardSnapshotSet{svcsOK: true, svcs: ServicesSnapshot{Meta: meta, Items: []dto.ServiceListItemDTO{{
+			Name: "api", Namespace: "apps", Type: "ClusterIP", EndpointCoverage: "complete",
+		}}}}
+		if got := detectServiceConnectivitySignals(time.Now(), "apps", candidate); len(got) != 0 {
+			t.Fatalf("incomplete Service snapshot %+v emitted signals: %+v", meta, got)
+		}
+	}
+}
+
+func TestServiceSelectorMatchMemoUsesCanonicalCollisionSafeKeys(t *testing.T) {
+	first := make(map[string]string, 2)
+	first["app"] = "api"
+	first["tier"] = "backend"
+	second := make(map[string]string, 2)
+	second["tier"] = "backend"
+	second["app"] = "api"
+	if firstKey, secondKey := canonicalServiceSelectorKey(first), canonicalServiceSelectorKey(second); firstKey != secondKey {
+		t.Fatalf("identical selectors produced different canonical keys: %q != %q", firstKey, secondKey)
+	}
+	if left, right := canonicalServiceSelectorKey(map[string]string{"a": "b,c=d"}), canonicalServiceSelectorKey(map[string]string{"a": "b", "c": "d"}); left == right {
+		t.Fatalf("collision-like selectors aliased to key %q", left)
+	}
+	if left, right := canonicalServiceSelectorKey(map[string]string{"a": "b\x00c"}), canonicalServiceSelectorKey(map[string]string{"a\x00b": "c"}); left == right {
+		t.Fatalf("NUL-containing selector components aliased to key %q", left)
+	}
+
+	meta := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	podIndex := buildPodLabelIndex(PodsSnapshot{Meta: meta, Items: []dto.PodListItemDTO{
+		{Name: "api-0", Labels: map[string]string{"app": "api", "tier": "backend"}, LabelsObserved: true},
+		{Name: "web-0", Labels: map[string]string{"app": "web", "tier": "backend"}, LabelsObserved: true},
+	}}, true)
+	memo := make(serviceSelectorMatchMemo)
+	firstEvidence := serviceSelectorEvidenceFor(dto.ServiceListItemDTO{Type: "ClusterIP", Selector: first}, podIndex, memo)
+	if firstEvidence.Coverage != "complete" || firstEvidence.MatchingPods != 1 {
+		t.Fatalf("first selector evidence = %+v, want one matching Pod with complete coverage", firstEvidence)
+	}
+	// Changing the index after the first lookup makes a second scan return zero;
+	// the identical, differently constructed selector must reuse the memoized count.
+	podIndex.labels[0]["app"] = "changed-after-first-evaluation"
+	secondEvidence := serviceSelectorEvidenceFor(dto.ServiceListItemDTO{Type: "ClusterIP", Selector: second}, podIndex, memo)
+	if secondEvidence.Coverage != "complete" || secondEvidence.MatchingPods != 1 {
+		t.Fatalf("memoized selector evidence = %+v, want the original matching Pod count", secondEvidence)
+	}
+	if len(memo) != 1 {
+		t.Fatalf("identical selectors populated %d memo entries, want 1", len(memo))
+	}
+	for _, inapplicable := range []dto.ServiceListItemDTO{
+		{Type: "ClusterIP"},
+		{Type: "ExternalName", Selector: first},
+	} {
+		if evidence := serviceSelectorEvidenceFor(inapplicable, podIndex, memo); evidence.Coverage != "not_applicable" {
+			t.Fatalf("inapplicable Service selector evidence = %+v", evidence)
+		}
+	}
+	if len(memo) != 1 {
+		t.Fatalf("selectorless or ExternalName Service populated the selector memo: %+v", memo)
+	}
+}
+
+func TestServiceSelectorEvidenceSeparatesNoMatchFromNoReadyEndpoints(t *testing.T) {
+	completePods := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	completeServices := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	service := dto.ServiceListItemDTO{
+		Name: "api", Namespace: "apps", Type: "ClusterIP",
+		Selector: map[string]string{"app": "api"}, EndpointCoverage: "complete",
+	}
+
+	noMatch := dashboardSnapshotSet{
+		svcsOK: true,
+		svcs:   ServicesSnapshot{Meta: completeServices, Items: []dto.ServiceListItemDTO{service}},
+		podsOK: true,
+		pods: PodsSnapshot{Meta: completePods, Items: []dto.PodListItemDTO{{
+			Name: "web-0", Labels: map[string]string{"app": "web"}, LabelsObserved: true,
+		}}},
+	}
+	selectorSignals := detectServiceNoMatchingCachedPodsSignals(time.Now(), "apps", noMatch)
+	if len(selectorSignals) != 1 || selectorSignals[0].SignalType != "service_no_matching_cached_pods" {
+		t.Fatalf("complete no-match evidence = %+v, want selector-specific signal", selectorSignals)
+	}
+	if generic := detectServiceNoReadyEndpointsSignals(time.Now(), "apps", noMatch); len(generic) != 0 {
+		t.Fatalf("complete no-match evidence also emitted generic endpoint signal: %+v", generic)
+	}
+	empty := noMatch
+	empty.pods.Items = nil
+	if got := detectServiceNoMatchingCachedPodsSignals(time.Now(), "apps", empty); len(got) != 1 {
+		t.Fatalf("complete empty Pod snapshot = %+v, want selector-specific signal", got)
+	}
+	for _, excluded := range []dto.ServiceListItemDTO{
+		{Name: "selectorless", Type: "ClusterIP", EndpointCoverage: "complete"},
+		{Name: "external", Type: "ExternalName", Selector: map[string]string{"app": "api"}, EndpointCoverage: "complete"},
+	} {
+		candidate := noMatch
+		candidate.svcs.Items = []dto.ServiceListItemDTO{excluded}
+		if got := detectServiceNoMatchingCachedPodsSignals(time.Now(), "apps", candidate); len(got) != 0 {
+			t.Fatalf("Service %q emitted inapplicable selector signal: %+v", excluded.Name, got)
+		}
+	}
+
+	matching := noMatch
+	matching.pods.Items = []dto.PodListItemDTO{{
+		Name: "api-0", Labels: map[string]string{"app": "api"}, LabelsObserved: true,
+	}}
+	if got := detectServiceNoMatchingCachedPodsSignals(time.Now(), "apps", matching); len(got) != 0 {
+		t.Fatalf("matching Pod emitted selector signal: %+v", got)
+	}
+	generic := detectServiceNoReadyEndpointsSignals(time.Now(), "apps", matching)
+	if len(generic) != 1 || generic[0].SignalType != "service_no_ready_endpoints" || !strings.Contains(generic[0].ActualData, "1 matching cached Pods") {
+		t.Fatalf("matching Pod with zero endpoints = %+v, want evidence-rich endpoint signal", generic)
+	}
+
+	hydrated := noMatch
+	hydrated.pods.Items = []dto.PodListItemDTO{{Name: "persisted-without-labels"}}
+	for name, candidate := range map[string]dashboardSnapshotSet{
+		"hydrated labels": hydrated,
+		"unavailable Pods": func() dashboardSnapshotSet {
+			value := noMatch
+			value.podsOK = false
+			return value
+		}(),
+		"inexact Pods": func() dashboardSnapshotSet {
+			value := noMatch
+			value.pods.Meta.Completeness = CompletenessClassInexact
+			return value
+		}(),
+	} {
+		if got := detectServiceConnectivitySignals(time.Now(), "apps", candidate); len(got) != 0 {
+			t.Fatalf("%s emitted connectivity signal: %+v", name, got)
+		}
+	}
+}
+
+func BenchmarkDetectServiceConnectivitySignalsIndexed(b *testing.B) {
+	meta := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	pods := make([]dto.PodListItemDTO, 10_000)
+	for i := range pods {
+		pods[i] = dto.PodListItemDTO{
+			Name:           fmt.Sprintf("pod-%d", i),
+			Labels:         map[string]string{"app": fmt.Sprintf("app-%d", i%1_000), "tier": "backend"},
+			LabelsObserved: true,
+		}
+	}
+	services := make([]dto.ServiceListItemDTO, 500)
+	for i := range services {
+		services[i] = dto.ServiceListItemDTO{
+			Name:             fmt.Sprintf("service-%d", i),
+			Type:             "ClusterIP",
+			Selector:         map[string]string{"app": fmt.Sprintf("app-%d", i), "tier": "backend"},
+			EndpointCoverage: "complete",
+			EndpointsReady:   1,
+		}
+	}
+	snapshots := dashboardSnapshotSet{
+		svcsOK: true, svcs: ServicesSnapshot{Meta: meta, Items: services},
+		podsOK: true, pods: PodsSnapshot{Meta: meta, Items: pods},
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if got := detectServiceConnectivitySignals(time.Now(), "apps", snapshots); len(got) != 0 {
+			b.Fatalf("healthy indexed fixtures emitted signals: %+v", got)
+		}
+	}
+}
+
+func BenchmarkDetectServiceConnectivitySignalsSharedBroadSelector(b *testing.B) {
+	meta := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	pods := make([]dto.PodListItemDTO, 10_000)
+	for i := range pods {
+		pods[i] = dto.PodListItemDTO{
+			Name:           fmt.Sprintf("pod-%d", i),
+			Labels:         map[string]string{"app": fmt.Sprintf("app-%d", i%1_000), "tier": "backend"},
+			LabelsObserved: true,
+		}
+	}
+	services := make([]dto.ServiceListItemDTO, 500)
+	for i := range services {
+		services[i] = dto.ServiceListItemDTO{
+			Name:             fmt.Sprintf("service-%d", i),
+			Type:             "ClusterIP",
+			Selector:         map[string]string{"tier": "backend"},
+			EndpointCoverage: "complete",
+			EndpointsReady:   1,
+		}
+	}
+	snapshots := dashboardSnapshotSet{
+		svcsOK: true, svcs: ServicesSnapshot{Meta: meta, Items: services},
+		podsOK: true, pods: PodsSnapshot{Meta: meta, Items: pods},
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if got := detectServiceConnectivitySignals(time.Now(), "apps", snapshots); len(got) != 0 {
+			b.Fatalf("healthy shared-selector fixture emitted signals: %+v", got)
+		}
+	}
+}
+
+func TestIngressBackendIntegritySignalsUseCompleteCachedEvidence(t *testing.T) {
+	complete := SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}
+	snapshots := dashboardSnapshotSet{
+		ingsOK: true,
+		ings: IngressesSnapshot{Items: []dto.IngressListItemDTO{{
+			Name: "public", Namespace: "apps", BackendsObserved: true,
+			Backends: []dto.IngressBackendReferenceDTO{
+				{ServiceName: "missing", ServicePort: "80", Host: "app.example", Path: "/missing"},
+				{ServiceName: "missing-two", ServicePort: "443", Host: "app.example", Path: "/missing-two"},
+				{ServiceName: "missing", ServicePort: "80", Host: "duplicate.example", Path: "/missing"},
+				{ServiceName: "api", ServicePort: "admin", Host: "app.example", Path: "/admin"},
+				{ServiceName: "web", ServicePort: "8080", Host: "app.example", Path: "/"},
+				{ServiceName: "web", ServicePort: "8080", Host: "www.example", Path: "/"},
+				{ServiceName: "named", ServicePort: "http", Host: "app.example", Path: "/named"},
+				{ServiceName: "external", ServicePort: "https", Host: "app.example", Path: "/external"},
+				{ServiceName: "unknown", ServicePort: "http", Host: "app.example", Path: "/unknown"},
+			},
+		}}},
+		svcsOK: true,
+		svcs: ServicesSnapshot{Meta: complete, Items: []dto.ServiceListItemDTO{
+			{Name: "api", Namespace: "apps", PortsObserved: true, Ports: []dto.ServicePortDTO{{Name: "http", Port: 80}}, EndpointCoverage: "complete", EndpointsReady: 1},
+			{Name: "web", Namespace: "apps", PortsObserved: true, Ports: []dto.ServicePortDTO{{Name: "http", Port: 8080}}, EndpointCoverage: "complete"},
+			{Name: "named", Namespace: "apps", PortsObserved: true, Ports: []dto.ServicePortDTO{{Name: "http", Port: 8081}}, EndpointCoverage: "complete", EndpointsReady: 1},
+			{Name: "external", Namespace: "apps", Type: "ExternalName", PortsObserved: true, Ports: []dto.ServicePortDTO{{Name: "https", Port: 443}}, EndpointCoverage: "complete"},
+			{Name: "unknown", Namespace: "apps", PortsObserved: true, Ports: []dto.ServicePortDTO{{Name: "http", Port: 80}}, EndpointCoverage: "unknown"},
+		}},
+	}
+
+	signals := detectIngressBackendIntegritySignals(time.Now(), "apps", snapshots)
+	counts := map[string]int{}
+	for _, signal := range signals {
+		counts[signal.SignalType]++
+		if signal.ActualData == "" || signal.CalculatedData == "" {
+			t.Fatalf("backend signal lacks evidence: %+v", signal)
+		}
+	}
+	want := map[string]int{
+		"ingress_backend_service_missing":    2,
+		"ingress_backend_port_missing":       1,
+		"ingress_backend_no_ready_endpoints": 1,
+	}
+	if !reflect.DeepEqual(counts, want) {
+		t.Fatalf("backend signal counts = %#v, want %#v; signals=%+v", counts, want, signals)
+	}
+	missingKeys := map[string]struct{}{}
+	for _, signal := range signals {
+		if signal.SignalType == "ingress_backend_service_missing" {
+			missingKeys[signal.HistoryKey] = struct{}{}
+		}
+	}
+	if len(missingKeys) != 2 {
+		t.Fatalf("distinct missing backends history keys = %#v, want 2", missingKeys)
+	}
+	projected := dedupeNamespaceSignals(namespaceInsightSignalsFromDashboard(signals))
+	if len(projected) != len(signals) {
+		t.Fatalf("namespace projection collapsed backend-specific signals: got %d, want %d", len(projected), len(signals))
+	}
+	m := &manager{
+		signalHistory: map[string]map[string]SignalHistoryRecord{"ctx": {}},
+		signalAck:     map[string]map[string]SignalAcknowledgementRecord{"ctx": {}},
+	}
+	attached := m.attachSignalHistory("ctx", time.Now(), signals...)
+	if len(attached) != len(signals) || len(m.signalHistory["ctx"]) != len(signals) {
+		t.Fatalf("history collapsed backend signals: attached=%d records=%d signals=%d", len(attached), len(m.signalHistory["ctx"]), len(signals))
+	}
+	for key := range missingKeys {
+		if rec := m.signalHistory["ctx"][key]; rec.SeenCount != 1 {
+			t.Fatalf("backend history %q seen count = %d, want 1", key, rec.SeenCount)
+		}
+	}
+
+	unknown := snapshots
+	unknown.svcs.Meta.Coverage = CoverageClassPartial
+	if got := detectIngressBackendIntegritySignals(time.Now(), "apps", unknown); len(got) != 0 {
+		t.Fatalf("partial Service coverage emitted backend signals: %+v", got)
+	}
+
+	legacy := snapshots
+	legacy.ings.Items = []dto.IngressListItemDTO{{
+		Name: "legacy", BackendsObserved: true,
+		Backends: []dto.IngressBackendReferenceDTO{{ServiceName: "api", ServicePort: "admin"}},
+	}}
+	legacy.svcs.Items[0].PortsObserved = false
+	if got := detectIngressBackendIntegritySignals(time.Now(), "apps", legacy); len(got) != 0 {
+		t.Fatalf("legacy ports-unknown Service emitted port signal: %+v", got)
+	}
+}
+
 func TestDetectDashboardSignalsRanksSignals(t *testing.T) {
 	now := time.Now().UTC()
 	ns := "app"
@@ -384,7 +696,7 @@ func TestDetectDashboardSignalsRanksSignals(t *testing.T) {
 		jobsOK:  true,
 		cjs:     CronJobsSnapshot{Items: []dto.CronJobDTO{{Name: "stale", Namespace: ns, AgeSec: int64((48 * time.Hour).Seconds())}}},
 		cjsOK:   true,
-		svcs:    ServicesSnapshot{Items: []dto.ServiceListItemDTO{{Name: "svc", Namespace: ns, EndpointsReady: 0, EndpointsNotReady: 1}}},
+		svcs:    ServicesSnapshot{Meta: SnapshotMetadata{Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}, Items: []dto.ServiceListItemDTO{{Name: "svc", Namespace: ns, EndpointCoverage: "complete", EndpointsReady: 0, EndpointsNotReady: 1}}},
 		svcsOK:  true,
 		ings:    IngressesSnapshot{Items: []dto.IngressListItemDTO{{Name: "ing", Namespace: ns, Hosts: []string{"app.example"}}}},
 		ingsOK:  true,
@@ -467,6 +779,92 @@ func TestSummarizeDashboardSignalsFiltersAndPaginatesItems(t *testing.T) {
 	}
 	if len(summary.Items) != 1 || summary.Items[0].Name != "worker-migrate" {
 		t.Fatalf("unexpected page items: %+v", summary.Items)
+	}
+}
+
+func TestAggregateDashboardSignalSuppressionRebuildsVisibleSummary(t *testing.T) {
+	mm := NewManager(ManagerConfig{}).(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx-dashboard-suppression")
+	plane := planeAny.(*clusterPlane)
+	ns := "apps"
+	meta := SnapshotMetadata{ObservedAt: time.Now().UTC()}
+	setNamespacedSnapshot(&plane.podsStore, ns, PodsSnapshot{Meta: meta, Items: []dto.PodListItemDTO{{Name: "api", Namespace: ns, Restarts: 12, Phase: "Running", Ready: "1/1"}}})
+	setNamespacedSnapshot(&plane.secsStore, ns, SecretsSnapshot{Meta: meta, Items: []dto.SecretDTO{{Name: "empty", Namespace: ns}}})
+
+	_, initial, _, _ := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{SignalsLimit: 20})
+	var restart ClusterDashboardSignal
+	for _, item := range initial.Items {
+		if item.SignalType == "pod_restarts" {
+			restart = item
+		}
+	}
+	if restart.HistoryKey == "" || restart.StateFingerprint == "" {
+		t.Fatalf("initial detector signal missing suppression identity: %+v", initial.Items)
+	}
+	if _, err := mm.suppressSignalAt(plane.name, SignalSuppressionRequest{HistoryKey: restart.HistoryKey, Mode: SignalSuppressionModeUntilChanged, BaselineFingerprint: restart.StateFingerprint, Comment: "rollout"}, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	_, panel, _, _ := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{SignalsFilter: "high", SignalsQuery: "does-not-match", SignalsOffset: 99, SignalsLimit: 1})
+	for _, item := range panel.Items {
+		if item.SignalType == "pod_restarts" {
+			t.Fatalf("suppressed detector remained visible: %+v", panel.Items)
+		}
+	}
+	if panel.Total != 1 || panel.PodRestartSignals != 0 || panel.High != 0 || panel.EmptySecrets != 1 {
+		t.Fatalf("visible summary was not rebuilt solely from visible rows: %+v", panel)
+	}
+	if panel.Suppressed != (SignalSuppressionSummary{Total: 1, UntilChanged: 1}) || len(panel.SuppressedItems) != 1 {
+		t.Fatalf("suppressed summary/list = %+v / %+v", panel.Suppressed, panel.SuppressedItems)
+	}
+	got := panel.SuppressedItems[0]
+	if got.HistoryKey != restart.HistoryKey || got.StateFingerprint != restart.StateFingerprint || got.Suppression == nil || got.Suppression.Comment != "rollout" {
+		t.Fatalf("suppressed item metadata = %+v", got)
+	}
+
+	setNamespacedSnapshot(&plane.podsStore, ns, PodsSnapshot{Meta: meta, Items: []dto.PodListItemDTO{{Name: "api", Namespace: ns, Restarts: 13, Phase: "Running", Ready: "1/1"}}})
+	_, changed, _, _ := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, 1, NodesSnapshot{}, "empty", ClusterDashboardListOptions{SignalsLimit: 20})
+	if changed.Suppressed.Total != 0 {
+		t.Fatalf("changed evidence remained suppressed: %+v", changed.Suppressed)
+	}
+	var changedRestart *ClusterDashboardSignal
+	for i := range changed.Items {
+		if changed.Items[i].SignalType == "pod_restarts" {
+			changedRestart = &changed.Items[i]
+		}
+	}
+	if changedRestart == nil || changedRestart.StateFingerprint == restart.StateFingerprint {
+		t.Fatalf("changed detector did not become visible with new fingerprint: %+v", changed.Items)
+	}
+}
+
+func TestAggregateDashboardSuppressedItemsCapPreservesExactTotalAndIgnoresVisibleOptions(t *testing.T) {
+	mm := NewManager(ManagerConfig{}).(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), "ctx-dashboard-suppression-cap")
+	plane := planeAny.(*clusterPlane)
+	ns := "apps"
+	items := make([]dto.PodListItemDTO, SignalSuppressionProjectionSampleLimit+2)
+	for i := range items {
+		items[i] = dto.PodListItemDTO{Name: fmt.Sprintf("pod-%03d", i), Namespace: ns, Restarts: 12, Phase: "Running", Ready: "1/1"}
+	}
+	setNamespacedSnapshot(&plane.podsStore, ns, PodsSnapshot{Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()}, Items: items})
+	mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, len(items), NodesSnapshot{}, "empty", ClusterDashboardListOptions{SignalsLimit: 1})
+	now := time.Now().UTC()
+	records := make(map[string]SignalSuppressionRecord, len(mm.signalHistory[plane.name]))
+	for key := range mm.signalHistory[plane.name] {
+		records[key] = SignalSuppressionRecord{Mode: SignalSuppressionModeSnooze, CreatedAt: now.Add(-time.Minute).Unix(), UpdatedAt: now.Add(-time.Minute).Unix(), ExpiresAt: now.Add(-time.Minute).Unix() + SignalSuppressionDurationOneHourSeconds, FingerprintVersion: SignalFingerprintVersion}
+	}
+	mm.signalSuppressionsMu.Lock()
+	mm.signalSuppressions[plane.name] = records
+	mm.signalSuppressionsMu.Unlock()
+	_, panel, _, _ := mm.aggregateClusterDashboard(plane, NamespaceSnapshot{}, []string{ns}, len(items), NodesSnapshot{}, "empty", ClusterDashboardListOptions{SignalsFilter: "low", SignalsQuery: "absent", SignalsOffset: 999, SignalsLimit: 1})
+	if panel.Suppressed.Total != len(items) || len(panel.SuppressedItems) != SignalSuppressionProjectionSampleLimit {
+		t.Fatalf("suppressed cap lost exact summary: summary=%+v list=%d", panel.Suppressed, len(panel.SuppressedItems))
+	}
+	for i := 1; i < len(panel.SuppressedItems); i++ {
+		if dashboardSignalLess(panel.SuppressedItems[i], panel.SuppressedItems[i-1]) {
+			t.Fatalf("suppressed list is not priority sorted at %d", i)
+		}
 	}
 }
 
@@ -971,16 +1369,18 @@ func TestDashboardSignalDetectorRegistryHasDefinitions(t *testing.T) {
 		if detector.Type == "" || detector.Detect == nil {
 			t.Fatalf("invalid detector entry: %+v", detector)
 		}
-		if seen[detector.Type] {
-			t.Fatalf("duplicate detector for %q", detector.Type)
-		}
-		seen[detector.Type] = true
-		def := dashboardSignalDefinitionForType(detector.Type)
-		if def.Type != detector.Type || def.Label == "" {
-			t.Fatalf("detector %q missing signal definition: %+v", detector.Type, def)
-		}
-		if def.SummaryCounter == "" {
-			t.Fatalf("detector %q missing summary counter: %+v", detector.Type, def)
+		for _, signalType := range append([]string{detector.Type}, detector.AdditionalTypes...) {
+			if signalType == "" || seen[signalType] {
+				t.Fatalf("duplicate or empty detector signal type %q in %+v", signalType, detector)
+			}
+			seen[signalType] = true
+			def := dashboardSignalDefinitionForType(signalType)
+			if def.Type != signalType || def.Label == "" {
+				t.Fatalf("detector signal type %q missing signal definition: %+v", signalType, def)
+			}
+			if def.SummaryCounter == "" {
+				t.Fatalf("detector signal type %q missing summary counter: %+v", signalType, def)
+			}
 		}
 	}
 }

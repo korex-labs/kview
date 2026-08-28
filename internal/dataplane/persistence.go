@@ -3,6 +3,7 @@ package dataplane
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,14 +19,17 @@ import (
 
 const searchKeySeparator = "\x00"
 
+const signalSuppressionKeyEncodingVersion byte = 1
+
 var (
-	dataplaneSnapshotBucket  = []byte("snapshots_v1")
-	dataplaneSearchBucket    = []byte("search_name_v1")
-	dataplaneCellIndexBucket = []byte("search_cell_v1")
-	dataplaneSignalBucket    = []byte("signals_v1")
-	dataplaneSignalAckBucket = []byte("signal_ack_v1")
-	dataplaneMetaBucket      = []byte("meta")
-	dataplaneSchemaKey       = []byte("schemaVersion")
+	dataplaneSnapshotBucket          = []byte("snapshots_v1")
+	dataplaneSearchBucket            = []byte("search_name_v1")
+	dataplaneCellIndexBucket         = []byte("search_cell_v1")
+	dataplaneSignalBucket            = []byte("signals_v1")
+	dataplaneSignalAckBucket         = []byte("signal_ack_v1")
+	dataplaneSignalSuppressionBucket = []byte("signal_suppressions_v1")
+	dataplaneMetaBucket              = []byte("meta")
+	dataplaneSchemaKey               = []byte("schemaVersion")
 )
 
 const (
@@ -55,6 +59,11 @@ type snapshotPersistence interface {
 	UpsertSignalAcknowledgement(cluster, key string, rec SignalAcknowledgementRecord) error
 	DeleteSignalAcknowledgement(cluster, key string) error
 	PruneSignalAcknowledgementsOlderThan(cluster string, maxAge time.Duration) error
+	LoadSignalSuppressions(cluster string) (map[string]SignalSuppressionRecord, error)
+	UpsertSignalSuppression(cluster, key string, rec SignalSuppressionRecord) error
+	DeleteSignalSuppression(cluster, key string) error
+	ReplaceSignalSuppressions(cluster string, records map[string]SignalSuppressionRecord) error
+	PruneSignalSuppressions(cluster string, now time.Time, maxAge time.Duration) error
 	Close() error
 }
 
@@ -192,7 +201,7 @@ func writeDataplaneSchemaVersion(tx *bolt.Tx, version int) error {
 }
 
 func ensureDataplaneBuckets(tx *bolt.Tx) error {
-	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket, dataplaneSignalAckBucket} {
+	for _, bucket := range [][]byte{dataplaneSnapshotBucket, dataplaneSearchBucket, dataplaneCellIndexBucket, dataplaneSignalBucket, dataplaneSignalAckBucket, dataplaneSignalSuppressionBucket} {
 		if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 			return err
 		}
@@ -604,6 +613,222 @@ func (p *boltSnapshotPersistence) PruneSignalAcknowledgementsOlderThan(cluster s
 		}
 		return nil
 	})
+}
+
+func (p *boltSnapshotPersistence) LoadSignalSuppressions(cluster string) (map[string]SignalSuppressionRecord, error) {
+	if p == nil || p.db == nil || cluster == "" {
+		return nil, nil
+	}
+	out := map[string]SignalSuppressionRecord{}
+	prefix, err := signalSuppressionContextPrefix(cluster)
+	if err != nil {
+		return nil, err
+	}
+	err = p.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalSuppressionBucket)
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		for encodedKey, value := c.Seek(prefix); encodedKey != nil && bytes.HasPrefix(encodedKey, prefix); encodedKey, value = c.Next() {
+			encodedCluster, historyKey, err := decodeSignalSuppressionKey(encodedKey)
+			if err != nil {
+				return err
+			}
+			if encodedCluster != cluster {
+				return fmt.Errorf("signal suppression key context mismatch: got %q, want %q", encodedCluster, cluster)
+			}
+			var rec SignalSuppressionRecord
+			if err := json.Unmarshal(value, &rec); err != nil {
+				return err
+			}
+			out[historyKey] = rec
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (p *boltSnapshotPersistence) UpsertSignalSuppression(cluster, key string, rec SignalSuppressionRecord) error {
+	if p == nil || p.db == nil || cluster == "" || key == "" {
+		return nil
+	}
+	payload, err := json.Marshal(rec)
+	if err != nil {
+		return err
+	}
+	encodedKey, err := encodeSignalSuppressionKey(cluster, key)
+	if err != nil {
+		return err
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(dataplaneSignalSuppressionBucket)
+		if err != nil {
+			return err
+		}
+		return b.Put(encodedKey, payload)
+	})
+}
+
+func (p *boltSnapshotPersistence) DeleteSignalSuppression(cluster, key string) error {
+	if p == nil || p.db == nil || cluster == "" || key == "" {
+		return nil
+	}
+	encodedKey, err := encodeSignalSuppressionKey(cluster, key)
+	if err != nil {
+		return err
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalSuppressionBucket)
+		if b == nil {
+			return nil
+		}
+		return b.Delete(encodedKey)
+	})
+}
+
+func (p *boltSnapshotPersistence) ReplaceSignalSuppressions(cluster string, records map[string]SignalSuppressionRecord) error {
+	if p == nil || p.db == nil || cluster == "" {
+		return nil
+	}
+	prefix, err := signalSuppressionContextPrefix(cluster)
+	if err != nil {
+		return err
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(dataplaneSignalSuppressionBucket)
+		if err != nil {
+			return err
+		}
+		c := b.Cursor()
+		for encodedKey, _ := c.Seek(prefix); encodedKey != nil && bytes.HasPrefix(encodedKey, prefix); encodedKey, _ = c.Next() {
+			if err := c.Delete(); err != nil {
+				return err
+			}
+		}
+		for key, rec := range records {
+			encodedKey, err := encodeSignalSuppressionKey(cluster, key)
+			if err != nil {
+				return err
+			}
+			payload, err := json.Marshal(rec)
+			if err != nil {
+				return err
+			}
+			if err := b.Put(encodedKey, payload); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (p *boltSnapshotPersistence) PruneSignalSuppressions(cluster string, now time.Time, maxAge time.Duration) error {
+	if p == nil || p.db == nil {
+		return nil
+	}
+	now = now.UTC()
+	cutoff := int64(0)
+	if maxAge > 0 {
+		cutoff = now.Add(-maxAge).Unix()
+	}
+	return p.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSignalSuppressionBucket)
+		if b == nil {
+			return nil
+		}
+		deleteKeys := make([][]byte, 0)
+		visit := func(key, value []byte) error {
+			if _, _, err := decodeSignalSuppressionKey(key); err != nil {
+				deleteKeys = append(deleteKeys, append([]byte(nil), key...))
+				return nil
+			}
+			var rec SignalSuppressionRecord
+			if err := json.Unmarshal(value, &rec); err != nil {
+				deleteKeys = append(deleteKeys, append([]byte(nil), key...))
+				return nil
+			}
+			if _, ok := normalizeImportedSignalSuppression(rec, now); !ok || (cutoff > 0 && rec.UpdatedAt < cutoff) {
+				deleteKeys = append(deleteKeys, append([]byte(nil), key...))
+			}
+			return nil
+		}
+		if cluster == "" {
+			if err := b.ForEach(visit); err != nil {
+				return err
+			}
+		} else {
+			prefix, err := signalSuppressionContextPrefix(cluster)
+			if err != nil {
+				return err
+			}
+			c := b.Cursor()
+			for key, value := c.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, value = c.Next() {
+				if err := visit(key, value); err != nil {
+					return err
+				}
+			}
+		}
+		for _, key := range deleteKeys {
+			if err := b.Delete(key); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func signalSuppressionContextPrefix(cluster string) ([]byte, error) {
+	if cluster == "" {
+		return nil, errors.New("signal suppression context is required")
+	}
+	maxInt := int(^uint(0) >> 1)
+	if uint64(len(cluster)) > uint64(^uint32(0)) || len(cluster) > maxInt-5 {
+		return nil, errors.New("signal suppression context is too large")
+	}
+	prefix := make([]byte, 1+4+len(cluster))
+	prefix[0] = signalSuppressionKeyEncodingVersion
+	binary.BigEndian.PutUint32(prefix[1:5], uint32(len(cluster)))
+	copy(prefix[5:], cluster)
+	return prefix, nil
+}
+
+func encodeSignalSuppressionKey(cluster, key string) ([]byte, error) {
+	if key == "" {
+		return nil, errors.New("signal suppression key is required")
+	}
+	prefix, err := signalSuppressionContextPrefix(cluster)
+	if err != nil {
+		return nil, err
+	}
+	if len(key) > int(^uint(0)>>1)-len(prefix) {
+		return nil, errors.New("signal suppression key is too large")
+	}
+	encoded := make([]byte, len(prefix)+len(key))
+	copy(encoded, prefix)
+	copy(encoded[len(prefix):], key)
+	return encoded, nil
+}
+
+func decodeSignalSuppressionKey(encoded []byte) (string, string, error) {
+	if len(encoded) < 7 {
+		return "", "", errors.New("invalid signal suppression key: too short")
+	}
+	if encoded[0] != signalSuppressionKeyEncodingVersion {
+		return "", "", fmt.Errorf("invalid signal suppression key version %d", encoded[0])
+	}
+	clusterLen := uint64(binary.BigEndian.Uint32(encoded[1:5]))
+	if clusterLen == 0 {
+		return "", "", errors.New("invalid signal suppression key: empty context")
+	}
+	if clusterLen > uint64(len(encoded)-6) {
+		return "", "", errors.New("invalid signal suppression key: truncated context or empty key")
+	}
+	keyOffset := 5 + int(clusterLen)
+	return string(encoded[5:keyOffset]), string(encoded[keyOffset:]), nil
 }
 
 func (p *boltSnapshotPersistence) SearchNamePrefix(prefix string, limit int) ([]dataplaneSearchRow, error) {

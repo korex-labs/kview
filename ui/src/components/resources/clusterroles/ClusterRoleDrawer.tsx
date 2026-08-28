@@ -180,6 +180,8 @@ export default function ClusterRoleDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={clusterRoleSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

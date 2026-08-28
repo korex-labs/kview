@@ -216,6 +216,8 @@ export default function SecretDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={secretSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

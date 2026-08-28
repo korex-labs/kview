@@ -204,8 +204,10 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"active":  active,
-			"signals": res.Signals,
+			"active":                active,
+			"signals":               res.Signals,
+			"suppressedSignalCount": res.SuppressedSignalCount,
+			"suppressedSignals":     res.SuppressedSignals,
 			"meta": map[string]any{
 				"freshness":   string(res.Meta.Freshness),
 				"degradation": string(res.Meta.Degradation),
@@ -246,8 +248,10 @@ func (s *Server) registerNamespaceRoutes(api chi.Router) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"active":  active,
-			"signals": res.Signals,
+			"active":                active,
+			"signals":               res.Signals,
+			"suppressedSignalCount": res.SuppressedSignalCount,
+			"suppressedSignals":     res.SuppressedSignals,
 			"meta": map[string]any{
 				"freshness":   string(res.Meta.Freshness),
 				"degradation": string(res.Meta.Degradation),

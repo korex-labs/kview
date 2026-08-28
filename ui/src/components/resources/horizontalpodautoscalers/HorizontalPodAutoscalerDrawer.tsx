@@ -283,6 +283,8 @@ export default function HorizontalPodAutoscalerDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={resourceSignals.signals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(eventsTabIndex)}
                     onJumpToSpec={() => setTab(metadataTabIndex)}
                   />

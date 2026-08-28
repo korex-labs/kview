@@ -29,6 +29,7 @@ export type SettingsTransferSection =
   | "favourites"
   | "savedViews"
   | "signalSettings"
+  | "signalSuppressions"
   | "signalAcknowledgements"
   | "signalHistory"
   | "investigationSnapshots";
@@ -333,6 +334,23 @@ export type SignalHistoryTransferRecord = {
   observedDays: number[];
 };
 
+export type SignalSuppressionTransferRecord = {
+  mode: "snooze" | "until_changed";
+  createdAt: number;
+  updatedAt: number;
+  expiresAt?: number;
+  baselineFingerprint?: string;
+  fingerprintVersion: 1;
+  comment?: string;
+};
+
+export type SignalSuppressionsTransferSection = {
+  sourceContext: string;
+  items: Record<string, SignalSuppressionTransferRecord>;
+};
+
+export const SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS = 10_000;
+
 export type SettingsTransferBundleV1 = {
   kind: "kview.settingsTransfer";
   v: 1;
@@ -352,6 +370,7 @@ export type SettingsTransferBundleV1 = {
       global: DataplaneSettings["signals"];
       contextOverrides: Record<string, NonNullable<DataplaneContextOverrideSettings["signals"]>>;
     };
+    signalSuppressions: SignalSuppressionsTransferSection;
     signalAcknowledgements: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
     signalHistory: Record<string, Record<string, SignalHistoryTransferRecord>>;
     investigationSnapshots: InvestigationSnapshot[];
@@ -2647,6 +2666,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "podDebug", label: "Pod Debug defaults" },
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
+  { id: "signalSuppressions", label: "Signal suppressions" },
   { id: "signalAcknowledgements", label: "Signal acknowledgements" },
   { id: "signalHistory", label: "Signal memory" },
   { id: "investigationSnapshots", label: "Investigation snapshots" },
@@ -2665,6 +2685,7 @@ export function exportSettingsTransferJSON(input: {
   signalAcknowledgements?: Record<string, Record<string, SignalAcknowledgementTransferRecord>>;
   signalHistory?: Record<string, Record<string, SignalHistoryTransferRecord>>;
   investigationSnapshots?: InvestigationSnapshot[];
+  signalSuppressions?: SignalSuppressionsTransferSection;
 }): string {
   const selected = new Set(input.sections);
   const serialized = serializeUserSettingsV2(input.settings);
@@ -2697,6 +2718,9 @@ export function exportSettingsTransferJSON(input: {
       global: serialized.dataplane.global.signals,
       contextOverrides,
     };
+  }
+  if (selected.has("signalSuppressions")) {
+    bundle.sections.signalSuppressions = normalizeSignalSuppressionsTransfer(input.signalSuppressions);
   }
   if (selected.has("signalAcknowledgements")) {
     bundle.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(input.signalAcknowledgements);
@@ -2774,6 +2798,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   }
   if ("signalSettings" in sections) {
     out.sections.signalSettings = normalizeSignalSettingsTransfer(sections.signalSettings);
+  }
+  if ("signalSuppressions" in sections) {
+    out.sections.signalSuppressions = normalizeSignalSuppressionsTransfer(sections.signalSuppressions);
   }
   if ("signalAcknowledgements" in sections) {
     out.sections.signalAcknowledgements = normalizeSignalAcknowledgementTransfer(sections.signalAcknowledgements);
@@ -3197,6 +3224,65 @@ function normalizeInvestigationSnapshotTransfer(input: unknown): InvestigationSn
     out.push(snapshot);
   }
   return out.slice(0, 500);
+}
+
+function normalizeSignalSuppressionsTransfer(input: unknown): SignalSuppressionsTransferSection {
+  const raw = input && typeof input === "object" && !Array.isArray(input)
+    ? input as { sourceContext?: unknown; items?: unknown }
+    : {};
+  const sourceContext = typeof raw.sourceContext === "string" ? raw.sourceContext.trim() : "";
+  const items: Record<string, SignalSuppressionTransferRecord> = {};
+  if (!raw.items || typeof raw.items !== "object" || Array.isArray(raw.items)) {
+    return { sourceContext, items };
+  }
+
+  const validPositiveInteger = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
+  const hasOwn = (record: object, key: string) => Object.prototype.hasOwnProperty.call(record, key);
+  const entries = Object.entries(raw.items).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  let accepted = 0;
+  for (const [key, value] of entries) {
+    if (accepted >= SIGNAL_SUPPRESSION_TRANSFER_MAX_RECORDS) break;
+    if (!key || key !== key.trim() || Array.from(key).length > 1024) continue;
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+    if (record.mode !== "snooze" && record.mode !== "until_changed") continue;
+    if (record.fingerprintVersion !== 1) continue;
+    if (!validPositiveInteger(record.createdAt) || !validPositiveInteger(record.updatedAt) || record.updatedAt < record.createdAt) continue;
+    if (hasOwn(record, "comment") && typeof record.comment !== "string") continue;
+    const comment = typeof record.comment === "string" ? record.comment.trim() : undefined;
+    if (comment !== undefined && Array.from(comment).length > 2000) continue;
+
+    if (record.mode === "snooze") {
+      if (!validPositiveInteger(record.expiresAt)) continue;
+      const duration = record.expiresAt - record.createdAt;
+      if (duration !== 3600 && duration !== 86400) continue;
+      if (hasOwn(record, "baselineFingerprint")) continue;
+      items[key] = {
+        mode: "snooze",
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        expiresAt: record.expiresAt,
+        fingerprintVersion: 1,
+        ...(comment ? { comment } : {}),
+      };
+      accepted += 1;
+      continue;
+    }
+
+    if (hasOwn(record, "expiresAt")) continue;
+    if (typeof record.baselineFingerprint !== "string" || !/^v1:[0-9a-f]{64}$/.test(record.baselineFingerprint)) continue;
+    items[key] = {
+      mode: "until_changed",
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      baselineFingerprint: record.baselineFingerprint,
+      fingerprintVersion: 1,
+      ...(comment ? { comment } : {}),
+    };
+    accepted += 1;
+  }
+  return { sourceContext, items };
 }
 
 function normalizeSignalAcknowledgementTransfer(input: unknown): Record<string, Record<string, SignalAcknowledgementTransferRecord>> {

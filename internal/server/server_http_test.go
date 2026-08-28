@@ -4,13 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/dataplane"
@@ -209,18 +214,52 @@ func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 // others panic so any accidental call fails the test loudly.
 
 type stubDataplane struct {
+	mu                      sync.Mutex
 	policy                  dataplane.DataplanePolicy
 	bundle                  dataplane.DataplanePolicyBundle
 	effective               map[string]dataplane.DataplanePolicy
 	acks                    map[string]dataplane.SignalAcknowledgementRecord
+	suppressions            map[string]dataplane.SignalSuppressionRecord
 	history                 map[string]dataplane.SignalHistoryRecord
 	dashboardSignalsCalls   int
 	dashboardDataplaneCalls int
+	resourceSignalsResult   dataplane.ResourceSignalsResult
+	suppressCalls           []stubSuppressCall
+	unsuppressCalls         []stubUnsuppressCall
+	suppressionExportCalls  []string
+	suppressionImportCalls  []stubSuppressionImportCall
+	suppressionResetCalls   []stubSuppressionResetCall
+	suppressionImportResult *dataplane.SignalSuppressionImportResult
+	suppressErr             error
+	unsuppressErr           error
+	suppressionImportErr    error
+	suppressionResetErr     error
+}
+
+type stubSuppressCall struct {
+	contextName string
+	request     dataplane.SignalSuppressionRequest
+}
+
+type stubUnsuppressCall struct {
+	contextName string
+	historyKey  string
+}
+
+type stubSuppressionImportCall struct {
+	contextName string
+	items       map[string]dataplane.SignalSuppressionRecord
+	strategy    string
+}
+
+type stubSuppressionResetCall struct {
+	contextName string
+	historyKey  string
 }
 
 func newStubDataplane() *stubDataplane {
 	bundle := dataplane.DefaultDataplanePolicyBundle()
-	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}, history: map[string]dataplane.SignalHistoryRecord{}}
+	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}, suppressions: map[string]dataplane.SignalSuppressionRecord{}, history: map[string]dataplane.SignalHistoryRecord{}}
 }
 
 func (s *stubDataplane) NoteUserActivity()                                       {}
@@ -297,6 +336,111 @@ func (s *stubDataplane) ImportSignalAcknowledgements(clusterName string, incomin
 		result.Imported++
 	}
 	return result, nil
+}
+func (s *stubDataplane) SuppressSignal(clusterName string, req dataplane.SignalSuppressionRequest) (dataplane.SignalSuppressionRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.suppressCalls = append(s.suppressCalls, stubSuppressCall{contextName: clusterName, request: req})
+	if s.suppressErr != nil {
+		return dataplane.SignalSuppressionRecord{}, s.suppressErr
+	}
+	now := time.Now().UTC().Unix()
+	rec := dataplane.SignalSuppressionRecord{
+		Mode:                req.Mode,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		BaselineFingerprint: req.BaselineFingerprint,
+		FingerprintVersion:  dataplane.SignalFingerprintVersion,
+		Comment:             req.Comment,
+	}
+	if req.DurationSeconds > 0 {
+		rec.ExpiresAt = now + req.DurationSeconds
+	}
+	s.suppressions[clusterName+"\x00"+req.HistoryKey] = rec
+	return rec, nil
+}
+func (s *stubDataplane) UnsuppressSignal(clusterName, historyKey string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unsuppressCalls = append(s.unsuppressCalls, stubUnsuppressCall{contextName: clusterName, historyKey: historyKey})
+	if s.unsuppressErr != nil {
+		return s.unsuppressErr
+	}
+	delete(s.suppressions, clusterName+"\x00"+historyKey)
+	return nil
+}
+func (s *stubDataplane) ExportSignalSuppressions(clusterName string) map[string]dataplane.SignalSuppressionRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.suppressionExportCalls = append(s.suppressionExportCalls, clusterName)
+	out := map[string]dataplane.SignalSuppressionRecord{}
+	prefix := clusterName + "\x00"
+	for key, rec := range s.suppressions {
+		if strings.HasPrefix(key, prefix) {
+			out[strings.TrimPrefix(key, prefix)] = rec
+		}
+	}
+	return out
+}
+func (s *stubDataplane) ImportSignalSuppressions(clusterName string, incoming map[string]dataplane.SignalSuppressionRecord, strategy string) (dataplane.SignalSuppressionImportResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copied := make(map[string]dataplane.SignalSuppressionRecord, len(incoming))
+	for key, rec := range incoming {
+		copied[key] = rec
+	}
+	s.suppressionImportCalls = append(s.suppressionImportCalls, stubSuppressionImportCall{contextName: clusterName, items: copied, strategy: strategy})
+	if s.suppressionImportErr != nil {
+		return dataplane.SignalSuppressionImportResult{}, s.suppressionImportErr
+	}
+	if s.suppressionImportResult != nil {
+		return *s.suppressionImportResult, nil
+	}
+	result := dataplane.SignalSuppressionImportResult{}
+	prefix := clusterName + "\x00"
+	if strategy == "replaceSections" {
+		for key := range s.suppressions {
+			if strings.HasPrefix(key, prefix) {
+				delete(s.suppressions, key)
+				result.Replaced++
+			}
+		}
+	}
+	for historyKey, rec := range incoming {
+		key := prefix + historyKey
+		if _, ok := s.suppressions[key]; ok && strategy == "keepMine" {
+			result.Skipped++
+			continue
+		}
+		s.suppressions[key] = rec
+		result.Imported++
+	}
+	return result, nil
+}
+func (s *stubDataplane) ResetSignalSuppressions(clusterName, historyKey string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.suppressionResetCalls = append(s.suppressionResetCalls, stubSuppressionResetCall{contextName: clusterName, historyKey: historyKey})
+	if s.suppressionResetErr != nil {
+		return 0, s.suppressionResetErr
+	}
+	if historyKey != "" {
+		key := clusterName + "\x00" + historyKey
+		if _, ok := s.suppressions[key]; ok {
+			delete(s.suppressions, key)
+			return 1, nil
+		}
+		return 0, nil
+	}
+	removed := 0
+	prefix := clusterName + "\x00"
+	for key := range s.suppressions {
+		if strings.HasPrefix(key, prefix) {
+			delete(s.suppressions, key)
+			removed++
+		}
+	}
+	return removed, nil
 }
 func (s *stubDataplane) ExportSignalHistory(clusterName string) map[string]dataplane.SignalHistoryRecord {
 	out := map[string]dataplane.SignalHistoryRecord{}
@@ -524,7 +668,7 @@ func (s *stubDataplane) NamespaceInsightsProjection(_ context.Context, _, _ stri
 	panic("stubDataplane: NamespaceInsightsProjection")
 }
 func (s *stubDataplane) ResourceSignals(_ context.Context, _, _, _, _, _ string) (dataplane.ResourceSignalsResult, error) {
-	panic("stubDataplane: ResourceSignals")
+	return s.resourceSignalsResult, nil
 }
 func (s *stubDataplane) PreviewSignalExclusions(_ context.Context, _ string, signalType string, exclusions dataplane.SignalExclusionSet) (dataplane.SignalExclusionPreviewResult, error) {
 	bundle := dataplane.DefaultDataplanePolicyBundle()
@@ -1806,6 +1950,44 @@ func TestGetClusterResourceSignals_UnknownKind(t *testing.T) {
 	}
 }
 
+func TestGetResourceSignals_IncludesSuppressionMetadata(t *testing.T) {
+	for _, path := range []string{
+		"/api/namespaces/default/pods/api-0/signals",
+		"/api/cluster/nodes/worker-0/signals",
+	} {
+		t.Run(path, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			dp.resourceSignalsResult = dataplane.ResourceSignalsResult{
+				Signals:               []dto.NamespaceInsightSignalDTO{},
+				SuppressedSignalCount: 1,
+				SuppressedSignals: []dto.NamespaceInsightSignalDTO{{
+					SignalType:       "pod_restarts",
+					HistoryKey:       "pod_restarts|namespace|default|Pod|api-0",
+					StateFingerprint: "v1:" + strings.Repeat("a", 64),
+				}},
+			}
+
+			rec := doReq(t, h, http.MethodGet, path, testToken, nil)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status: got %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+			}
+			body := mustDecodeJSON(t, rec.Body.Bytes())
+			if got, ok := body["suppressedSignalCount"].(float64); !ok || got != 1 {
+				t.Fatalf("suppressedSignalCount = %#v", body["suppressedSignalCount"])
+			}
+			items, ok := body["suppressedSignals"].([]any)
+			if !ok || len(items) != 1 {
+				t.Fatalf("suppressedSignals = %#v", body["suppressedSignals"])
+			}
+			item, _ := items[0].(map[string]any)
+			if item["historyKey"] == "" || item["stateFingerprint"] == "" {
+				t.Fatalf("suppressed signal identity = %#v", item)
+			}
+		})
+	}
+}
+
 // ── JSON Content-Type ─────────────────────────────────────────────────────────
 
 func TestResponseContentType(t *testing.T) {
@@ -1814,6 +1996,410 @@ func TestResponseContentType(t *testing.T) {
 	ct := rec.Header().Get("Content-Type")
 	if !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type: got %q, want application/json", ct)
+	}
+}
+
+// ── signal suppression mutations ─────────────────────────────────────────────
+
+func TestSignalSuppressPostModesAndActiveContext(t *testing.T) {
+	fingerprint := "v1:" + strings.Repeat("a", 64)
+	tests := []struct {
+		name string
+		body map[string]any
+	}{
+		{name: "one hour", body: map[string]any{"historyKey": "key-1h", "mode": dataplane.SignalSuppressionModeSnooze, "durationSeconds": dataplane.SignalSuppressionDurationOneHourSeconds, "comment": " investigating "}},
+		{name: "one day", body: map[string]any{"historyKey": "key-1d", "mode": dataplane.SignalSuppressionModeSnooze, "durationSeconds": dataplane.SignalSuppressionDurationOneDaySeconds}},
+		{name: "until changed", body: map[string]any{"historyKey": "key-change", "mode": dataplane.SignalSuppressionModeUntilChanged, "baselineFingerprint": fingerprint}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			rec := doReqWithHeader(t, h, http.MethodPost, "/api/dataplane/signals/suppress", map[string]string{
+				"Authorization":   "Bearer " + testToken,
+				"X-Kview-Context": "owned-context",
+			}, toJSON(t, tc.body))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			body := mustDecodeJSON(t, rec.Body.Bytes())
+			if body["active"] != "owned-context" || body["historyKey"] != tc.body["historyKey"] {
+				t.Fatalf("response identity = %#v", body)
+			}
+			item, ok := body["item"].(map[string]any)
+			if !ok || item["mode"] != tc.body["mode"] || item["createdAt"] == nil || item["updatedAt"] == nil {
+				t.Fatalf("response item = %#v", body["item"])
+			}
+			dp.mu.Lock()
+			defer dp.mu.Unlock()
+			if len(dp.suppressCalls) != 1 || dp.suppressCalls[0].contextName != "owned-context" || dp.suppressCalls[0].request.HistoryKey != tc.body["historyKey"] {
+				t.Fatalf("manager calls = %#v", dp.suppressCalls)
+			}
+		})
+	}
+}
+
+func TestSignalSuppressPostReplacesSameKey(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	headers := map[string]string{"Authorization": "Bearer " + testToken, "X-Kview-Context": "ctx-replace"}
+	for _, duration := range []int64{dataplane.SignalSuppressionDurationOneHourSeconds, dataplane.SignalSuppressionDurationOneDaySeconds} {
+		rec := doReqWithHeader(t, h, http.MethodPost, "/api/dataplane/signals/suppress", headers, toJSON(t, map[string]any{
+			"historyKey": "same-key", "mode": dataplane.SignalSuppressionModeSnooze, "durationSeconds": duration,
+		}))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("duration %d: status=%d body=%s", duration, rec.Code, rec.Body.String())
+		}
+	}
+	dp.mu.Lock()
+	defer dp.mu.Unlock()
+	if len(dp.suppressCalls) != 2 || dp.suppressCalls[1].request.DurationSeconds != dataplane.SignalSuppressionDurationOneDaySeconds {
+		t.Fatalf("manager calls = %#v", dp.suppressCalls)
+	}
+	if got := dp.suppressions["ctx-replace\x00same-key"]; got.ExpiresAt-got.CreatedAt != dataplane.SignalSuppressionDurationOneDaySeconds {
+		t.Fatalf("replacement record = %#v", got)
+	}
+}
+
+func TestSignalSuppressDeleteIsIdempotent(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	dp.suppressions["ctx-delete\x00key"] = dataplane.SignalSuppressionRecord{Mode: dataplane.SignalSuppressionModeSnooze}
+	for i := 0; i < 2; i++ {
+		rec := doReqWithHeader(t, h, http.MethodDelete, "/api/dataplane/signals/suppress", map[string]string{
+			"Authorization": "Bearer " + testToken, "X-Kview-Context": "ctx-delete",
+		}, []byte(`{"historyKey":"key"}`))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("delete %d: status=%d body=%s", i, rec.Code, rec.Body.String())
+		}
+		body := mustDecodeJSON(t, rec.Body.Bytes())
+		if body["active"] != "ctx-delete" || body["historyKey"] != "key" || body["deleted"] != true {
+			t.Fatalf("delete %d envelope = %#v", i, body)
+		}
+	}
+	dp.mu.Lock()
+	defer dp.mu.Unlock()
+	if len(dp.unsuppressCalls) != 2 || dp.unsuppressCalls[0] != (stubUnsuppressCall{contextName: "ctx-delete", historyKey: "key"}) {
+		t.Fatalf("manager calls = %#v", dp.unsuppressCalls)
+	}
+}
+
+func TestSignalSuppressMutationValidation(t *testing.T) {
+	fingerprint := "v1:" + strings.Repeat("a", 64)
+	valid := `{"historyKey":"key","mode":"snooze","durationSeconds":3600}`
+	tests := []struct {
+		name   string
+		method string
+		body   []byte
+	}{
+		{name: "malformed", method: http.MethodPost, body: []byte(`{"historyKey":`)},
+		{name: "trailing JSON", method: http.MethodPost, body: []byte(valid + `{}`)},
+		{name: "oversized", method: http.MethodPost, body: toJSON(t, map[string]any{"historyKey": strings.Repeat("a", 300<<10), "mode": "snooze", "durationSeconds": 3600})},
+		{name: "unknown field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"surprise":true}`)},
+		{name: "context field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"context":"victim"}`)},
+		{name: "active field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"active":"victim"}`)},
+		{name: "createdAt field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"createdAt":1}`)},
+		{name: "updatedAt field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"updatedAt":1}`)},
+		{name: "expiresAt field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"expiresAt":1}`)},
+		{name: "fingerprintVersion field", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600,"fingerprintVersion":1}`)},
+		{name: "missing history", method: http.MethodPost, body: []byte(`{"mode":"snooze","durationSeconds":3600}`)},
+		{name: "unsupported mode", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"forever"}`)},
+		{name: "invalid duration", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":60}`)},
+		{name: "bad baseline", method: http.MethodPost, body: []byte(`{"historyKey":"key","mode":"until_changed","baselineFingerprint":"v1:nope"}`)},
+		{name: "overlong Unicode key", method: http.MethodPost, body: toJSON(t, map[string]any{"historyKey": strings.Repeat("界", 1025), "mode": "until_changed", "baselineFingerprint": fingerprint})},
+		{name: "overlong comment", method: http.MethodPost, body: toJSON(t, map[string]any{"historyKey": "key", "mode": "snooze", "durationSeconds": 3600, "comment": strings.Repeat("界", 2001)})},
+		{name: "delete missing history", method: http.MethodDelete, body: []byte(`{}`)},
+		{name: "delete overlong Unicode key", method: http.MethodDelete, body: toJSON(t, map[string]any{"historyKey": strings.Repeat("界", 1025)})},
+		{name: "delete unknown field", method: http.MethodDelete, body: []byte(`{"historyKey":"key","context":"victim"}`)},
+		{name: "delete trailing JSON", method: http.MethodDelete, body: []byte(`{"historyKey":"key"}{}`)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, h := newTestServer(t)
+			rec := doReq(t, h, tc.method, "/api/dataplane/signals/suppress", testToken, tc.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d want=400 body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestSignalSuppressMutationsRequireAuth(t *testing.T) {
+	_, h := newTestServer(t)
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		rec := doReq(t, h, method, "/api/dataplane/signals/suppress", "", []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600}`))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d body=%s", method, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestSignalSuppressMutationManagerErrorsAreSanitized(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		method string
+	}{{name: "suppress", method: http.MethodPost}, {name: "unsuppress", method: http.MethodDelete}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			secretErr := errors.New("sqlite /secret/path failed")
+			body := []byte(`{"historyKey":"key"}`)
+			if tc.method == http.MethodPost {
+				dp.suppressErr = secretErr
+				body = []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600}`)
+			} else {
+				dp.unsuppressErr = secretErr
+			}
+			rec := doReq(t, h, tc.method, "/api/dataplane/signals/suppress", testToken, body)
+			if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), secretErr.Error()) {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestSignalSuppressCapacityErrorIsSanitizedBadRequest(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	dp.suppressErr = fmt.Errorf("internal detail: %w", dataplane.ErrSignalSuppressionCapacity)
+	rec := doReq(t, h, http.MethodPost, "/api/dataplane/signals/suppress", testToken, []byte(`{"historyKey":"key","mode":"snooze","durationSeconds":3600}`))
+	if rec.Code != http.StatusBadRequest || strings.Contains(rec.Body.String(), "internal detail") {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSignalSuppressionTransferExportActiveContext(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	record := dataplane.SignalSuppressionRecord{
+		Mode: dataplane.SignalSuppressionModeUntilChanged, CreatedAt: 100, UpdatedAt: 200,
+		BaselineFingerprint: "v1:" + strings.Repeat("a", 64), FingerprintVersion: dataplane.SignalFingerprintVersion, Comment: "keep identity",
+	}
+	dp.suppressions["owned-context\x00signal-key"] = record
+	dp.suppressions["other-context\x00other-key"] = record
+	rec := doReqWithHeader(t, h, http.MethodGet, "/api/dataplane/signals/suppressions/export", map[string]string{
+		"Authorization": "Bearer " + testToken, "X-Kview-Context": "owned-context",
+	}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := mustDecodeJSON(t, rec.Body.Bytes())
+	if body["active"] != "owned-context" {
+		t.Fatalf("active=%#v", body["active"])
+	}
+	items, ok := body["items"].(map[string]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("items=%#v", body["items"])
+	}
+	item, ok := items["signal-key"].(map[string]any)
+	if !ok || item["mode"] != record.Mode || item["createdAt"] != float64(record.CreatedAt) || item["updatedAt"] != float64(record.UpdatedAt) || item["baselineFingerprint"] != record.BaselineFingerprint || item["fingerprintVersion"] != float64(record.FingerprintVersion) {
+		t.Fatalf("exported identity=%#v", items["signal-key"])
+	}
+	dp.mu.Lock()
+	defer dp.mu.Unlock()
+	if len(dp.suppressionExportCalls) != 1 || dp.suppressionExportCalls[0] != "owned-context" {
+		t.Fatalf("export calls=%#v", dp.suppressionExportCalls)
+	}
+}
+
+func TestSignalSuppressionTransferImportStrategiesAndActiveContext(t *testing.T) {
+	now := time.Now().UTC().Unix()
+	fingerprint := "v1:" + strings.Repeat("b", 64)
+	items := map[string]dataplane.SignalSuppressionRecord{
+		"snoozed": {Mode: dataplane.SignalSuppressionModeSnooze, CreatedAt: now, UpdatedAt: now, ExpiresAt: now + dataplane.SignalSuppressionDurationOneHourSeconds, FingerprintVersion: dataplane.SignalFingerprintVersion},
+		"changed": {Mode: dataplane.SignalSuppressionModeUntilChanged, CreatedAt: now, UpdatedAt: now, BaselineFingerprint: fingerprint, FingerprintVersion: dataplane.SignalFingerprintVersion},
+	}
+	for _, strategy := range []string{"keepMine", "useImported", "replaceSections"} {
+		t.Run(strategy, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			wantResult := dataplane.SignalSuppressionImportResult{Imported: 2, Replaced: 1, Skipped: 3}
+			dp.suppressionImportResult = &wantResult
+			rec := doReqWithHeader(t, h, http.MethodPost, "/api/dataplane/signals/suppressions/import", map[string]string{
+				"Authorization": "Bearer " + testToken, "X-Kview-Context": "owned-context",
+			}, toJSON(t, map[string]any{"strategy": strategy, "items": items}))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			body := mustDecodeJSON(t, rec.Body.Bytes())
+			result, _ := body["result"].(map[string]any)
+			if body["active"] != "owned-context" || result["imported"] != float64(2) || result["replaced"] != float64(1) || result["skipped"] != float64(3) {
+				t.Fatalf("response=%#v", body)
+			}
+			dp.mu.Lock()
+			defer dp.mu.Unlock()
+			if len(dp.suppressionImportCalls) != 1 {
+				t.Fatalf("import calls=%#v", dp.suppressionImportCalls)
+			}
+			call := dp.suppressionImportCalls[0]
+			if call.contextName != "owned-context" || call.strategy != strategy || len(call.items) != 2 || call.items["snoozed"] != items["snoozed"] || call.items["changed"] != items["changed"] {
+				t.Fatalf("import call=%#v", call)
+			}
+		})
+	}
+}
+
+func TestSignalSuppressionTransferImportManagerSkipsMalformedRecord(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	result := dataplane.SignalSuppressionImportResult{Skipped: 1}
+	dp.suppressionImportResult = &result
+	rec := doReq(t, h, http.MethodPost, "/api/dataplane/signals/suppressions/import", testToken, []byte(`{"strategy":"keepMine","items":{"bad":{"mode":"forever","createdAt":1,"updatedAt":1,"fingerprintVersion":999}}}`))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := mustDecodeJSON(t, rec.Body.Bytes())
+	got, _ := body["result"].(map[string]any)
+	if got["skipped"] != float64(1) {
+		t.Fatalf("result=%#v", got)
+	}
+}
+
+func TestSignalSuppressionTransferImportValidation(t *testing.T) {
+	valid := `{"strategy":"keepMine","items":{}}`
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "malformed", body: []byte(`{"strategy":`)},
+		{name: "trailing", body: []byte(valid + `{}`)},
+		{name: "unknown", body: []byte(`{"strategy":"keepMine","items":{},"surprise":true}`)},
+		{name: "context", body: []byte(`{"strategy":"keepMine","items":{},"context":"victim"}`)},
+		{name: "contexts", body: []byte(`{"strategy":"keepMine","items":{},"contexts":{}}`)},
+		{name: "active", body: []byte(`{"strategy":"keepMine","items":{},"active":"victim"}`)},
+		{name: "invalid strategy", body: []byte(`{"strategy":"merge","items":{}}`)},
+		{name: "missing items", body: []byte(`{"strategy":"keepMine"}`)},
+		{name: "null items", body: []byte(`{"strategy":"keepMine","items":null}`)},
+		{name: "oversized", body: toJSON(t, map[string]any{"strategy": "keepMine", "items": map[string]any{}, "padding": strings.Repeat("x", int(signalSuppressionTransferMaxBodyBytes))})},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, h := newTestServer(t)
+			rec := doReq(t, h, http.MethodPost, "/api/dataplane/signals/suppressions/import", testToken, tc.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestSignalSuppressionTransferResetOptionalEmptyBodyAndContextOwnership(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	dp.suppressions["owned-context\x00mine"] = dataplane.SignalSuppressionRecord{Mode: dataplane.SignalSuppressionModeSnooze}
+	dp.suppressions["other-context\x00theirs"] = dataplane.SignalSuppressionRecord{Mode: dataplane.SignalSuppressionModeSnooze}
+	for i, body := range [][]byte{nil, []byte(`{}`)} {
+		rec := doReqWithHeader(t, h, http.MethodDelete, "/api/dataplane/signals/suppressions/reset", map[string]string{
+			"Authorization": "Bearer " + testToken, "X-Kview-Context": "owned-context",
+		}, body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("reset %d status=%d body=%s", i, rec.Code, rec.Body.String())
+		}
+		response := mustDecodeJSON(t, rec.Body.Bytes())
+		if response["active"] != "owned-context" || response["reset"] != true {
+			t.Fatalf("reset %d response=%#v", i, response)
+		}
+	}
+	dp.mu.Lock()
+	defer dp.mu.Unlock()
+	if _, ok := dp.suppressions["other-context\x00theirs"]; !ok || len(dp.suppressionResetCalls) != 2 {
+		t.Fatalf("remaining=%#v calls=%#v", dp.suppressions, dp.suppressionResetCalls)
+	}
+	for _, call := range dp.suppressionResetCalls {
+		if call != (stubSuppressionResetCall{contextName: "owned-context", historyKey: ""}) {
+			t.Fatalf("reset call=%#v", call)
+		}
+	}
+}
+
+func TestSignalSuppressionTransferResetValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "malformed", body: []byte(`{`)},
+		{name: "null", body: []byte(`null`)},
+		{name: "trailing", body: []byte(`{}{}`)},
+		{name: "unknown", body: []byte(`{"surprise":true}`)},
+		{name: "context", body: []byte(`{"context":"victim"}`)},
+		{name: "contexts", body: []byte(`{"contexts":{}}`)},
+		{name: "active", body: []byte(`{"active":"victim"}`)},
+		{name: "oversized", body: []byte(`{"padding":"` + strings.Repeat("x", int(signalSuppressionTransferMaxBodyBytes)) + `"}`)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, h := newTestServer(t)
+			rec := doReq(t, h, http.MethodDelete, "/api/dataplane/signals/suppressions/reset", testToken, tc.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestSignalSuppressionTransferRequiresAuth(t *testing.T) {
+	_, h := newTestServer(t)
+	for _, route := range []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{http.MethodGet, "/api/dataplane/signals/suppressions/export", nil},
+		{http.MethodPost, "/api/dataplane/signals/suppressions/import", []byte(`{"strategy":"keepMine","items":{}}`)},
+		{http.MethodDelete, "/api/dataplane/signals/suppressions/reset", nil},
+	} {
+		rec := doReq(t, h, route.method, route.path, "", route.body)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s status=%d body=%s", route.method, route.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestSignalSuppressionTransferUnavailable(t *testing.T) {
+	s, _ := newTestServer(t)
+	s.dp = nil
+	h := chi.NewRouter()
+	s.registerActivityAndDataplaneRoutes(h)
+	for _, route := range []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{http.MethodGet, "/dataplane/signals/suppressions/export", nil},
+		{http.MethodPost, "/dataplane/signals/suppressions/import", []byte(`{"strategy":"keepMine","items":{}}`)},
+		{http.MethodDelete, "/dataplane/signals/suppressions/reset", nil},
+	} {
+		rec := doReq(t, h, route.method, route.path, testToken, route.body)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s %s status=%d body=%s", route.method, route.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestSignalSuppressionTransferManagerErrorsAreSanitized(t *testing.T) {
+	secretErr := errors.New("sqlite /secret/path failed")
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{name: "import", method: http.MethodPost, path: "/api/dataplane/signals/suppressions/import", body: []byte(`{"strategy":"keepMine","items":{}}`)},
+		{name: "reset", method: http.MethodDelete, path: "/api/dataplane/signals/suppressions/reset"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			if tc.name == "import" {
+				dp.suppressionImportErr = secretErr
+			} else {
+				dp.suppressionResetErr = secretErr
+			}
+			rec := doReq(t, h, tc.method, tc.path, testToken, tc.body)
+			if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), secretErr.Error()) {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

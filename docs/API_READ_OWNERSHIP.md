@@ -98,6 +98,16 @@ local dataplane signal-history store and count distinct observation days for the
 stable signal identity; they do not perform Kubernetes reads or infer incident
 resolution from absence.
 
+Runtime suppression adds `stateFingerprint` to backend-identified signal rows.
+Visible dashboard `signals` also adds the exact
+`suppressed: {total, snoozed, untilChanged}` summary and a separately bounded
+`suppressedItems` sample. Namespace insights and namespace/cluster resource
+signal responses add `suppressedSignalCount` and `suppressedSignals`. These are
+cache/local-state projections: suppression is applied after history and before
+visible filters, counters, and pagination, with no live Kubernetes read. Invalid,
+expired, unsupported, unavailable, or cancelled suppression state fails open and
+does not remove the signal.
+
 ---
 
 ## 4. Local operator knowledge reads
@@ -112,12 +122,25 @@ must remain safe in read-only/RBAC-constrained clusters.
 | `GET /api/dataplane/signals/history/export` | Returns bounded local signal observation history for the active context. It performs no Kubernetes read. |
 | `POST /api/dataplane/signals/history/import` | Imports bounded signal history for explicit contexts using the Settings transfer merge strategy. It mutates only kview's local dataplane persistence. |
 | `POST /api/dataplane/signals/history/reset` | Removes one `historyKey`, or all local signal history for the active context when the key is omitted. It never mutates Kubernetes. |
+| `POST /api/dataplane/signals/suppress` | Authenticated active-context mutation. Accepts `{historyKey, mode, durationSeconds?, baselineFingerprint?, comment?}`. `mode: "snooze"` requires `durationSeconds` of exactly `3600` or `86400` and no baseline; `mode: "until_changed"` requires a valid backend v1 `baselineFingerprint` and no duration. Returns `{active, historyKey, item}` with server-owned Unix-second timestamps. The body cannot select a context. |
+| `DELETE /api/dataplane/signals/suppress` | Authenticated active-context **Show now** mutation. Accepts `{historyKey}` and returns `{active, historyKey, deleted: true}`. Deleting an absent key is idempotent. The body cannot select a context. |
+| `GET /api/dataplane/signals/suppressions/export` | Returns `{active, items}` for valid, unexpired suppressions in the active context only. The item map is keyed by `historyKey`; records contain `mode`, Unix-second `createdAt`/`updatedAt`, optional `expiresAt` or `baselineFingerprint`, `fingerprintVersion`, and optional `comment`. |
+| `POST /api/dataplane/signals/suppressions/import` | Accepts `{strategy, items}` for the active context only. Strategies are `keepMine`, `useImported`, and `replaceSections`; returns `{active, result: {imported, skipped, replaced}}`. Unknown fields and malformed records are rejected or skipped, persistence replacement is atomic, and no body field can target another context. |
+| `DELETE /api/dataplane/signals/suppressions/reset` | Accepts an empty body or `{}` and resets all runtime suppressions for the active context, returning `{active, reset: true}`. Context-targeting fields are rejected. |
 
 `POST` and `DELETE` on the same snapshot collection mutate only local kview
 operator state; they do not write annotations or any other Kubernetes object.
 Settings transfer import uses the same local mutation path for the explicit
 **Investigation snapshots** section and applies duplicate handling in the UI
 before saving imported records.
+
+All suppression routes are authenticated with the normal `/api` middleware and
+resolve the active context through the same request-context ownership as other
+dataplane routes. They read or mutate only the dedicated local bbolt-backed
+suppression store. See [DATAPLANE.md](DATAPLANE.md#runtime-signal-suppression) for
+ordering and fail-open semantics, and
+[Import / Export](user/import-export.md#signal-suppression-transfer) for the
+operator transfer workflow.
 
 ---
 
@@ -157,10 +180,15 @@ For resources that have them, these remain **direct** `kube` reads:
 - Relation reads, e.g. `GET …/pods/{name}/services`, `GET …/services/{name}/ingresses`
 - `GET …/serviceaccounts/{name}/rolebindings`
 
-Service endpoint readiness, Service-to-Pod relationships, Ingress backend
-warnings, and Service session target selection read
-`discovery.k8s.io/v1 EndpointSlice` objects. kview does not poll the deprecated
-`core/v1 Endpoints` API for these paths.
+Service detail relations and Service session target selection can perform direct
+reads of `discovery.k8s.io/v1 EndpointSlice` objects. Cache-backed dashboard,
+namespace, resource-attention, and investigation signals never perform detector-
+triggered Kubernetes reads: Service selector evidence joins cached Pod labels,
+while Service and Ingress endpoint evidence uses the observation state retained
+by the Service snapshot executor. kview does not poll the deprecated
+`core/v1 Endpoints` API for these paths. Unknown or incomplete Pod, Service, or
+EndpointSlice coverage suppresses absence/failure claims instead of becoming a
+zero count.
 
 **Detail-level signals embedded in detail responses.** For drawers that have
 been migrated to the signals-first concept (see `docs/UI_UX_GUIDE.md`), the

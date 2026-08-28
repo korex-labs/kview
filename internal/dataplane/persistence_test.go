@@ -2,9 +2,12 @@ package dataplane
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -644,5 +647,236 @@ func TestManagerSearchCachedResourcesUsesInMemorySnapshotsWithoutPersistence(t *
 	}
 	if len(got.Items) != 1 || got.Items[0].Name != "api-7f" || got.Items[0].MatchReason != "namespace" {
 		t.Fatalf("pod search by enriched fields = %+v", got)
+	}
+}
+
+func TestBoltSnapshotPersistenceSignalSuppressionRoundTripIsolationOverwriteDeleteAndPrune(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.bbolt")
+	store, err := openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	now := time.Unix(2_000_000_000, 0).UTC()
+	sharedKey := "pod_restarts|namespace|team-a|Pod|api-0"
+	ctxA := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "a")
+	ctxB := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "b")
+	if err := store.UpsertSignalSuppression("ctx-a", sharedKey, ctxA); err != nil {
+		t.Fatalf("upsert ctx-a: %v", err)
+	}
+	if err := store.UpsertSignalSuppression("ctx-b", sharedKey, ctxB); err != nil {
+		t.Fatalf("upsert ctx-b: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close persistence: %v", err)
+	}
+	store, err = openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("reopen persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	loadedA, err := store.LoadSignalSuppressions("ctx-a")
+	if err != nil {
+		t.Fatalf("load ctx-a: %v", err)
+	}
+	loadedB, err := store.LoadSignalSuppressions("ctx-b")
+	if err != nil {
+		t.Fatalf("load ctx-b: %v", err)
+	}
+	if !reflect.DeepEqual(loadedA, map[string]SignalSuppressionRecord{sharedKey: ctxA}) || !reflect.DeepEqual(loadedB, map[string]SignalSuppressionRecord{sharedKey: ctxB}) {
+		t.Fatalf("round trip/isolation: ctx-a=%+v ctx-b=%+v", loadedA, loadedB)
+	}
+	replacement := signalSuppressionTestRecord(now, SignalSuppressionModeSnooze, "replacement")
+	if err := store.UpsertSignalSuppression("ctx-a", sharedKey, replacement); err != nil {
+		t.Fatalf("overwrite ctx-a: %v", err)
+	}
+	loadedA, err = store.LoadSignalSuppressions("ctx-a")
+	if err != nil || !reflect.DeepEqual(loadedA[sharedKey], replacement) {
+		t.Fatalf("load overwritten ctx-a = %+v, %v", loadedA, err)
+	}
+	if err := store.DeleteSignalSuppression("ctx-a", sharedKey); err != nil {
+		t.Fatalf("delete ctx-a: %v", err)
+	}
+	loadedA, err = store.LoadSignalSuppressions("ctx-a")
+	if err != nil || len(loadedA) != 0 {
+		t.Fatalf("ctx-a after delete = %+v, %v", loadedA, err)
+	}
+	loadedB, err = store.LoadSignalSuppressions("ctx-b")
+	if err != nil || !reflect.DeepEqual(loadedB[sharedKey], ctxB) {
+		t.Fatalf("ctx-b changed by ctx-a overwrite/delete = %+v, %v", loadedB, err)
+	}
+
+	fresh := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "c")
+	expired := SignalSuppressionRecord{Mode: SignalSuppressionModeSnooze, CreatedAt: now.Add(-2 * time.Hour).Unix(), UpdatedAt: now.Add(-2 * time.Hour).Unix(), ExpiresAt: now.Add(-time.Hour).Unix(), FingerprintVersion: SignalFingerprintVersion}
+	stale := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "d")
+	stale.CreatedAt, stale.UpdatedAt = now.Add(-49*time.Hour).Unix(), now.Add(-49*time.Hour).Unix()
+	for key, rec := range map[string]SignalSuppressionRecord{"fresh": fresh, "expired": expired, "stale": stale} {
+		if err := store.UpsertSignalSuppression("ctx-a", key, rec); err != nil {
+			t.Fatalf("upsert %s: %v", key, err)
+		}
+	}
+	malformedJSONKey, err := encodeSignalSuppressionKey("ctx-a", "malformed-json")
+	if err != nil {
+		t.Fatalf("encode malformed-json key: %v", err)
+	}
+	malformedRecordKey, err := encodeSignalSuppressionKey("ctx-a", "malformed-record")
+	if err != nil {
+		t.Fatalf("encode malformed-record key: %v", err)
+	}
+	if err := store.db.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists(dataplaneSignalSuppressionBucket)
+		if err != nil {
+			return err
+		}
+		if err := bucket.Put(malformedJSONKey, []byte("{")); err != nil {
+			return err
+		}
+		payload, err := json.Marshal(SignalSuppressionRecord{Mode: "forever", CreatedAt: now.Unix(), UpdatedAt: now.Unix(), FingerprintVersion: SignalFingerprintVersion})
+		if err != nil {
+			return err
+		}
+		return bucket.Put(malformedRecordKey, payload)
+	}); err != nil {
+		t.Fatalf("seed malformed suppressions: %v", err)
+	}
+	if err := store.PruneSignalSuppressions("ctx-a", now, 48*time.Hour); err != nil {
+		t.Fatalf("prune ctx-a: %v", err)
+	}
+	loadedA, err = store.LoadSignalSuppressions("ctx-a")
+	if err != nil {
+		t.Fatalf("load ctx-a after prune: %v", err)
+	}
+	if !reflect.DeepEqual(loadedA, map[string]SignalSuppressionRecord{"fresh": fresh}) {
+		t.Fatalf("ctx-a after prune = %+v", loadedA)
+	}
+	loadedB, err = store.LoadSignalSuppressions("ctx-b")
+	if err != nil || !reflect.DeepEqual(loadedB, map[string]SignalSuppressionRecord{sharedKey: ctxB}) {
+		t.Fatalf("ctx-b changed by scoped prune = %+v, %v", loadedB, err)
+	}
+}
+
+func TestBoltSnapshotPersistenceSignalSuppressionKeysAreCollisionSafe(t *testing.T) {
+	store, err := openBoltSnapshotPersistence(filepath.Join(t.TempDir(), "cache.bbolt"))
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	now := time.Unix(2_000_000_000, 0).UTC()
+	tests := []struct {
+		context string
+		key     string
+		marker  string
+	}{
+		{context: "a\x00b", key: "c", marker: "a"},
+		{context: "a", key: "b\x00c", marker: "b"},
+		{context: "ab", key: "b\x00c", marker: "c"},
+		{context: "ctx|分隔\x00tail", key: "signal|键\x00tail", marker: "d"},
+	}
+	want := map[string]map[string]SignalSuppressionRecord{}
+	for _, tt := range tests {
+		rec := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, tt.marker)
+		if err := store.UpsertSignalSuppression(tt.context, tt.key, rec); err != nil {
+			t.Fatalf("upsert context %q key %q: %v", tt.context, tt.key, err)
+		}
+		if want[tt.context] == nil {
+			want[tt.context] = map[string]SignalSuppressionRecord{}
+		}
+		want[tt.context][tt.key] = rec
+	}
+	for contextName, expected := range want {
+		got, err := store.LoadSignalSuppressions(contextName)
+		if err != nil {
+			t.Fatalf("load context %q: %v", contextName, err)
+		}
+		if !reflect.DeepEqual(got, expected) {
+			t.Fatalf("load context %q = %+v, want %+v", contextName, got, expected)
+		}
+	}
+
+	for _, tt := range tests {
+		encoded, err := encodeSignalSuppressionKey(tt.context, tt.key)
+		if err != nil {
+			t.Fatalf("encode context %q key %q: %v", tt.context, tt.key, err)
+		}
+		contextName, key, err := decodeSignalSuppressionKey(encoded)
+		if err != nil || contextName != tt.context || key != tt.key {
+			t.Fatalf("decode = (%q, %q, %v), want (%q, %q, nil)", contextName, key, err, tt.context, tt.key)
+		}
+	}
+	if _, err := signalSuppressionContextPrefix(""); err == nil {
+		t.Fatal("empty context prefix unexpectedly succeeded")
+	}
+	if _, err := encodeSignalSuppressionKey("ctx", ""); err == nil {
+		t.Fatal("empty suppression key unexpectedly encoded")
+	}
+	if _, _, err := decodeSignalSuppressionKey([]byte{signalSuppressionKeyEncodingVersion, 0, 0, 0, 1, 'a'}); err == nil {
+		t.Fatal("encoded key without record key unexpectedly decoded")
+	}
+}
+
+func TestBoltSnapshotPersistenceReplaceSignalSuppressionsIsAtomicAndContextScoped(t *testing.T) {
+	store, err := openBoltSnapshotPersistence(filepath.Join(t.TempDir(), "cache.bbolt"))
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	now := time.Unix(2_000_000_000, 0).UTC()
+	oldOne := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "a")
+	oldTwo := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "b")
+	other := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "c")
+	for key, rec := range map[string]SignalSuppressionRecord{"old-one": oldOne, "old-two": oldTwo} {
+		if err := store.UpsertSignalSuppression("a", key, rec); err != nil {
+			t.Fatalf("seed a/%s: %v", key, err)
+		}
+	}
+	if err := store.UpsertSignalSuppression("ab", "other", other); err != nil {
+		t.Fatalf("seed ab: %v", err)
+	}
+
+	newOne := signalSuppressionTestRecord(now, SignalSuppressionModeSnooze, "d")
+	newTwo := signalSuppressionTestRecord(now, SignalSuppressionModeUntilChanged, "e")
+	replacement := map[string]SignalSuppressionRecord{"new\x00one": newOne, "new-two": newTwo}
+	if err := store.ReplaceSignalSuppressions("a", replacement); err != nil {
+		t.Fatalf("replace a: %v", err)
+	}
+	gotA, err := store.LoadSignalSuppressions("a")
+	if err != nil || !reflect.DeepEqual(gotA, replacement) {
+		t.Fatalf("a after replace = %+v, %v; want %+v", gotA, err, replacement)
+	}
+	gotAB, err := store.LoadSignalSuppressions("ab")
+	if err != nil || !reflect.DeepEqual(gotAB, map[string]SignalSuppressionRecord{"other": other}) {
+		t.Fatalf("ab changed by a replacement = %+v, %v", gotAB, err)
+	}
+
+	if err := store.ReplaceSignalSuppressions("a", nil); err != nil {
+		t.Fatalf("clear a: %v", err)
+	}
+	gotA, err = store.LoadSignalSuppressions("a")
+	if err != nil || len(gotA) != 0 {
+		t.Fatalf("a after clear = %+v, %v", gotA, err)
+	}
+
+	if err := store.UpsertSignalSuppression("a", "preserved", oldOne); err != nil {
+		t.Fatalf("seed rollback record: %v", err)
+	}
+	if err := store.ReplaceSignalSuppressions("a", map[string]SignalSuppressionRecord{"": newOne}); err == nil {
+		t.Fatal("replace with empty key unexpectedly succeeded")
+	}
+	gotA, err = store.LoadSignalSuppressions("a")
+	if err != nil || !reflect.DeepEqual(gotA, map[string]SignalSuppressionRecord{"preserved": oldOne}) {
+		t.Fatalf("a after invalid replacement = %+v, %v; old records were not rolled back", gotA, err)
+	}
+	oversizedKey := strings.Repeat("x", 40*1024)
+	if err := store.ReplaceSignalSuppressions("a", map[string]SignalSuppressionRecord{oversizedKey: newOne}); err == nil {
+		t.Fatal("replace with oversized bbolt key unexpectedly succeeded")
+	}
+	gotA, err = store.LoadSignalSuppressions("a")
+	if err != nil || !reflect.DeepEqual(gotA, map[string]SignalSuppressionRecord{"preserved": oldOne}) {
+		t.Fatalf("a after failed replacement = %+v, %v; old records were not rolled back", gotA, err)
+	}
+	gotAB, err = store.LoadSignalSuppressions("ab")
+	if err != nil || !reflect.DeepEqual(gotAB, map[string]SignalSuppressionRecord{"other": other}) {
+		t.Fatalf("ab changed by failed a replacement = %+v, %v", gotAB, err)
 	}
 }

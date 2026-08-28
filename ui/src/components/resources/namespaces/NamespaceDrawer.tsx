@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Chip,
@@ -38,6 +38,7 @@ import type {
 } from "../../../types/api";
 import { useConnectionState } from "../../../connectionState";
 import { useSignalExclusionsRevision } from "../../../signalExclusions";
+import { useSignalSuppressionsRevision } from "../../../signalSuppressions";
 import { fmtAge, valueOrDash } from "../../../utils/format";
 import {
   helmStatusChipColor,
@@ -228,6 +229,7 @@ export default function NamespaceDrawer(props: {
 }) {
   const { health, retryNonce } = useConnectionState();
   const signalExclusionsRevision = useSignalExclusionsRevision();
+  const signalSuppressionsRevision = useSignalSuppressionsRevision();
   const offline = health === "unhealthy";
   const metricsStatus = useMetricsStatus(props.token);
   const metricsUsable = isMetricsUsable(metricsStatus);
@@ -265,12 +267,42 @@ export default function NamespaceDrawer(props: {
     return target;
   };
   const insightsCacheRef = useRef<Record<string, NamespaceInsights>>({});
+  const insightsRequestGenerationRef = useRef(0);
+  const handledSignalRevisionRef = useRef({ exclusions: 0, suppressions: 0 });
   const detailsCacheRef = useRef<Record<string, NamespaceDetails>>({});
 
   const name = props.namespaceName;
 
+  const requestInsights = useCallback((requestName: string, onlyReportErrorWithoutCache: boolean) => {
+    const generation = ++insightsRequestGenerationRef.current;
+    const encodedName = encodeURIComponent(requestName);
+    apiGet<ApiItemResponse<NamespaceInsights>>(`/api/namespaces/${encodedName}/insights`, props.token)
+      .then((res) => {
+        if (generation !== insightsRequestGenerationRef.current) return;
+        const item = res?.item ?? null;
+        setInsights(item);
+        if (item) insightsCacheRef.current[requestName] = item;
+      })
+      .catch((error) => {
+        if (generation !== insightsRequestGenerationRef.current) return;
+        if (!onlyReportErrorWithoutCache || !insightsCacheRef.current[requestName]) {
+          setInsightsErr(String(error));
+        }
+      })
+      .finally(() => {
+        if (generation === insightsRequestGenerationRef.current) setInsightsLoading(false);
+      });
+  }, [props.token]);
+
+  useEffect(() => () => {
+    insightsRequestGenerationRef.current += 1;
+  }, [props.open, name, props.token, offline]);
+
   useEffect(() => {
-    if (!props.open || !name || offline) return;
+    if (!props.open || !name || offline) {
+      setInsightsLoading(false);
+      return;
+    }
 
     setTab(0);
     const cachedInsights = insightsCacheRef.current[name] || null;
@@ -291,34 +323,22 @@ export default function NamespaceDrawer(props: {
     setDrawerResourceQuota(null);
     setDrawerLimitRange(null);
 
-    const encodedName = encodeURIComponent(name);
-    (async () => {
-      const res = await apiGet<ApiItemResponse<NamespaceInsights>>(`/api/namespaces/${encodedName}/insights`, props.token);
-      const item = res?.item ?? null;
-      setInsights(item);
-      if (item) {
-        insightsCacheRef.current[name] = item;
-      }
-    })()
-      .catch((e) => {
-        if (!insightsCacheRef.current[name]) setInsightsErr(String(e));
-      })
-      .finally(() => setInsightsLoading(false));
-  }, [props.open, name, props.token, retryNonce, offline]);
+    requestInsights(name, true);
+  }, [props.open, name, retryNonce, offline, requestInsights]);
 
   useEffect(() => {
-    if (signalExclusionsRevision === 0 || !props.open || !name || offline) return;
-    const encodedName = encodeURIComponent(name);
+    const previous = handledSignalRevisionRef.current;
+    const revisionsChanged = previous.exclusions !== signalExclusionsRevision
+      || previous.suppressions !== signalSuppressionsRevision;
+    handledSignalRevisionRef.current = {
+      exclusions: signalExclusionsRevision,
+      suppressions: signalSuppressionsRevision,
+    };
+    if (!revisionsChanged || !props.open || !name || offline) return;
     setInsightsLoading(true);
-    apiGet<ApiItemResponse<NamespaceInsights>>(`/api/namespaces/${encodedName}/insights`, props.token)
-      .then((res) => {
-        const item = res?.item ?? null;
-        setInsights(item);
-        if (item) insightsCacheRef.current[name] = item;
-      })
-      .catch((error) => setInsightsErr(String(error)))
-      .finally(() => setInsightsLoading(false));
-  }, [signalExclusionsRevision, props.open, name, props.token, offline]);
+    setInsightsErr("");
+    requestInsights(name, false);
+  }, [signalExclusionsRevision, signalSuppressionsRevision, props.open, name, offline, requestInsights]);
 
   useEffect(() => {
     if (!props.open || !name || offline) return;
@@ -425,6 +445,8 @@ export default function NamespaceDrawer(props: {
                   workloadByKind={workloadByKind}
                   podHealth={podHealth}
                   signals={signals}
+                  suppressedSignalCount={insights?.suppressedSignalCount}
+                  suppressedSignals={insights?.suppressedSignals}
                   problematic={problematic}
                   summaryMeta={summaryMeta}
                   quotaPressure={quotaPressure}

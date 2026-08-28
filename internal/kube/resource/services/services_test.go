@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -9,6 +10,31 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+func TestServiceListItemsPreserveEndpointObservationAndRoutingInputs(t *testing.T) {
+	service := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "api", Namespace: "apps"},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": "api"},
+			Ports:    []corev1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt32(8080)}},
+		},
+	}
+
+	items := serviceListItems([]corev1.Service{service}, nil, "unknown", time.Unix(1_700_000_000, 0))
+	if len(items) != 1 {
+		t.Fatalf("serviceListItems() returned %d items, want 1", len(items))
+	}
+	got := items[0]
+	if got.EndpointCoverage != "unknown" {
+		t.Fatalf("EndpointCoverage = %q, want unknown", got.EndpointCoverage)
+	}
+	if got.Selector["app"] != "api" {
+		t.Fatalf("Selector = %#v, want app=api", got.Selector)
+	}
+	if len(got.Ports) != 1 || got.Ports[0].Name != "http" || got.Ports[0].Port != 80 {
+		t.Fatalf("Ports = %#v, want normalized http:80", got.Ports)
+	}
+}
 
 func TestServiceType(t *testing.T) {
 	cases := []struct {

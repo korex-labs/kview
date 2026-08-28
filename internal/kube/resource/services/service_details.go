@@ -40,16 +40,7 @@ func GetServiceDetails(ctx context.Context, c *cluster.Clients, namespace, name 
 		selector = nil
 	}
 
-	ports := make([]dto.ServicePortDTO, 0, len(svc.Spec.Ports))
-	for _, p := range svc.Spec.Ports {
-		ports = append(ports, dto.ServicePortDTO{
-			Name:       p.Name,
-			Port:       p.Port,
-			TargetPort: serviceIntOrString(p.TargetPort),
-			Protocol:   string(p.Protocol),
-			NodePort:   p.NodePort,
-		})
-	}
+	ports := mapServicePorts(svc.Spec.Ports)
 
 	traffic := dto.ServiceTrafficDTO{
 		ExternalTrafficPolicy: string(svc.Spec.ExternalTrafficPolicy),

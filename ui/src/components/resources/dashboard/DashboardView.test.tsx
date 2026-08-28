@@ -8,6 +8,7 @@ import { ActiveContextProvider } from "../../../activeContext";
 import { notifyStatus } from "../../../connectionState";
 import { UserSettingsProvider } from "../../../settingsContext";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
+import { dispatchSignalSuppressionsChanged } from "../../../signalSuppressions";
 
 const apiGet = vi.fn();
 
@@ -304,6 +305,19 @@ describe("DashboardView warmup loading", () => {
 });
 
 describe("DashboardView sections", () => {
+  it("refetches the signals endpoint after a suppression change without changing the query state", async () => {
+    apiGet.mockResolvedValue(readyDashboardResponse());
+    renderDashboard();
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1));
+    const firstPath = String(apiGet.mock.calls[0][0]);
+    dispatchSignalSuppressionsChanged();
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2));
+    expect(String(apiGet.mock.calls[1][0])).toBe(firstPath);
+    expect(apiGet.mock.calls.every((call) => String(call[0]).startsWith("/api/dashboard/signals?"))).toBe(true);
+  }, 20_000);
+
   it("loads only the active dashboard endpoint and reuses each tab cache", async () => {
     apiGet.mockResolvedValue(readyDashboardResponse());
 

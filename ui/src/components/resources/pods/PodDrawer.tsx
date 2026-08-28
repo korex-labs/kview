@@ -1496,6 +1496,8 @@ export default function PodDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={podSignals}
+                    suppressedSignalCount={snapshotSignals.suppressedSignalCount}
+                    suppressedSignals={snapshotSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(4)}
                   />
 

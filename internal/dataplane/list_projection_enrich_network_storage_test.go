@@ -8,8 +8,9 @@ import (
 
 func TestEnrichServiceListItemsForAPI(t *testing.T) {
 	items := []dto.ServiceListItemDTO{
-		{Name: "api", Type: "ClusterIP", EndpointsReady: 2, EndpointsNotReady: 0},
-		{Name: "web", Type: "LoadBalancer", EndpointsReady: 0, EndpointsNotReady: 1},
+		{Name: "api", Type: "ClusterIP", EndpointCoverage: "complete", EndpointsReady: 2, EndpointsNotReady: 0},
+		{Name: "web", Type: "LoadBalancer", EndpointCoverage: "complete", EndpointsReady: 0, EndpointsNotReady: 1},
+		{Name: "unknown", Type: "ClusterIP", EndpointCoverage: "unknown"},
 	}
 	got := EnrichServiceListItemsForAPI(items)
 	if got[0].EndpointHealthBucket != deployBucketHealthy || got[0].ExposureHint != "internal" || got[0].NeedsAttention {
@@ -17,6 +18,9 @@ func TestEnrichServiceListItemsForAPI(t *testing.T) {
 	}
 	if got[1].EndpointHealthBucket != deployBucketDegraded || got[1].ExposureHint != "public" || !got[1].NeedsAttention {
 		t.Fatalf("service 1 enrichment unexpected: %+v", got[1])
+	}
+	if got[2].EndpointHealthBucket != deployBucketUnknown || got[2].NeedsAttention {
+		t.Fatalf("unknown endpoint coverage must not become a warning: %+v", got[2])
 	}
 }
 

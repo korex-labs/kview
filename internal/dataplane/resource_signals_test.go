@@ -202,6 +202,12 @@ func TestResourceSignals_NamespaceScope_ReturnsAttributedSignals(t *testing.T) {
 		if sig.Reason == "" || sig.Reason == "Pod needs attention." {
 			t.Fatalf("expected specific pod warning reason, got %+v", sig)
 		}
+		// Legacy fallback rows have no fingerprint in the suppression pipeline.
+		// The acknowledgement adapter may synthesize a HistoryKey afterwards,
+		// but the empty fingerprint keeps runtime suppression fail-open.
+		if sig.StateFingerprint != "" || sig.Suppression != nil || got.SuppressedSignalCount != 0 || len(got.SuppressedSignals) != 0 {
+			t.Fatalf("identity-less legacy fallback should remain visible and unsuppressed: result=%+v signal=%+v", got, sig)
+		}
 	})
 
 	t.Run("serviceaccount list signal is mirrored in resource signals", func(t *testing.T) {
@@ -309,5 +315,104 @@ func TestResourceSignals_ClusterScope_FallbackNeedsAttentionSignals(t *testing.T
 	}
 	if len(nodeClean.Signals) != 0 {
 		t.Fatalf("expected no signals for healthy node, got %+v", nodeClean.Signals)
+	}
+}
+
+func TestResourceSignals_RuntimeSuppressionHidesDetectorWithoutFallbackResurrection(t *testing.T) {
+	mm := NewManager(ManagerConfig{}).(*manager)
+	seed := func(contextName string) {
+		planeAny, _ := mm.PlaneForCluster(t.Context(), contextName)
+		plane := planeAny.(*clusterPlane)
+		setNamespacedSnapshot(&plane.podsStore, "apps", PodsSnapshot{Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()}, Items: []dto.PodListItemDTO{{Name: "api", Namespace: "apps", Restarts: 12, Phase: "Running", Ready: "1/1"}}})
+	}
+	seed("ctx-resource-suppression")
+	seed("ctx-resource-other")
+	initial, err := mm.ResourceSignals(t.Context(), "ctx-resource-suppression", ResourceSignalsScopeNamespace, "apps", "Pod", "api")
+	if err != nil || len(initial.Signals) != 1 {
+		t.Fatalf("initial signals = %+v, %v", initial, err)
+	}
+	signal := initial.Signals[0]
+	if signal.HistoryKey == "" || signal.StateFingerprint == "" {
+		t.Fatalf("initial signal missing suppression identity: %+v", signal)
+	}
+	if _, err := mm.suppressSignalAt("ctx-resource-suppression", SignalSuppressionRequest{HistoryKey: signal.HistoryKey, Mode: SignalSuppressionModeUntilChanged, BaselineFingerprint: signal.StateFingerprint, Comment: "maintenance"}, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := mm.ResourceSignals(t.Context(), "ctx-resource-suppression", ResourceSignalsScopeNamespace, "apps", "Pod", "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Signals) != 0 {
+		t.Fatalf("suppressed detector resurfaced through fallback: %+v", got.Signals)
+	}
+	if got.SuppressedSignalCount != 1 || len(got.SuppressedSignals) != 1 {
+		t.Fatalf("suppressed resource summary/list = %+v", got)
+	}
+	suppressed := got.SuppressedSignals[0]
+	if suppressed.HistoryKey != signal.HistoryKey || suppressed.StateFingerprint != signal.StateFingerprint || suppressed.Suppression == nil || suppressed.Suppression.Comment != "maintenance" {
+		t.Fatalf("suppressed resource metadata = %+v", suppressed)
+	}
+	other, err := mm.ResourceSignals(t.Context(), "ctx-resource-other", ResourceSignalsScopeNamespace, "apps", "Pod", "api")
+	if err != nil || len(other.Signals) != 1 || other.SuppressedSignalCount != 0 {
+		t.Fatalf("suppression leaked to same identity in another context: %+v, %v", other, err)
+	}
+}
+
+func TestResourceSignalsSuppressionSampleCapPreservesCountOrderIdentityAndFallbackBarrier(t *testing.T) {
+	const (
+		extraSignals      = 9
+		otherResourceRows = 3
+	)
+	contextName := "ctx-resource-suppression-cap"
+	namespace := "apps"
+	signalCount := SignalSuppressionProjectionSampleLimit + extraSignals
+	targetSignals := suppressionCapTestSignals(signalCount, namespace, "api", "resource-cap")
+	otherSignals := suppressionCapTestSignals(otherResourceRows, namespace, "worker", "resource-cap-other")
+	allSignals := append(append([]ClusterDashboardSignal(nil), targetSignals...), otherSignals...)
+	installSuppressionCapTestDetector(t, allSignals)
+
+	mm := NewManager(ManagerConfig{}).(*manager)
+	planeAny, _ := mm.PlaneForCluster(t.Context(), contextName)
+	plane := planeAny.(*clusterPlane)
+	setNamespacedSnapshot(&plane.podsStore, namespace, PodsSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		Items: []dto.PodListItemDTO{
+			{Name: "api", Namespace: namespace, Phase: "Running", Ready: "1/1", LastEvent: &dto.EventBriefDTO{Type: "Warning", Reason: "BackOff"}},
+			{Name: "worker", Namespace: namespace, Phase: "Running", Ready: "1/1"},
+		},
+	})
+	policySignals := seedSuppressionCapTestRecords(mm, contextName, allSignals)
+
+	got, err := mm.ResourceSignals(t.Context(), contextName, ResourceSignalsScopeNamespace, namespace, "Pod", "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SuppressedSignalCount != signalCount {
+		t.Fatalf("matching resource suppressed count = %d, want uncapped %d", got.SuppressedSignalCount, signalCount)
+	}
+	if len(got.SuppressedSignals) != SignalSuppressionProjectionSampleLimit {
+		t.Fatalf("matching resource suppressed sample length = %d, want %d", len(got.SuppressedSignals), SignalSuppressionProjectionSampleLimit)
+	}
+	if len(got.Signals) != 0 {
+		t.Fatalf("suppressed detector rows resurfaced through resource fallback: %+v", got.Signals)
+	}
+
+	matching := make([]ClusterDashboardSignal, 0, signalCount)
+	for _, signal := range policySignals {
+		if signal.ResourceKind == "Pod" && signal.ResourceName == "api" && signal.Scope == ResourceSignalsScopeNamespace && signal.ScopeLocation == namespace {
+			matching = append(matching, signal)
+		}
+	}
+	want := sortedSuppressionCapTestSignals(matching)[:SignalSuppressionProjectionSampleLimit]
+	for i, item := range got.SuppressedSignals {
+		if item.HistoryKey != want[i].HistoryKey {
+			t.Fatalf("suppressed sample[%d] history key = %q, want %q", i, item.HistoryKey, want[i].HistoryKey)
+		}
+		if item.ResourceKind != "Pod" || item.ResourceName != "api" || item.Scope != ResourceSignalsScopeNamespace || item.ScopeLocation != namespace {
+			t.Fatalf("suppressed sample[%d] leaked another resource identity: %+v", i, item)
+		}
+	}
+	if got.SuppressedSignals[0].Severity != "high" || got.SuppressedSignals[len(got.SuppressedSignals)-1].HistoryKey != want[len(want)-1].HistoryKey {
+		t.Fatalf("suppressed sample boundaries do not preserve priority order: first=%+v last=%+v", got.SuppressedSignals[0], got.SuppressedSignals[len(got.SuppressedSignals)-1])
 	}
 }

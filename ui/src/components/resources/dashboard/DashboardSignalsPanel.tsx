@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
+  Button,
   Chip,
   LinearProgress,
   Paper,
@@ -76,6 +77,15 @@ function signalLocation(f: DashboardSignalItem): string {
 
 function signalResourceName(f: DashboardSignalItem): string {
   return f.resourceName || f.name || f.namespace || f.kind;
+}
+
+function suppressionModeLabel(signal: DashboardSignalItem): string {
+  return signal.suppression?.mode === "until_changed" ? "Until changed" : "Snoozed";
+}
+
+function suppressionExpiryLabel(signal: DashboardSignalItem): string {
+  const expiresAt = signal.suppression?.expiresAt;
+  return expiresAt ? new Date(expiresAt * 1000).toLocaleString() : "";
 }
 
 function isTagSignalFilter(filter: string): boolean {
@@ -309,7 +319,7 @@ const filterChipSx = {
   maxWidth: { xs: "100%", sm: "none" },
 } satisfies SxProps<Theme>;
 
-const statusCellSx = { pl: 0, width: { xs: 124, lg: 132 } };
+const statusCellSx = { pl: 0, width: 212, whiteSpace: "nowrap" };
 const kindCellSx = { width: { xs: 116, lg: 132, xl: 148 } };
 const resourceCellSx = { width: { xs: 220, md: "30%", xl: "34%" }, minWidth: 0 };
 const detailCellSx = { width: "auto", minWidth: 0 };
@@ -533,8 +543,12 @@ export default function DashboardSignalsPanel({
 }: Props) {
   const activeContext = useActiveContext();
   const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
+  const [showSuppressed, setShowSuppressed] = useState(false);
   const topSignals = useMemo(() => signalPanel?.top || [], [signalPanel?.top]);
   const visibleSignals = useMemo(() => signalPanel?.items || [], [signalPanel?.items]);
+  const suppressedSignals = useMemo(() => signalPanel?.suppressedItems || [], [signalPanel?.suppressedItems]);
+  const suppressedSummary = signalPanel?.suppressed;
+  const suppressedTotal = suppressedSummary?.total || 0;
   const selectedSignalFilters = useMemo(
     () => (signalFilters && signalFilters.length > 0 ? signalFilters : [signalFilter].filter(Boolean)),
     [signalFilter, signalFilters],
@@ -660,6 +674,20 @@ export default function DashboardSignalsPanel({
             "Click a chip to filter the list. Top priority is capped; category chips show all matching cached-scope signals."
           }
         />
+        {suppressedTotal > 0 ? (
+          <Button
+            size="small"
+            variant="text"
+            aria-expanded={showSuppressed}
+            aria-controls="dashboard-suppressed-signals"
+            onClick={() => setShowSuppressed((current) => !current)}
+            sx={{ ml: 0.5, textTransform: "none" }}
+          >
+            {showSuppressed ? "Hide" : "Show"} suppressed ({suppressedTotal} total
+            {suppressedSummary?.snoozed ? ` · ${suppressedSummary.snoozed} snoozed` : ""}
+            {suppressedSummary?.untilChanged ? ` · ${suppressedSummary.untilChanged} until changed` : ""})
+          </Button>
+        ) : null}
       </Box>
 
       <Box sx={sectionSx}>
@@ -851,7 +879,7 @@ export default function DashboardSignalsPanel({
                     sx={target ? { cursor: "pointer" } : undefined}
                   >
                     <TableCell sx={statusCellSx}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, rowGap: 0.25, flexWrap: "wrap" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(f.severity)} label={f.severity} />
                         <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
                         {signalHasFocusHint(f) ? (
@@ -932,6 +960,69 @@ export default function DashboardSignalsPanel({
           />
         ) : null}
       </Box>
+      {showSuppressed && suppressedTotal > 0 ? (
+        <Box id="dashboard-suppressed-signals" sx={sectionSx}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Suppressed signals
+          </Typography>
+          {suppressedTotal > suppressedSignals.length ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+              Showing {suppressedSignals.length} of {suppressedTotal} suppressed.
+            </Typography>
+          ) : null}
+          <TableContainer sx={{ ...signalTableContainerSx, mt: 1, maxHeight: 360 }}>
+            <Table size="small" stickyHeader sx={signalTableSx}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={statusCellSx}>Status</TableCell>
+                  <TableCell sx={kindCellSx}>Kind</TableCell>
+                  <TableCell sx={resourceCellSx}>Target</TableCell>
+                  <TableCell sx={detailCellSx}>Reason</TableCell>
+                  <TableCell sx={{ width: { xs: 180, lg: 220 } }}>Suppression</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {suppressedSignals.map((signal) => {
+                  const actionableSignal = signalWithHistoryKey(signal);
+                  return (
+                    <TableRow key={`${signal.historyKey || ""}/${signal.kind}/${signal.namespace || ""}/${signal.name || ""}/${signal.reason}`}>
+                      <TableCell sx={statusCellSx}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
+                          <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
+                          <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={kindCellSx}>
+                        <Chip size="small" variant="outlined" label={signalKindLabel(signal)} title={signal.resourceKind || signal.kind} />
+                      </TableCell>
+                      <TableCell sx={resourceCellSx}>
+                        <TruncatedText title={signalResourceName(signal)} fontWeight={600}>{signalResourceName(signal)}</TruncatedText>
+                        <TruncatedText title={signalLocation(signal)} variant="caption" color="text.secondary">{signalLocation(signal)}</TruncatedText>
+                      </TableCell>
+                      <TableCell sx={detailCellSx}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{signal.reason}</Typography>
+                      </TableCell>
+                      <TableCell sx={{ width: { xs: 180, lg: 220 } }}>
+                        <Typography variant="body2">{suppressionModeLabel(signal)}</Typography>
+                        {suppressionExpiryLabel(signal) ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                            Expires {suppressionExpiryLabel(signal)}
+                          </Typography>
+                        ) : null}
+                        {signal.suppression?.comment?.trim() ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", overflowWrap: "anywhere" }}>
+                            Comment: {signal.suppression.comment.trim()}
+                          </Typography>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      ) : null}
       <SignalInvestigationDialog
         token={token}
         signal={investigationSignal}

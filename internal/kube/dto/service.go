@@ -54,7 +54,11 @@ type ServiceListItemDTO struct {
 	Annotations          map[string]string `json:"-"`
 	Type                 string            `json:"type"`
 	ClusterIPs           []string          `json:"clusterIPs"`
+	Selector             map[string]string `json:"selector,omitempty"`
+	Ports                []ServicePortDTO  `json:"ports,omitempty"`
+	PortsObserved        bool              `json:"portsObserved,omitempty"`
 	PortsSummary         string            `json:"portsSummary,omitempty"`
+	EndpointCoverage     string            `json:"endpointCoverage,omitempty"` // complete | unknown
 	EndpointsReady       int32             `json:"endpointsReady"`
 	EndpointsNotReady    int32             `json:"endpointsNotReady"`
 	AgeSec               int64             `json:"ageSec"`

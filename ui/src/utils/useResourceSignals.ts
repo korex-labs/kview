@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "../api";
 import type { DashboardSignalItem } from "../types/api";
 import { useSignalExclusionsRevision } from "../signalExclusions";
+import { useSignalSuppressionsRevision } from "../signalSuppressions";
 
 /**
  * Scope of a resource for the per-resource signals endpoint. Mirrors the
@@ -15,6 +16,8 @@ export type ResourceSignalsScope = "namespace" | "cluster";
 export type ResourceSignalsResponse = {
   active?: string;
   signals: DashboardSignalItem[];
+  suppressedSignalCount?: number;
+  suppressedSignals?: DashboardSignalItem[];
   meta?: {
     freshness?: string;
     degradation?: string;
@@ -36,6 +39,8 @@ export type UseResourceSignalsOptions = {
 
 export type UseResourceSignalsResult = {
   signals: DashboardSignalItem[];
+  suppressedSignalCount: number;
+  suppressedSignals: DashboardSignalItem[];
   meta?: ResourceSignalsResponse["meta"];
   loading: boolean;
   error: string;
@@ -70,8 +75,11 @@ function buildSignalsPath(scope: ResourceSignalsScope, namespace: string | undef
 export default function useResourceSignals(opts: UseResourceSignalsOptions): UseResourceSignalsResult {
   const { token, scope, namespace, kind, name, enabled = true, refreshKey = 0 } = opts;
   const signalExclusionsRevision = useSignalExclusionsRevision();
+  const signalSuppressionsRevision = useSignalSuppressionsRevision();
 
   const [signals, setSignals] = useState<DashboardSignalItem[]>([]);
+  const [suppressedSignalCount, setSuppressedSignalCount] = useState(0);
+  const [suppressedSignals, setSuppressedSignals] = useState<DashboardSignalItem[]>([]);
   const [meta, setMeta] = useState<ResourceSignalsResponse["meta"]>();
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -84,17 +92,23 @@ export default function useResourceSignals(opts: UseResourceSignalsOptions): Use
   }, []);
 
   useEffect(() => {
-    if (!enabled || !token || !kind || !name) {
+    const reset = () => {
       setSignals([]);
+      setSuppressedSignalCount(0);
+      setSuppressedSignals([]);
       setMeta(undefined);
+    };
+    if (!enabled || !token || !kind || !name) {
+      lastReqId.current += 1;
+      reset();
       setError("");
       setLoading(false);
       return;
     }
     const path = buildSignalsPath(scope, namespace, kind, name);
     if (!path) {
-      setSignals([]);
-      setMeta(undefined);
+      lastReqId.current += 1;
+      reset();
       setError("");
       setLoading(false);
       return;
@@ -109,17 +123,22 @@ export default function useResourceSignals(opts: UseResourceSignalsOptions): Use
         const res = await apiGet<ResourceSignalsResponse>(path, token);
         if (reqId !== lastReqId.current) return;
         setSignals(Array.isArray(res?.signals) ? res.signals : []);
+        setSuppressedSignalCount(
+          typeof res?.suppressedSignalCount === "number" && Number.isFinite(res.suppressedSignalCount)
+            ? Math.max(0, res.suppressedSignalCount)
+            : 0,
+        );
+        setSuppressedSignals(Array.isArray(res?.suppressedSignals) ? res.suppressedSignals : []);
         setMeta(res?.meta);
       } catch (e) {
         if (reqId !== lastReqId.current) return;
-        setSignals([]);
-        setMeta(undefined);
+        reset();
         setError(String(e));
       } finally {
         if (reqId === lastReqId.current) setLoading(false);
       }
     })();
-  }, [token, scope, namespace, kind, name, enabled, refreshKey, internalKey, signalExclusionsRevision]);
+  }, [token, scope, namespace, kind, name, enabled, refreshKey, internalKey, signalExclusionsRevision, signalSuppressionsRevision]);
 
-  return { signals, meta, loading, error, refetch };
+  return { signals, suppressedSignalCount, suppressedSignals, meta, loading, error, refetch };
 }

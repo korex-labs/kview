@@ -194,6 +194,8 @@ export default function RoleDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={roleSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

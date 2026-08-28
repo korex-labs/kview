@@ -250,6 +250,8 @@ export default function IngressDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={ingressSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(3)}
                   />
 

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   Box,
+  Button,
   Chip,
   Menu,
   MenuItem,
@@ -60,6 +61,15 @@ function signalTarget(signal: DashboardSignalItem): string {
   return signal.namespace ? `${signal.namespace}/${signal.name}` : signal.name;
 }
 
+function suppressionModeLabel(signal: DashboardSignalItem): string {
+  return signal.suppression?.mode === "until_changed" ? "Until changed" : "Snoozed";
+}
+
+function suppressionExpiryLabel(signal: DashboardSignalItem): string {
+  const expiresAt = signal.suppression?.expiresAt;
+  return expiresAt ? new Date(expiresAt * 1000).toLocaleString() : "";
+}
+
 function problematicSignalColor(reason: string): "warning" | "error" {
   const normalized = reason.toLowerCase();
   if (normalized.includes("fail") || normalized.includes("error") || normalized.includes("deadline")) return "error";
@@ -89,6 +99,8 @@ type Props = {
   workloadByKind?: NamespaceWorkloadHealthRollup;
   podHealth?: NamespacePodHealth;
   signals: DashboardSignalItem[];
+  suppressedSignalCount?: number;
+  suppressedSignals?: DashboardSignalItem[];
   problematic: NamespaceProblematicResource[];
   summaryMeta?: NamespaceSummaryMeta;
   quotaPressure: { critical: number; warning: number };
@@ -123,6 +135,8 @@ export default function NamespaceSignalsTab({
   workloadByKind,
   podHealth,
   signals,
+  suppressedSignalCount = 0,
+  suppressedSignals = [],
   problematic,
   summaryMeta,
   quotaPressure,
@@ -143,6 +157,7 @@ export default function NamespaceSignalsTab({
   const [seenSortMode, setSeenSortMode] = useState<SeenSortMode>("priority");
   const [seenSortAnchor, setSeenSortAnchor] = useState<null | HTMLElement>(null);
   const [investigationSignal, setInvestigationSignal] = useState<DashboardSignalItem | null>(null);
+  const [showSuppressed, setShowSuppressed] = useState(false);
 
   function handleProblematic(resource: NamespaceProblematicResource) {
     switch (resource.kind) {
@@ -378,7 +393,21 @@ export default function NamespaceSignalsTab({
         </Section>
       )}
 
-      <Section title="Signals">
+      <Section
+        title="Signals"
+        actions={suppressedSignalCount > 0 ? (
+          <Button
+            size="small"
+            variant="text"
+            aria-expanded={showSuppressed}
+            aria-controls="namespace-suppressed-signals"
+            onClick={() => setShowSuppressed((current) => !current)}
+            sx={{ textTransform: "none" }}
+          >
+            {showSuppressed ? "Hide" : "Show"} suppressed ({suppressedSignalCount})
+          </Button>
+        ) : undefined}
+      >
         {signals.length === 0 ? (
           <EmptyState message="No namespace signals from cached dataplane scope." />
         ) : (
@@ -387,7 +416,7 @@ export default function NamespaceSignalsTab({
               <TableRow>
                 <TableCell sx={{ width: 96 }}>Kind</TableCell>
                 <TableCell sx={{ width: 168 }}>Target</TableCell>
-                <TableCell sx={{ width: 124 }}>Signal</TableCell>
+                <TableCell sx={{ width: 212 }}>Signal</TableCell>
                 <TableCell sx={{ width: 92, whiteSpace: "nowrap" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
                     <span>Seen</span>
@@ -421,7 +450,7 @@ export default function NamespaceSignalsTab({
                     <TableCell sx={{ fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {signalTarget(signal)}
                     </TableCell>
-                    <TableCell sx={{ width: 124, whiteSpace: "nowrap" }}>
+                    <TableCell sx={{ width: 212, whiteSpace: "nowrap" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
                         <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
                         <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
@@ -487,6 +516,69 @@ export default function NamespaceSignalsTab({
             Last verified: oldest first
           </MenuItem>
         </Menu>
+        {showSuppressed && suppressedSignalCount > 0 ? (
+          <Box
+            id="namespace-suppressed-signals"
+            sx={{ mt: 2, pt: 1.5, borderTop: "1px solid var(--panel-border)" }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Suppressed signals
+            </Typography>
+            {suppressedSignalCount > suppressedSignals.length ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                Showing {suppressedSignals.length} of {suppressedSignalCount} suppressed.
+              </Typography>
+            ) : null}
+            <Box sx={{ maxHeight: 360, overflow: "auto", mt: 1 }}>
+              <Table size="small" stickyHeader sx={{ width: "100%", minWidth: 720, tableLayout: "fixed" }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 96 }}>Kind</TableCell>
+                    <TableCell sx={{ width: 168 }}>Target</TableCell>
+                    <TableCell sx={{ width: 212 }}>Signal</TableCell>
+                    <TableCell sx={{ width: "auto" }}>Reason</TableCell>
+                    <TableCell sx={{ width: 200 }}>Suppression</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {suppressedSignals.map((signal) => {
+                    const actionableSignal = signalWithHistoryKey(signal);
+                    return (
+                      <TableRow key={`${signal.historyKey || ""}/${signal.kind}/${signal.namespace || ""}/${signal.name || ""}/${signal.reason}`}>
+                        <TableCell><Chip size="small" label={signal.kind} /></TableCell>
+                        <TableCell sx={{ fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {signalTarget(signal)}
+                        </TableCell>
+                        <TableCell sx={{ width: 212, whiteSpace: "nowrap" }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "nowrap" }}>
+                            <StatusChip size="small" color={signalSeverityColor(signal.severity)} label={signal.severity} />
+                            <SignalActions token={token} signal={actionableSignal} onInvestigate={setInvestigationSignal} />
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ width: "auto" }}>
+                          <Typography variant="body2">{signal.reason}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ width: 200 }}>
+                          <Typography variant="body2">{suppressionModeLabel(signal)}</Typography>
+                          {suppressionExpiryLabel(signal) ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                              Expires {suppressionExpiryLabel(signal)}
+                            </Typography>
+                          ) : null}
+                          {signal.suppression?.comment?.trim() ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", overflowWrap: "anywhere" }}>
+                              Comment: {signal.suppression.comment.trim()}
+                            </Typography>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        ) : null}
       </Section>
 
       {summaryMeta && (

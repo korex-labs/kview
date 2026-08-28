@@ -243,6 +243,8 @@ export default function ServiceAccountDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={serviceAccountSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

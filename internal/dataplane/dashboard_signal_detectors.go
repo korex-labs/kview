@@ -1,17 +1,21 @@
 package dataplane
 
 import (
+	"encoding/binary"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 type dashboardSignalDetector struct {
-	Type   string
-	Detect func(now time.Time, namespace string, snapshots dashboardSnapshotSet) []ClusterDashboardSignal
+	Type            string
+	AdditionalTypes []string
+	Detect          func(now time.Time, namespace string, snapshots dashboardSnapshotSet) []ClusterDashboardSignal
 }
 
 var dashboardSignalDetectors = []dashboardSignalDetector{
@@ -27,9 +31,11 @@ var dashboardSignalDetectors = []dashboardSignalDetector{
 	{Type: "cronjob_no_recent_success", Detect: detectCronJobNoRecentSuccessSignals},
 	{Type: "hpa_needs_attention", Detect: detectHPANeedsAttentionSignals},
 	{Type: "stale_transitional_helm_release", Detect: detectStaleTransitionalHelmReleaseSignals},
-	{Type: "service_no_ready_endpoints", Detect: detectServiceNoReadyEndpointsSignals},
+	{Type: "service_no_matching_cached_pods", AdditionalTypes: []string{"service_no_ready_endpoints"}, Detect: detectServiceConnectivitySignals},
 	{Type: "ingress_pending_address", Detect: detectIngressPendingAddressSignals},
 	{Type: "ingress_needs_attention", Detect: detectIngressNeedsAttentionSignals},
+	// One indexed join emits the three concrete backend-integrity signal types.
+	{Type: "ingress_backend_service_missing", AdditionalTypes: []string{"ingress_backend_port_missing", "ingress_backend_no_ready_endpoints"}, Detect: detectIngressBackendIntegritySignals},
 	{Type: "pvc_needs_attention", Detect: detectPVCNeedsAttentionSignals},
 	{Type: "pvc_node_bound_storage", Detect: detectPVCNodeBoundStorageSignals},
 	{Type: "role_permission_surface", Detect: detectRolePermissionSurfaceSignals},
@@ -340,20 +346,151 @@ func detectStaleTransitionalHelmReleaseSignals(now time.Time, ns string, s dashb
 	return out
 }
 
-func detectServiceNoReadyEndpointsSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
-	if !s.svcsOK {
+func detectServiceNoReadyEndpointsSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	return dashboardSignalsOfType(detectServiceConnectivitySignals(now, ns, s), "service_no_ready_endpoints")
+}
+
+func detectServiceConnectivitySignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.svcsOK || s.svcs.Meta.Coverage != CoverageClassFull || s.svcs.Meta.Completeness != CompletenessClassComplete {
 		return nil
 	}
+	podIndex := buildPodLabelIndex(s.pods, s.podsOK)
+	selectorMatches := make(serviceSelectorMatchMemo)
 	var out []ClusterDashboardSignal
 	for _, svc := range EnrichServiceListItemsForAPI(s.svcs.Items) {
+		selectorEvidence := serviceSelectorEvidenceFor(svc, podIndex, selectorMatches)
+		if selectorEvidence.Coverage == "complete" && selectorEvidence.MatchingPods == 0 {
+			f := dashboardSignalItem("service_no_matching_cached_pods", "Service", ns, svc.Name, "medium", 68, "Service selector matches no cached Pods.", "high", "services")
+			f.ActualData = fmt.Sprintf("selector %s · 0 matching cached Pods", selectorEvidence.Selector)
+			f.CalculatedData = "Pod selector coverage complete"
+			out = append(out, f)
+			continue
+		}
+		if len(svc.Selector) > 0 && selectorEvidence.Coverage != "complete" {
+			continue
+		}
 		if svc.NeedsAttention {
 			f := dashboardSignalItem("service_no_ready_endpoints", "Service", ns, svc.Name, "medium", 66, "Service has no ready endpoints.", "medium", "services")
 			f.ActualData = fmt.Sprintf("ready %d, not ready %d endpoints", svc.EndpointsReady, svc.EndpointsNotReady)
+			if selectorEvidence.Coverage == "complete" && selectorEvidence.Selector != "" {
+				f.ActualData = fmt.Sprintf("selector %s · %d matching cached Pods · %s", selectorEvidence.Selector, selectorEvidence.MatchingPods, f.ActualData)
+			}
 			f.CalculatedData = fmt.Sprintf("%s service exposure, endpoint health %s", svc.ExposureHint, svc.EndpointHealthBucket)
 			out = append(out, f)
 		}
 	}
 	return out
+}
+
+func dashboardSignalsOfType(signals []ClusterDashboardSignal, signalType string) []ClusterDashboardSignal {
+	out := make([]ClusterDashboardSignal, 0, len(signals))
+	for _, signal := range signals {
+		if signal.SignalType == signalType {
+			out = append(out, signal)
+		}
+	}
+	return out
+}
+
+type serviceSelectorEvidence struct {
+	Coverage     string
+	Selector     string
+	MatchingPods int
+}
+
+type serviceSelectorMatchMemo map[string]int
+
+type podLabelIndex struct {
+	coverage string
+	labels   []labels.Set
+	postings map[string][]int
+}
+
+func buildPodLabelIndex(pods PodsSnapshot, podsOK bool) podLabelIndex {
+	index := podLabelIndex{coverage: "unknown"}
+	if !podsOK || pods.Meta.Coverage != CoverageClassFull || pods.Meta.Completeness != CompletenessClassComplete {
+		return index
+	}
+	index.labels = make([]labels.Set, 0, len(pods.Items))
+	index.postings = make(map[string][]int)
+	for _, pod := range pods.Items {
+		if !pod.LabelsObserved {
+			return podLabelIndex{coverage: "unknown"}
+		}
+		podLabels := labels.Set(pod.Labels)
+		podIndex := len(index.labels)
+		index.labels = append(index.labels, podLabels)
+		for key, value := range podLabels {
+			postingKey := key + "\x00" + value
+			index.postings[postingKey] = append(index.postings[postingKey], podIndex)
+		}
+	}
+	index.coverage = "complete"
+	return index
+}
+
+func canonicalServiceSelectorKey(selector map[string]string) string {
+	keys := make([]string, 0, len(selector))
+	for key := range selector {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	encoded := make([]byte, 0, 1+len(keys)*2)
+	encoded = append(encoded, 1) // Canonical selector key format version.
+	encoded = binary.AppendUvarint(encoded, uint64(len(keys)))
+	for _, key := range keys {
+		value := selector[key]
+		encoded = binary.AppendUvarint(encoded, uint64(len(key)))
+		encoded = append(encoded, key...)
+		encoded = binary.AppendUvarint(encoded, uint64(len(value)))
+		encoded = append(encoded, value...)
+	}
+	return string(encoded)
+}
+
+func serviceSelectorEvidenceFor(svc dto.ServiceListItemDTO, podIndex podLabelIndex, memo serviceSelectorMatchMemo) serviceSelectorEvidence {
+	if svc.Type == "ExternalName" || len(svc.Selector) == 0 {
+		return serviceSelectorEvidence{Coverage: "not_applicable"}
+	}
+	evidence := serviceSelectorEvidence{
+		Coverage: "unknown",
+		Selector: labels.SelectorFromSet(svc.Selector).String(),
+	}
+	if podIndex.coverage != "complete" {
+		return evidence
+	}
+	selectorKey := canonicalServiceSelectorKey(svc.Selector)
+	if matchingPods, ok := memo[selectorKey]; ok {
+		evidence.Coverage = "complete"
+		evidence.MatchingPods = matchingPods
+		return evidence
+	}
+	selector := labels.SelectorFromSet(svc.Selector)
+	var candidates []int
+	for key, value := range svc.Selector {
+		posting := podIndex.postings[key+"\x00"+value]
+		if len(posting) == 0 {
+			evidence.Coverage = "complete"
+			memo[selectorKey] = 0
+			return evidence
+		}
+		if candidates == nil || len(posting) < len(candidates) {
+			candidates = posting
+		}
+	}
+	for _, candidate := range candidates {
+		if selector.Matches(podIndex.labels[candidate]) {
+			evidence.MatchingPods++
+		}
+	}
+	evidence.Coverage = "complete"
+	memo[selectorKey] = evidence.MatchingPods
+	return evidence
+}
+
+func detectServiceNoMatchingCachedPodsSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	return dashboardSignalsOfType(detectServiceConnectivitySignals(now, ns, s), "service_no_matching_cached_pods")
 }
 
 func detectIngressPendingAddressSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
@@ -386,6 +523,78 @@ func detectIngressNeedsAttentionSignals(_ time.Time, ns string, s dashboardSnaps
 		}
 	}
 	return out
+}
+
+func detectIngressBackendIntegritySignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	if !s.ingsOK || !s.svcsOK || s.svcs.Meta.Coverage != CoverageClassFull || s.svcs.Meta.Completeness != CompletenessClassComplete {
+		return nil
+	}
+	servicesByName := make(map[string]dto.ServiceListItemDTO, len(s.svcs.Items))
+	for _, svc := range s.svcs.Items {
+		servicesByName[svc.Name] = svc
+	}
+
+	var out []ClusterDashboardSignal
+	seen := map[string]struct{}{}
+	for _, ing := range s.ings.Items {
+		if !ing.BackendsObserved {
+			continue
+		}
+		for _, backend := range ing.Backends {
+			if backend.ServiceName == "" {
+				continue
+			}
+			service, found := servicesByName[backend.ServiceName]
+			if !found {
+				out = appendIngressBackendSignal(out, seen, ing, backend, "ingress_backend_service_missing", "high", 86, "Ingress backend Service is missing.", "backend Service not present in complete cached Service snapshot", ns)
+				continue
+			}
+			if !service.PortsObserved {
+				continue
+			}
+			if !serviceHasIngressBackendPort(service, backend.ServicePort) {
+				out = appendIngressBackendSignal(out, seen, ing, backend, "ingress_backend_port_missing", "high", 84, "Ingress backend port is missing from its Service.", "backend port not present in cached Service ports", ns)
+				continue
+			}
+			if service.Type != "ExternalName" && service.EndpointCoverage == "complete" && service.EndpointsReady == 0 {
+				out = appendIngressBackendSignal(out, seen, ing, backend, "ingress_backend_no_ready_endpoints", "medium", 70, "Ingress backend Service has no ready endpoints.", fmt.Sprintf("Service endpoint observation complete: ready %d, not ready %d", service.EndpointsReady, service.EndpointsNotReady), ns)
+			}
+		}
+	}
+	return out
+}
+
+func serviceHasIngressBackendPort(service dto.ServiceListItemDTO, backendPort string) bool {
+	if backendPort == "" {
+		return false
+	}
+	for _, port := range service.Ports {
+		if port.Name == backendPort || fmt.Sprintf("%d", port.Port) == backendPort {
+			return true
+		}
+	}
+	return false
+}
+
+func appendIngressBackendSignal(out []ClusterDashboardSignal, seen map[string]struct{}, ing dto.IngressListItemDTO, backend dto.IngressBackendReferenceDTO, signalType, severity string, score int, reason, calculatedData, namespace string) []ClusterDashboardSignal {
+	key := signalType + "\x00" + ing.Name + "\x00" + backend.ServiceName + "\x00" + backend.ServicePort
+	if _, ok := seen[key]; ok {
+		return out
+	}
+	seen[key] = struct{}{}
+	route := "default backend"
+	if !backend.Default {
+		route = valueOrUnknown(backend.Host) + valueOrUnknown(backend.Path)
+	}
+	port := backend.ServicePort
+	if port == "" {
+		port = "<unspecified>"
+	}
+	f := dashboardSignalItem(signalType, "Ingress", namespace, ing.Name, severity, score, reason, "high", "ingresses")
+	f.HistoryKey = strings.Join([]string{signalType, "namespace", namespace, "Ingress", ing.Name, backend.ServiceName, port}, "|")
+	f.ActualData = fmt.Sprintf("route %s → Service %s/%s:%s", route, namespace, backend.ServiceName, port)
+	f.CalculatedData = calculatedData
+	return append(out, f)
 }
 
 func detectPVCNeedsAttentionSignals(_ time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {

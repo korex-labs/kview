@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -22,13 +23,17 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 	}
 
 	endpointSlicesByName := map[string][]discoveryv1.EndpointSlice{}
+	endpointCoverage := "unknown"
 	if slices, err := ListEndpointSlicesByService(ctx, c, namespace); err == nil {
 		endpointSlicesByName = slices
+		endpointCoverage = "complete"
 	}
+	return serviceListItems(services.Items, endpointSlicesByName, endpointCoverage, time.Now()), nil
+}
 
-	now := time.Now()
-	out := make([]dto.ServiceListItemDTO, 0, len(services.Items))
-	for _, svc := range services.Items {
+func serviceListItems(services []corev1.Service, endpointSlicesByName map[string][]discoveryv1.EndpointSlice, endpointCoverage string, now time.Time) []dto.ServiceListItemDTO {
+	out := make([]dto.ServiceListItemDTO, 0, len(services))
+	for _, svc := range services {
 		age := int64(0)
 		if !svc.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(svc.CreationTimestamp.Time).Seconds())
@@ -43,14 +48,32 @@ func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]
 			Annotations:       svc.Annotations,
 			Type:              ServiceType(svc.Spec.Type),
 			ClusterIPs:        serviceClusterIPs(svc.Spec),
+			Selector:          maps.Clone(svc.Spec.Selector),
+			Ports:             mapServicePorts(svc.Spec.Ports),
+			PortsObserved:     true,
 			PortsSummary:      FormatServicePortsSummary(svc.Spec.Ports),
+			EndpointCoverage:  endpointCoverage,
 			EndpointsReady:    int32(ready),
 			EndpointsNotReady: int32(notReady),
 			AgeSec:            age,
 		})
 	}
 
-	return out, nil
+	return out
+}
+
+func mapServicePorts(ports []corev1.ServicePort) []dto.ServicePortDTO {
+	out := make([]dto.ServicePortDTO, 0, len(ports))
+	for _, p := range ports {
+		out = append(out, dto.ServicePortDTO{
+			Name:       p.Name,
+			Port:       p.Port,
+			TargetPort: serviceIntOrString(p.TargetPort),
+			Protocol:   string(p.Protocol),
+			NodePort:   p.NodePort,
+		})
+	}
+	return out
 }
 
 func FormatServicePortsSummary(ports []corev1.ServicePort) string {

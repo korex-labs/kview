@@ -52,6 +52,7 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 			Namespace:               p.Namespace,
 			Labels:                  p.Labels,
 			Annotations:             p.Annotations,
+			LabelsObserved:          true,
 			Node:                    p.Spec.NodeName,
 			Phase:                   string(p.Status.Phase),
 			Ready:                   FmtReady(readyCount, totalCount),

@@ -136,8 +136,13 @@ func (m *manager) NamespaceInsightsProjection(ctx context.Context, clusterName, 
 	namespaceSnapshot, _ := peekClusterSnapshot(&plane.nsStore)
 	rawSignals = enrichSignalsFromMetadataIndex(rawSignals, namespaceSignalMetadataIndex(namespaceSnapshot))
 	signals.Add(m.attachSignalHistory(clusterName, now, applySignalPolicy(rawSignals, policy, clusterName)...)...)
-	sorted := signals.Summary(signals.Len(), ClusterDashboardListOptions{SignalsLimit: signals.Len()})
+	visibleItems, suppressedItems, suppressedSummary := m.projectSignalSuppressionsAt(ctx, clusterName, signals.Items(), now)
+	visibleSignals := newDashboardSignalStore()
+	visibleSignals.Add(visibleItems...)
+	sorted := visibleSignals.Summary(visibleSignals.Len(), ClusterDashboardListOptions{SignalsLimit: visibleSignals.Len()})
 	out.Insights.Signals = namespaceInsightSignalsFromDashboard(sorted.Items)
+	out.Insights.SuppressedSignalCount = suppressedSummary.Total
+	out.Insights.SuppressedSignals = namespaceInsightSignalsFromDashboard(suppressionProjectionSample(suppressedItems))
 	fallbackSignals := namespaceFallbackSignalsForProblematic(now, namespace, out.Insights.Summary.Problematic, rawSignals, plane, policy, clusterName)
 	if len(fallbackSignals) > 0 {
 		out.Insights.Signals = dedupeNamespaceSignals(append(out.Insights.Signals, fallbackSignals...))
@@ -192,35 +197,44 @@ func namespaceInsightSignalsFromDashboard(items []ClusterDashboardSignal) []dto.
 			lastSeenAt = observedAt
 		}
 		out = append(out, dto.NamespaceInsightSignalDTO{
-			Kind:            item.Kind,
-			Namespace:       item.Namespace,
-			Name:            item.Name,
-			Severity:        item.Severity,
-			Score:           item.Score,
-			Reason:          item.Reason,
-			LikelyCause:     item.LikelyCause,
-			SuggestedAction: item.SuggestedAction,
-			Confidence:      item.Confidence,
-			Section:         item.Section,
-			SignalType:      item.SignalType,
-			ResourceKind:    item.ResourceKind,
-			ResourceName:    item.ResourceName,
-			Scope:           item.Scope,
-			ScopeLocation:   item.ScopeLocation,
-			ActualData:      item.ActualData,
-			CalculatedData:  item.CalculatedData,
-			FirstSeenAt:     firstSeenAt,
-			LastSeenAt:      lastSeenAt,
-			ObservedDays7d:  item.ObservedDays7d,
-			ObservedDays30d: item.ObservedDays30d,
-			Recurring:       item.Recurring,
-			HistoryKey:      item.HistoryKey,
-			Acknowledged:    item.Acknowledged,
-			AcknowledgedAt:  item.AcknowledgedAt,
-			AckComment:      item.AckComment,
+			Kind:             item.Kind,
+			Namespace:        item.Namespace,
+			Name:             item.Name,
+			Severity:         item.Severity,
+			Score:            item.Score,
+			Reason:           item.Reason,
+			LikelyCause:      item.LikelyCause,
+			SuggestedAction:  item.SuggestedAction,
+			Confidence:       item.Confidence,
+			Section:          item.Section,
+			SignalType:       item.SignalType,
+			ResourceKind:     item.ResourceKind,
+			ResourceName:     item.ResourceName,
+			Scope:            item.Scope,
+			ScopeLocation:    item.ScopeLocation,
+			ActualData:       item.ActualData,
+			CalculatedData:   item.CalculatedData,
+			FirstSeenAt:      firstSeenAt,
+			LastSeenAt:       lastSeenAt,
+			ObservedDays7d:   item.ObservedDays7d,
+			ObservedDays30d:  item.ObservedDays30d,
+			Recurring:        item.Recurring,
+			HistoryKey:       item.HistoryKey,
+			StateFingerprint: item.StateFingerprint,
+			Acknowledged:     item.Acknowledged,
+			AcknowledgedAt:   item.AcknowledgedAt,
+			AckComment:       item.AckComment,
+			Suppression:      namespaceSignalSuppressionMetadata(item.Suppression),
 		})
 	}
 	return out
+}
+
+func namespaceSignalSuppressionMetadata(in *SignalSuppressionMetadata) *dto.NamespaceSignalSuppressionMetadataDTO {
+	if in == nil {
+		return nil
+	}
+	return &dto.NamespaceSignalSuppressionMetadataDTO{Mode: in.Mode, ExpiresAt: in.ExpiresAt, Comment: in.Comment}
 }
 
 func namespaceInsightResourceSignalsFromSignals(items []dto.NamespaceInsightSignalDTO) []dto.NamespaceResourceSignalsDTO {

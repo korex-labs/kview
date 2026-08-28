@@ -406,6 +406,8 @@ func serviceListSignals(svc dto.ServiceListItemDTO) (bucket string, needsAttenti
 	switch {
 	case svc.Type == "ExternalName":
 		return deployBucketHealthy, false
+	case svc.EndpointCoverage != "complete":
+		return deployBucketUnknown, false
 	case svc.EndpointsReady > 0 && svc.EndpointsNotReady == 0:
 		return deployBucketHealthy, false
 	case svc.EndpointsReady > 0 && svc.EndpointsNotReady > 0:

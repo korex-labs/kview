@@ -22,8 +22,10 @@ const (
 // signals endpoint. An empty Signals slice indicates no attention-worthy
 // state was detected; callers should not treat this as an error.
 type ResourceSignalsResult struct {
-	Signals []dto.NamespaceInsightSignalDTO
-	Meta    SnapshotMetadata
+	Signals               []dto.NamespaceInsightSignalDTO
+	SuppressedSignalCount int
+	SuppressedSignals     []dto.NamespaceInsightSignalDTO
+	Meta                  SnapshotMetadata
 }
 
 // resourceSignalsNamespaceRouteToKind maps URL plural-route segments
@@ -144,7 +146,12 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	if scope == ResourceSignalsScopeNamespace {
 		scopeLocation = namespace
 	}
-	items := store.SignalsForResource(kind, name, scope, scopeLocation)
+	visibleItems, suppressedItems, _ := m.projectSignalSuppressionsAt(ctx, clusterName, store.Items(), now)
+	visibleStore := newDashboardSignalStore()
+	visibleStore.Add(visibleItems...)
+	suppressedStore := newDashboardSignalStore()
+	suppressedStore.Add(suppressedItems...)
+	items := visibleStore.SignalsForResource(kind, name, scope, scopeLocation)
 	out := namespaceInsightSignalsFromDashboard(items)
 	if len(out) == 0 && len(rawStore.SignalsForResource(kind, name, scope, scopeLocation)) == 0 {
 		out = append(out, applyNamespaceSignalPolicy(fallbackSignalsForResource(now, scope, namespace, kind, name, plane, thresholds.PodRestartCount), policy, clusterName)...)
@@ -154,7 +161,14 @@ func (m *manager) ResourceSignals(ctx context.Context, clusterName, scope, names
 	if out == nil {
 		out = []dto.NamespaceInsightSignalDTO{}
 	}
-	return ResourceSignalsResult{Signals: out, Meta: meta}, nil
+	resourceSuppressedItems := suppressedStore.SignalsForResource(kind, name, scope, scopeLocation)
+	resourceSuppressed := namespaceInsightSignalsFromDashboard(suppressionProjectionSample(resourceSuppressedItems))
+	return ResourceSignalsResult{
+		Signals:               out,
+		SuppressedSignalCount: len(resourceSuppressedItems),
+		SuppressedSignals:     resourceSuppressed,
+		Meta:                  meta,
+	}, nil
 }
 
 func fallbackSignalsForResource(now time.Time, scope, namespace, kind, name string, plane *clusterPlane, restartThreshold int32) []dto.NamespaceInsightSignalDTO {
@@ -475,7 +489,10 @@ func dedupeNamespaceSignals(items []dto.NamespaceInsightSignalDTO) []dto.Namespa
 	seen := make(map[string]struct{}, len(items))
 	out := make([]dto.NamespaceInsightSignalDTO, 0, len(items))
 	for _, item := range items {
-		key := strings.Join([]string{item.SignalType, item.ResourceKind, item.ResourceName, item.Scope, item.ScopeLocation, item.Reason}, "|")
+		key := strings.TrimSpace(item.HistoryKey)
+		if key == "" {
+			key = strings.Join([]string{item.SignalType, item.ResourceKind, item.ResourceName, item.Scope, item.ScopeLocation, item.Reason}, "|")
+		}
 		if _, ok := seen[key]; ok {
 			continue
 		}

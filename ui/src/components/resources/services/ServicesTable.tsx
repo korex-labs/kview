@@ -18,6 +18,7 @@ type Service = {
   portsSummary?: string;
   endpointsReady: number;
   endpointsNotReady: number;
+  endpointCoverage?: "complete" | "unknown";
   ageSec: number;
   endpointHealthBucket?: string;
   exposureHint?: string;
@@ -28,7 +29,8 @@ type Service = {
 
 type Row = Service & { id: string };
 
-function formatEndpointsSummary(ready?: number, notReady?: number) {
+export function formatServiceEndpointsSummary(coverage?: string, ready?: number, notReady?: number) {
+  if (coverage !== "complete") return "Unknown coverage";
   const r = ready || 0;
   const n = notReady || 0;
   return `${r}/${r + n}`;
@@ -77,7 +79,7 @@ const columns: GridColDef<Row>[] = [
     headerName: "Endpoints",
     width: 140,
     renderCell: (p) =>
-      formatEndpointsSummary(p.row.endpointsReady, p.row.endpointsNotReady),
+      formatServiceEndpointsSummary(p.row.endpointCoverage, p.row.endpointsReady, p.row.endpointsNotReady),
     sortable: false,
   },
   {

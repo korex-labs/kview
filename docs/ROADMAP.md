@@ -26,6 +26,13 @@ Recently completed foundation work:
   ranking, pod/workload failure detectors, richer failure/search context, and
   structured per-signal resource exclusion rules with cache-only preview and
   prefilled quick exclusion actions on signal rows are in place.
+- **Connectivity diagnostics**: cache-only Service and Ingress routing detectors
+  distinguish confirmed failures from unknown Pod, Service, and EndpointSlice
+  coverage; the functional tranche is implemented and verified.
+- **Signal snooze and runtime suppression**: context-local **Snooze 1 hour**,
+  **Snooze 1 day**, **Ignore until changed**, **Show now**, exact suppressed
+  summaries, and active-context transfer are implemented and verified as a
+  functional tranche.
 - **Adaptive dataplane**: scheduler health, adaptive profiles, namespace sweep
   coverage, and pressure-aware polling/freshness are visible to operators.
 - **Local resource notes**: resources have a local **Notes** tab, triage state,
@@ -51,6 +58,28 @@ staying local-first, read-honest, and safe by default.
 The main rule: local operator knowledge belongs in kview's local store/export
 model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 
+## Active Release Sequence
+
+kview ships broad, coherent product releases rather than publishing every
+packaging or maintenance improvement separately. The current sequence is:
+
+1. **Connectivity And Routing Diagnostics — implemented and verified**: honest
+   cache-only Service and Ingress evidence distinguishes real routing failures
+   from unknown EndpointSlice, Pod, or Service coverage.
+2. **Signal Snooze And Runtime Suppression — implemented and verified**:
+   context-local, reversible **Snooze** and **Ignore until changed** decisions
+   have visible exact suppressed counts and remain separate from inherited
+   exclusion policy and operator profiles.
+3. **Impact And Dataplane Explanation — next**: build compact relationship
+   paths and freshness/coverage explanations on the normalized evidence produced
+   by the connectivity pack.
+4. Continue with the Search Query Mini-Language, Runbook integration,
+   Investigation Workspaces, and Exportable Incident Reports in that order,
+   adjusting only when real operator feedback changes the priority.
+
+The connectivity implementation contract and status checklist live in
+[plans/2026-08-27-connectivity-routing-detectors.md](plans/2026-08-27-connectivity-routing-detectors.md).
+
 ## Primary Feature Track
 
 Investigation Snapshots and Signal Memory are complete foundations: snapshots are
@@ -59,30 +88,33 @@ uses bounded distinct observation days, links explicit prior decisions, supports
 transfer/reset, and never infers resolution from partial data. The active queue
 starts with the next operator-workflow layer below.
 
-### 1. Signal Snooze And Suppression Rules
+### 1. Signal Snooze And Runtime Suppression (Implemented)
 
-Per-signal resource exclusion rules already suppress matching candidates by name,
-namespace, label, or annotation. Extend that explicit model with time- and
-state-aware actions such as **Snooze for 1h**, **Snooze for 1d**, or **Ignore until
-changed**.
-
-- Scope rules by signal type, context, namespace, resource identity, severity,
-  and optional profile.
-- Show suppressed counts and the reason a signal is hidden or downgraded.
-- Include suppression rules in settings/profile transfer.
-- Default to visible, reversible, local rules; do not silently hide signals.
+The functional runtime layer is implemented: backend-owned identity gates
+context-local **Snooze 1 hour**, **Snooze 1 day**, and **Ignore until changed**;
+**Show now** reverses a decision. Suppressed rows are excluded from all visible
+projections while exact totals/by-mode counts and bounded rows remain visible.
+History continues during runtime suppression, unlike static exclusion. Dedicated
+active-context transfer keeps this state out of profiles and inherited signal
+policy. Invalid, expired, unsupported, unavailable, and legacy identity states
+fail open.
 
 ### 2. Connectivity And Routing Detector Pack
 
 Add a focused cached-data detector pack for traffic-path failures:
 
-- Services with no matching or no ready cached Pods;
-- missing Ingress backend Services or ports;
-- EndpointSlices with no usable endpoints;
+- Services with no matching cached Pods, separated from matching Pods with no
+  ready endpoints;
+- missing Ingress backend Services or named/numeric ports;
+- EndpointSlices with no usable endpoints, reported only when their observation
+  completed successfully;
+- explicit unknown coverage when Pod, Service, or EndpointSlice evidence is not
+  sufficient to make a failure claim;
 - later, bounded NetworkPolicy isolation hints when coverage supports them.
 
 Every result must expose coverage/unknown state instead of triggering live
-exploratory scans.
+exploratory scans. This functional tranche is implemented and verified; see the
+linked plan above for implementation status and acceptance criteria.
 
 ### 3. Impact Path Drawer
 
@@ -154,7 +186,7 @@ Completed slices:
 
 Next candidates:
 
-- suppression/snooze rule models and audit metadata;
+- optional suppression audit metadata beyond the implemented runtime record;
 - impact-path edge/confidence contracts;
 - search query filter contract;
 - incident workspace/report schemas when those tracks become active.

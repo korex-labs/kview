@@ -238,6 +238,8 @@ export default function NodeDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={nodeSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToConditions={() => setTab(2)}
                   />
 

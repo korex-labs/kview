@@ -372,6 +372,8 @@ export default function DeploymentDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={deploymentSignals}
+                    suppressedSignalCount={snapshotSignals.suppressedSignalCount}
+                    suppressedSignals={snapshotSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}
                   />

@@ -251,6 +251,18 @@ export type ApiNamespacesListResponse = {
   }>;
 };
 
+export type SignalSuppressionMetadata = {
+  mode: string;
+  expiresAt?: number;
+  comment?: string;
+};
+
+export type SignalSuppressionSummary = {
+  total: number;
+  snoozed: number;
+  untilChanged: number;
+};
+
 export type DashboardSignalItem = {
   kind: string;
   kindLabel?: string;
@@ -283,6 +295,10 @@ export type DashboardSignalItem = {
   observedDays30d?: number;
   recurring?: boolean;
   historyKey?: string;
+  /** Client-only provenance marker for history keys synthesized from signal details. */
+  clientSynthesizedHistoryKey?: boolean;
+  stateFingerprint?: string;
+  suppression?: SignalSuppressionMetadata;
   acknowledged?: boolean;
   acknowledgedAt?: number;
   acknowledgementComment?: string;
@@ -477,6 +493,8 @@ export type DashboardSignalsPanel = {
   itemsQuery?: string;
   itemsSort?: string;
   itemsHasMore?: boolean;
+  suppressed?: SignalSuppressionSummary;
+  suppressedItems?: DashboardSignalItem[];
   note?: string;
   aggregateFreshness?: string;
   aggregateDegradation?: string;
@@ -971,6 +989,8 @@ export type NamespaceSummaryResources = {
 export type NamespaceInsights = {
   summary: NamespaceSummaryResources;
   signals?: DashboardSignalItem[];
+  suppressedSignalCount?: number;
+  suppressedSignals?: DashboardSignalItem[];
   resourceSignals?: NamespaceResourceSignals[];
   resourceQuotas?: NamespaceResourceQuota[];
   limitRanges?: NamespaceLimitRange[];

@@ -1,7 +1,8 @@
 import type { DashboardSignalItem } from "../../types/api";
 
 export function signalHistoryKey(signal: DashboardSignalItem): string {
-  if (signal.historyKey) return signal.historyKey;
+  const backendHistoryKey = signal.historyKey?.trim();
+  if (backendHistoryKey) return backendHistoryKey;
   return [
     signal.signalType || "signal",
     signal.scope,
@@ -14,7 +15,8 @@ export function signalHistoryKey(signal: DashboardSignalItem): string {
 }
 
 export function signalWithHistoryKey(signal: DashboardSignalItem): DashboardSignalItem {
+  if (signal.historyKey?.trim()) return signal;
   const historyKey = signalHistoryKey(signal);
-  if (!historyKey || signal.historyKey === historyKey) return signal;
-  return { ...signal, historyKey };
+  if (!historyKey) return signal;
+  return { ...signal, historyKey, clientSynthesizedHistoryKey: true };
 }

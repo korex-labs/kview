@@ -224,6 +224,8 @@ export default function CustomResourceDefinitionDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={crdSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

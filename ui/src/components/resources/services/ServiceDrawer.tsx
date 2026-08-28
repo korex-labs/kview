@@ -431,6 +431,8 @@ export default function ServiceDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={serviceSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(2)}
                   />
 

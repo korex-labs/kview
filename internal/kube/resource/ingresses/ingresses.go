@@ -44,6 +44,8 @@ func ListIngresses(ctx context.Context, c *cluster.Clients, namespace string) ([
 			Annotations:      ing.Annotations,
 			IngressClassName: className,
 			Hosts:            hosts,
+			Backends:         collectIngressBackendReferences(ing.Spec),
+			BackendsObserved: true,
 			TLSCount:         int32(len(ing.Spec.TLS)),
 			Addresses:        addresses,
 			AgeSec:           age,
@@ -51,6 +53,44 @@ func ListIngresses(ctx context.Context, c *cluster.Clients, namespace string) ([
 	}
 
 	return out, nil
+}
+
+func collectIngressBackendReferences(spec networkingv1.IngressSpec) []dto.IngressBackendReferenceDTO {
+	var out []dto.IngressBackendReferenceDTO
+	seen := map[string]struct{}{}
+	appendBackend := func(backend networkingv1.IngressBackend, host, path string, isDefault bool) {
+		serviceName, servicePort := ingressBackendService(backend)
+		if serviceName == "" {
+			return
+		}
+		key := serviceName + "\x00" + servicePort + "\x00" + host + "\x00" + path
+		if isDefault {
+			key += "\x00default"
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, dto.IngressBackendReferenceDTO{
+			ServiceName: serviceName,
+			ServicePort: servicePort,
+			Host:        host,
+			Path:        path,
+			Default:     isDefault,
+		})
+	}
+	if spec.DefaultBackend != nil {
+		appendBackend(*spec.DefaultBackend, "", "", true)
+	}
+	for _, rule := range spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			appendBackend(path.Backend, rule.Host, path.Path, false)
+		}
+	}
+	return out
 }
 
 func collectIngressHosts(ing *networkingv1.Ingress) []string {

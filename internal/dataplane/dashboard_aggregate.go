@@ -234,7 +234,12 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 	if includeSignals {
 		signalNote := signalPanel.Note
 		opts.NewestSignalLimit = policy.NewestSignalLimit
-		signalPanel = signals.Summary(policy.SignalLimit, opts)
+		visibleItems, suppressedItems, suppressedSummary := m.projectSignalSuppressionsAt(context.Background(), plane.name, signals.Items(), now)
+		visibleSignals := newDashboardSignalStore()
+		visibleSignals.Add(visibleItems...)
+		signalPanel = visibleSignals.Summary(policy.SignalLimit, opts)
+		signalPanel.Suppressed = suppressedSummary
+		signalPanel.SuppressedItems = suppressionProjectionSample(suppressedItems)
 		signalPanel.Note = signalNote
 		signalPanel.AggregateFreshness = res.AggregateFreshness
 		signalPanel.AggregateDegradation = res.AggregateDegradation

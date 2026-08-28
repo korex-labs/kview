@@ -18,8 +18,8 @@ at export time.
 Exportable sections include Smart Filters, Resource Tags, Resource Macros,
 Dynamic Links, Saved Views, Custom Commands, Custom Actions, Keyboard Shortcuts,
 Dataplane signal settings, favourite namespaces, recent namespaces, signal
-acknowledgements when available, bounded **Signal memory**, and saved
-Investigation Snapshots.
+acknowledgements when available, bounded **Signal memory**, active-context
+**Signal suppressions**, and saved Investigation Snapshots.
 
 When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
@@ -49,6 +49,44 @@ overrides together. **Keep mine** leaves the local keymap unchanged. **Use
 imported** and **Replace selected sections** use the imported keymap. Unknown or
 temporarily unavailable Custom Command and Custom Action bindings are retained.
 
+## Signal Suppression Transfer
+
+**Signal suppressions** is an optional, independent transfer section shaped as
+`{sourceContext,items}`. Select or deselect it separately from Signal settings,
+Signal acknowledgements, Signal memory, and Investigation Snapshots.
+
+`sourceContext` is informational provenance only. Export reads valid active
+records from the current context, and import always targets the context active at
+import time. The bundle body cannot select another context. Bundle `exportedAt`
+is an ISO timestamp; suppression `createdAt`, `updatedAt`, and optional
+`expiresAt` values are server-owned Unix seconds. Expiry is not extended during
+transfer.
+
+The browser performs structural validation first: supported `snooze` and
+`until_changed` modes, v1 fingerprint shape, timestamp and fixed-duration shape,
+comments bounded to 2000 Unicode characters, history keys bounded to 1024 Unicode
+characters, and at most 10,000
+deterministically selected records. The backend then validates active/expiry
+semantics and skips malformed, unsupported, or expired records. Invalid records
+never hide a visible signal.
+
+The normal strategies use their literal API values:
+
+- `keepMine` keeps an active-context record when the same `historyKey` exists.
+- `useImported` overwrites conflicts and retains unrelated local records.
+- `replaceSections` makes the imported section authoritative, removing local
+  active-context keys absent from the import as well as replacing conflicts.
+
+The result reports **imported**, **skipped**, and **replaced** counts. After a
+successful import, review the active suppressed-signals section and choose
+**Show now** for any imported decision that should not remain active. Runtime
+suppressions are not included in profiles, global/context overrides, or full
+profile backup; use this explicit section.
+
+See [Dashboard And Signals](dashboard-and-signals.md#snooze-and-ignore-until-changed),
+[Settings](settings.md#runtime-signal-suppressions), and the engineering
+[API ownership contract](../API_READ_OWNERSHIP.md#4-local-operator-knowledge-reads).
+
 ## Full Profile Backup
 
 Full profile export writes the complete kview user settings profile. This is
@@ -69,6 +107,9 @@ profile import replaces the current settings profile after confirmation.
   profile transfer. Import honours the selected conflict strategy. In Dataplane →
   Signals, **Reset context memory** removes all signal history for the active
   context after confirmation; restore requires an exported transfer bundle.
+- Export **Signal suppressions** to hand off only current runtime triage
+  decisions. The source context label does not retarget import; select the
+  destination context before importing.
 - Export **Investigation Snapshots** when handing off recurring incident context,
   known-fix notes, or a browser profile used during an incident review. New
   snapshots include the structured investigation result as well as the complete

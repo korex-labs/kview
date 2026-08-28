@@ -51,6 +51,28 @@ func TestMapIngressRulesAndBackendPorts(t *testing.T) {
 	}
 }
 
+func TestCollectIngressBackendReferencesPreservesRouteEvidence(t *testing.T) {
+	refs := collectIngressBackendReferences(networkingv1.IngressSpec{
+		DefaultBackend: &networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{
+			Name: "fallback", Port: networkingv1.ServiceBackendPort{Name: "http"},
+		}},
+		Rules: []networkingv1.IngressRule{{
+			Host: "app.example.test",
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{Paths: []networkingv1.HTTPIngressPath{
+				{Path: "/", Backend: networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{Name: "web", Port: networkingv1.ServiceBackendPort{Number: 8080}}}},
+				{Path: "/", Backend: networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{Name: "web", Port: networkingv1.ServiceBackendPort{Number: 8080}}}},
+			}}},
+		}},
+	})
+	want := []dto.IngressBackendReferenceDTO{
+		{ServiceName: "fallback", ServicePort: "http", Default: true},
+		{ServiceName: "web", ServicePort: "8080", Host: "app.example.test", Path: "/"},
+	}
+	if !reflect.DeepEqual(refs, want) {
+		t.Fatalf("collectIngressBackendReferences() = %#v, want %#v", refs, want)
+	}
+}
+
 func TestMapIngressTLSAndAddressesCloneValues(t *testing.T) {
 	tls := mapIngressTLS([]networkingv1.IngressTLS{
 		{SecretName: "app-tls", Hosts: []string{"app.example.test", "www.example.test"}},

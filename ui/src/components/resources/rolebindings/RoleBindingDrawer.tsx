@@ -211,6 +211,8 @@ export default function RoleBindingDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={roleBindingSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(3)}
                   />
 

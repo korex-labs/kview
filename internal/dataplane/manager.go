@@ -221,6 +221,11 @@ type DataPlaneManager interface {
 	ExportSignalAcknowledgements(clusterName string) map[string]SignalAcknowledgementRecord
 	// ImportSignalAcknowledgements merges local signal acknowledgement metadata for a context.
 	ImportSignalAcknowledgements(clusterName string, incoming map[string]SignalAcknowledgementRecord, strategy string) (SignalAcknowledgementImportResult, error)
+	SuppressSignal(clusterName string, req SignalSuppressionRequest) (SignalSuppressionRecord, error)
+	UnsuppressSignal(clusterName, historyKey string) error
+	ExportSignalSuppressions(clusterName string) map[string]SignalSuppressionRecord
+	ImportSignalSuppressions(clusterName string, incoming map[string]SignalSuppressionRecord, strategy string) (SignalSuppressionImportResult, error)
+	ResetSignalSuppressions(clusterName, historyKey string) (int, error)
 	// ExportSignalHistory returns bounded local observation history for a context.
 	ExportSignalHistory(clusterName string) map[string]SignalHistoryRecord
 	// ImportSignalHistory merges bounded local observation history for a context.
@@ -324,6 +329,15 @@ type manager struct {
 	signalAckMu     sync.RWMutex
 	signalAck       map[string]map[string]SignalAcknowledgementRecord
 
+	// Suppression lock order is prune barrier -> context operation lock -> map mutex.
+	// Global prune holds the barrier exclusively and therefore skips context locks.
+	// Persistence implementations must not call back into manager methods.
+	signalSuppressionsPruneMu sync.RWMutex
+	signalSuppressionOpsMu    sync.Mutex
+	signalSuppressionOps      map[string]*sync.Mutex
+	signalSuppressionsMu      sync.RWMutex
+	signalSuppressions        map[string]map[string]SignalSuppressionRecord
+
 	nsEnrich *nsEnrichmentCoordinator
 
 	observerEnsureMu   sync.Mutex
@@ -377,6 +391,8 @@ func NewManager(cfg ManagerConfig) DataPlaneManager {
 		bundle:               bundle,
 		signalHistory:        map[string]map[string]SignalHistoryRecord{},
 		signalAck:            map[string]map[string]SignalAcknowledgementRecord{},
+		signalSuppressionOps: map[string]*sync.Mutex{},
+		signalSuppressions:   map[string]map[string]SignalSuppressionRecord{},
 		nsEnrich:             newNsEnrichmentCoordinator(),
 		observerEnsureLast:   map[string]time.Time{},
 		nsSweepLast:          map[string]map[string]time.Time{},
@@ -505,6 +521,7 @@ func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {
 	_ = sp.PruneOlderThan("", maxAge)
 	_ = sp.PruneSignalHistoryOlderThan("", maxAge)
 	_ = sp.PruneSignalAcknowledgementsOlderThan("", maxAge)
+	_ = m.pruneSignalSuppressions(sp, time.Now().UTC(), maxAge)
 	m.mu.RLock()
 	planes := make([]*clusterPlane, 0, len(m.planes))
 	for _, plane := range m.planes {
@@ -515,6 +532,21 @@ func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {
 		_ = plane.hydratePersistedSnapshots(maxAge)
 		m.ensureSignalHistory(plane.name)
 	}
+}
+
+// pruneSignalSuppressions reconciles global durable pruning with lazily loaded
+// suppression state. Successful prune invalidates every loaded context so its
+// next operation reloads retained persistence records; failure leaves memory as-is.
+func (m *manager) pruneSignalSuppressions(sp snapshotPersistence, now time.Time, maxAge time.Duration) error {
+	m.signalSuppressionsPruneMu.Lock()
+	defer m.signalSuppressionsPruneMu.Unlock()
+	if err := sp.PruneSignalSuppressions("", now, maxAge); err != nil {
+		return err
+	}
+	m.signalSuppressionsMu.Lock()
+	m.signalSuppressions = map[string]map[string]SignalSuppressionRecord{}
+	m.signalSuppressionsMu.Unlock()
+	return nil
 }
 
 func (m *manager) DefaultProfile() Profile {

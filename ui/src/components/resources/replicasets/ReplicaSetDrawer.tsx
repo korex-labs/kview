@@ -320,6 +320,8 @@ export default function ReplicaSetDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={replicaSetSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                     onJumpToEvents={() => setTab(3)}
                     onJumpToSpec={() => setTab(2)}
                   />

@@ -1,6 +1,6 @@
 # Dataplane (read side)
 
-The **dataplane** (`internal/dataplane`) is the read-side subsystem for cluster observation: per-context **planes**, **snapshots**, a **scheduler**, **observers**, and **projections**. Mutations remain on the shared action framework (`POST /api/actions`); they are not implemented here.
+The **dataplane** (`internal/dataplane`) is the read-side subsystem for cluster observation: per-context **planes**, **snapshots**, a **scheduler**, **observers**, and **projections**. Kubernetes mutations remain on the shared action framework (`POST /api/actions`). Dataplane-owned signal acknowledgements and runtime suppressions mutate only kview's local operator state.
 
 For **which HTTP routes** use snapshots vs projections vs direct reads, see [API_READ_OWNERSHIP.md](API_READ_OWNERSHIP.md).
 
@@ -81,7 +81,7 @@ detection, signal history updates, and signal sorting. Both routes preserve
 The legacy `GET /api/dashboard/cluster` and tagged query route remain available
 with the combined response contract.
 
-`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **signals** for cached-scope attention, and derived sparse node/Helm chart projections. Signals currently cover empty-looking namespaces, elevated pod restarts, pod image pull failures, CrashLoopBackOff waiting states, unschedulable pods, unavailable Deployments, stale transitional Helm releases, abnormal Jobs/CronJobs, HorizontalPodAutoscaler warnings, empty ConfigMaps/Secrets, quota pressure, service endpoint health, ingress routing health, RBAC surface hints, PVC/PV node-bound storage, container/node resource pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. Detectors populate a single in-memory signal store for the request; the store keeps the signal table plus a resource identity index, so a resource can have multiple signals and projections can retrieve signals by resource kind/name/scope/location without re-running detection. The JSON panel is `signals`. Each item carries a stable signal shape: `signalType`, resource identity (`resourceKind`, `resourceName`), scope (`scope`, `scopeLocation`), `severity`, `actualData`, `calculatedData`, confidence, section/filter key, focused-list hint (`focus.resource`, optional `focus.namespace`, `focus.filter`, and `focus.label`), and advisory text (`likelyCause`, `suggestedAction`). The panel also includes `signals.filters`, a backend-provided quick-filter list with IDs, labels, counts, category, and severity hints for severity, resource kind, signal reason, and the top namespaces with problems, so the UI does not need to hard-code every signal type. The response includes both a capped `signals.top` list for first-glance triage and `signals.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
+`GET /api/dashboard/cluster` uses **`DashboardSummary`**: namespace and node snapshot blocks, trust copy, resource totals for all dataplane-owned namespaced list kinds from cached namespace snapshots, heuristic **signals** for cached-scope attention, and derived sparse node/Helm chart projections. Signals currently cover empty-looking namespaces, elevated pod restarts, pod image pull failures, CrashLoopBackOff waiting states, unschedulable pods, unavailable Deployments, stale transitional Helm releases, abnormal Jobs/CronJobs, HorizontalPodAutoscaler warnings, empty ConfigMaps/Secrets, quota pressure, Service selector/endpoint health, Ingress backend Service/port/endpoint integrity, RBAC surface hints, PVC/PV node-bound storage, container/node resource pressure, and low-confidence potentially unused PVCs/service accounts when no cached pods exist in the namespace. Connectivity detectors are cache-only and evidence-aware: missing Pod labels, incomplete Service coverage, and unknown EndpointSlice observation suppress absence/failure claims rather than becoming zero matches or zero endpoints. Detectors populate a single in-memory signal store for the request; the store keeps the signal table plus a resource identity index, so a resource can have multiple signals and projections can retrieve signals by resource kind/name/scope/location without re-running detection. The JSON panel is `signals`. Each item carries a stable signal shape: `signalType`, resource identity (`resourceKind`, `resourceName`), scope (`scope`, `scopeLocation`), `severity`, `actualData`, `calculatedData`, confidence, section/filter key, focused-list hint (`focus.resource`, optional `focus.namespace`, `focus.filter`, and `focus.label`), and advisory text (`likelyCause`, `suggestedAction`). The panel also includes `signals.filters`, a backend-provided quick-filter list with IDs, labels, counts, category, and severity hints for severity, resource kind, signal reason, and the top namespaces with problems, so the UI does not need to hard-code every signal type. The response includes both a capped `signals.top` list for first-glance triage and `signals.items` for category drill-down in the UI. See response types in `internal/dataplane/dashboard.go`.
 
 `GET /api/namespaces/{name}/insights` uses the same signal store for namespace-scoped views. It returns the sorted flat `signals` list plus grouped `resourceSignals`, allowing drawer sections to attach the exact signals for a ResourceQuota, HPA, PVC, Service, or other resource by identity.
 
@@ -107,6 +107,65 @@ write Kubernetes annotations or require cluster mutation permissions.
 comment; `DELETE /api/dataplane/signals/ack` clears it. Acknowledgements are
 pruned with dataplane cache retention.
 
+### Runtime signal suppression
+
+Runtime suppression is applied in this fixed order:
+
+1. detectors produce candidates from cached evidence;
+2. effective signal policy and static per-signal exclusions remove disabled or
+   excluded candidates;
+3. signal history is observed and acknowledgement metadata is attached;
+4. the backend computes the v1 state fingerprint;
+5. active runtime suppression partitions the remaining signals;
+6. every visible list, filter, page, counter, health, namespace, and resource
+   projection is rebuilt from the visible partition.
+
+This ordering is deliberate. A runtime-suppressed signal continues to update
+history and recurrence, while a statically excluded candidate never records an
+excluded observation. Runtime suppressions are context-local and non-inherited;
+they are a dedicated store, separate from acknowledgements, static exclusions,
+dataplane profiles, and global/context signal-setting overrides.
+
+The v1 fingerprint is backend-computed from effective severity, canonical signal
+and resource identity, and normalized structured evidence (`actualData` and
+`calculatedData`, falling back to the reason only when structured evidence is
+empty). Text normalization only collapses whitespace: otherwise, wording changes
+change the fingerprint. This intentionally does not solve resource-name reuse
+with identical evidence, and legacy/detail-only signals without a backend
+fingerprint cannot use `until_changed`.
+
+`snooze` records use fixed 3600- or 86400-second durations and server-owned UTC
+Unix timestamps. A snooze is inactive at the exact `expiresAt` boundary.
+`until_changed` remains active only while its valid v1 baseline fingerprint
+equals the current fingerprint. Unsupported modes or versions, malformed or
+expired records, changed/missing fingerprints, context cancellation, and load
+failures all fail open: the signal remains visible. Legacy signals without a
+backend-provided `historyKey` also remain visible and offer no runtime
+suppression control.
+
+Records are durable in a dedicated context-keyed bbolt bucket with a
+length-prefixed key codec. Per-context operation locks serialize lazy load,
+upsert, delete, replace/import, and in-memory publication around atomic bbolt
+mutations; a failed lazy load is retried by the next operation. Successful
+persistence pruning invalidates loaded suppression maps so retained records are
+reloaded; failed pruning leaves memory unchanged. Malformed persisted/imported
+entries are skipped rather than hiding signals. Optional comments are
+Unicode-rune bounded at 2000 characters; browser transfer validation applies the
+same 1024-rune `historyKey` limit as the backend.
+The transfer layer accepts at most 10,000 active-context records.
+
+The dashboard returns an exact `signals.suppressed` total and by-mode split
+(`snoozed`, `untilChanged`) independently of visible filtering and pagination.
+`signals.suppressedItems` is a separately sorted diagnostic sample capped at 500
+rows. Namespace and resource projections use the same 500-row cap while their
+`suppressedSignalCount` values remain exact; suppressed rows carry
+`suppression.mode`, optional `expiresAt`, and optional `comment`.
+
+Operator behavior and transfer procedures are documented in
+[Dashboard And Signals](user/dashboard-and-signals.md) and
+[Import / Export](user/import-export.md). Route and response ownership is in
+[API_READ_OWNERSHIP.md](API_READ_OWNERSHIP.md#4-local-operator-knowledge-reads).
+
 Signal observation history is manageable local operator state. Settings transfer
 uses `GET /api/dataplane/signals/history/export` and
 `POST /api/dataplane/signals/history/import`; imports validate timestamps and
@@ -127,7 +186,7 @@ freshness or scheduler state.
 
 ## Signal detector registry
 
-Dashboard signals are produced by a **detector registry** — a package-level slice of `dashboardSignalDetector` values in `dashboard_signal_detectors.go`. Each entry has a `Type` string (the stable `signalType` key written into every emitted signal) and a `Detect` function with the signature:
+Dashboard signals are produced by a **detector registry** — a package-level slice of `dashboardSignalDetector` values in `dashboard_signal_detectors.go`. Each entry declares a primary `Type`, optional `AdditionalTypes` when one indexed pass emits several canonical signals, and a `Detect` function with the signature:
 
 ```go
 func(now time.Time, namespace string, snapshots dashboardSnapshotSet) []ClusterDashboardSignal
@@ -137,8 +196,8 @@ func(now time.Time, namespace string, snapshots dashboardSnapshotSet) []ClusterD
 
 **Adding a new detector:**
 1. Write a `detect<Name>Signals` function matching the signature above.
-2. Append a `dashboardSignalDetector{Type: "snake_case_type", Detect: detect<Name>Signals}` entry to `dashboardSignalDetectors` in `dashboard_signal_detectors.go`.
-3. Add a `dashboardSignalDefinition` entry keyed by the same `Type` string to `dashboardSignalDefinitions` in `dashboard_signals.go`. The definition supplies the UI filter label, `SummaryCounter` (which aggregate counter the signal increments, e.g. `"podRestartSignals"`), template `ActualData`/`CalculatedData` text, `LikelyCause`, `SuggestedAction`, and `Priority` (lower = shown earlier in filters; default 10 for unknown types).
+2. Append a `dashboardSignalDetector{Type: "snake_case_type", Detect: detect<Name>Signals}` entry to `dashboardSignalDetectors` in `dashboard_signal_detectors.go`. If one indexed detector emits several distinct canonical types, declare the rest in `AdditionalTypes` instead of repeating the cache join.
+3. Add a `dashboardSignalDefinition` entry for every primary and additional type to `dashboardSignalDefinitions` in `dashboard_signals.go`. Definitions supply the UI filter label, `SummaryCounter` (which aggregate counter the signal increments, e.g. `"podRestartSignals"`), template `ActualData`/`CalculatedData` text, `LikelyCause`, `SuggestedAction`, and `Priority` (lower = shown earlier in filters; default 10 for unknown types). Registry tests enforce unique declared types and catalog coverage; downstream policy, history, acknowledgement, and exclusion use each emitted signal's actual `signalType`.
 
 **Signal score:** the integer `score` field passed to `dashboardSignalItem` controls sort order within the triage list (higher = shown first, scale 0–100). The score is **not** exposed in the API response; it is used only for internal sorting before the capped `top` list is built.
 

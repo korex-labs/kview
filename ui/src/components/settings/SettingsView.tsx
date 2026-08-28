@@ -75,6 +75,7 @@ import {
   type SettingsScopeMode,
   type SignalOverride,
   type SignalHistoryTransferRecord,
+  type SignalSuppressionsTransferSection,
   type SettingsTransferMergeStrategy,
   type SettingsTransferSection,
   type SettingsTransferBundleV1,
@@ -114,6 +115,7 @@ import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import SignalExclusionsDialog, { type SignalExclusionPreview } from "./SignalExclusionsDialog";
 import KeyboardShortcutsEditor from "./KeyboardShortcutsEditor";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
+import { dispatchSignalSuppressionsChanged } from "../../signalSuppressions";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
 import { dynamicKeyboardActionDefinitions } from "../../keyboard/dynamicActions";
@@ -710,6 +712,13 @@ function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: Set
       const contextOverrides = Object.keys(signalSettings.contextOverrides || {}).length;
       return `${globalOverrides} global override${globalOverrides === 1 ? "" : "s"}, ${contextOverrides} context override${contextOverrides === 1 ? "" : "s"}`;
     }
+    case "signalSuppressions": {
+      const suppressions = bundle.sections.signalSuppressions;
+      if (!suppressions) return "No signal suppressions";
+      const count = Object.keys(suppressions.items).length;
+      const source = suppressions.sourceContext || "portable snapshot";
+      return `${count} suppression${count === 1 ? "" : "s"} from ${source}`;
+    }
     case "signalAcknowledgements": {
       const contexts = bundle.sections.signalAcknowledgements || {};
       const contextCount = Object.keys(contexts).length;
@@ -1234,6 +1243,17 @@ export default function SettingsView({
       }>> | undefined;
       let signalHistory: Record<string, Record<string, SignalHistoryTransferRecord>> | undefined;
       let investigationSnapshots: InvestigationSnapshot[] | undefined;
+      let signalSuppressions: SignalSuppressionsTransferSection | undefined;
+      if (transferSections.includes("signalSuppressions")) {
+        const res = await apiGet<{ active?: string; items?: SignalSuppressionsTransferSection["items"] }>(
+          "/api/dataplane/signals/suppressions/export",
+          token,
+        );
+        signalSuppressions = {
+          sourceContext: res.active || activeContext,
+          items: res.items || {},
+        };
+      }
       if (transferSections.includes("signalAcknowledgements") && activeContext) {
         const res = await apiGet<{ active: string; items: Record<string, {
           acknowledgedAt: number;
@@ -1261,6 +1281,7 @@ export default function SettingsView({
           signalAcknowledgements,
           signalHistory,
           investigationSnapshots,
+          signalSuppressions,
         }),
       ], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -1298,6 +1319,22 @@ export default function SettingsView({
           contexts: bundle.sections.signalAcknowledgements,
         });
       }
+      let signalSuppressionsImportResult: { imported: number; skipped: number; replaced: number } | null = null;
+      if (selected.includes("signalSuppressions") && bundle.sections.signalSuppressions) {
+        const res = await apiPost<{
+          active?: string;
+          result?: { imported?: number; skipped?: number; replaced?: number };
+        }>("/api/dataplane/signals/suppressions/import", token, {
+          strategy: transferStrategy,
+          items: bundle.sections.signalSuppressions.items,
+        });
+        signalSuppressionsImportResult = {
+          imported: res.result?.imported || 0,
+          skipped: res.result?.skipped || 0,
+          replaced: res.result?.replaced || 0,
+        };
+        dispatchSignalSuppressionsChanged();
+      }
       let signalHistoryImportResult: { imported: number; skipped: number; replaced: number } | null = null;
       if (selected.includes("signalHistory") && bundle.sections.signalHistory) {
         const res = await apiPost<{
@@ -1329,12 +1366,15 @@ export default function SettingsView({
       const signalHistorySuffix = signalHistoryImportResult
         ? ` Signal memory: ${signalHistoryImportResult.imported} imported, ${signalHistoryImportResult.skipped} skipped${signalHistoryImportResult.replaced ? `, ${signalHistoryImportResult.replaced} replaced` : ""}.`
         : "";
+      const signalSuppressionsSuffix = signalSuppressionsImportResult
+        ? ` Signal suppressions: ${signalSuppressionsImportResult.imported} imported, ${signalSuppressionsImportResult.skipped} skipped${signalSuppressionsImportResult.replaced ? `, ${signalSuppressionsImportResult.replaced} replaced` : ""}.`
+        : "";
       const snapshotSuffix = snapshotImportResult
         ? ` Investigation snapshots: ${snapshotImportResult.imported} imported, ${snapshotImportResult.skipped} skipped${snapshotImportResult.deleted ? `, ${snapshotImportResult.deleted} replaced` : ""}.`
         : "";
       setTransferDialogMessage({
         severity: "success",
-        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${signalHistorySuffix}${snapshotSuffix}`,
+        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${signalSuppressionsSuffix}${signalHistorySuffix}${snapshotSuffix}`,
       });
       setImportMessage({ severity: "success", text: "Transfer bundle imported." });
     } catch (err) {

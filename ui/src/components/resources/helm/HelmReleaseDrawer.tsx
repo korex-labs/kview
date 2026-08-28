@@ -318,6 +318,8 @@ export default function HelmReleaseDrawer(props: {
                   <AttentionSummary
                     token={props.token}
                     signals={helmSignals}
+                    suppressedSignalCount={resourceSignals.suppressedSignalCount}
+                    suppressedSignals={resourceSignals.suppressedSignals}
                   />
 
                   {summary?.description && (

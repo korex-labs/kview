@@ -21,6 +21,7 @@ import type {
 } from "../../../types/api";
 import { useActiveContext } from "../../../activeContext";
 import { useSignalExclusionsRevision } from "../../../signalExclusions";
+import { useSignalSuppressionsRevision } from "../../../signalSuppressions";
 import { useConnectionState } from "../../../connectionState";
 import { useUserSettings } from "../../../settingsContext";
 import type { SavedDashboardViewSnapshot, SavedResourceViewDefinition } from "../../../settings";
@@ -378,6 +379,8 @@ export default function DashboardView(props: Props) {
   const [dashboardViewReady, setDashboardViewReady] = useState(false);
   const activeContext = useActiveContext();
   const signalExclusionsRevision = useSignalExclusionsRevision();
+  const signalSuppressionsRevision = useSignalSuppressionsRevision();
+  const activeSignalSuppressionsRevision = activeDashboardTab === "signals" ? signalSuppressionsRevision : 0;
   const { health } = useConnectionState();
   const { settings, setSettings } = useUserSettings();
   const pageVisible = usePageVisible();
@@ -600,7 +603,7 @@ export default function DashboardView(props: Props) {
         }
         const signalsParamsKey = tab === "signals" ? params.toString() : "";
         const cacheKey = tab === "signals"
-          ? `${loadScope}:signals:${signalsParamsKey}:${resourceTagsSignature}:${signalExclusionsRevision}`
+          ? `${loadScope}:signals:${signalsParamsKey}:${resourceTagsSignature}:${signalExclusionsRevision}:${activeSignalSuppressionsRevision}`
           : `${loadScope}:dataplane`;
         const cached = responseCacheRef.current[tab];
         if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < DASHBOARD_LOAD_DEDUPE_MS) {
@@ -718,6 +721,7 @@ export default function DashboardView(props: Props) {
     signalsRowsPerPage,
     resourceTagsSignature,
     signalExclusionsRevision,
+    activeSignalSuppressionsRevision,
     settings.resourceTags,
     favouriteNamespaceFilterParam,
     recentNamespaceFilterParam,
