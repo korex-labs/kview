@@ -2,27 +2,27 @@ package dto
 
 type HorizontalPodAutoscalerDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string            `json:"name"`
-	Namespace          string            `json:"namespace"`
-	Labels             map[string]string `json:"-"`
-	Annotations        map[string]string `json:"-"`
-	ScaleTargetRef     ScaleTargetRefDTO `json:"scaleTargetRef"`
-	MinReplicas        int32             `json:"minReplicas"`
-	MaxReplicas        int32             `json:"maxReplicas"`
-	CurrentReplicas    int32             `json:"currentReplicas"`
-	DesiredReplicas    int32             `json:"desiredReplicas"`
-	CurrentGauge       HPAGaugeDTO       `json:"currentGauge"`
-	DesiredGauge       HPAGaugeDTO       `json:"desiredGauge"`
-	CurrentMetrics     []HPAMetricDTO    `json:"currentMetrics,omitempty"`
-	Conditions         []HPAConditionDTO `json:"conditions,omitempty"`
-	AgeSec             int64             `json:"ageSec"`
-	HealthBucket       string            `json:"healthBucket,omitempty"`
-	NeedsAttention     bool              `json:"needsAttention,omitempty"`
-	ListStatus         string            `json:"listStatus,omitempty"`
-	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int               `json:"listSignalCount,omitempty"`
-	AttentionReasons   []string          `json:"attentionReasons,omitempty"`
-	LastScaleTime      int64             `json:"lastScaleTime,omitempty"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	ScaleTargetRef              ScaleTargetRefDTO `json:"scaleTargetRef"`
+	MinReplicas                 int32             `json:"minReplicas"`
+	MaxReplicas                 int32             `json:"maxReplicas"`
+	CurrentReplicas             int32             `json:"currentReplicas"`
+	DesiredReplicas             int32             `json:"desiredReplicas"`
+	CurrentGauge                HPAGaugeDTO       `json:"currentGauge"`
+	DesiredGauge                HPAGaugeDTO       `json:"desiredGauge"`
+	CurrentMetrics              []HPAMetricDTO    `json:"currentMetrics,omitempty"`
+	Conditions                  []HPAConditionDTO `json:"conditions,omitempty"`
+	AgeSec                      int64             `json:"ageSec"`
+	HealthBucket                string            `json:"healthBucket,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
+	AttentionReasons            []string          `json:"attentionReasons,omitempty"`
+	LastScaleTime               int64             `json:"lastScaleTime,omitempty"`
 }
 
 type HorizontalPodAutoscalerDetailsDTO struct {

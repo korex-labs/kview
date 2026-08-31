@@ -457,7 +457,7 @@ func TestNormalizeSnapshotRelationshipsUsesDistinctAuthoritativeSourceIdentities
 
 	t.Run("invalid source identity makes proof partial", func(t *testing.T) {
 		invalid := testSnapshotRelationshipItem("invalid")
-		invalid.ResourceRelationshipCarrier.Resource.Name = ""
+		invalid.Resource.Name = ""
 		_, metadata := normalizeSnapshotRelationships([]snapshotRelationshipItem{invalid}, dto.ExtractResourceRelationships[snapshotRelationshipItem], nil)
 		if got := metadata.FamilyCoverage[dto.ResourceRelationshipFamilyOwner]; got != partial {
 			t.Fatalf("invalid source identity family = %+v, want partial", got)

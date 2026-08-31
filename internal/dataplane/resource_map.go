@@ -274,10 +274,6 @@ func (c *resourceMapCollector) snapshotFiltered(store string, visibleItems, rela
 	}
 }
 
-func explicitResourceMapFamilies() []dto.ResourceRelationshipFamily {
-	return []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference, dto.ResourceRelationshipFamilyKindDefinition}
-}
-
 func indexedResourceMapFamilies() []dto.ResourceRelationshipFamily {
 	return []dto.ResourceRelationshipFamily{
 		dto.ResourceRelationshipFamilyObjectReference,
@@ -1607,10 +1603,11 @@ func (g *compactResourceGraph) traverse(target, maxDepth int) ([]ResourceMapNode
 		from, to := g.nodeID(edge.from), g.nodeID(edge.to)
 		typeValue := edge.typeValue
 		source, evidence := edge.source, cloneResourceMapEvidence(edge.evidence)
-		if typeValue == ResourceMapEdgeOwner {
+		switch typeValue {
+		case ResourceMapEdgeOwner:
 			source = dto.ResourceRelationshipSourceDTO{Type: dto.ResourceRelationshipSourceKubernetes, FieldPath: "metadata.ownerReferences"}
 			evidence = dto.ResourceRelationshipEvidenceDTO{Description: "ownerReference"}
-		} else if typeValue == ResourceMapEdgeNamespace {
+		case ResourceMapEdgeNamespace:
 			source = dto.ResourceRelationshipSourceDTO{Type: dto.ResourceRelationshipSourceProduct, FieldPath: "metadata.namespace"}
 			evidence = dto.ResourceRelationshipEvidenceDTO{Description: "namespace containment"}
 		}

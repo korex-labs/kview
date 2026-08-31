@@ -6,12 +6,12 @@ type ResourceQuotaListDTO struct {
 
 type ResourceQuotaDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name        string                  `json:"name"`
-	Namespace   string                  `json:"namespace"`
-	Labels      map[string]string       `json:"-"`
-	Annotations map[string]string       `json:"-"`
-	AgeSec      int64                   `json:"ageSec"`
-	Entries     []ResourceQuotaEntryDTO `json:"entries"`
+	Name                        string                  `json:"name"`
+	Namespace                   string                  `json:"namespace"`
+	Labels                      map[string]string       `json:"-"`
+	Annotations                 map[string]string       `json:"-"`
+	AgeSec                      int64                   `json:"ageSec"`
+	Entries                     []ResourceQuotaEntryDTO `json:"entries"`
 }
 
 type ResourceQuotaDetailsDTO struct {
@@ -33,10 +33,10 @@ type LimitRangeListDTO struct {
 
 type LimitRangeDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name      string              `json:"name"`
-	Namespace string              `json:"namespace"`
-	AgeSec    int64               `json:"ageSec"`
-	Items     []LimitRangeItemDTO `json:"items"`
+	Name                        string              `json:"name"`
+	Namespace                   string              `json:"namespace"`
+	AgeSec                      int64               `json:"ageSec"`
+	Items                       []LimitRangeItemDTO `json:"items"`
 }
 
 type LimitRangeDetailsDTO struct {

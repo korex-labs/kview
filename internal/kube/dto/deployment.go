@@ -2,18 +2,18 @@ package dto
 
 type DeploymentListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name                string            `json:"name"`
-	Namespace           string            `json:"namespace"`
-	Labels              map[string]string `json:"-"`
-	Annotations         map[string]string `json:"-"`
-	Ready               string            `json:"ready"`
-	UpToDate            int32             `json:"upToDate"`
-	Available           int32             `json:"available"`
-	Strategy            string            `json:"strategy"`
-	AgeSec              int64             `json:"ageSec"`
-	LastRolloutComplete int64             `json:"lastRolloutComplete,omitempty"`
-	LastEvent           *EventBriefDTO    `json:"lastEvent,omitempty"`
-	Status              string            `json:"status"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Ready                       string            `json:"ready"`
+	UpToDate                    int32             `json:"upToDate"`
+	Available                   int32             `json:"available"`
+	Strategy                    string            `json:"strategy"`
+	AgeSec                      int64             `json:"ageSec"`
+	LastRolloutComplete         int64             `json:"lastRolloutComplete,omitempty"`
+	LastEvent                   *EventBriefDTO    `json:"lastEvent,omitempty"`
+	Status                      string            `json:"status"`
 	// List enrichment (Stage 5C): derived from snapshot row only.
 	HealthBucket          string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
 	RolloutNeedsAttention bool   `json:"rolloutNeedsAttention,omitempty"`

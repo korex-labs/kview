@@ -2,16 +2,16 @@ package dto
 
 type NetworkPolicyDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name           string   `json:"name"`
-	Namespace      string   `json:"namespace"`
-	PodSelector    string   `json:"podSelector,omitempty"`
-	PolicyTypes    []string `json:"policyTypes,omitempty"`
-	IngressRules   int      `json:"ingressRules"`
-	EgressRules    int      `json:"egressRules"`
-	SelectedPods   int      `json:"selectedPods,omitempty"`
-	AgeSec         int64    `json:"ageSec"`
-	ListStatus     string   `json:"listStatus,omitempty"`
-	NeedsAttention bool     `json:"needsAttention,omitempty"`
+	Name                        string   `json:"name"`
+	Namespace                   string   `json:"namespace"`
+	PodSelector                 string   `json:"podSelector,omitempty"`
+	PolicyTypes                 []string `json:"policyTypes,omitempty"`
+	IngressRules                int      `json:"ingressRules"`
+	EgressRules                 int      `json:"egressRules"`
+	SelectedPods                int      `json:"selectedPods,omitempty"`
+	AgeSec                      int64    `json:"ageSec"`
+	ListStatus                  string   `json:"listStatus,omitempty"`
+	NeedsAttention              bool     `json:"needsAttention,omitempty"`
 }
 
 type NetworkPolicyDetailsDTO struct {

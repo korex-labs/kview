@@ -2,21 +2,21 @@ package dto
 
 type DaemonSetDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string `json:"name"`
-	Namespace          string `json:"namespace"`
-	Desired            int32  `json:"desired"`
-	Current            int32  `json:"current"`
-	Ready              int32  `json:"ready"`
-	Updated            int32  `json:"updated"`
-	Available          int32  `json:"available"`
-	UpdateStrategy     string `json:"updateStrategy,omitempty"`
-	Selector           string `json:"selector,omitempty"`
-	AgeSec             int64  `json:"ageSec"`
-	HealthBucket       string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
-	NeedsAttention     bool   `json:"needsAttention,omitempty"`
-	ListStatus         string `json:"listStatus,omitempty"`
-	ListSignalSeverity string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int    `json:"listSignalCount,omitempty"`
+	Name                        string `json:"name"`
+	Namespace                   string `json:"namespace"`
+	Desired                     int32  `json:"desired"`
+	Current                     int32  `json:"current"`
+	Ready                       int32  `json:"ready"`
+	Updated                     int32  `json:"updated"`
+	Available                   int32  `json:"available"`
+	UpdateStrategy              string `json:"updateStrategy,omitempty"`
+	Selector                    string `json:"selector,omitempty"`
+	AgeSec                      int64  `json:"ageSec"`
+	HealthBucket                string `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention              bool   `json:"needsAttention,omitempty"`
+	ListStatus                  string `json:"listStatus,omitempty"`
+	ListSignalSeverity          string `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int    `json:"listSignalCount,omitempty"`
 }
 
 type DaemonSetDetailsDTO struct {

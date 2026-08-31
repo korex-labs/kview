@@ -2,24 +2,24 @@ package dto
 
 type PersistentVolumeClaimDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string            `json:"name"`
-	Namespace          string            `json:"namespace"`
-	Labels             map[string]string `json:"-"`
-	Annotations        map[string]string `json:"-"`
-	Phase              string            `json:"phase,omitempty"`
-	StorageClassName   string            `json:"storageClassName,omitempty"`
-	VolumeName         string            `json:"volumeName,omitempty"`
-	AccessModes        []string          `json:"accessModes,omitempty"`
-	RequestedStorage   string            `json:"requestedStorage,omitempty"`
-	Capacity           string            `json:"capacity,omitempty"`
-	VolumeMode         string            `json:"volumeMode,omitempty"`
-	AgeSec             int64             `json:"ageSec"`
-	HealthBucket       string            `json:"healthBucket,omitempty"`
-	NeedsAttention     bool              `json:"needsAttention,omitempty"`
-	ResizePending      bool              `json:"resizePending,omitempty"`
-	ListStatus         string            `json:"listStatus,omitempty"`
-	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int               `json:"listSignalCount,omitempty"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Phase                       string            `json:"phase,omitempty"`
+	StorageClassName            string            `json:"storageClassName,omitempty"`
+	VolumeName                  string            `json:"volumeName,omitempty"`
+	AccessModes                 []string          `json:"accessModes,omitempty"`
+	RequestedStorage            string            `json:"requestedStorage,omitempty"`
+	Capacity                    string            `json:"capacity,omitempty"`
+	VolumeMode                  string            `json:"volumeMode,omitempty"`
+	AgeSec                      int64             `json:"ageSec"`
+	HealthBucket                string            `json:"healthBucket,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ResizePending               bool              `json:"resizePending,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
 }
 
 type PersistentVolumeClaimDetailsDTO struct {

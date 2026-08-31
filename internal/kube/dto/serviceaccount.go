@@ -1,7 +1,7 @@
 package dto
 
 type ServiceAccountListItemDTO struct {
-	ResourceRelationshipCarrier `json:"-"`
+	ResourceRelationshipCarrier  `json:"-"`
 	Name                         string            `json:"name"`
 	Namespace                    string            `json:"namespace"`
 	Labels                       map[string]string `json:"-"`

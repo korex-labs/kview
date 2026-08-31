@@ -2,17 +2,17 @@ package dto
 
 type RoleListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string            `json:"name"`
-	Namespace          string            `json:"namespace"`
-	Labels             map[string]string `json:"-"`
-	Annotations        map[string]string `json:"-"`
-	RulesCount         int               `json:"rulesCount"`
-	AgeSec             int64             `json:"ageSec"`
-	PrivilegeBreadth   string            `json:"privilegeBreadth,omitempty"`
-	NeedsAttention     bool              `json:"needsAttention,omitempty"`
-	ListStatus         string            `json:"listStatus,omitempty"`
-	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int               `json:"listSignalCount,omitempty"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	RulesCount                  int               `json:"rulesCount"`
+	AgeSec                      int64             `json:"ageSec"`
+	PrivilegeBreadth            string            `json:"privilegeBreadth,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
 }
 
 type RoleDetailsDTO struct {

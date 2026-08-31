@@ -4,15 +4,15 @@ package dto
 // in the aggregated cross-kind list.
 type CustomResourceInstanceDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name           string `json:"name"`
-	Namespace      string `json:"namespace,omitempty"`
-	Kind           string `json:"kind"`
-	Group          string `json:"group"`
-	Version        string `json:"version"`
-	Resource       string `json:"resource"` // plural name, e.g. "certificates"
-	AgeSec         int64  `json:"ageSec"`
-	SignalSeverity string `json:"signalSeverity,omitempty"` // ok | warning | error | unknown
-	StatusSummary  string `json:"statusSummary,omitempty"`
+	Name                        string `json:"name"`
+	Namespace                   string `json:"namespace,omitempty"`
+	Kind                        string `json:"kind"`
+	Group                       string `json:"group"`
+	Version                     string `json:"version"`
+	Resource                    string `json:"resource"` // plural name, e.g. "certificates"
+	AgeSec                      int64  `json:"ageSec"`
+	SignalSeverity              string `json:"signalSeverity,omitempty"` // ok | warning | error | unknown
+	StatusSummary               string `json:"statusSummary,omitempty"`
 }
 
 // CustomResourceAggregationMeta summarises how the server-side fan-out went.

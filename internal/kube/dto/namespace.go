@@ -2,12 +2,12 @@ package dto
 
 type NamespaceListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name                   string            `json:"name"`
-	Labels                 map[string]string `json:"-"`
-	Annotations            map[string]string `json:"-"`
-	Phase                  string            `json:"phase"`
-	AgeSec                 int64             `json:"ageSec"`
-	HasUnhealthyConditions bool              `json:"hasUnhealthyConditions"`
+	Name                        string            `json:"name"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Phase                       string            `json:"phase"`
+	AgeSec                      int64             `json:"ageSec"`
+	HasUnhealthyConditions      bool              `json:"hasUnhealthyConditions"`
 	// Row projection (namespaces list, Stage 5C): compact metrics from dataplane pods+deployments
 	// snapshots per namespace. When RowEnriched is false, counts/signals below are unset (zero/false).
 	RowEnriched        bool    `json:"rowEnriched,omitempty"`

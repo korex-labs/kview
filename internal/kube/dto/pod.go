@@ -2,10 +2,10 @@ package dto
 
 type PodListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace"`
-	Labels      map[string]string `json:"-"`
-	Annotations map[string]string `json:"-"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
 	// LabelsObserved is true only for rows built from an authorized live Pod LIST.
 	// It is intentionally not persisted or returned so hydrated rows cannot claim
 	// selector coverage after matching-only labels have been discarded.

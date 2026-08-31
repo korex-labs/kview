@@ -2,25 +2,25 @@ package dto
 
 type PersistentVolumeDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string            `json:"name"`
-	Labels             map[string]string `json:"-"`
-	Annotations        map[string]string `json:"-"`
-	Phase              string            `json:"phase,omitempty"`
-	Capacity           string            `json:"capacity,omitempty"`
-	AccessModes        []string          `json:"accessModes,omitempty"`
-	StorageClassName   string            `json:"storageClassName,omitempty"`
-	ReclaimPolicy      string            `json:"reclaimPolicy,omitempty"`
-	VolumeMode         string            `json:"volumeMode,omitempty"`
-	VolumeSourceType   string            `json:"volumeSourceType,omitempty"`
-	NodeAffinity       []string          `json:"nodeAffinity,omitempty"`
-	ClaimRef           string            `json:"claimRef,omitempty"`
-	AgeSec             int64             `json:"ageSec"`
-	HealthBucket       string            `json:"healthBucket,omitempty"`
-	BindingHint        string            `json:"bindingHint,omitempty"`
-	NeedsAttention     bool              `json:"needsAttention,omitempty"`
-	ListStatus         string            `json:"listStatus,omitempty"`
-	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int               `json:"listSignalCount,omitempty"`
+	Name                        string            `json:"name"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Phase                       string            `json:"phase,omitempty"`
+	Capacity                    string            `json:"capacity,omitempty"`
+	AccessModes                 []string          `json:"accessModes,omitempty"`
+	StorageClassName            string            `json:"storageClassName,omitempty"`
+	ReclaimPolicy               string            `json:"reclaimPolicy,omitempty"`
+	VolumeMode                  string            `json:"volumeMode,omitempty"`
+	VolumeSourceType            string            `json:"volumeSourceType,omitempty"`
+	NodeAffinity                []string          `json:"nodeAffinity,omitempty"`
+	ClaimRef                    string            `json:"claimRef,omitempty"`
+	AgeSec                      int64             `json:"ageSec"`
+	HealthBucket                string            `json:"healthBucket,omitempty"`
+	BindingHint                 string            `json:"bindingHint,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
 }
 
 type PersistentVolumeDetailsDTO struct {

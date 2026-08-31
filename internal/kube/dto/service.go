@@ -49,26 +49,26 @@ type ServiceEndpointPodDTO struct {
 
 type ServiceListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name                 string            `json:"name"`
-	Namespace            string            `json:"namespace"`
-	Labels               map[string]string `json:"-"`
-	Annotations          map[string]string `json:"-"`
-	Type                 string            `json:"type"`
-	ClusterIPs           []string          `json:"clusterIPs"`
-	Selector             map[string]string `json:"selector,omitempty"`
-	Ports                []ServicePortDTO  `json:"ports,omitempty"`
-	PortsObserved        bool              `json:"portsObserved,omitempty"`
-	PortsSummary         string            `json:"portsSummary,omitempty"`
-	EndpointCoverage     string            `json:"endpointCoverage,omitempty"` // complete | unknown
-	EndpointsReady       int32             `json:"endpointsReady"`
-	EndpointsNotReady    int32             `json:"endpointsNotReady"`
-	AgeSec               int64             `json:"ageSec"`
-	EndpointHealthBucket string            `json:"endpointHealthBucket,omitempty"`
-	ExposureHint         string            `json:"exposureHint,omitempty"`
-	NeedsAttention       bool              `json:"needsAttention,omitempty"`
-	ListStatus           string            `json:"listStatus,omitempty"`
-	ListSignalSeverity   string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount      int               `json:"listSignalCount,omitempty"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Type                        string            `json:"type"`
+	ClusterIPs                  []string          `json:"clusterIPs"`
+	Selector                    map[string]string `json:"selector,omitempty"`
+	Ports                       []ServicePortDTO  `json:"ports,omitempty"`
+	PortsObserved               bool              `json:"portsObserved,omitempty"`
+	PortsSummary                string            `json:"portsSummary,omitempty"`
+	EndpointCoverage            string            `json:"endpointCoverage,omitempty"` // complete | unknown
+	EndpointsReady              int32             `json:"endpointsReady"`
+	EndpointsNotReady           int32             `json:"endpointsNotReady"`
+	AgeSec                      int64             `json:"ageSec"`
+	EndpointHealthBucket        string            `json:"endpointHealthBucket,omitempty"`
+	ExposureHint                string            `json:"exposureHint,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
 }
 
 type ServiceLinkDTO struct {

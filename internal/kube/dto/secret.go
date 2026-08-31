@@ -2,20 +2,20 @@ package dto
 
 type SecretDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string            `json:"name"`
-	Namespace          string            `json:"namespace"`
-	Labels             map[string]string `json:"-"`
-	Annotations        map[string]string `json:"-"`
-	Type               string            `json:"type"`
-	KeysCount          int               `json:"keysCount"`
-	Immutable          bool              `json:"immutable"`
-	AgeSec             int64             `json:"ageSec"`
-	ContentHint        string            `json:"contentHint,omitempty"`
-	TypeHint           string            `json:"typeHint,omitempty"`
-	NeedsAttention     bool              `json:"needsAttention,omitempty"`
-	ListStatus         string            `json:"listStatus,omitempty"`
-	ListSignalSeverity string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int               `json:"listSignalCount,omitempty"`
+	Name                        string            `json:"name"`
+	Namespace                   string            `json:"namespace"`
+	Labels                      map[string]string `json:"-"`
+	Annotations                 map[string]string `json:"-"`
+	Type                        string            `json:"type"`
+	KeysCount                   int               `json:"keysCount"`
+	Immutable                   bool              `json:"immutable"`
+	AgeSec                      int64             `json:"ageSec"`
+	ContentHint                 string            `json:"contentHint,omitempty"`
+	TypeHint                    string            `json:"typeHint,omitempty"`
+	NeedsAttention              bool              `json:"needsAttention,omitempty"`
+	ListStatus                  string            `json:"listStatus,omitempty"`
+	ListSignalSeverity          string            `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int               `json:"listSignalCount,omitempty"`
 }
 
 type SecretDetailsDTO struct {

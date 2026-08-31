@@ -56,7 +56,7 @@ func TestFinalizeCustomResourceRelationshipsDelegatesExactDedupAndEvidenceSemant
 	if relationships[0].References[0].Evidence.Description != "first evidence" || relationships[1].References[0].Evidence.Description != "second evidence" {
 		t.Fatalf("relationships are not normalized deterministically: %+v", relationships)
 	}
-	first.ResourceRelationshipCarrier.References[0].Evidence.Description = "mutated"
+	first.References[0].Evidence.Description = "mutated"
 	if relationships[0].References[0].Evidence.Description != "first evidence" {
 		t.Fatalf("normalized relationship retained an input alias: %+v", relationships[0])
 	}

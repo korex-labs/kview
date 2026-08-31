@@ -2,24 +2,24 @@ package dto
 
 type IngressListItemDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name                string                       `json:"name"`
-	Namespace           string                       `json:"namespace"`
-	Labels              map[string]string            `json:"-"`
-	Annotations         map[string]string            `json:"-"`
-	IngressClassName    string                       `json:"ingressClassName"`
-	Hosts               []string                     `json:"hosts"`
-	Backends            []IngressBackendReferenceDTO `json:"backends,omitempty"`
-	BackendsObserved    bool                         `json:"backendsObserved,omitempty"`
-	TLSCount            int32                        `json:"tlsCount"`
-	Addresses           []string                     `json:"addresses"`
-	AgeSec              int64                        `json:"ageSec"`
-	RoutingHealthBucket string                       `json:"routingHealthBucket,omitempty"`
-	AddressState        string                       `json:"addressState,omitempty"`
-	TLSHint             string                       `json:"tlsHint,omitempty"`
-	NeedsAttention      bool                         `json:"needsAttention,omitempty"`
-	ListStatus          string                       `json:"listStatus,omitempty"`
-	ListSignalSeverity  string                       `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount     int                          `json:"listSignalCount,omitempty"`
+	Name                        string                       `json:"name"`
+	Namespace                   string                       `json:"namespace"`
+	Labels                      map[string]string            `json:"-"`
+	Annotations                 map[string]string            `json:"-"`
+	IngressClassName            string                       `json:"ingressClassName"`
+	Hosts                       []string                     `json:"hosts"`
+	Backends                    []IngressBackendReferenceDTO `json:"backends,omitempty"`
+	BackendsObserved            bool                         `json:"backendsObserved,omitempty"`
+	TLSCount                    int32                        `json:"tlsCount"`
+	Addresses                   []string                     `json:"addresses"`
+	AgeSec                      int64                        `json:"ageSec"`
+	RoutingHealthBucket         string                       `json:"routingHealthBucket,omitempty"`
+	AddressState                string                       `json:"addressState,omitempty"`
+	TLSHint                     string                       `json:"tlsHint,omitempty"`
+	NeedsAttention              bool                         `json:"needsAttention,omitempty"`
+	ListStatus                  string                       `json:"listStatus,omitempty"`
+	ListSignalSeverity          string                       `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int                          `json:"listSignalCount,omitempty"`
 }
 
 type IngressBackendReferenceDTO struct {
