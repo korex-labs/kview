@@ -66,6 +66,7 @@ const classicBindings: Record<KeyboardActionId, KeySequence[]> = {
   "nav.helmcharts": [["g", "."]],
   "nav.context": [["g", "x"]],
   "nav.settings": [["g", ","]],
+  "drawer.tab.resourceMap": [["shift+r"]],
   "drawer.tab.notes": [["n"]],
   "drawer.tab.overview": [["o"]],
   "drawer.tab.signals": [["s"]],

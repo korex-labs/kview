@@ -20,6 +20,20 @@ objects, events, metadata, YAML, and supported actions.
  snapshots retain the structured investigation result for the closest possible
  replay; older snapshots use their saved summary/resource fields and complete
  Markdown Export bundle.
+- **Resource Map tab**: shows the current resource in the center, cached
+  parents/dependencies above, cached children/dependants below, and cyclic or
+  bidirectional relations beside the current resource. Nodes visibly include
+  namespace and cache availability; the collapsed **Relationship details** section
+  groups repeated evidence and shows relationship type, confidence, source path,
+  evidence, and resolution status when expanded. To keep depth-2 maps focused,
+  namespace containment is shown for the current resource but is not used as a
+  transit hop to pull every sibling resource from that namespace into the map.
+  Depth-2 traversal is also direction-preserving: a dependency path continues
+  toward further dependencies, while a dependant path continues toward further
+  dependants. Shared dependencies are not traversed backwards into unrelated
+  consumers. Select a
+  present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>) to open
+  its drawer without losing the original drawer.
 - **Search and Activity**: saved investigation snapshots can appear in header
   search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,
@@ -74,6 +88,12 @@ Drawer content is permission-aware. Some tabs or sections may be missing,
 empty, degraded, or access denied when the active account cannot read related
 resources. Actions are shown only when capability checks allow them for the
 current target.
+
+Resource Map is cache-only: opening it does not trigger Kubernetes GET/LIST or
+background discovery. Partial, stale, legacy, malformed, ambiguous, or capped
+relationship evidence is shown as degraded/truncated rather than presented as
+a complete graph. Its hard limits are depth 2, 100 nodes, 200 edges, and 50,000
+examined relationship records.
 
 ## Related Settings
 

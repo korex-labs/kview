@@ -81,6 +81,7 @@ export default function ResourceQuotaDrawer({
   return (
     <RightDrawer open={open} onClose={onClose}>
       <ResourceDrawerShell
+        token={token}
         resourceIcon="resourcequotas"
         title={`ResourceQuota: ${resourceQuotaName || "-"}`}
         resourceIdentity={{ resource: "resourcequotas", namespace, name: resourceQuotaName }}

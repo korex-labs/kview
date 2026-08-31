@@ -6,6 +6,78 @@
 /** Single resource response: { item?: T } (backend may add e.g. "active") */
 export type ApiItemResponse<T> = { item?: T };
 
+export type ApiResourceIdentity = {
+  group: string;
+  version: string;
+  resource: string;
+  kind: string;
+  scope: "namespaced" | "cluster";
+  namespace?: string;
+  name: string;
+  uid?: string;
+};
+
+export type ResourceMapNode = {
+  id: string;
+  identity: ApiResourceIdentity;
+  depth: number;
+  direction: "current" | "parent" | "child" | "both";
+  availability: "present" | "missing" | "unknown";
+  navigable: boolean;
+  current?: boolean;
+};
+
+export type ResourceMapEdge = {
+  id: string;
+  from: string;
+  to: string;
+  type: "owner" | "namespace" | "objectReference" | "kindDefinition" | "selector";
+  source: { type: "kubernetes" | "product"; fieldPath?: string };
+  evidence?: { description?: string; selector?: Record<string, string> };
+  confidence: "exact" | "high";
+  resolved: boolean;
+};
+
+export type ResourceMapFamilyCoverage = {
+  coverage: "unknown" | "partial" | "full";
+  completeness: "unknown" | "partial" | "complete";
+  reasons?: string[];
+};
+
+export type ResourceMapResponse = {
+  active: string;
+  targetId: string;
+  target: {
+    id: string;
+    requested: ApiResourceIdentity;
+    identity: ApiResourceIdentity;
+    resolved: boolean;
+    availability: "present" | "missing" | "unknown";
+    navigable: boolean;
+  };
+  nodes: ResourceMapNode[];
+  edges: ResourceMapEdge[];
+  coverage: ResourceMapFamilyCoverage & {
+    families: Record<string, ResourceMapFamilyCoverage>;
+    ambiguousTarget?: boolean;
+  };
+  truncated: boolean;
+  truncationReasons?: string[];
+  limits: { depth: number; maxNodes: number; maxEdges: number; maxScanRecords: number };
+  cache: {
+    observedAt?: string;
+    oldestObservedAt?: string;
+    freshness: "hot" | "warm" | "cold" | "stale" | "unknown";
+    snapshotsPresent: number;
+    snapshotsMissing: number;
+    scannedRecords: number;
+    totalNodes: number;
+    returnedNodes: number;
+    totalEdges: number;
+    returnedEdges: number;
+  };
+};
+
 /** List response: { items?: T[] } */
 export type ApiListResponse<T> = {
   items?: T[];

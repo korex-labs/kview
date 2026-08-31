@@ -70,15 +70,19 @@ packaging or maintenance improvement separately. The current sequence is:
    context-local, reversible **Snooze** and **Ignore until changed** decisions
    have visible exact suppressed counts and remain separate from inherited
    exclusion policy and operator profiles.
-3. **Impact And Dataplane Explanation — next**: build compact relationship
-   paths and freshness/coverage explanations on the normalized evidence produced
-   by the connectivity pack.
-4. Continue with the Search Query Mini-Language, Runbook integration,
+3. **Resource Map — implemented, awaiting local validation**: the standard
+   cache-derived parent/child graph tab is available in real Kubernetes resource
+   drawers, with bounded lazy navigation and explicit coverage/confidence.
+4. **Dataplane Explanation — next**: explain freshness and coverage from existing
+   scheduler/dataplane metadata without exploratory live reads.
+5. Continue with the Search Query Mini-Language, Runbook integration,
    Investigation Workspaces, and Exportable Incident Reports in that order,
    adjusting only when real operator feedback changes the priority.
 
 The connectivity implementation contract and status checklist live in
 [plans/2026-08-27-connectivity-routing-detectors.md](plans/2026-08-27-connectivity-routing-detectors.md).
+The active Resource Map contract and delivery plan live in
+[plans/2026-08-28-resource-map.md](plans/2026-08-28-resource-map.md).
 
 ## Primary Feature Track
 
@@ -116,11 +120,16 @@ Every result must expose coverage/unknown state instead of triggering live
 exploratory scans. This functional tranche is implemented and verified; see the
 linked plan above for implementation status and acceptance criteria.
 
-### 3. Impact Path Drawer
+### 3. Resource Map (Implemented; Awaiting Local Validation)
 
-Provide compact evidence paths such as Ingress → Service → workload → Pod and PVC
-→ referencing workloads. Show missing/stale links and confidence per edge; avoid a
-general graph hairball.
+The standard **Resource Map** tab is implemented for real Kubernetes resource
+drawers. It centers the current
+resource, shows direct parents above and direct children/dependants below, and lets
+operators open present related resources without leaving the drawer workflow.
+Build only from persisted dataplane snapshots: owner references, explicit object
+references, complete selector evidence, namespace containment, and CRD/type
+relationships. Show missing/stale/partial links and confidence per edge; use hard
+depth/node/edge caps and avoid a general graph hairball or hidden Kubernetes reads.
 
 ### 4. Dataplane Explanation Drawer
 

@@ -201,6 +201,13 @@ export default function CustomResourceDrawer(props: {
           name: ref.name,
           labels,
           annotations,
+          ...(resolvedResource ? {
+            group: ref.group,
+            version: resolvedVersion || ref.version,
+            apiResource: resolvedResource,
+            kind: ref.kind,
+            scope: ref.namespace ? "namespaced" as const : "cluster" as const,
+          } : {}),
         } : undefined}
         headerActions={ref ? (
           <>

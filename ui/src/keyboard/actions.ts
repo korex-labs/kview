@@ -51,6 +51,7 @@ export const keyboardActionIds = [
   "nav.helm",
   "nav.context",
   "nav.settings",
+  "drawer.tab.resourceMap",
   "drawer.tab.notes",
   "drawer.tab.overview",
   "drawer.tab.signals",
@@ -124,7 +125,7 @@ const definition = (
 ): KeyboardActionDefinition => ({ id, label, group, scopes, safety: "safe", ...(section ? { section } : {}) });
 
 export const drawerTabActions = [
-  ["notes", "notes", "Notes"], ["overview", "overview", "Overview"], ["signals", "signals", "Signals"],
+  ["resource map", "resourceMap", "Resource Map"], ["notes", "notes", "Notes"], ["overview", "overview", "Overview"], ["signals", "signals", "Signals"],
   ["containers", "containers", "Containers"], ["resources", "resources", "Resources"],
   ["networking", "networking", "Networking"], ["events", "events", "Events"], ["logs", "logs", "Logs"],
   ["metadata", "metadata", "Metadata"], ["yaml", "yaml", "YAML"], ["pods", "pods", "Pods"],
