@@ -1,4 +1,1 @@
-# Reachable through Helm chart provenance verification. There is no fixed
-# x/crypto version and latest Helm v3 still imports the legacy OpenPGP package.
-# Tracking: https://github.com/korex-labs/kview/issues/62
-GO-2026-5932
+# One reachable advisory ID per line; keep empty when none are allowlisted.
