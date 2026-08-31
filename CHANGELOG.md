@@ -3,6 +3,28 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.16.0 - 2026-08-31
+
+- Added cache-derived resource maps in resource drawers, giving operators a
+  clearer way to inspect related objects and rollout shape directly from the
+  browsing workflow.
+- Added full-screen resource drawers so complex resource details and maps can
+  be reviewed with more room during investigation.
+- Improved resource-map presentation by compacting deployment rollout history,
+  making busy rollout views easier to scan.
+- Added connectivity detection with runtime suppression in dataplane signals,
+  reducing misleading signal noise when cluster or API connectivity is
+  interrupted.
+- Aligned dashboard signal memory hints more closely with the current signal
+  workflow, improving guidance when reviewing saved signal context.
+- Added native desktop application icons for packaged builds, improving fit and
+  recognition on installed desktop environments.
+- Strengthened release and security maintenance with reproducible audit checks,
+  published scorecard results in code scanning, targeted vulnerability patches,
+  and refreshed Go, Kubernetes, Helm, nanoid, and frontend dependencies.
+- Tightened release hygiene with aligned Go formatting and lint checks, plus
+  documentation fixes for Help changelog links.
+
 ## v5.15.0 - 2026-08-05
 
 - Added native Pod Debug sessions for supported Linux pods, so operators can
