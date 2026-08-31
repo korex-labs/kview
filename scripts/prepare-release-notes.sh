@@ -79,7 +79,7 @@ Task:
 - Mention infrastructure, tests, docs, and fixes when they are relevant to the release.
 - Keep ${whats_new_file} curated for in-app Help: update its recent highlights with the most relevant user-facing changes, and keep a pointer to ${notes_file} for the full history.
 - Keep ${whats_new_file} to at most ${whats_new_highlight_limit} bullets under "## Recent Highlights"; choose the most important user-facing highlights and leave full detail to ${notes_file}.
-- In ${whats_new_file}, the full-history pointer must be a markdown link to https://github.com/korex-labs/kview/blob/main/${notes_file}; do not render ${notes_file} as inline code there.
+- In ${whats_new_file}, the full-history pointer must be a markdown link to https://github.com/korex-labs/kview/blob/master/${notes_file}; do not render ${notes_file} as inline code there.
 - Do not create commits, tags, or modify any file except ${notes_file} and ${whats_new_file}; the release script will commit the docs after you finish.
 
 Commits in ${range}:
@@ -116,7 +116,7 @@ if [ ! -f "$whats_new_file" ]; then
 	exit 1
 fi
 
-if ! grep -Fq "https://github.com/korex-labs/kview/blob/main/${notes_file}" "$whats_new_file"; then
+if ! grep -Fq "https://github.com/korex-labs/kview/blob/master/${notes_file}" "$whats_new_file"; then
 	printf "%s\n" "${whats_new_file} must link to the GitHub ${notes_file} file for full history" >&2
 	exit 1
 fi

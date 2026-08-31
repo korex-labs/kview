@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import whatsNew from "../../../../docs/user/whats-new.md?raw";
+import releaseNotesScript from "../../../../scripts/prepare-release-notes.sh?raw";
 import { changelogUrl, limitWhatsNewHighlights } from "./HelpView";
 
 describe("Help changelog links", () => {
@@ -7,6 +8,8 @@ describe("Help changelog links", () => {
     expect(changelogUrl).toBe("https://github.com/korex-labs/kview/blob/master/CHANGELOG.md");
     expect(whatsNew).toContain("https://github.com/korex-labs/kview/blob/master/CHANGELOG.md");
     expect(whatsNew).not.toContain("https://github.com/korex-labs/kview/blob/main/CHANGELOG.md");
+    expect(releaseNotesScript).toContain("https://github.com/korex-labs/kview/blob/master/${notes_file}");
+    expect(releaseNotesScript).not.toContain("https://github.com/korex-labs/kview/blob/main/${notes_file}");
   });
 });
 
