@@ -58,13 +58,22 @@ const (
 )
 
 type ResourceMapNode struct {
-	ID           string                  `json:"id"`
-	Identity     dto.ResourceIdentityDTO `json:"identity"`
-	Depth        int                     `json:"depth"`
-	Direction    ResourceMapDirection    `json:"direction"`
-	Availability ResourceMapAvailability `json:"availability"`
-	Navigable    bool                    `json:"navigable"`
-	Current      bool                    `json:"current,omitempty"`
+	ID           string                             `json:"id"`
+	Identity     dto.ResourceIdentityDTO            `json:"identity"`
+	Depth        int                                `json:"depth"`
+	Direction    ResourceMapDirection               `json:"direction"`
+	Availability ResourceMapAvailability            `json:"availability"`
+	Navigable    bool                               `json:"navigable"`
+	Current      bool                               `json:"current,omitempty"`
+	ReplicaSet   *ResourceMapReplicaSetPresentation `json:"replicaSet,omitempty"`
+}
+
+// ResourceMapReplicaSetPresentation carries optional cached workload state for
+// presentation only. It does not alter relationship resolution or traversal.
+type ResourceMapReplicaSetPresentation struct {
+	Revision int32 `json:"revision"`
+	Desired  int32 `json:"desired"`
+	Ready    int32 `json:"ready"`
 }
 
 type ResourceMapEdgeType string
@@ -166,6 +175,7 @@ type resourceMapCollector struct {
 	meta         ResourceMapCacheMetadata
 	reasons      map[string]struct{}
 	families     map[dto.ResourceRelationshipFamily]*resourceMapFamilyState
+	replicaSets  map[resourceIdentityKey]ResourceMapReplicaSetPresentation
 	truncated    bool
 	freshnessSet bool
 }
@@ -394,6 +404,36 @@ func collectNamespacedResourceMap[I any](c *resourceMapCollector, name string, s
 	c.missing("missing target namespace snapshot: " + name + "/" + scope.namespace)
 }
 
+func collectNamespacedReplicaSetResourceMap(c *resourceMapCollector, name string, store *namespacedSnapshotStore[ReplicaSetsSnapshot], scope resourceMapNamespaceScope) {
+	if !scope.required {
+		return
+	}
+	if s, ok := peekNamespacedSnapshot(store, scope.namespace); ok {
+		c.snapshot(name+"/"+scope.namespace, len(s.Items), len(s.Items), s.Relationships, s.RelationshipMetadata, s.Meta, true)
+		c.collectReplicaSetPresentation(s.Items, scope.namespace)
+		return
+	}
+	if s, ok := peekNamespacedSnapshot(store, ""); ok && exactResourceMapSnapshot(s.Meta) {
+		c.snapshotFiltered(name+"/", len(s.Items), len(s.Items), s.Relationships, s.RelationshipMetadata, s.Meta, true, scope.namespace, true)
+		c.collectReplicaSetPresentation(s.Items, scope.namespace)
+		return
+	}
+	c.missing("missing target namespace snapshot: " + name + "/" + scope.namespace)
+}
+
+func (c *resourceMapCollector) collectReplicaSetPresentation(items []dto.ReplicaSetDTO, namespace string) {
+	limit := min(len(items), ResourceMapMaxScannedRecords)
+	c.replicaSets = make(map[resourceIdentityKey]ResourceMapReplicaSetPresentation, min(limit, ResourceMapMaxNodes))
+	for index := 0; index < limit; index++ {
+		item := items[index]
+		if item.Namespace != namespace || item.UID == "" {
+			continue
+		}
+		identity := dto.ResourceIdentityDTO{Group: "apps", Version: "v1", Resource: "replicasets", Kind: "ReplicaSet", Scope: dto.ResourceScopeNamespaced, Namespace: item.Namespace, Name: item.Name, UID: item.UID}
+		c.replicaSets[identityKey(identity)] = ResourceMapReplicaSetPresentation{Revision: item.Revision, Desired: item.Desired, Ready: item.Ready}
+	}
+}
+
 func customResourceRelationshipSourceItems(snapshot CustomResourcesSnapshot) int {
 	if snapshot.RelationshipSourceItems != nil {
 		return *snapshot.RelationshipSourceItems
@@ -510,6 +550,7 @@ type resourceMapIndex struct {
 	podsByLabel               map[resourceMapLabelKey][]int
 	selectorsByService        map[int][]compactResourceSelector
 	reverseSelector           map[resourceMapLabelKey][]reverseSelectorRelation
+	replicaSets               map[resourceIdentityKey]ResourceMapReplicaSetPresentation
 }
 
 func identityKey(identity dto.ResourceIdentityDTO) resourceIdentityKey {
@@ -541,6 +582,7 @@ func newResourceMapIndex(c *resourceMapCollector) *resourceMapIndex {
 		reverseReferenceUID:       make(map[string][]reverseReferenceRelation),
 		reverseReferenceCanonical: make(map[resourceIdentityKey][]reverseReferenceRelation),
 		byNamespace:               make(map[string][]int),
+		replicaSets:               c.replicaSets,
 	}
 	byIdentity := make(map[resourceIdentityKey]int, len(c.records))
 	var canonicalPods map[resourceIdentityKey]int
@@ -978,7 +1020,7 @@ func (p *clusterPlane) ResourceMap(req ResourceMapRequest) (ResourceMapResponse,
 	collectNamespacedResourceMap(&c, "rolebindings", &p.roleBindingsStore, namespaceScope)
 	collectNamespacedResourceMap(&c, "daemonsets", &p.dsStore, namespaceScope)
 	collectNamespacedResourceMap(&c, "statefulsets", &p.stsStore, namespaceScope)
-	collectNamespacedResourceMap(&c, "replicasets", &p.rsStore, namespaceScope)
+	collectNamespacedReplicaSetResourceMap(&c, "replicasets", &p.rsStore, namespaceScope)
 	collectNamespacedResourceMap(&c, "jobs", &p.jobsStore, namespaceScope)
 	collectNamespacedResourceMap(&c, "cronjobs", &p.cjStore, namespaceScope)
 	collectNamespacedResourceMap(&c, "horizontalpodautoscalers", &p.hpaStore, namespaceScope)
@@ -1528,7 +1570,13 @@ func (g *compactResourceGraph) traverse(target, maxDepth int) ([]ResourceMapNode
 	for _, node := range ids {
 		allowed[node] = true
 		n := g.nodes[node]
-		nodes = append(nodes, ResourceMapNode{ID: g.nodeID(node), Identity: g.nodeIdentity(node), Depth: depths[node], Direction: directions[node], Availability: n.availability, Navigable: n.availability == ResourceMapAvailabilityPresent, Current: node == target})
+		identity := g.nodeIdentity(node)
+		resourceNode := ResourceMapNode{ID: g.nodeID(node), Identity: identity, Depth: depths[node], Direction: directions[node], Availability: n.availability, Navigable: n.availability == ResourceMapAvailabilityPresent, Current: node == target}
+		if state, ok := g.index.replicaSets[identityKey(identity)]; ok {
+			stateCopy := state
+			resourceNode.ReplicaSet = &stateCopy
+		}
+		nodes = append(nodes, resourceNode)
 	}
 	totalEdges := len(g.edges)
 	edgeIndexes := make([]compactGraphEdge, 0, min(totalEdges, ResourceMapMaxEdges+1))

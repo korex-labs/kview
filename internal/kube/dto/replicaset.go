@@ -7,18 +7,19 @@ type OwnerReferenceDTO struct {
 
 type ReplicaSetDTO struct {
 	ResourceRelationshipCarrier `json:"-"`
-	Name               string             `json:"name"`
-	Namespace          string             `json:"namespace"`
-	Revision           int32              `json:"revision"`
-	Desired            int32              `json:"desired"`
-	Ready              int32              `json:"ready"`
-	Owner              *OwnerReferenceDTO `json:"owner,omitempty"`
-	AgeSec             int64              `json:"ageSec"`
-	HealthBucket       string             `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
-	NeedsAttention     bool               `json:"needsAttention,omitempty"`
-	ListStatus         string             `json:"listStatus,omitempty"`
-	ListSignalSeverity string             `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
-	ListSignalCount    int                `json:"listSignalCount,omitempty"`
+	Name                        string             `json:"name"`
+	Namespace                   string             `json:"namespace"`
+	UID                         string             `json:"uid,omitempty"`
+	Revision                    int32              `json:"revision"`
+	Desired                     int32              `json:"desired"`
+	Ready                       int32              `json:"ready"`
+	Owner                       *OwnerReferenceDTO `json:"owner,omitempty"`
+	AgeSec                      int64              `json:"ageSec"`
+	HealthBucket                string             `json:"healthBucket,omitempty"` // healthy | progressing | degraded | unknown
+	NeedsAttention              bool               `json:"needsAttention,omitempty"`
+	ListStatus                  string             `json:"listStatus,omitempty"`
+	ListSignalSeverity          string             `json:"listSignalSeverity,omitempty"` // high | medium | low | ok
+	ListSignalCount             int                `json:"listSignalCount,omitempty"`
 }
 
 type ReplicaSetDetailsDTO struct {

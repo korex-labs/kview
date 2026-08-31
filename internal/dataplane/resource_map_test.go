@@ -320,7 +320,7 @@ func TestResourceMapOwnerChainDepthDirectionAndDeterminism(t *testing.T) {
 	replicaSet := resourceMapIdentity("apps", "v1", "replicasets", "ReplicaSet", "apps", "api-abc", "rs")
 	pod := resourceMapIdentity("", "v1", "pods", "Pod", "apps", "api-abc-1", "pod")
 	setNamespacedSnapshot(&plane.depsStore, "apps", DeploymentsSnapshot{Meta: resourceMapMeta(), Relationships: []dto.ResourceRelationshipRecord{testResourceMapRecord(deployment)}})
-	setNamespacedSnapshot(&plane.rsStore, "apps", ReplicaSetsSnapshot{Meta: resourceMapMeta(), Relationships: []dto.ResourceRelationshipRecord{testResourceMapRecord(replicaSet, dto.ResourceOwnerReferenceDTO{APIVersion: "apps/v1", Kind: "Deployment", Name: "api", UID: "dep"})}})
+	setNamespacedSnapshot(&plane.rsStore, "apps", ReplicaSetsSnapshot{Meta: resourceMapMeta(), Items: []dto.ReplicaSetDTO{{Name: "api-abc", Namespace: "apps", UID: "rs", Revision: 7, Desired: 0, Ready: 0}}, Relationships: []dto.ResourceRelationshipRecord{testResourceMapRecord(replicaSet, dto.ResourceOwnerReferenceDTO{APIVersion: "apps/v1", Kind: "Deployment", Name: "api", UID: "dep"})}})
 	setNamespacedSnapshot(&plane.podsStore, "apps", PodsSnapshot{Meta: resourceMapMeta(), Relationships: []dto.ResourceRelationshipRecord{testResourceMapRecord(pod, dto.ResourceOwnerReferenceDTO{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "api-abc", UID: "rs"})}})
 
 	first, err := plane.ResourceMap(ResourceMapRequest{Target: deployment, Depth: 2})
@@ -344,6 +344,12 @@ func TestResourceMapOwnerChainDepthDirectionAndDeterminism(t *testing.T) {
 	if byUID["rs"].Depth != 1 || byUID["rs"].Direction != ResourceMapDirectionChild {
 		t.Fatalf("depth-one child = %+v", byUID["rs"])
 	}
+	if byUID["rs"].ReplicaSet == nil || byUID["rs"].ReplicaSet.Revision != 7 || byUID["rs"].ReplicaSet.Desired != 0 || byUID["rs"].ReplicaSet.Ready != 0 {
+		t.Fatalf("replicaset presentation = %+v", byUID["rs"].ReplicaSet)
+	}
+	if byUID["dep"].ReplicaSet != nil || byUID["pod"].ReplicaSet != nil {
+		t.Fatalf("replicaset presentation leaked to non-replicaset nodes: deployment=%+v pod=%+v", byUID["dep"].ReplicaSet, byUID["pod"].ReplicaSet)
+	}
 	if byUID["pod"].Depth != 2 {
 		t.Fatalf("depth-two child = %+v", byUID["pod"])
 	}
@@ -358,6 +364,15 @@ func TestResourceMapOwnerChainDepthDirectionAndDeterminism(t *testing.T) {
 	}
 	if resourceMapSignature(first) != resourceMapSignature(second) {
 		t.Fatalf("projection is nondeterministic")
+	}
+
+	setNamespacedSnapshot(&plane.rsStore, "apps", ReplicaSetsSnapshot{Meta: resourceMapMeta(), Items: []dto.ReplicaSetDTO{{Name: "api-abc", Namespace: "apps", UID: "replacement-rs", Revision: 8, Desired: 0}}, Relationships: []dto.ResourceRelationshipRecord{testResourceMapRecord(replicaSet, dto.ResourceOwnerReferenceDTO{APIVersion: "apps/v1", Kind: "Deployment", Name: "api", UID: "dep"})}})
+	replaced, err := plane.ResourceMap(ResourceMapRequest{Target: deployment, Depth: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node := findResourceMapNode(replaced, replicaSet); node == nil || node.ReplicaSet != nil {
+		t.Fatalf("same-name replacement metadata crossed UID boundary: %+v", node)
 	}
 }
 
@@ -689,7 +704,7 @@ func TestResourceMapStoreInventoryAndExclusions(t *testing.T) {
 		switch fun.Name {
 		case "collectClusterResourceMap", "collectClusterCustomResourceMap":
 			wantArgs = 3
-		case "collectNamespacedResourceMap", "collectNamespacedCustomResourceMap":
+		case "collectNamespacedResourceMap", "collectNamespacedCustomResourceMap", "collectNamespacedReplicaSetResourceMap":
 			wantArgs = 4
 		default:
 			return true

@@ -35,7 +35,11 @@ objects, events, metadata, YAML, and supported actions.
   Depth-2 traversal is also direction-preserving: a dependency path continues
   toward further dependencies, while a dependant path continues toward further
   dependants. Shared dependencies are not traversed backwards into unrelated
-  consumers. Select a
+  consumers. In Deployment maps, two or more directly owned ReplicaSets with
+  cached desired replicas equal to zero are collapsed into a rollout-history
+  group by default. **Show history** restores every exact node and edge; current,
+  non-zero, unavailable, and legacy ReplicaSets without status metadata remain
+  visible. Select a
   present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>) to open
   its drawer without losing the original drawer.
 - **Search and Activity**: saved investigation snapshots can appear in header

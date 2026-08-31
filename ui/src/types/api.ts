@@ -25,6 +25,7 @@ export type ResourceMapNode = {
   availability: "present" | "missing" | "unknown";
   navigable: boolean;
   current?: boolean;
+  replicaSet?: { revision: number; desired: number; ready: number };
 };
 
 export type ResourceMapEdge = {

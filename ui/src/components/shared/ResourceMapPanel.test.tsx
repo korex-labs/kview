@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { apiGet } from "../../api";
 import { ActiveContextProvider } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapResponse } from "../../types/api";
-import ResourceMapPanel, { layoutResourceMap, ResourceMapSvg, summarizeResourceMapEvidence } from "./ResourceMapPanel";
+import ResourceMapPanel, { historicalReplicaSetNodeIDs, layoutResourceMap, ResourceMapSvg, summarizeResourceMapEvidence } from "./ResourceMapPanel";
 
 vi.mock("../../api", () => ({ apiGet: vi.fn() }));
 const identity: ApiResourceIdentity = { group: "apps", version: "v1", resource: "deployments", kind: "Deployment", scope: "namespaced", namespace: "prod", name: "api" };
@@ -51,6 +51,43 @@ describe("ResourceMapPanel", () => {
     expect(Math.max(...childRows.values())).toBe(3);
   });
 
+  it("collapses direct zero-replica rollout history while preserving current and unknown ReplicaSets", () => {
+    const current = { ...node("rs-current", "ReplicaSet", "api-current", "child", 1, "replicasets"), replicaSet: { revision: 10, desired: 0, ready: 0 } };
+    const oldOne = { ...node("rs-old-1", "ReplicaSet", "api-old-1", "child", 1, "replicasets"), replicaSet: { revision: 1, desired: 0, ready: 0 } };
+    const oldTwo = { ...node("rs-old-2", "ReplicaSet", "api-old-2", "child", 1, "replicasets"), replicaSet: { revision: 2, desired: 0, ready: 0 } };
+    const unknown = node("rs-unknown", "ReplicaSet", "api-unknown", "child", 1, "replicasets");
+    const terminatingPod = node("old-pod", "Pod", "api-old-1-terminating", "child", 2, "pods");
+    const rollout: ResourceMapResponse = {
+      ...response,
+      nodes: [response.nodes[1], current, oldOne, oldTwo, unknown, terminatingPod],
+      edges: [
+        ...[current, oldOne, oldTwo, unknown].map((replicaSet, index) => ({ id: `owner-${index}`, from: response.targetId, to: replicaSet.id, type: "owner" as const, source: { type: "kubernetes" as const, fieldPath: "metadata.ownerReferences" }, evidence: { description: "ownerReference" }, confidence: "exact" as const, resolved: true })),
+        { id: "owner-pod", from: oldOne.id, to: terminatingPod.id, type: "owner", source: { type: "kubernetes", fieldPath: "metadata.ownerReferences" }, evidence: { description: "ownerReference" }, confidence: "exact", resolved: true },
+      ],
+    };
+
+    expect(historicalReplicaSetNodeIDs(rollout)).toEqual(["rs-old-1", "rs-old-2"]);
+    expect(historicalReplicaSetNodeIDs({
+      ...rollout,
+      nodes: rollout.nodes.filter((candidate) => candidate.id !== oldTwo.id),
+      edges: rollout.edges.filter((edge) => edge.from !== oldTwo.id && edge.to !== oldTwo.id),
+    })).toEqual([]);
+    render(<ResourceMapSvg response={rollout} onOpenResource={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "ReplicaSet: api-current, revision 10, desired 0, ready 0" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "ReplicaSet: api-unknown" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "ReplicaSet: api-old-1, revision 1, desired 0, ready 0" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pod: api-old-1-terminating" })).toBeNull();
+    expect(screen.getByText("2 zero-replica historical ReplicaSets hidden")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+    expect(screen.getByRole("button", { name: "ReplicaSet: api-old-1, revision 1, desired 0, ready 0" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pod: api-old-1-terminating" })).toBeTruthy();
+    expect(screen.getByText("ReplicaSet · rev 1")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide history" }));
+    expect(screen.queryByRole("button", { name: "ReplicaSet: api-old-1, revision 1, desired 0, ready 0" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pod: api-old-1-terminating" })).toBeNull();
+  });
+
   it("collapses and groups repeated relationship evidence", () => {
     const repeated = Array.from({ length: 4 }, (_, index) => ({ ...response.edges[0], id: `namespace-${index}` }));
     const summaries = summarizeResourceMapEvidence(repeated);
@@ -76,10 +113,13 @@ describe("ResourceMapPanel", () => {
   });
 
   it("fetches the strict depth-2 query lazily and renders partial/truncated status", async () => {
-    vi.mocked(apiGet).mockResolvedValue({ ...response, coverage: { coverage: "partial", completeness: "partial", families: {} }, truncated: true, truncationReasons: ["node limit"] });
+    vi.mocked(apiGet).mockResolvedValue({ ...response, coverage: { coverage: "partial", completeness: "partial", families: {} }, cache: { ...response.cache, freshness: "unknown" }, truncated: true, truncationReasons: ["node limit"] });
     render(<ActiveContextProvider value="ctx"><ResourceMapPanel identity={identity} token="token" onOpenResource={vi.fn()} /></ActiveContextProvider>);
     expect(screen.getByLabelText("Loading resource map")).toBeTruthy();
     await screen.findByText(/Relationship coverage is partial/);
+    expect(screen.queryByText("partial coverage")).toBeNull();
+    expect(screen.queryByText("unknown cache")).toBeNull();
+    expect(screen.getByText("3/3 nodes · 2/2 edges")).toBeTruthy();
     expect(screen.getByText(/Map truncated at API limits: node limit/)).toBeTruthy();
     expect(vi.mocked(apiGet).mock.calls[0][0]).toBe("/api/dataplane/resource-map?group=apps&version=v1&resource=deployments&kind=Deployment&scope=namespaced&namespace=prod&name=api&depth=2");
     expect(vi.mocked(apiGet).mock.calls[0][2]?.signal).toBeInstanceOf(AbortSignal);

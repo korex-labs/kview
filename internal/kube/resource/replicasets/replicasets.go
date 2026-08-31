@@ -37,6 +37,7 @@ func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) 
 			ResourceRelationshipCarrier: carrier,
 			Name:                        rs.Name,
 			Namespace:                   rs.Namespace,
+			UID:                         string(rs.UID),
 			Revision:                    deployments.ParseRevision(rs.Annotations["deployment.kubernetes.io/revision"]),
 			Desired:                     desired,
 			Ready:                       rs.Status.ReadyReplicas,

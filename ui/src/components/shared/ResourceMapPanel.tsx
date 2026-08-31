@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
-import { Alert, Box, ButtonBase, Chip, CircularProgress, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, ButtonBase, Chip, CircularProgress, Stack, Typography } from "@mui/material";
 import { apiGet } from "../../api";
 import { useActiveContext } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse } from "../../types/api";
@@ -118,28 +118,87 @@ export function summarizeResourceMapEvidence(edges: ResourceMapEdge[]): Array<{ 
   return Array.from(summaries.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+export function historicalReplicaSetNodeIDs(response: ResourceMapResponse): string[] {
+  if (response.target.identity.kind !== "Deployment") return [];
+  const directOwnerChildren = new Set(response.edges
+    .filter((edge) => edge.type === "owner" && edge.resolved && edge.from === response.targetId)
+    .map((edge) => edge.to));
+  const directReplicaSets = response.nodes.filter((node) =>
+    directOwnerChildren.has(node.id)
+    && node.depth === 1
+    && node.direction === "child"
+    && node.availability === "present"
+    && node.identity.kind === "ReplicaSet"
+    && node.identity.resource === "replicasets",
+  );
+  const latestRevision = Math.max(0, ...directReplicaSets.map((node) => node.replicaSet?.revision || 0));
+  const historical = directReplicaSets.filter((node) =>
+    node.replicaSet !== undefined
+    && node.replicaSet.desired === 0
+    && node.replicaSet.revision > 0
+    && node.replicaSet.revision < latestRevision,
+  ).sort(nodeSort);
+  return historical.length >= 2 ? historical.map((node) => node.id) : [];
+}
+
+export function hiddenHistoryBranchNodeIDs(response: ResourceMapResponse, historicalReplicaSetIds: string[]): string[] {
+  const hidden = new Set(historicalReplicaSetIds);
+  const byId = new Map(response.nodes.map((node) => [node.id, node]));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of response.edges) {
+      const from = byId.get(edge.from);
+      const to = byId.get(edge.to);
+      if (!from || !to || !hidden.has(from.id) || hidden.has(to.id) || to.depth <= from.depth || to.direction !== "child") continue;
+      hidden.add(to.id);
+      changed = true;
+    }
+  }
+  return Array.from(hidden);
+}
+
 export function ResourceMapSvg({ response, onOpenResource }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void }) {
-  const layout = useMemo(() => layoutResourceMap(response.nodes, response.targetId), [response.nodes, response.targetId]);
+  const [showHistoricalReplicaSets, setShowHistoricalReplicaSets] = useState(false);
+  const historicalReplicaSetIds = useMemo(() => historicalReplicaSetNodeIDs(response), [response]);
+  const hiddenHistoryBranchIds = useMemo(() => hiddenHistoryBranchNodeIDs(response, historicalReplicaSetIds), [historicalReplicaSetIds, response]);
+  const hiddenNodeIds = useMemo(() => showHistoricalReplicaSets ? new Set<string>() : new Set(hiddenHistoryBranchIds), [hiddenHistoryBranchIds, showHistoricalReplicaSets]);
+  const visibleNodes = useMemo(() => response.nodes.filter((node) => !hiddenNodeIds.has(node.id)), [hiddenNodeIds, response.nodes]);
+  const visibleEdges = useMemo(() => response.edges.filter((edge) => !hiddenNodeIds.has(edge.from) && !hiddenNodeIds.has(edge.to)), [hiddenNodeIds, response.edges]);
+  const layout = useMemo(() => layoutResourceMap(visibleNodes, response.targetId), [response.targetId, visibleNodes]);
   const byId = useMemo(() => new Map(layout.nodes.map((node) => [node.id, node])), [layout.nodes]);
   const evidenceRows = useMemo(() => summarizeResourceMapEvidence(response.edges), [response.edges]);
   const markerId = `resource-map-arrow-${useId().replace(/:/g, "")}`;
+  useEffect(() => setShowHistoricalReplicaSets(false), [response.targetId]);
   return (
     <Box role="region" aria-label="Resource relationship map" sx={{ overflowX: "auto", border: 1, borderColor: "divider", borderRadius: 1 }}>
+      {historicalReplicaSetIds.length ? (
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "center", px: 1, py: 0.75, borderBottom: 1, borderColor: "divider", bgcolor: "action.hover" }}>
+          <Typography variant="caption" color="text.secondary">
+            {historicalReplicaSetIds.length} zero-replica historical ReplicaSets {showHistoricalReplicaSets ? "shown" : "hidden"}
+          </Typography>
+          <Button size="small" onClick={() => setShowHistoricalReplicaSets((shown) => !shown)} aria-expanded={showHistoricalReplicaSets}>
+            {showHistoricalReplicaSets ? "Hide history" : "Show history"}
+          </Button>
+        </Stack>
+      ) : null}
       <Box sx={{ position: "relative", width: layout.width, height: layout.height }}>
       <svg aria-hidden="true" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`}>
         <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" /></marker></defs>
-        {response.edges.map((edge) => {
+        {visibleEdges.map((edge) => {
           const from = byId.get(edge.from); const to = byId.get(edge.to);
           if (!from || !to) return null;
           return <g key={edge.id}><line x1={from.x + NODE_WIDTH / 2} y1={from.y + NODE_HEIGHT / 2} x2={to.x + NODE_WIDTH / 2} y2={to.y + NODE_HEIGHT / 2} stroke={edge.resolved ? "#718096" : "#a0aec0"} strokeDasharray={edge.confidence === "high" ? "5 4" : undefined} markerEnd={`url(#${markerId})`} /><text x={(from.x + to.x + NODE_WIDTH) / 2} y={(from.y + to.y + NODE_HEIGHT) / 2 - 5} textAnchor="middle" fontSize="10" fill="currentColor">{edge.type}</text></g>;
         })}
       </svg>
         {layout.nodes.map((node) => {
-          const label = `${node.identity.kind}: ${node.identity.name}`;
+          const label = node.replicaSet
+            ? `${node.identity.kind}: ${node.identity.name}, revision ${node.replicaSet.revision}, desired ${node.replicaSet.desired}, ready ${node.replicaSet.ready}`
+            : `${node.identity.kind}: ${node.identity.name}`;
           const open = () => node.uiNavigable && onOpenResource(node.identity);
           return (
             <ButtonBase key={node.id} aria-label={label} disabled={!node.uiNavigable} data-direction={node.direction} data-depth={node.depth} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }} sx={{ position: "absolute", left: node.x, top: node.y, width: NODE_WIDTH, height: NODE_HEIGHT, display: "block", textAlign: "left", px: 1.25, border: 1, borderColor: node.current ? "primary.main" : "text.primary", borderStyle: node.availability === "present" ? "solid" : "dashed", borderRadius: 1, bgcolor: node.current ? "action.selected" : "background.paper", opacity: node.availability === "present" ? 1 : 0.7, "&.Mui-focusVisible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 } }}>
-              <Box component="span" sx={{ display: "block", typography: "caption", fontWeight: 700 }}>{node.identity.kind}{node.direction === "both" ? " · parent + child" : ""}</Box>
+              <Box component="span" sx={{ display: "block", typography: "caption", fontWeight: 700 }}>{node.identity.kind}{node.replicaSet ? ` · rev ${node.replicaSet.revision}` : ""}{node.direction === "both" ? " · parent + child" : ""}</Box>
               <Box component="span" sx={{ display: "block", typography: "caption", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.identity.namespace ? `${node.identity.namespace}/` : ""}{node.identity.name} · {node.availability}</Box>
             </ButtonBase>
           );
@@ -205,8 +264,10 @@ export default function ResourceMapPanel({ identity, token, onOpenResource }: { 
   const partial = response.coverage.coverage !== "full" || response.coverage.completeness !== "complete";
   return <Stack spacing={1.25} sx={{ overflow: "auto", py: 1 }}>
     <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
-      <Chip size="small" label={`${response.coverage.coverage} coverage`} color={partial ? "warning" : "success"} />
-      <Chip size="small" label={`${response.cache.freshness} cache`} variant="outlined" />
+      {!partial ? <>
+        <Chip size="small" label={`${response.coverage.coverage} coverage`} color="success" />
+        <Chip size="small" label={`${response.cache.freshness} cache`} variant="outlined" />
+      </> : null}
       <Typography variant="caption" color="text.secondary">{response.cache.returnedNodes}/{response.cache.totalNodes} nodes · {response.cache.returnedEdges}/{response.cache.totalEdges} edges</Typography>
     </Stack>
     {partial ? <Alert severity="warning">Relationship coverage is partial. Some resources or relationship families may be absent.</Alert> : null}
