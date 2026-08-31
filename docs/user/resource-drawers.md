@@ -10,6 +10,10 @@ objects, events, metadata, YAML, and supported actions.
 
 ## Main Controls
 
+- **Expand drawer to full screen**: uses the full available application workspace
+  below the persistent header for dense details or logs. Select **Restore drawer
+  size** to return to the previous width. Closing the drawer also leaves
+  full-screen mode, so the next drawer opens normally.
 - **Overview tab**: starts with actions and attention-worthy state, then shows
   key operational details.
 - **Notes tab**: stores local operator notes and shows any saved investigation
@@ -60,7 +64,8 @@ headers show tag controls for the current resource. Namespace-scoped resources
 can also show inherited namespace tags when **Inherit namespace tags** is on.
 
 Drawer width is persisted locally from direct resize interaction and reused for
-later drawers. It is not edited from the Settings form.
+later drawers. Full-screen mode does not replace that saved width. Drawer width
+is not edited from the Settings form.
 
 ## Common Workflows
 

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Box, Typography, Divider, Tab, Tabs, CircularProgress } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import FullscreenOutlinedIcon from "@mui/icons-material/FullscreenOutlined";
+import FullscreenExitOutlinedIcon from "@mui/icons-material/FullscreenExitOutlined";
 import {
   RESOURCE_DRAWER_WIDTH,
   RESOURCE_DRAWER_MIN_WIDTH,
@@ -35,6 +37,7 @@ import type { ApiResourceIdentity } from "../../types/api";
 import ResourceMapPanel from "./ResourceMapPanel";
 import ResourceIdentityDrawer from "./ResourceIdentityDrawer";
 import { resolveResourceDrawerIdentity, resourceIdentityKey } from "./resourceMapIdentity";
+import { useRightDrawerLayout } from "../layout/RightDrawer";
 
 export type ResourceDrawerIdentity = {
   resource: ListResourceKey;
@@ -109,6 +112,8 @@ export default function ResourceDrawerShell({
   const { settings, setSettings } = useUserSettings();
   const { requestKeyboardFocus } = useKeyboardControls();
   const contextualSurfaceActive = useContextualKeyboardSurfaceActive();
+  const drawerLayout = useRightDrawerLayout();
+  const drawerExpanded = Boolean(drawerLayout?.expanded);
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
   const [auxiliaryTab, setAuxiliaryTab] = useState<"resource-map" | "notes" | null>(null);
@@ -363,7 +368,8 @@ export default function ResourceDrawerShell({
       tabIndex={-1}
       sx={{
         outline: "none",
-        width: drawerWidth,
+        width: drawerExpanded ? "100%" : drawerWidth,
+        boxSizing: drawerExpanded ? "border-box" : undefined,
         p: RESOURCE_DRAWER_PADDING,
         display: "flex",
         flexDirection: "column",
@@ -413,6 +419,7 @@ export default function ResourceDrawerShell({
           height: "100%",
           cursor: "ew-resize",
           zIndex: 1,
+          display: drawerExpanded ? "none" : "block",
         }}
       />
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
@@ -461,6 +468,16 @@ export default function ResourceDrawerShell({
               </>
             ) : null}
           </Box>
+        ) : null}
+        {drawerLayout ? (
+          <AppIconButton
+            tooltip={drawerExpanded ? "Restore drawer size" : "Expand drawer to full screen"}
+            label={drawerExpanded ? "Restore drawer size" : "Expand drawer to full screen"}
+            onClick={drawerLayout.toggleExpanded}
+            sx={{ flexShrink: 0, mt: 0.25 }}
+          >
+            {drawerExpanded ? <FullscreenExitOutlinedIcon fontSize="small" /> : <FullscreenOutlinedIcon fontSize="small" />}
+          </AppIconButton>
         ) : null}
         <AppIconButton tooltip="Close drawer" label="Close drawer" onClick={onClose} sx={{ flexShrink: 0, mt: 0.25 }}>
           <CloseIcon fontSize="small" />

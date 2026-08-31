@@ -109,6 +109,44 @@ describe("RightDrawer", () => {
     await waitFor(() => expect(closed).toEqual(["drawer"]));
   });
 
+  it("expands, restores, and resets a resource drawer when it closes", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open drawer</button>
+          <RightDrawer open={open} onClose={() => setOpen(false)}>
+            <ResourceDrawerShell title="Pod: api" resourceIcon="pods" onClose={() => setOpen(false)}>
+              <div>Pod details</div>
+            </ResourceDrawerShell>
+          </RightDrawer>
+        </>
+      );
+    }
+
+    render(<KeyboardHarness><Harness /></KeyboardHarness>);
+    const drawerPaper = () => document.querySelector<HTMLElement>(".MuiDrawer-paper");
+    expect(drawerPaper()?.classList.contains("kview-right-drawer-expanded")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand drawer to full screen" }));
+    await waitFor(() => expect(drawerPaper()?.classList.contains("kview-right-drawer-expanded")).toBe(true));
+    const expandedStyle = window.getComputedStyle(drawerPaper()!);
+    expect(expandedStyle.marginTop).toBe("64px");
+    expect(expandedStyle.height).toContain("100% - 64px");
+    expect(screen.getByRole("button", { name: "Restore drawer size" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore drawer size" }));
+    await waitFor(() => expect(drawerPaper()?.classList.contains("kview-right-drawer-expanded")).toBe(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand drawer to full screen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+    await waitFor(() => expect(drawerPaper()).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Open drawer" }));
+    await waitFor(() => expect(drawerPaper()?.classList.contains("kview-right-drawer-expanded")).toBe(false));
+    expect(screen.getByRole("button", { name: "Expand drawer to full screen" })).toBeTruthy();
+  });
+
   it("opens keyboard help while a resource drawer has focus", async () => {
     render(
       <KeyboardHarness>

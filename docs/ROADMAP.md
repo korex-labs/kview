@@ -70,12 +70,19 @@ packaging or maintenance improvement separately. The current sequence is:
    context-local, reversible **Snooze** and **Ignore until changed** decisions
    have visible exact suppressed counts and remain separate from inherited
    exclusion policy and operator profiles.
-3. **Resource Map — implemented, awaiting local validation**: the standard
+3. **Resource Map — implemented, verified, and locally accepted**: the standard
    cache-derived parent/child graph tab is available in real Kubernetes resource
    drawers, with bounded lazy navigation and explicit coverage/confidence.
-4. **Dataplane Explanation — next**: explain freshness and coverage from existing
-   scheduler/dataplane metadata without exploratory live reads.
-5. Continue with the Search Query Mini-Language, Runbook integration,
+4. **Full-screen resource drawers — implemented, verified, and locally accepted**:
+   resource drawers can expand across the available workspace below the app
+   header for dense details and logs, then restore the previous persisted width
+   without changing it.
+5. **Release preparation — next after local validation**: run the release audit,
+   finalize notes and What's New, then prepare the user-controlled tag/publish
+   sequence.
+6. **Dataplane Explanation — post-release**: explain freshness and coverage from
+   existing scheduler/dataplane metadata without exploratory live reads.
+7. Continue with the Search Query Mini-Language, Runbook integration,
    Investigation Workspaces, and Exportable Incident Reports in that order,
    adjusting only when real operator feedback changes the priority.
 

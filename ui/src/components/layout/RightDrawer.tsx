@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Drawer, type DrawerProps } from "@mui/material";
 import { ContextualKeyboardSurface, useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
 
@@ -12,10 +12,22 @@ type RightDrawerStackEntry = {
 let nextRightDrawerId = 1;
 const rightDrawerStack: RightDrawerStackEntry[] = [];
 
+type RightDrawerLayout = {
+  expanded: boolean;
+  toggleExpanded: () => void;
+};
+
+const RightDrawerLayoutContext = createContext<RightDrawerLayout | null>(null);
+
+export function useRightDrawerLayout(): RightDrawerLayout | null {
+  return useContext(RightDrawerLayoutContext);
+}
+
 export default function RightDrawer(props: Props) {
   const { ModalProps, slotProps, onClose, children, ...rest } = props;
   const [drawerDepth, setDrawerDepth] = useState(0);
   const [keyboardScopeId, setKeyboardScopeId] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const onCloseRef = useRef(props.onClose);
   const hasOnClose = !!props.onClose;
 
@@ -38,6 +50,16 @@ export default function RightDrawer(props: Props) {
       setKeyboardScopeId("");
     };
   }, [hasOnClose, props.open]);
+
+  useEffect(() => {
+    if (!props.open) setExpanded(false);
+  }, [props.open]);
+
+  const drawerExpanded = Boolean(props.open && expanded);
+  const layout = useMemo<RightDrawerLayout>(() => ({
+    expanded: drawerExpanded,
+    toggleExpanded: () => setExpanded((value) => !value),
+  }), [drawerExpanded]);
 
   const keyboardScope: KeyboardFocusScope | null = useMemo(() => (
     props.open && hasOnClose && keyboardScopeId
@@ -76,6 +98,10 @@ export default function RightDrawer(props: Props) {
         ...slotProps,
         paper: {
           ...slotProps?.paper,
+          className: [
+            typeof slotProps?.paper === "object" ? slotProps.paper.className : undefined,
+            drawerExpanded ? "kview-right-drawer-expanded" : undefined,
+          ].filter(Boolean).join(" "),
           sx: {
           // AppBar is 64px (mt: 8), keep drawer below it.
           // Subtract dynamic bottom panel offset; when panel is collapsed this is small,
@@ -85,13 +111,20 @@ export default function RightDrawer(props: Props) {
             borderTopLeftRadius: 8,
             borderBottomLeftRadius: 8,
             ...(typeof slotProps?.paper === "object" && "sx" in slotProps.paper ? slotProps.paper.sx : {}),
+            ...(drawerExpanded ? {
+              width: "100vw",
+              maxWidth: "none",
+              borderRadius: 0,
+            } : {}),
           },
         },
       }}
     >
-      <ContextualKeyboardSurface active={Boolean(props.open)}>
-        {children}
-      </ContextualKeyboardSurface>
+      <RightDrawerLayoutContext.Provider value={layout}>
+        <ContextualKeyboardSurface active={Boolean(props.open)}>
+          {children}
+        </ContextualKeyboardSurface>
+      </RightDrawerLayoutContext.Provider>
     </Drawer>
   );
 }
