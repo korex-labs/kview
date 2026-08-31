@@ -5,6 +5,7 @@ type ResourceQuotaListDTO struct {
 }
 
 type ResourceQuotaDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name        string                  `json:"name"`
 	Namespace   string                  `json:"namespace"`
 	Labels      map[string]string       `json:"-"`
@@ -31,6 +32,7 @@ type LimitRangeListDTO struct {
 }
 
 type LimitRangeDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name      string              `json:"name"`
 	Namespace string              `json:"namespace"`
 	AgeSec    int64               `json:"ageSec"`

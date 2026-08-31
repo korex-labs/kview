@@ -9,10 +9,17 @@ import (
 // Snapshot is the shared raw snapshot container across dataplane-owned resources.
 // It keeps items, truthful metadata, and an optional normalized error.
 type Snapshot[I any] struct {
-	Items       []I
-	Meta        SnapshotMetadata
-	Err         *NormalizedError
-	Aggregation *dto.CustomResourceAggregationMeta `json:"aggregation,omitempty"`
+	Items                []I
+	Meta                 SnapshotMetadata
+	Err                  *NormalizedError
+	Aggregation          *dto.CustomResourceAggregationMeta        `json:"aggregation,omitempty"`
+	Relationships        []dto.ResourceRelationshipRecord          `json:"relationships,omitempty"`
+	RelationshipMetadata *dto.ResourceRelationshipSnapshotMetadata `json:"relationshipMetadata,omitempty"`
+	// RelationshipSourceItems persists the authoritative number of list items
+	// that carried Kubernetes relationship identity before display-only merges.
+	// It is set only for CustomResource snapshots, whose Helm projections are
+	// intentionally carrierless and whose hidden carriers do not survive JSON.
+	RelationshipSourceItems *int `json:"relationshipSourceItems,omitempty"`
 }
 
 func (s Snapshot[I]) ObservedAt() time.Time { return s.Meta.ObservedAt }

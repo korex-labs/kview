@@ -14,6 +14,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 const (
@@ -86,25 +87,30 @@ func summarizeHPA(hpa autoscalingv2.HorizontalPodAutoscaler, now time.Time) dto.
 	if hpa.Status.LastScaleTime != nil {
 		lastScaleTime = hpa.Status.LastScaleTime.Unix()
 	}
+	carrier := relationships.WithObjectReferences(
+		relationships.Capture(&hpa, relationships.HorizontalPodAutoscalerDescriptor),
+		relationships.HPAScaleTargetReference(hpa.Namespace, hpa.Spec.ScaleTargetRef),
+	)
 	out := dto.HorizontalPodAutoscalerDTO{
-		Name:             hpa.Name,
-		Namespace:        hpa.Namespace,
-		Labels:           hpa.Labels,
-		Annotations:      hpa.Annotations,
-		ScaleTargetRef:   scaleTargetRef(hpa.Spec.ScaleTargetRef),
-		MinReplicas:      minReplicas(hpa.Spec.MinReplicas),
-		MaxReplicas:      hpa.Spec.MaxReplicas,
-		CurrentReplicas:  hpa.Status.CurrentReplicas,
-		DesiredReplicas:  hpa.Status.DesiredReplicas,
-		CurrentGauge:     hpaGauge(hpa.Status.CurrentReplicas, hpa.Spec.MaxReplicas),
-		DesiredGauge:     hpaGauge(hpa.Status.DesiredReplicas, hpa.Spec.MaxReplicas),
-		CurrentMetrics:   hpaMetrics(hpa.Status.CurrentMetrics, hpa.Spec.Metrics),
-		Conditions:       hpaConditions(hpa.Status.Conditions),
-		AgeSec:           age,
-		LastScaleTime:    lastScaleTime,
-		HealthBucket:     "healthy",
-		NeedsAttention:   false,
-		AttentionReasons: nil,
+		ResourceRelationshipCarrier: carrier,
+		Name:                        hpa.Name,
+		Namespace:                   hpa.Namespace,
+		Labels:                      hpa.Labels,
+		Annotations:                 hpa.Annotations,
+		ScaleTargetRef:              scaleTargetRef(hpa.Spec.ScaleTargetRef),
+		MinReplicas:                 minReplicas(hpa.Spec.MinReplicas),
+		MaxReplicas:                 hpa.Spec.MaxReplicas,
+		CurrentReplicas:             hpa.Status.CurrentReplicas,
+		DesiredReplicas:             hpa.Status.DesiredReplicas,
+		CurrentGauge:                hpaGauge(hpa.Status.CurrentReplicas, hpa.Spec.MaxReplicas),
+		DesiredGauge:                hpaGauge(hpa.Status.DesiredReplicas, hpa.Spec.MaxReplicas),
+		CurrentMetrics:              hpaMetrics(hpa.Status.CurrentMetrics, hpa.Spec.Metrics),
+		Conditions:                  hpaConditions(hpa.Status.Conditions),
+		AgeSec:                      age,
+		LastScaleTime:               lastScaleTime,
+		HealthBucket:                "healthy",
+		NeedsAttention:              false,
+		AttentionReasons:            nil,
 	}
 	out.AttentionReasons = hpaAttentionReasons(out)
 	if len(out.AttentionReasons) > 0 {

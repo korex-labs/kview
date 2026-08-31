@@ -11,6 +11,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListIngresses(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.IngressListItemDTO, error) {
@@ -24,35 +25,39 @@ func ListIngresses(ctx context.Context, c *cluster.Clients, namespace string) ([
 	now := time.Now()
 	out := make([]dto.IngressListItemDTO, 0, len(ings.Items))
 	for _, ing := range ings.Items {
-		age := int64(0)
-		if !ing.CreationTimestamp.IsZero() {
-			age = int64(now.Sub(ing.CreationTimestamp.Time).Seconds())
-		}
-
-		className := ingressClassName(ing.Spec.IngressClassName, ing.Annotations)
-		if className == "" {
-			className = defaultClass
-		}
-
-		hosts := collectIngressHosts(&ing)
-		addresses := mapIngressLoadBalancerIngress(ing.Status.LoadBalancer.Ingress)
-
-		out = append(out, dto.IngressListItemDTO{
-			Name:             ing.Name,
-			Namespace:        ing.Namespace,
-			Labels:           ing.Labels,
-			Annotations:      ing.Annotations,
-			IngressClassName: className,
-			Hosts:            hosts,
-			Backends:         collectIngressBackendReferences(ing.Spec),
-			BackendsObserved: true,
-			TLSCount:         int32(len(ing.Spec.TLS)),
-			Addresses:        addresses,
-			AgeSec:           age,
-		})
+		out = append(out, mapIngressListItem(ing, defaultClass, now))
 	}
 
 	return out, nil
+}
+
+func mapIngressListItem(ing networkingv1.Ingress, defaultClass string, now time.Time) dto.IngressListItemDTO {
+	age := int64(0)
+	if !ing.CreationTimestamp.IsZero() {
+		age = int64(now.Sub(ing.CreationTimestamp.Time).Seconds())
+	}
+	className := ingressClassName(ing.Spec.IngressClassName, ing.Annotations)
+	if className == "" {
+		className = defaultClass
+	}
+	carrier := relationships.WithObjectReferences(
+		relationships.Capture(&ing, relationships.IngressDescriptor),
+		relationships.IngressReferences(ing.Namespace, ing.Spec),
+	)
+	return dto.IngressListItemDTO{
+		ResourceRelationshipCarrier: carrier,
+		Name:                        ing.Name,
+		Namespace:                   ing.Namespace,
+		Labels:                      ing.Labels,
+		Annotations:                 ing.Annotations,
+		IngressClassName:            className,
+		Hosts:                       collectIngressHosts(&ing),
+		Backends:                    collectIngressBackendReferences(ing.Spec),
+		BackendsObserved:            true,
+		TLSCount:                    int32(len(ing.Spec.TLS)),
+		Addresses:                   mapIngressLoadBalancerIngress(ing.Status.LoadBalancer.Ingress),
+		AgeSec:                      age,
+	}
 }
 
 func collectIngressBackendReferences(spec networkingv1.IngressSpec) []dto.IngressBackendReferenceDTO {

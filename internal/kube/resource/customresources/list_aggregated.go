@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 const (
@@ -119,24 +120,45 @@ func listOneKind(ctx context.Context, dynClient dynamic.Interface, crd dto.CRDLi
 
 	now := time.Now()
 	items := make([]dto.CustomResourceInstanceDTO, 0, len(raw.Items))
+	scope := customResourceScope(crd)
 	for _, item := range raw.Items {
-		age := int64(0)
-		ts := item.GetCreationTimestamp()
-		if !ts.IsZero() {
-			age = int64(now.Sub(ts.Time).Seconds())
-		}
-		severity, statusSummary := crSignal(item.Object)
-		items = append(items, dto.CustomResourceInstanceDTO{
-			Name:           item.GetName(),
-			Namespace:      item.GetNamespace(),
-			Kind:           crd.Kind,
-			Group:          crd.Group,
-			Version:        crd.StorageVersion,
-			Resource:       crd.Plural,
-			AgeSec:         age,
-			SignalSeverity: severity,
-			StatusSummary:  statusSummary,
-		})
+		items = append(items, mapCustomResourceInstance(item, crd, scope, now))
 	}
 	return kindResult{items: items}
+}
+
+func customResourceScope(crd dto.CRDListItemDTO) dto.ResourceScope {
+	if crd.Scope == "Namespaced" {
+		return dto.ResourceScopeNamespaced
+	}
+	return dto.ResourceScopeCluster
+}
+
+func mapCustomResourceInstance(item unstructured.Unstructured, crd dto.CRDListItemDTO, scope dto.ResourceScope, now time.Time) dto.CustomResourceInstanceDTO {
+	age := int64(0)
+	ts := item.GetCreationTimestamp()
+	if !ts.IsZero() {
+		age = int64(now.Sub(ts.Time).Seconds())
+	}
+	severity, statusSummary := crSignal(item.Object)
+
+	descriptor := relationships.IdentityDescriptor{
+		Group: crd.Group, Version: crd.StorageVersion, Resource: crd.Plural, Kind: crd.Kind, Scope: scope,
+	}
+	carrier := relationships.WithKindDefinitions(
+		relationships.Capture(&item, descriptor),
+		relationships.CustomResourceKindDefinition(crd.Name),
+	)
+	return dto.CustomResourceInstanceDTO{
+		ResourceRelationshipCarrier: carrier,
+		Name:                        item.GetName(),
+		Namespace:                   item.GetNamespace(),
+		Kind:                        crd.Kind,
+		Group:                       crd.Group,
+		Version:                     crd.StorageVersion,
+		Resource:                    crd.Plural,
+		AgeSec:                      age,
+		SignalSeverity:              severity,
+		StatusSummary:               statusSummary,
+	}
 }

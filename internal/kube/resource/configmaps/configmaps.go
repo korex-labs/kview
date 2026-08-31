@@ -8,6 +8,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListConfigMaps(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ConfigMapDTO, error) {
@@ -31,13 +32,14 @@ func ListConfigMaps(ctx context.Context, c *cluster.Clients, namespace string) (
 		}
 
 		out = append(out, dto.ConfigMapDTO{
-			Name:        cm.Name,
-			Namespace:   cm.Namespace,
-			Labels:      cm.Labels,
-			Annotations: cm.Annotations,
-			KeysCount:   keysCount,
-			Immutable:   immutable,
-			AgeSec:      age,
+			ResourceRelationshipCarrier: relationships.Capture(&cm, relationships.ConfigMapDescriptor),
+			Name:                        cm.Name,
+			Namespace:                   cm.Namespace,
+			Labels:                      cm.Labels,
+			Annotations:                 cm.Annotations,
+			KeysCount:                   keysCount,
+			Immutable:                   immutable,
+			AgeSec:                      age,
 		})
 	}
 

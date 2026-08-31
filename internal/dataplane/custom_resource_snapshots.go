@@ -132,6 +132,8 @@ func (p *clusterPlane) ClusterCustomResourcesSnapshot(ctx context.Context, sched
 			items = []dto.CustomResourceInstanceDTO{}
 		}
 		out.Items = items
+		out.Relationships, out.RelationshipMetadata = finalizeCustomResourceRelationshipSnapshot(items, []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyKindDefinition}, agg)
+		out.RelationshipSourceItems = relationshipSourceItemCountPtr(items)
 		out.Aggregation = &agg
 		out.Meta = p.customResourceSnapshotMeta(now, agg)
 		if p.stats != nil {
@@ -261,6 +263,10 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 		if items == nil {
 			items = []dto.CustomResourceInstanceDTO{}
 		}
+		// Relationship proof covers only dynamic Kubernetes list results. Helm
+		// manifest projections are carrierless display rows, not source items.
+		out.Relationships, out.RelationshipMetadata = finalizeCustomResourceRelationshipSnapshot(items, []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyKindDefinition}, agg)
+		out.RelationshipSourceItems = relationshipSourceItemCountPtr(items)
 		if manifestItems, manifestErr := helmres.ListManifestCustomResources(runCtx, c, namespace, crdSnap.Items); manifestErr == nil {
 			items = mergeCustomResourceItems(items, manifestItems)
 		}
@@ -305,6 +311,82 @@ func mergeCustomResourceItems(live, manifest []dto.CustomResourceInstanceDTO) []
 		out = append(out, item)
 	}
 	return out
+}
+
+func finalizeCustomResourceRelationships(items []dto.CustomResourceInstanceDTO) []dto.ResourceRelationshipRecord {
+	records := dto.ExtractResourceRelationships(items)
+	withIdentity := records[:0]
+	for _, record := range records {
+		// Helm manifest projections intentionally have no hidden relationship
+		// carrier. Their visible list identity is not authoritative enough to
+		// fabricate one here.
+		if record.Resource.Name == "" {
+			continue
+		}
+		withIdentity = append(withIdentity, record)
+	}
+	return dto.NormalizeResourceRelationshipRecords(withIdentity)
+}
+
+func customResourceRelationshipSourceItemCount(items []dto.CustomResourceInstanceDTO) int {
+	count := 0
+	for i := range items {
+		identity := items[i].ResourceRelationshipMetadata().Resource
+		if identity.Validate() == nil && customResourceCarrierMatchesItem(identity, items[i]) {
+			count++
+		}
+	}
+	return count
+}
+
+func relationshipSourceItemCountPtr(items []dto.CustomResourceInstanceDTO) *int {
+	count := customResourceRelationshipSourceItemCount(items)
+	return &count
+}
+
+func customResourceCarrierMatchesItem(identity dto.ResourceIdentityDTO, item dto.CustomResourceInstanceDTO) bool {
+	scope := dto.ResourceScopeCluster
+	if item.Namespace != "" {
+		scope = dto.ResourceScopeNamespaced
+	}
+	return identity.Group == item.Group && identity.Version == item.Version && identity.Resource == item.Resource &&
+		identity.Kind == item.Kind && identity.Scope == scope && identity.Namespace == item.Namespace && identity.Name == item.Name
+}
+
+func finalizeCustomResourceRelationshipSnapshot(
+	items []dto.CustomResourceInstanceDTO,
+	extraFamilies []dto.ResourceRelationshipFamily,
+	aggregation dto.CustomResourceAggregationMeta,
+) ([]dto.ResourceRelationshipRecord, *dto.ResourceRelationshipSnapshotMetadata) {
+	records, metadata := normalizeSnapshotRelationships(items, finalizeCustomResourceRelationships, extraFamilies)
+	metadata.SourceItems = customResourceRelationshipSourceItemCount(items)
+	if aggregation.DeniedKinds == 0 && aggregation.ErrorKinds == 0 && aggregation.AccessibleKinds >= aggregation.TotalKinds {
+		return records, metadata
+	}
+	for family, coverage := range metadata.FamilyCoverage {
+		coverage.Coverage = partialRelationshipCoverage(coverage.Coverage)
+		coverage.Completeness = partialRelationshipCompleteness(coverage.Completeness)
+		metadata.FamilyCoverage[family] = coverage
+	}
+	for i := range records {
+		records[i].Coverage.Coverage = partialRelationshipCoverage(records[i].Coverage.Coverage)
+		records[i].Coverage.Completeness = partialRelationshipCompleteness(records[i].Coverage.Completeness)
+	}
+	return records, metadata
+}
+
+func partialRelationshipCoverage(coverage dto.ResourceRelationshipCoverage) dto.ResourceRelationshipCoverage {
+	if coverage == dto.ResourceRelationshipCoverageFull {
+		return dto.ResourceRelationshipCoveragePartial
+	}
+	return coverage
+}
+
+func partialRelationshipCompleteness(completeness dto.ResourceRelationshipCompleteness) dto.ResourceRelationshipCompleteness {
+	if completeness == dto.ResourceRelationshipCompletenessComplete {
+		return dto.ResourceRelationshipCompletenessPartial
+	}
+	return completeness
 }
 
 func customResourceItemKey(item dto.CustomResourceInstanceDTO) string {

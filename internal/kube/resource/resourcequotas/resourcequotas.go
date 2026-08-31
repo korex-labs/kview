@@ -11,6 +11,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 // quotaKeySortOrder defines the priority order for common quota keys.
@@ -146,11 +147,12 @@ func mapResourceQuota(rq corev1.ResourceQuota, now time.Time) dto.ResourceQuotaD
 	})
 
 	return dto.ResourceQuotaDTO{
-		Name:        rq.Name,
-		Namespace:   rq.Namespace,
-		Labels:      rq.Labels,
-		Annotations: rq.Annotations,
-		AgeSec:      age,
-		Entries:     entries,
+		ResourceRelationshipCarrier: relationships.Capture(&rq, relationships.ResourceQuotaDescriptor),
+		Name:                        rq.Name,
+		Namespace:                   rq.Namespace,
+		Labels:                      rq.Labels,
+		Annotations:                 rq.Annotations,
+		AgeSec:                      age,
+		Entries:                     entries,
 	}
 }

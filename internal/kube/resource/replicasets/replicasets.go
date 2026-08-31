@@ -9,6 +9,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	deployments "github.com/korex-labs/kview/v5/internal/kube/resource/deployments"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ReplicaSetDTO, error) {
@@ -29,15 +30,18 @@ func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) 
 		if !rs.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(rs.CreationTimestamp.Time).Seconds())
 		}
+		carrier := relationships.Capture(&rs, relationships.ReplicaSetDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(rs.Namespace, "spec.template.spec", rs.Spec.Template.Spec))
 
 		out = append(out, dto.ReplicaSetDTO{
-			Name:      rs.Name,
-			Namespace: rs.Namespace,
-			Revision:  deployments.ParseRevision(rs.Annotations["deployment.kubernetes.io/revision"]),
-			Desired:   desired,
-			Ready:     rs.Status.ReadyReplicas,
-			Owner:     mapReplicaSetOwner(rs.OwnerReferences),
-			AgeSec:    age,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        rs.Name,
+			Namespace:                   rs.Namespace,
+			Revision:                    deployments.ParseRevision(rs.Annotations["deployment.kubernetes.io/revision"]),
+			Desired:                     desired,
+			Ready:                       rs.Status.ReadyReplicas,
+			Owner:                       mapReplicaSetOwner(rs.OwnerReferences),
+			AgeSec:                      age,
 		})
 	}
 

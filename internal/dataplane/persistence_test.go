@@ -88,6 +88,52 @@ func TestBoltSnapshotPersistenceRoundTripAndIndexesNames(t *testing.T) {
 	}
 }
 
+func TestPersistenceSnapshotRelationshipSidecarRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.bbolt")
+	store, err := openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	snap := PodsSnapshot{
+		Items: []dto.PodListItemDTO{{Name: "api-0", Namespace: "apps"}},
+		Meta:  SnapshotMetadata{ObservedAt: time.Now().UTC()},
+		RelationshipMetadata: &dto.ResourceRelationshipSnapshotMetadata{
+			Version: dto.ResourceRelationshipSnapshotMetadataVersion,
+			FamilyCoverage: map[dto.ResourceRelationshipFamily]dto.ResourceRelationshipCoverageDTO{
+				dto.ResourceRelationshipFamilyOwner: {Coverage: dto.ResourceRelationshipCoverageFull, Completeness: dto.ResourceRelationshipCompletenessComplete},
+			},
+			SourceItems: 1, EvidenceRecords: 1,
+		},
+		Relationships: []dto.ResourceRelationshipRecord{{
+			Version: dto.ResourceRelationshipRecordVersion,
+			Resource: dto.ResourceIdentityDTO{
+				Version: "v1", Resource: "pods", Kind: "Pod", Scope: dto.ResourceScopeNamespaced, Namespace: "apps", Name: "api-0", UID: "pod-uid",
+			},
+			Coverage: dto.ResourceRelationshipCoverageDTO{Coverage: dto.ResourceRelationshipCoverageFull, Completeness: dto.ResourceRelationshipCompletenessComplete},
+		}},
+	}
+	if err := store.Save("ctx", ResourceKindPods, "apps", snap); err != nil {
+		t.Fatalf("save snapshot: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close persistence: %v", err)
+	}
+
+	store, err = openBoltSnapshotPersistence(path)
+	if err != nil {
+		t.Fatalf("reopen persistence: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	var got PodsSnapshot
+	ok, err := store.Load("ctx", ResourceKindPods, "apps", &got)
+	if err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	if !ok || !reflect.DeepEqual(got.Relationships, snap.Relationships) || !reflect.DeepEqual(got.RelationshipMetadata, snap.RelationshipMetadata) {
+		t.Fatalf("persisted relationship envelope ok=%v got=%+v/%+v want=%+v/%+v", ok, got.Relationships, got.RelationshipMetadata, snap.Relationships, snap.RelationshipMetadata)
+	}
+}
+
 func TestBoltSnapshotPersistenceMigrationFreshDB(t *testing.T) {
 	path := t.TempDir() + "/cache.bbolt"
 	store, err := openBoltSnapshotPersistence(path)
@@ -363,7 +409,7 @@ func TestBoltSnapshotPersistenceSignalAcknowledgementRoundTripAndPrune(t *testin
 	}
 }
 
-func TestExecuteNamespacedSnapshotUsesPersistedFallbackOnLiveFailure(t *testing.T) {
+func TestExecuteNamespacedSnapshotRelationshipPersistedFallbackOnLiveFailure(t *testing.T) {
 	store, err := openBoltSnapshotPersistence(t.TempDir() + "/cache.bbolt")
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
@@ -371,8 +417,20 @@ func TestExecuteNamespacedSnapshotUsesPersistedFallbackOnLiveFailure(t *testing.
 	defer func() { _ = store.Close() }()
 
 	observed := time.Now().UTC().Add(-time.Hour)
+	wantRelationships := []dto.ResourceRelationshipRecord{testSnapshotRelationshipItem("stale-pod").ResourceRelationshipMetadata()}
+	wantRelationships[0].Resource.Namespace = "app"
+	wantRelationships[0].References[0].Target.Namespace = "app"
+	wantMetadata := &dto.ResourceRelationshipSnapshotMetadata{
+		Version: dto.ResourceRelationshipSnapshotMetadataVersion,
+		FamilyCoverage: map[dto.ResourceRelationshipFamily]dto.ResourceRelationshipCoverageDTO{
+			dto.ResourceRelationshipFamilyOwner: {Coverage: dto.ResourceRelationshipCoverageFull, Completeness: dto.ResourceRelationshipCompletenessComplete},
+		},
+		SourceItems: 1, EvidenceRecords: 1,
+	}
 	persisted := PodsSnapshot{
-		Items: []dto.PodListItemDTO{{Name: "stale-pod", Namespace: "app"}},
+		Items:                []dto.PodListItemDTO{{Name: "stale-pod", Namespace: "app"}},
+		Relationships:        wantRelationships,
+		RelationshipMetadata: wantMetadata,
 		Meta: SnapshotMetadata{
 			ObservedAt:   observed,
 			Freshness:    FreshnessClassHot,
@@ -399,6 +457,15 @@ func TestExecuteNamespacedSnapshotUsesPersistedFallbackOnLiveFailure(t *testing.
 	}
 	if len(snap.Items) != 1 || snap.Items[0].Name != "stale-pod" {
 		t.Fatalf("fallback items = %+v", snap.Items)
+	}
+	if !reflect.DeepEqual(snap.Relationships, wantRelationships) {
+		t.Fatalf("persisted fallback relationships = %+v, want %+v", snap.Relationships, wantRelationships)
+	}
+	if !reflect.DeepEqual(snap.RelationshipMetadata, wantMetadata) {
+		t.Fatalf("persisted fallback metadata = %+v, want %+v", snap.RelationshipMetadata, wantMetadata)
+	}
+	if got := snap.Relationships[0].References[0]; got.Type != dto.ResourceRelationshipTypeSelector || got.Target.Name != "api" || got.Target.Namespace != "app" || got.Evidence.Selector["app"] != "api" {
+		t.Fatalf("persisted fallback relationship contents changed: %+v", got)
 	}
 	if snap.Meta.Freshness != FreshnessClassStale {
 		t.Fatalf("fallback freshness = %q", snap.Meta.Freshness)

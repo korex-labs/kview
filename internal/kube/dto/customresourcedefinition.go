@@ -2,6 +2,7 @@ package dto
 
 // CRDListItemDTO is the compact representation for the list table.
 type CRDListItemDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string `json:"name"`
 	Group              string `json:"group"`
 	Scope              string `json:"scope"`

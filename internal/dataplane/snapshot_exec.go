@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
 type clusterSnapshotDescriptor[I any] struct {
@@ -14,6 +15,12 @@ type clusterSnapshotDescriptor[I any] struct {
 	capResource string
 	capScope    CapabilityScope
 	fetch       func(context.Context, *cluster.Clients) ([]I, error)
+	// extractRelationships collects hidden item metadata after a successful
+	// fetch. It may return aliased, unsorted, duplicate records; snapshot
+	// execution owns the defensive copy and normalization boundary. Nil
+	// preserves legacy behavior.
+	extractRelationships      func([]I) []dto.ResourceRelationshipRecord
+	extraRelationshipFamilies []dto.ResourceRelationshipFamily
 	// skipPersistence opts out of bbolt save/hydrate for snapshot kinds that
 	// are high-churn and short-TTL (e.g. metrics.k8s.io). Leaving this false
 	// preserves the default persistence path for every existing kind.
@@ -27,6 +34,9 @@ type namespacedSnapshotDescriptor[I any] struct {
 	capResource string
 	capScope    CapabilityScope
 	fetch       func(context.Context, *cluster.Clients, string) ([]I, error)
+	// extractRelationships has the same raw-output contract as the cluster descriptor.
+	extractRelationships      func([]I) []dto.ResourceRelationshipRecord
+	extraRelationshipFamilies []dto.ResourceRelationshipFamily
 	// skipPersistence opts out of bbolt save/hydrate; see the cluster
 	// descriptor for rationale.
 	skipPersistence bool
@@ -151,6 +161,9 @@ func executeClusterSnapshot[I any](
 
 		out.Err = nil
 		out.Items = items
+		if desc.extractRelationships != nil {
+			out.Relationships, out.RelationshipMetadata = normalizeSnapshotRelationships(items, desc.extractRelationships, desc.extraRelationshipFamilies)
+		}
 		out.Meta = p.snapshotMetaHot(now)
 		p.capRegistry.LearnReadResult(p.name, desc.capGroup, desc.capResource, "", "list", desc.capScope, nil)
 		if p.stats != nil {
@@ -277,6 +290,9 @@ func executeNamespacedSnapshot[I any](
 
 		out.Err = nil
 		out.Items = items
+		if desc.extractRelationships != nil {
+			out.Relationships, out.RelationshipMetadata = normalizeSnapshotRelationships(items, desc.extractRelationships, desc.extraRelationshipFamilies)
+		}
 		out.Meta = p.snapshotMetaHot(now)
 		p.capRegistry.LearnReadResult(p.name, desc.capGroup, desc.capResource, namespace, "list", desc.capScope, nil)
 		if p.stats != nil {
@@ -311,4 +327,139 @@ func executeNamespacedSnapshot[I any](
 		}
 	}
 	return out, runErr
+}
+
+func normalizeSnapshotRelationships[I any](
+	items []I,
+	extract func([]I) []dto.ResourceRelationshipRecord,
+	extraFamilies []dto.ResourceRelationshipFamily,
+) ([]dto.ResourceRelationshipRecord, *dto.ResourceRelationshipSnapshotMetadata) {
+	records := dto.NormalizeResourceRelationshipRecords(extract(items))
+	full := dto.ResourceRelationshipCoverageDTO{
+		Coverage:     dto.ResourceRelationshipCoverageFull,
+		Completeness: dto.ResourceRelationshipCompletenessComplete,
+	}
+	metadata := &dto.ResourceRelationshipSnapshotMetadata{
+		Version: dto.ResourceRelationshipSnapshotMetadataVersion,
+		FamilyCoverage: map[dto.ResourceRelationshipFamily]dto.ResourceRelationshipCoverageDTO{
+			dto.ResourceRelationshipFamilyOwner: full,
+		},
+		SourceItems:     len(items),
+		EvidenceRecords: len(records),
+	}
+	declaredFamilies := map[dto.ResourceRelationshipFamily]struct{}{
+		dto.ResourceRelationshipFamilyOwner: {},
+	}
+	for _, family := range extraFamilies {
+		declaredFamilies[family] = struct{}{}
+		metadata.FamilyCoverage[family] = full
+	}
+	if len(items) == 0 {
+		return records, metadata
+	}
+	sourceIdentities := make(map[string]struct{}, len(items))
+	proofPossible := true
+	for i := range items {
+		provider, ok := any(items[i]).(dto.ResourceRelationshipMetadataProvider)
+		if !ok {
+			proofPossible = false
+			continue
+		}
+		identity := provider.ResourceRelationshipMetadata().Resource
+		if identity.Validate() != nil {
+			proofPossible = false
+			continue
+		}
+		key := identity.CanonicalIdentity()
+		if _, duplicate := sourceIdentities[key]; duplicate {
+			proofPossible = false
+		}
+		sourceIdentities[key] = struct{}{}
+	}
+	for family := range declaredFamilies {
+		worst := full
+		perResource := make(map[string]dto.ResourceRelationshipCoverageDTO, len(records))
+		for _, record := range records {
+			if record.Resource.Validate() != nil {
+				proofPossible = false
+				continue
+			}
+			key := record.Resource.CanonicalIdentity()
+			if _, authoritative := sourceIdentities[key]; !authoritative {
+				proofPossible = false
+				continue
+			}
+			coverage, ok := record.FamilyCoverage[family]
+			if !ok {
+				continue
+			}
+			if aggregate, exists := perResource[key]; exists {
+				coverage.Coverage = worseRelationshipCoverage(aggregate.Coverage, coverage.Coverage)
+				coverage.Completeness = worseRelationshipCompleteness(aggregate.Completeness, coverage.Completeness)
+			}
+			perResource[key] = coverage
+		}
+		fullyCovered := 0
+		fullyComplete := 0
+		for key := range sourceIdentities {
+			coverage, observed := perResource[key]
+			if !observed {
+				continue
+			}
+			worst.Coverage = worseRelationshipCoverage(worst.Coverage, coverage.Coverage)
+			worst.Completeness = worseRelationshipCompleteness(worst.Completeness, coverage.Completeness)
+			if coverage.Coverage == dto.ResourceRelationshipCoverageFull {
+				fullyCovered++
+			}
+			if coverage.Completeness == dto.ResourceRelationshipCompletenessComplete {
+				fullyComplete++
+			}
+		}
+		if !proofPossible || fullyCovered < len(items) {
+			worst.Coverage = worseRelationshipCoverage(worst.Coverage, dto.ResourceRelationshipCoveragePartial)
+		}
+		if !proofPossible || fullyComplete < len(items) {
+			worst.Completeness = worseRelationshipCompleteness(worst.Completeness, dto.ResourceRelationshipCompletenessPartial)
+		}
+		metadata.FamilyCoverage[family] = worst
+	}
+	return records, metadata
+}
+
+func worseRelationshipCoverage(left, right dto.ResourceRelationshipCoverage) dto.ResourceRelationshipCoverage {
+	rank := func(value dto.ResourceRelationshipCoverage) (dto.ResourceRelationshipCoverage, int) {
+		switch value {
+		case dto.ResourceRelationshipCoverageFull:
+			return value, 2
+		case dto.ResourceRelationshipCoveragePartial:
+			return value, 1
+		default:
+			return dto.ResourceRelationshipCoverageUnknown, 0
+		}
+	}
+	left, leftRank := rank(left)
+	right, rightRank := rank(right)
+	if rightRank < leftRank {
+		return right
+	}
+	return left
+}
+
+func worseRelationshipCompleteness(left, right dto.ResourceRelationshipCompleteness) dto.ResourceRelationshipCompleteness {
+	rank := func(value dto.ResourceRelationshipCompleteness) (dto.ResourceRelationshipCompleteness, int) {
+		switch value {
+		case dto.ResourceRelationshipCompletenessComplete:
+			return value, 2
+		case dto.ResourceRelationshipCompletenessPartial:
+			return value, 1
+		default:
+			return dto.ResourceRelationshipCompletenessUnknown, 0
+		}
+	}
+	left, leftRank := rank(left)
+	right, rightRank := rank(right)
+	if rightRank < leftRank {
+		return right
+	}
+	return left
 }

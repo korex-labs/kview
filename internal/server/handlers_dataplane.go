@@ -6,16 +6,29 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/korex-labs/kview/v5/internal/dataplane"
+	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	"github.com/korex-labs/kview/v5/internal/runtime"
 )
 
 const signalSuppressionTransferMaxBodyBytes int64 = 2 << 20
+
+func validResourceMapIdentityQuery(target dto.ResourceIdentityDTO) bool {
+	if target.Group != "" && len(validation.IsDNS1123Subdomain(target.Group)) != 0 {
+		return false
+	}
+	if len(validation.IsDNS1035Label(target.Version)) != 0 || len(validation.IsDNS1035Label(target.Resource)) != 0 || len(validation.IsCIdentifier(target.Kind)) != 0 || len(validation.IsDNS1123Subdomain(target.Name)) != 0 {
+		return false
+	}
+	return target.Namespace == "" || len(validation.IsDNS1123Label(target.Namespace)) == 0
+}
 
 func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 	api.Get("/activity", func(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +89,98 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
+	})
+
+	api.Get("/dataplane/resource-map", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		if r.ContentLength > 0 || len(r.TransferEncoding) > 0 {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+		if r.Body != nil && r.Body != http.NoBody {
+			var probe [1]byte
+			n, readErr := r.Body.Read(probe[:])
+			if n != 0 || !errors.Is(readErr, io.EOF) {
+				writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+				return
+			}
+		}
+
+		query, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+		allowed := map[string]bool{
+			"group": true, "version": true, "resource": true, "kind": true,
+			"scope": true, "namespace": true, "name": true, "uid": true, "depth": true,
+		}
+		for key, values := range query {
+			if !allowed[key] || len(values) != 1 {
+				writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+				return
+			}
+		}
+		value := func(key string) (string, bool) {
+			raw := query.Get(key)
+			return raw, raw == strings.TrimSpace(raw) && len(raw) <= 253
+		}
+		group, groupOK := value("group")
+		version, versionOK := value("version")
+		resource, resourceOK := value("resource")
+		kind, kindOK := value("kind")
+		namespace, namespaceOK := value("namespace")
+		name, nameOK := value("name")
+		uid, uidOK := value("uid")
+		if !groupOK || !versionOK || !resourceOK || !kindOK || !namespaceOK || !nameOK || !uidOK || len(uid) > 128 {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+		scope := query.Get("scope")
+		if scope != string(dto.ResourceScopeNamespaced) && scope != string(dto.ResourceScopeCluster) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+		_, namespaceProvided := query["namespace"]
+		if (scope == string(dto.ResourceScopeNamespaced) && (!namespaceProvided || namespace == "")) ||
+			(scope == string(dto.ResourceScopeCluster) && namespaceProvided) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+
+		depth := 0
+		if rawDepth, ok := query["depth"]; ok {
+			depth, err = strconv.Atoi(rawDepth[0])
+			if err != nil || depth < 0 || depth > dataplane.ResourceMapMaxDepth {
+				writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+				return
+			}
+		}
+		req := dataplane.ResourceMapRequest{
+			Target: dto.ResourceIdentityDTO{
+				Group: group, Version: version, Resource: resource,
+				Kind: kind, Scope: dto.ResourceScope(scope), Namespace: namespace,
+				Name: name, UID: uid,
+			},
+			Depth: depth,
+		}
+		if err := req.Target.Validate(); err != nil || !validResourceMapIdentityQuery(req.Target) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource map request")
+			return
+		}
+		response, err := s.dp.ResourceMap(s.readContextName(r), req)
+		if errors.Is(err, dataplane.ErrResourceMapPlaneUnavailable) {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "resource map unavailable")
+			return
+		}
+		if err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to project resource map")
+			return
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 
 	api.Get("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {

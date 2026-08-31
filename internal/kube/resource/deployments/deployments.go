@@ -11,6 +11,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	pods "github.com/korex-labs/kview/v5/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.DeploymentListItemDTO, error) {
@@ -38,19 +39,22 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 		}
 
 		status := DeploymentStatus(d, desired)
+		carrier := relationships.Capture(&d, relationships.DeploymentDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(d.Namespace, "spec.template.spec", d.Spec.Template.Spec))
 
 		out = append(out, dto.DeploymentListItemDTO{
-			Name:                d.Name,
-			Namespace:           d.Namespace,
-			Labels:              d.Labels,
-			Annotations:         d.Annotations,
-			Ready:               pods.FmtReady(int(d.Status.AvailableReplicas), int(desired)),
-			UpToDate:            d.Status.UpdatedReplicas,
-			Available:           d.Status.AvailableReplicas,
-			Strategy:            strategy,
-			AgeSec:              age,
-			LastRolloutComplete: deploymentLastRolloutComplete(d),
-			Status:              status,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        d.Name,
+			Namespace:                   d.Namespace,
+			Labels:                      d.Labels,
+			Annotations:                 d.Annotations,
+			Ready:                       pods.FmtReady(int(d.Status.AvailableReplicas), int(desired)),
+			UpToDate:                    d.Status.UpdatedReplicas,
+			Available:                   d.Status.AvailableReplicas,
+			Strategy:                    strategy,
+			AgeSec:                      age,
+			LastRolloutComplete:         deploymentLastRolloutComplete(d),
+			Status:                      status,
 		})
 	}
 	return out, nil

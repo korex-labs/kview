@@ -10,6 +10,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 	jobs "github.com/korex-labs/kview/v5/internal/kube/resource/jobs"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.CronJobDTO, error) {
@@ -38,20 +39,23 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		if cj.Spec.Suspend != nil {
 			suspend = *cj.Spec.Suspend
 		}
+		carrier := relationships.Capture(&cj, relationships.CronJobDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(cj.Namespace, "spec.jobTemplate.spec.template.spec", cj.Spec.JobTemplate.Spec.Template.Spec))
 
 		out = append(out, dto.CronJobDTO{
-			Name:               cj.Name,
-			Namespace:          cj.Namespace,
-			Labels:             cj.Labels,
-			Annotations:        cj.Annotations,
-			Schedule:           cj.Spec.Schedule,
-			ScheduleHint:       cronScheduleHint(cj.Spec.Schedule),
-			Suspend:            suspend,
-			Active:             int32(len(cj.Status.Active)),
-			LastScheduleTime:   jobs.TimeFrom(cj.Status.LastScheduleTime),
-			LastSuccessfulTime: jobs.TimeFrom(cj.Status.LastSuccessfulTime),
-			AgeSec:             age,
-			LastEvent:          lastEvent,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        cj.Name,
+			Namespace:                   cj.Namespace,
+			Labels:                      cj.Labels,
+			Annotations:                 cj.Annotations,
+			Schedule:                    cj.Spec.Schedule,
+			ScheduleHint:                cronScheduleHint(cj.Spec.Schedule),
+			Suspend:                     suspend,
+			Active:                      int32(len(cj.Status.Active)),
+			LastScheduleTime:            jobs.TimeFrom(cj.Status.LastScheduleTime),
+			LastSuccessfulTime:          jobs.TimeFrom(cj.Status.LastSuccessfulTime),
+			AgeSec:                      age,
+			LastEvent:                   lastEvent,
 		})
 	}
 

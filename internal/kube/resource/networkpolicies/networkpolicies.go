@@ -15,6 +15,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListNetworkPolicies(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.NetworkPolicyDTO, error) {
@@ -27,14 +28,15 @@ func ListNetworkPolicies(ctx context.Context, c *cluster.Clients, namespace stri
 	out := make([]dto.NetworkPolicyDTO, 0, len(items.Items))
 	for _, item := range items.Items {
 		out = append(out, dto.NetworkPolicyDTO{
-			Name:         item.Name,
-			Namespace:    item.Namespace,
-			PodSelector:  selectorString(item.Spec.PodSelector),
-			PolicyTypes:  policyTypes(item.Spec.PolicyTypes),
-			IngressRules: len(item.Spec.Ingress),
-			EgressRules:  len(item.Spec.Egress),
-			SelectedPods: selectedPodCount(item.Spec.PodSelector, pods),
-			AgeSec:       ageSeconds(now, item.CreationTimestamp),
+			ResourceRelationshipCarrier: relationships.Capture(&item, relationships.NetworkPolicyDescriptor),
+			Name:                        item.Name,
+			Namespace:                   item.Namespace,
+			PodSelector:                 selectorString(item.Spec.PodSelector),
+			PolicyTypes:                 policyTypes(item.Spec.PolicyTypes),
+			IngressRules:                len(item.Spec.Ingress),
+			EgressRules:                 len(item.Spec.Egress),
+			SelectedPods:                selectedPodCount(item.Spec.PodSelector, pods),
+			AgeSec:                      ageSeconds(now, item.CreationTimestamp),
 		})
 	}
 	return out, nil

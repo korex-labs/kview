@@ -8,6 +8,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListDaemonSets(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.DaemonSetDTO, error) {
@@ -35,18 +36,21 @@ func ListDaemonSets(ctx context.Context, c *cluster.Clients, namespace string) (
 		if strategy == "" {
 			strategy = "RollingUpdate"
 		}
+		carrier := relationships.Capture(&ds, relationships.DaemonSetDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(ds.Namespace, "spec.template.spec", ds.Spec.Template.Spec))
 
 		out = append(out, dto.DaemonSetDTO{
-			Name:           ds.Name,
-			Namespace:      ds.Namespace,
-			Desired:        ds.Status.DesiredNumberScheduled,
-			Current:        ds.Status.CurrentNumberScheduled,
-			Ready:          ds.Status.NumberReady,
-			Updated:        ds.Status.UpdatedNumberScheduled,
-			Available:      ds.Status.NumberAvailable,
-			UpdateStrategy: strategy,
-			Selector:       selector,
-			AgeSec:         age,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        ds.Name,
+			Namespace:                   ds.Namespace,
+			Desired:                     ds.Status.DesiredNumberScheduled,
+			Current:                     ds.Status.CurrentNumberScheduled,
+			Ready:                       ds.Status.NumberReady,
+			Updated:                     ds.Status.UpdatedNumberScheduled,
+			Available:                   ds.Status.NumberAvailable,
+			UpdateStrategy:              strategy,
+			Selector:                    selector,
+			AgeSec:                      age,
 		})
 	}
 

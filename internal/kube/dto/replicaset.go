@@ -6,6 +6,7 @@ type OwnerReferenceDTO struct {
 }
 
 type ReplicaSetDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string             `json:"name"`
 	Namespace          string             `json:"namespace"`
 	Revision           int32              `json:"revision"`

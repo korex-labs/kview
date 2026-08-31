@@ -1,6 +1,7 @@
 package dto
 
 type PersistentVolumeDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string            `json:"name"`
 	Labels             map[string]string `json:"-"`
 	Annotations        map[string]string `json:"-"`

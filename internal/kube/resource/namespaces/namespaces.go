@@ -6,6 +6,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -24,12 +25,13 @@ func ListNamespaces(ctx context.Context, c *cluster.Clients) ([]dto.NamespaceLis
 			age = int64(now.Sub(ns.CreationTimestamp.Time).Seconds())
 		}
 		out = append(out, dto.NamespaceListItemDTO{
-			Name:                   ns.Name,
-			Labels:                 ns.Labels,
-			Annotations:            ns.Annotations,
-			Phase:                  string(ns.Status.Phase),
-			AgeSec:                 age,
-			HasUnhealthyConditions: hasUnhealthyNamespaceConditions(ns.Status.Conditions),
+			ResourceRelationshipCarrier: relationships.Capture(&ns, relationships.NamespaceDescriptor),
+			Name:                        ns.Name,
+			Labels:                      ns.Labels,
+			Annotations:                 ns.Annotations,
+			Phase:                       string(ns.Status.Phase),
+			AgeSec:                      age,
+			HasUnhealthyConditions:      hasUnhealthyNamespaceConditions(ns.Status.Conditions),
 		})
 	}
 	return out, nil
@@ -48,10 +50,11 @@ func GetNamespaceListFields(ctx context.Context, c *cluster.Clients, name string
 		age = int64(now.Sub(ns.CreationTimestamp.Time).Seconds())
 	}
 	return dto.NamespaceListItemDTO{
-		Name:                   ns.Name,
-		Phase:                  string(ns.Status.Phase),
-		AgeSec:                 age,
-		HasUnhealthyConditions: hasUnhealthyNamespaceConditions(ns.Status.Conditions),
+		ResourceRelationshipCarrier: relationships.Capture(ns, relationships.NamespaceDescriptor),
+		Name:                        ns.Name,
+		Phase:                       string(ns.Status.Phase),
+		AgeSec:                      age,
+		HasUnhealthyConditions:      hasUnhealthyNamespaceConditions(ns.Status.Conditions),
 	}, nil
 }
 

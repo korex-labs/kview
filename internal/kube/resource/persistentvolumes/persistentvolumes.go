@@ -11,6 +11,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	pvcs "github.com/korex-labs/kview/v5/internal/kube/resource/persistentvolumeclaims"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListPersistentVolumes(ctx context.Context, c *cluster.Clients) ([]dto.PersistentVolumeDTO, error) {
@@ -22,29 +23,37 @@ func ListPersistentVolumes(ctx context.Context, c *cluster.Clients) ([]dto.Persi
 	now := time.Now()
 	out := make([]dto.PersistentVolumeDTO, 0, len(items.Items))
 	for _, pv := range items.Items {
-		age := int64(0)
-		if !pv.CreationTimestamp.IsZero() {
-			age = int64(now.Sub(pv.CreationTimestamp.Time).Seconds())
-		}
-
-		out = append(out, dto.PersistentVolumeDTO{
-			Name:             pv.Name,
-			Labels:           pv.Labels,
-			Annotations:      pv.Annotations,
-			Phase:            string(pv.Status.Phase),
-			Capacity:         pvCapacityString(&pv),
-			AccessModes:      pvcs.AccessModesToStrings(pv.Spec.AccessModes),
-			StorageClassName: pv.Spec.StorageClassName,
-			ReclaimPolicy:    string(pv.Spec.PersistentVolumeReclaimPolicy),
-			VolumeMode:       pvcs.VolumeModeString(pv.Spec.VolumeMode),
-			VolumeSourceType: pvSourceTypeString(pv.Spec.PersistentVolumeSource),
-			NodeAffinity:     pvNodeAffinityStrings(pv.Spec.NodeAffinity),
-			ClaimRef:         pvClaimRefString(pv.Spec.ClaimRef),
-			AgeSec:           age,
-		})
+		out = append(out, mapPersistentVolume(pv, now))
 	}
 
 	return out, nil
+}
+
+func mapPersistentVolume(pv corev1.PersistentVolume, now time.Time) dto.PersistentVolumeDTO {
+	age := int64(0)
+	if !pv.CreationTimestamp.IsZero() {
+		age = int64(now.Sub(pv.CreationTimestamp.Time).Seconds())
+	}
+	carrier := relationships.WithObjectReferences(
+		relationships.Capture(&pv, relationships.PersistentVolumeDescriptor),
+		relationships.PersistentVolumeClaimReference(pv.Spec.ClaimRef),
+	)
+	return dto.PersistentVolumeDTO{
+		ResourceRelationshipCarrier: carrier,
+		Name:                        pv.Name,
+		Labels:                      pv.Labels,
+		Annotations:                 pv.Annotations,
+		Phase:                       string(pv.Status.Phase),
+		Capacity:                    pvCapacityString(&pv),
+		AccessModes:                 pvcs.AccessModesToStrings(pv.Spec.AccessModes),
+		StorageClassName:            pv.Spec.StorageClassName,
+		ReclaimPolicy:               string(pv.Spec.PersistentVolumeReclaimPolicy),
+		VolumeMode:                  pvcs.VolumeModeString(pv.Spec.VolumeMode),
+		VolumeSourceType:            pvSourceTypeString(pv.Spec.PersistentVolumeSource),
+		NodeAffinity:                pvNodeAffinityStrings(pv.Spec.NodeAffinity),
+		ClaimRef:                    pvClaimRefString(pv.Spec.ClaimRef),
+		AgeSec:                      age,
+	}
 }
 
 func pvCapacityString(pv *corev1.PersistentVolume) string {

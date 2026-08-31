@@ -11,6 +11,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.PodListItemDTO, error) {
@@ -21,9 +22,12 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 
 	latestEvents, _ := kubeevents.LatestEventsByObject(ctx, c, namespace, "Pod")
 
-	now := time.Now()
-	out := make([]dto.PodListItemDTO, 0, len(pods.Items))
-	for _, p := range pods.Items {
+	return podListItems(pods.Items, latestEvents, time.Now()), nil
+}
+
+func podListItems(pods []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, now time.Time) []dto.PodListItemDTO {
+	out := make([]dto.PodListItemDTO, 0, len(pods))
+	for _, p := range pods {
 		var lastEvent *dto.EventBriefDTO
 		if ev, ok := latestEvents[p.Name]; ok {
 			evCopy := ev
@@ -47,27 +51,31 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		}
 
 		cpuReq, cpuLim, memReq, memLim := sumContainerResources(p.Spec.Containers)
+		carrier := relationships.Capture(&p, relationships.PodDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(p.Namespace, "spec", p.Spec))
+		carrier = relationships.WithLabels(carrier, p.Labels)
 		out = append(out, dto.PodListItemDTO{
-			Name:                    p.Name,
-			Namespace:               p.Namespace,
-			Labels:                  p.Labels,
-			Annotations:             p.Annotations,
-			LabelsObserved:          true,
-			Node:                    p.Spec.NodeName,
-			Phase:                   string(p.Status.Phase),
-			Ready:                   FmtReady(readyCount, totalCount),
-			Restarts:                restarts,
-			AgeSec:                  age,
-			LastEvent:               lastEvent,
-			ContainerWaitingReasons: waitingReasons,
-			HealthReason:            podHealthReason(p.Status.Conditions),
-			CPURequestMilli:         cpuReq,
-			CPULimitMilli:           cpuLim,
-			MemoryRequestBytes:      memReq,
-			MemoryLimitBytes:        memLim,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        p.Name,
+			Namespace:                   p.Namespace,
+			Labels:                      p.Labels,
+			Annotations:                 p.Annotations,
+			LabelsObserved:              true,
+			Node:                        p.Spec.NodeName,
+			Phase:                       string(p.Status.Phase),
+			Ready:                       FmtReady(readyCount, totalCount),
+			Restarts:                    restarts,
+			AgeSec:                      age,
+			LastEvent:                   lastEvent,
+			ContainerWaitingReasons:     waitingReasons,
+			HealthReason:                podHealthReason(p.Status.Conditions),
+			CPURequestMilli:             cpuReq,
+			CPULimitMilli:               cpuLim,
+			MemoryRequestBytes:          memReq,
+			MemoryLimitBytes:            memLim,
 		})
 	}
-	return out, nil
+	return out
 }
 
 func podHealthReason(conditions []corev1.PodCondition) string {

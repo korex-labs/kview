@@ -1,6 +1,7 @@
 package dto
 
 type ClusterRoleBindingListItemDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string `json:"name"`
 	RoleRefKind        string `json:"roleRefKind"`
 	RoleRefName        string `json:"roleRefName"`

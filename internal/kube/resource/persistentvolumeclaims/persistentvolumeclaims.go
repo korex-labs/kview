@@ -10,6 +10,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListPersistentVolumeClaims(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.PersistentVolumeClaimDTO, error) {
@@ -21,28 +22,36 @@ func ListPersistentVolumeClaims(ctx context.Context, c *cluster.Clients, namespa
 	now := time.Now()
 	out := make([]dto.PersistentVolumeClaimDTO, 0, len(items.Items))
 	for _, pvc := range items.Items {
-		age := int64(0)
-		if !pvc.CreationTimestamp.IsZero() {
-			age = int64(now.Sub(pvc.CreationTimestamp.Time).Seconds())
-		}
-
-		out = append(out, dto.PersistentVolumeClaimDTO{
-			Name:             pvc.Name,
-			Namespace:        pvc.Namespace,
-			Labels:           pvc.Labels,
-			Annotations:      pvc.Annotations,
-			Phase:            string(pvc.Status.Phase),
-			StorageClassName: StringPtrValue(pvc.Spec.StorageClassName),
-			VolumeName:       pvc.Spec.VolumeName,
-			AccessModes:      AccessModesToStrings(pvc.Spec.AccessModes),
-			RequestedStorage: pvcQuantityString(pvc.Spec.Resources.Requests[corev1.ResourceStorage]),
-			Capacity:         pvcQuantityString(pvc.Status.Capacity[corev1.ResourceStorage]),
-			VolumeMode:       VolumeModeString(pvc.Spec.VolumeMode),
-			AgeSec:           age,
-		})
+		out = append(out, mapPersistentVolumeClaim(pvc, now))
 	}
 
 	return out, nil
+}
+
+func mapPersistentVolumeClaim(pvc corev1.PersistentVolumeClaim, now time.Time) dto.PersistentVolumeClaimDTO {
+	age := int64(0)
+	if !pvc.CreationTimestamp.IsZero() {
+		age = int64(now.Sub(pvc.CreationTimestamp.Time).Seconds())
+	}
+	carrier := relationships.WithObjectReferences(
+		relationships.Capture(&pvc, relationships.PersistentVolumeClaimDescriptor),
+		relationships.PersistentVolumeClaimVolumeReference(pvc.Spec.VolumeName),
+	)
+	return dto.PersistentVolumeClaimDTO{
+		ResourceRelationshipCarrier: carrier,
+		Name:                        pvc.Name,
+		Namespace:                   pvc.Namespace,
+		Labels:                      pvc.Labels,
+		Annotations:                 pvc.Annotations,
+		Phase:                       string(pvc.Status.Phase),
+		StorageClassName:            StringPtrValue(pvc.Spec.StorageClassName),
+		VolumeName:                  pvc.Spec.VolumeName,
+		AccessModes:                 AccessModesToStrings(pvc.Spec.AccessModes),
+		RequestedStorage:            pvcQuantityString(pvc.Spec.Resources.Requests[corev1.ResourceStorage]),
+		Capacity:                    pvcQuantityString(pvc.Status.Capacity[corev1.ResourceStorage]),
+		VolumeMode:                  VolumeModeString(pvc.Spec.VolumeMode),
+		AgeSec:                      age,
+	}
 }
 
 func AccessModesToStrings(modes []corev1.PersistentVolumeAccessMode) []string {

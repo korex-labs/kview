@@ -8,6 +8,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListClusterRoles(ctx context.Context, c *cluster.Clients) ([]dto.ClusterRoleListItemDTO, error) {
@@ -25,9 +26,10 @@ func ListClusterRoles(ctx context.Context, c *cluster.Clients) ([]dto.ClusterRol
 		}
 
 		out = append(out, dto.ClusterRoleListItemDTO{
-			Name:       role.Name,
-			RulesCount: len(role.Rules),
-			AgeSec:     age,
+			ResourceRelationshipCarrier: relationships.Capture(&role, relationships.ClusterRoleDescriptor),
+			Name:                        role.Name,
+			RulesCount:                  len(role.Rules),
+			AgeSec:                      age,
 		})
 	}
 

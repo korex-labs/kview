@@ -1,6 +1,7 @@
 package dto
 
 type ClusterRoleListItemDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string `json:"name"`
 	RulesCount         int    `json:"rulesCount"`
 	AgeSec             int64  `json:"ageSec"`

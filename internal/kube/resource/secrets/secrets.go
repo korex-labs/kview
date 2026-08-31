@@ -8,6 +8,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListSecrets(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.SecretDTO, error) {
@@ -31,14 +32,15 @@ func ListSecrets(ctx context.Context, c *cluster.Clients, namespace string) ([]d
 		}
 
 		out = append(out, dto.SecretDTO{
-			Name:        s.Name,
-			Namespace:   s.Namespace,
-			Labels:      s.Labels,
-			Annotations: s.Annotations,
-			Type:        string(s.Type),
-			KeysCount:   keysCount,
-			Immutable:   immutable,
-			AgeSec:      age,
+			ResourceRelationshipCarrier: relationships.Capture(&s, relationships.SecretDescriptor),
+			Name:                        s.Name,
+			Namespace:                   s.Namespace,
+			Labels:                      s.Labels,
+			Annotations:                 s.Annotations,
+			Type:                        string(s.Type),
+			KeysCount:                   keysCount,
+			Immutable:                   immutable,
+			AgeSec:                      age,
 		})
 	}
 

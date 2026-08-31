@@ -74,9 +74,10 @@ func TestListAllNamespacedCRsDoesNotStarveLateKindsBehindSlowEarlyKinds(t *testi
 }
 
 type blockingListClient struct {
-	lateListed  chan struct{}
-	releaseSlow chan struct{}
-	lateOnce    sync.Once
+	lateListed    chan struct{}
+	releaseSlow   chan struct{}
+	lateOnce      sync.Once
+	itemNamespace string
 }
 
 func (c *blockingListClient) Resource(resource schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
@@ -106,6 +107,10 @@ func (c *blockingResourceClient) List(ctx context.Context, _ metav1.ListOptions)
 	}
 	if c.resource.Resource == "victoriametrics" {
 		c.client.lateOnce.Do(func() { close(c.client.lateListed) })
+		itemNamespace := c.namespace
+		if c.client.itemNamespace != "" {
+			itemNamespace = c.client.itemNamespace
+		}
 		return &unstructured.UnstructuredList{
 			Items: []unstructured.Unstructured{
 				{
@@ -114,7 +119,7 @@ func (c *blockingResourceClient) List(ctx context.Context, _ metav1.ListOptions)
 						"kind":       "VictoriaMetric",
 						"metadata": map[string]interface{}{
 							"name":      "vm",
-							"namespace": c.namespace,
+							"namespace": itemNamespace,
 						},
 					},
 				},

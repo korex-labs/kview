@@ -13,6 +13,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 var crdGVR = schema.GroupVersionResource{
@@ -36,35 +37,36 @@ func ListCustomResourceDefinitions(ctx context.Context, c *cluster.Clients) ([]d
 	out := make([]dto.CRDListItemDTO, 0, len(list.Items))
 
 	for _, item := range list.Items {
-		name := item.GetName()
-		age := int64(0)
-		ts := item.GetCreationTimestamp()
-		if !ts.IsZero() {
-			age = int64(now.Sub(ts.Time).Seconds())
-		}
-
-		group, _, _ := unstructured.NestedString(item.Object, "spec", "group")
-		scope, _, _ := unstructured.NestedString(item.Object, "spec", "scope")
-		kind, _, _ := unstructured.NestedString(item.Object, "spec", "names", "kind")
-		plural, _, _ := unstructured.NestedString(item.Object, "spec", "names", "plural")
-		versions := crdVersionsCompact(item.Object)
-		storageVersion := crdStorageVersion(item.Object)
-		established := crdIsEstablished(item.Object)
-
-		out = append(out, dto.CRDListItemDTO{
-			Name:           name,
-			Group:          group,
-			Scope:          scope,
-			Kind:           kind,
-			Plural:         plural,
-			Versions:       versions,
-			StorageVersion: storageVersion,
-			Established:    established,
-			AgeSec:         age,
-		})
+		out = append(out, mapCRDListItem(item, now))
 	}
 
 	return out, nil
+}
+
+func mapCRDListItem(item unstructured.Unstructured, now time.Time) dto.CRDListItemDTO {
+	age := int64(0)
+	ts := item.GetCreationTimestamp()
+	if !ts.IsZero() {
+		age = int64(now.Sub(ts.Time).Seconds())
+	}
+
+	group, _, _ := unstructured.NestedString(item.Object, "spec", "group")
+	scope, _, _ := unstructured.NestedString(item.Object, "spec", "scope")
+	kind, _, _ := unstructured.NestedString(item.Object, "spec", "names", "kind")
+	plural, _, _ := unstructured.NestedString(item.Object, "spec", "names", "plural")
+
+	return dto.CRDListItemDTO{
+		ResourceRelationshipCarrier: relationships.Capture(&item, relationships.CustomResourceDefinitionDescriptor),
+		Name:                        item.GetName(),
+		Group:                       group,
+		Scope:                       scope,
+		Kind:                        kind,
+		Plural:                      plural,
+		Versions:                    crdVersionsCompact(item.Object),
+		StorageVersion:              crdStorageVersion(item.Object),
+		Established:                 crdIsEstablished(item.Object),
+		AgeSec:                      age,
+	}
 }
 
 // crdVersionsCompact returns a compact string like "v1 (served, storage), v1beta1 (served)".

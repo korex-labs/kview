@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +31,19 @@ import (
 // ── test helpers ─────────────────────────────────────────────────────────────
 
 const testToken = "test-token-abc"
+
+type zeroThenBodyReader struct {
+	returnedZero bool
+	body         *strings.Reader
+}
+
+func (r *zeroThenBodyReader) Read(p []byte) (int, error) {
+	if !r.returnedZero {
+		r.returnedZero = true
+		return 0, nil
+	}
+	return r.body.Read(p)
+}
 
 // minimalKubeconfig is a self-contained kubeconfig for test cluster managers.
 // The server address is unreachable; handlers that reach the kube layer will
@@ -165,6 +179,196 @@ func TestPerformanceSnapshotReturnsRuntimeStats(t *testing.T) {
 	}
 }
 
+func TestResourceMapRequiresAuth(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	rec := doReq(t, h, http.MethodGet, "/api/dataplane/resource-map?version=v1&resource=pods&kind=Pod&scope=namespaced&namespace=apps&name=api", "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	if len(dp.resourceMapCalls) != 0 {
+		t.Fatalf("unauthenticated request reached dataplane: %+v", dp.resourceMapCalls)
+	}
+}
+
+func TestResourceMapValidTargetsAndContextRouting(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		contextName string
+		want        dataplane.ResourceMapRequest
+	}{
+		{
+			name:        "namespaced with explicit context and depth",
+			path:        "/api/dataplane/resource-map?group=apps&version=v1&resource=deployments&kind=Deployment&scope=namespaced&namespace=apps&name=api&uid=deploy-uid&depth=2",
+			contextName: "other-context",
+			want: dataplane.ResourceMapRequest{Target: dto.ResourceIdentityDTO{
+				Group: "apps", Version: "v1", Resource: "deployments", Kind: "Deployment",
+				Scope: dto.ResourceScopeNamespaced, Namespace: "apps", Name: "api", UID: "deploy-uid",
+			}, Depth: 2},
+		},
+		{
+			name:        "cluster core target uses active context and default depth",
+			path:        "/api/dataplane/resource-map?version=v1&resource=nodes&kind=Node&scope=cluster&name=worker-1",
+			contextName: "test-context",
+			want: dataplane.ResourceMapRequest{Target: dto.ResourceIdentityDTO{
+				Version: "v1", Resource: "nodes", Kind: "Node", Scope: dto.ResourceScopeCluster, Name: "worker-1",
+			}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			dp.resourceMapResult = dataplane.ResourceMapResponse{TargetID: "target-id"}
+			headers := map[string]string{"Authorization": "Bearer " + testToken}
+			if test.contextName != "test-context" {
+				headers["X-Kview-Context"] = test.contextName
+			}
+			rec := doReqWithHeader(t, h, http.MethodGet, test.path, headers, nil)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+			}
+			if len(dp.resourceMapCalls) != 1 || dp.resourceMapCalls[0].contextName != test.contextName || dp.resourceMapCalls[0].request != test.want {
+				t.Fatalf("resource map calls = %+v, want context=%q request=%+v", dp.resourceMapCalls, test.contextName, test.want)
+			}
+			body := mustDecodeJSON(t, rec.Body.Bytes())
+			if body["active"] != test.contextName || body["targetId"] != "target-id" {
+				t.Fatalf("response is not direct ResourceMapResponse: %v", body)
+			}
+			if _, wrapped := body["item"]; wrapped {
+				t.Fatalf("response unexpectedly wrapped: %v", body)
+			}
+		})
+	}
+}
+
+func TestResourceMapRejectsInvalidQuery(t *testing.T) {
+	base := "/api/dataplane/resource-map?version=v1&resource=pods&kind=Pod&scope=namespaced&namespace=apps&name=api"
+	tests := map[string]string{
+		"malformed encoding":           "/api/dataplane/resource-map?version=%zz",
+		"missing required":             "/api/dataplane/resource-map?resource=pods&kind=Pod&scope=namespaced&namespace=apps&name=api",
+		"empty required":               "/api/dataplane/resource-map?version=v1&resource=&kind=Pod&scope=namespaced&namespace=apps&name=api",
+		"duplicate known key":          base + "&name=other",
+		"unknown key":                  base + "&resorce=pods",
+		"invalid scope":                "/api/dataplane/resource-map?version=v1&resource=pods&kind=Pod&scope=namespace&namespace=apps&name=api",
+		"non-exact scope":              "/api/dataplane/resource-map?version=v1&resource=nodes&kind=Node&scope=%20cluster%20&name=worker",
+		"namespaced without namespace": "/api/dataplane/resource-map?version=v1&resource=pods&kind=Pod&scope=namespaced&name=api",
+		"cluster with namespace":       "/api/dataplane/resource-map?version=v1&resource=nodes&kind=Node&scope=cluster&namespace=apps&name=worker",
+		"cluster with empty namespace": "/api/dataplane/resource-map?version=v1&resource=nodes&kind=Node&scope=cluster&namespace=&name=worker",
+		"whitespace canonical name":    "/api/dataplane/resource-map?version=v1&resource=pods&kind=Pod&scope=namespaced&namespace=apps&name=%20api%20",
+		"malformed resource":           "/api/dataplane/resource-map?version=v1&resource=Pods!&kind=Pod&scope=namespaced&namespace=apps&name=api",
+		"noninteger depth":             base + "&depth=deep",
+		"negative depth":               base + "&depth=-1",
+		"out of range depth":           base + "&depth=3",
+		"present but empty depth":      base + "&depth=",
+	}
+	for name, path := range tests {
+		t.Run(name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			rec := doReq(t, h, http.MethodGet, path, testToken, nil)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status: got %d, want 400 body=%s", rec.Code, rec.Body.String())
+			}
+			if len(dp.resourceMapCalls) != 0 {
+				t.Fatalf("invalid request reached dataplane: %+v", dp.resourceMapCalls)
+			}
+		})
+	}
+}
+
+func TestResourceMapRejectsBodyAndHandlesDataplaneFailures(t *testing.T) {
+	const path = "/api/dataplane/resource-map?version=v1&resource=nodes&kind=Node&scope=cluster&name=worker"
+	t.Run("body", func(t *testing.T) {
+		_, h := newTestServer(t)
+		rec := doReq(t, h, http.MethodGet, path, testToken, []byte(`{}`))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status: got %d, want 400 body=%s", rec.Code, rec.Body.String())
+		}
+	})
+	t.Run("unknown-length body", func(t *testing.T) {
+		_, h := newTestServer(t)
+		req := httptest.NewRequest(http.MethodGet, path, strings.NewReader(`{}`))
+		req.ContentLength = -1
+		req.TransferEncoding = nil
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status: got %d, want 400 body=%s", rec.Code, rec.Body.String())
+		}
+	})
+	t.Run("zero progress before body", func(t *testing.T) {
+		_, h := newTestServer(t)
+		reader := &zeroThenBodyReader{body: strings.NewReader(`{}`)}
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Body = io.NopCloser(reader)
+		req.ContentLength = -1
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status: got %d, want 400 body=%s", rec.Code, rec.Body.String())
+		}
+	})
+	t.Run("nil dataplane", func(t *testing.T) {
+		s, _ := newTestServer(t)
+		s.dp = nil
+		router := chi.NewRouter()
+		s.registerActivityAndDataplaneRoutes(router)
+		rec := doReq(t, router, http.MethodGet, strings.TrimPrefix(path, "/api"), "", nil)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status: got %d, want 503 body=%s", rec.Code, rec.Body.String())
+		}
+	})
+	t.Run("unloaded context plane is unavailable", func(t *testing.T) {
+		s, h := newTestServer(t)
+		dp := s.dp.(*stubDataplane)
+		dp.resourceMapErr = dataplane.ErrResourceMapPlaneUnavailable
+		rec := doReq(t, h, http.MethodGet, path, testToken, nil)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status: got %d, want 503 body=%s", rec.Code, rec.Body.String())
+		}
+	})
+	t.Run("projection error is generic", func(t *testing.T) {
+		s, h := newTestServer(t)
+		dp := s.dp.(*stubDataplane)
+		dp.resourceMapErr = errors.New("sensitive internal detail")
+		rec := doReq(t, h, http.MethodGet, path, testToken, nil)
+		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "sensitive") {
+			t.Fatalf("unsafe projection error response: status=%d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestResourceMapHandlerHasNoHiddenReadPaths(t *testing.T) {
+	source, err := os.ReadFile("handlers_dataplane.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	start := strings.Index(text, `api.Get("/dataplane/resource-map"`)
+	if start < 0 {
+		t.Fatal("resource map route not found")
+	}
+	rest := text[start+1:]
+	end := strings.Index(rest, "\n	api.")
+	if end < 0 {
+		t.Fatal("resource map handler boundary not found")
+	}
+	handler := text[start : start+1+end]
+	if strings.Count(handler, "s.dp.ResourceMap(") != 1 {
+		t.Fatalf("handler must call only one ResourceMap projection: %s", handler)
+	}
+	lower := strings.ToLower(handler)
+	for _, forbidden := range []string{"ensureobservers", "clientsforrequest", "s.clients", "kube.", "client.", "s.dp.list", "s.dp.get", "refresh", "persistence"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("resource map handler contains forbidden read path %q", forbidden)
+		}
+	}
+}
+
 func TestDashboardSplitEndpointsKeepPayloadsSeparate(t *testing.T) {
 	s, h := newTestServer(t)
 	dp := s.dp.(*stubDataplane)
@@ -224,6 +428,9 @@ type stubDataplane struct {
 	dashboardSignalsCalls   int
 	dashboardDataplaneCalls int
 	resourceSignalsResult   dataplane.ResourceSignalsResult
+	resourceMapCalls        []stubResourceMapCall
+	resourceMapResult       dataplane.ResourceMapResponse
+	resourceMapErr          error
 	suppressCalls           []stubSuppressCall
 	unsuppressCalls         []stubUnsuppressCall
 	suppressionExportCalls  []string
@@ -234,6 +441,11 @@ type stubDataplane struct {
 	unsuppressErr           error
 	suppressionImportErr    error
 	suppressionResetErr     error
+}
+
+type stubResourceMapCall struct {
+	contextName string
+	request     dataplane.ResourceMapRequest
 }
 
 type stubSuppressCall struct {
@@ -493,6 +705,17 @@ func (s *stubDataplane) PodMetricsCachedSnapshot(_, _ string) (dataplane.PodMetr
 }
 func (s *stubDataplane) SearchCachedResources(_ context.Context, _ string, _ string, _, _ int) (dataplane.CachedResourceSearch, error) {
 	return dataplane.CachedResourceSearch{}, nil
+}
+func (s *stubDataplane) ResourceMap(contextName string, req dataplane.ResourceMapRequest) (dataplane.ResourceMapResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resourceMapCalls = append(s.resourceMapCalls, stubResourceMapCall{contextName: contextName, request: req})
+	if s.resourceMapErr != nil {
+		return dataplane.ResourceMapResponse{}, s.resourceMapErr
+	}
+	result := s.resourceMapResult
+	result.Active = contextName
+	return result, nil
 }
 func (s *stubDataplane) PersistenceMigrationStatus() dataplane.PersistenceMigrationStatus {
 	return dataplane.PersistenceMigrationStatus{Phase: dataplane.PersistenceMigrationPhaseDone}

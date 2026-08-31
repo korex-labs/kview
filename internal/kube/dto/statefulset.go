@@ -1,6 +1,7 @@
 package dto
 
 type StatefulSetDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name               string `json:"name"`
 	Namespace          string `json:"namespace"`
 	Desired            int32  `json:"desired"`

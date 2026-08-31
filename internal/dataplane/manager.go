@@ -57,6 +57,9 @@ type ClusterPlane interface {
 
 	// Health returns the current coarse health of the plane.
 	Health() PlaneHealth
+
+	// ResourceMap projects a bounded relationship graph from cache cells only.
+	ResourceMap(req ResourceMapRequest) (ResourceMapResponse, error)
 }
 
 // DataPlaneManager is the top-level entrypoint for read-side data planes.
@@ -211,6 +214,8 @@ type DataPlaneManager interface {
 	// scope must be one of ResourceSignalsScopeNamespace / ResourceSignalsScopeCluster.
 	// kind is the canonical Kubernetes kind (e.g. "Pod", "Deployment", "Node").
 	ResourceSignals(ctx context.Context, clusterName, scope, namespace, kind, name string) (ResourceSignalsResult, error)
+	// ResourceMap projects a bounded relationship graph from cache cells only.
+	ResourceMap(clusterName string, req ResourceMapRequest) (ResourceMapResponse, error)
 	// PreviewSignalExclusions evaluates draft rules against cached raw signal candidates without mutating policy or history.
 	PreviewSignalExclusions(ctx context.Context, clusterName, signalType string, exclusions SignalExclusionSet) (SignalExclusionPreviewResult, error)
 	// AcknowledgeSignal records local operator acknowledgement metadata for a stable signal history key.
@@ -951,12 +956,13 @@ func hydratePersistedNamespacedSnapshotInto[I any](store *namespacedSnapshotStor
 // NamespacesSnapshot returns a raw snapshot for namespaces plus metadata and any normalized error.
 func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (NamespaceSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.NamespaceListItemDTO]{
-		kind:        ResourceKindNamespaces,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindNamespaces),
-		capGroup:    "",
-		capResource: "namespaces",
-		capScope:    CapabilityScopeCluster,
-		fetch:       namespaces.ListNamespaces,
+		extractRelationships: dto.ExtractResourceRelationships[dto.NamespaceListItemDTO],
+		kind:                 ResourceKindNamespaces,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindNamespaces),
+		capGroup:             "",
+		capResource:          "namespaces",
+		capScope:             CapabilityScopeCluster,
+		fetch:                namespaces.ListNamespaces,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.nsStore, desc)
 }
@@ -964,12 +970,13 @@ func (p *clusterPlane) NamespacesSnapshot(ctx context.Context, sched *workSchedu
 // NodesSnapshot returns a raw snapshot for nodes plus metadata and any normalized error.
 func (p *clusterPlane) NodesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (NodesSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.NodeListItemDTO]{
-		kind:        ResourceKindNodes,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindNodes),
-		capGroup:    "",
-		capResource: "nodes",
-		capScope:    CapabilityScopeCluster,
-		fetch:       nodes.ListNodes,
+		extractRelationships: dto.ExtractResourceRelationships[dto.NodeListItemDTO],
+		kind:                 ResourceKindNodes,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindNodes),
+		capGroup:             "",
+		capResource:          "nodes",
+		capScope:             CapabilityScopeCluster,
+		fetch:                nodes.ListNodes,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.nodesStore, desc)
 }
@@ -977,12 +984,14 @@ func (p *clusterPlane) NodesSnapshot(ctx context.Context, sched *workScheduler, 
 // PersistentVolumesSnapshot returns a raw snapshot for persistent volumes plus metadata and any normalized error.
 func (p *clusterPlane) PersistentVolumesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (PersistentVolumesSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.PersistentVolumeDTO]{
-		kind:        ResourceKindPersistentVolumes,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindPersistentVolumes),
-		capGroup:    "",
-		capResource: "persistentvolumes",
-		capScope:    CapabilityScopeCluster,
-		fetch:       pvs.ListPersistentVolumes,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.PersistentVolumeDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindPersistentVolumes,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindPersistentVolumes),
+		capGroup:                  "",
+		capResource:               "persistentvolumes",
+		capScope:                  CapabilityScopeCluster,
+		fetch:                     pvs.ListPersistentVolumes,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.persistentVolumesStore, desc)
 }
@@ -990,12 +999,13 @@ func (p *clusterPlane) PersistentVolumesSnapshot(ctx context.Context, sched *wor
 // ClusterRolesSnapshot returns a raw snapshot for cluster roles plus metadata and any normalized error.
 func (p *clusterPlane) ClusterRolesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (ClusterRolesSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.ClusterRoleListItemDTO]{
-		kind:        ResourceKindClusterRoles,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindClusterRoles),
-		capGroup:    "rbac.authorization.k8s.io",
-		capResource: "clusterroles",
-		capScope:    CapabilityScopeCluster,
-		fetch:       clusterroles.ListClusterRoles,
+		extractRelationships: dto.ExtractResourceRelationships[dto.ClusterRoleListItemDTO],
+		kind:                 ResourceKindClusterRoles,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindClusterRoles),
+		capGroup:             "rbac.authorization.k8s.io",
+		capResource:          "clusterroles",
+		capScope:             CapabilityScopeCluster,
+		fetch:                clusterroles.ListClusterRoles,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.clusterRolesStore, desc)
 }
@@ -1003,12 +1013,14 @@ func (p *clusterPlane) ClusterRolesSnapshot(ctx context.Context, sched *workSche
 // ClusterRoleBindingsSnapshot returns a raw snapshot for cluster role bindings plus metadata and any normalized error.
 func (p *clusterPlane) ClusterRoleBindingsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (ClusterRoleBindingsSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.ClusterRoleBindingListItemDTO]{
-		kind:        ResourceKindClusterRoleBindings,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindClusterRoleBindings),
-		capGroup:    "rbac.authorization.k8s.io",
-		capResource: "clusterrolebindings",
-		capScope:    CapabilityScopeCluster,
-		fetch:       crbindings.ListClusterRoleBindings,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.ClusterRoleBindingListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindClusterRoleBindings,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindClusterRoleBindings),
+		capGroup:                  "rbac.authorization.k8s.io",
+		capResource:               "clusterrolebindings",
+		capScope:                  CapabilityScopeCluster,
+		fetch:                     crbindings.ListClusterRoleBindings,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.clusterRoleBindingsStore, desc)
 }
@@ -1016,12 +1028,13 @@ func (p *clusterPlane) ClusterRoleBindingsSnapshot(ctx context.Context, sched *w
 // CRDsSnapshot returns a raw snapshot for custom resource definitions plus metadata and any normalized error.
 func (p *clusterPlane) CRDsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, prio WorkPriority) (CRDsSnapshot, error) {
 	desc := clusterSnapshotDescriptor[dto.CRDListItemDTO]{
-		kind:        ResourceKindCRDs,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindCRDs),
-		capGroup:    "apiextensions.k8s.io",
-		capResource: "customresourcedefinitions",
-		capScope:    CapabilityScopeCluster,
-		fetch:       crds.ListCustomResourceDefinitions,
+		extractRelationships: dto.ExtractResourceRelationships[dto.CRDListItemDTO],
+		kind:                 ResourceKindCRDs,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindCRDs),
+		capGroup:             "apiextensions.k8s.io",
+		capResource:          "customresourcedefinitions",
+		capScope:             CapabilityScopeCluster,
+		fetch:                crds.ListCustomResourceDefinitions,
 	}
 	return executeClusterSnapshot(p, ctx, sched, prio, clients, &p.crdsStore, desc)
 }
@@ -1029,12 +1042,14 @@ func (p *clusterPlane) CRDsSnapshot(ctx context.Context, sched *workScheduler, c
 // PodsSnapshot returns a raw snapshot for pods in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) PodsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (PodsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.PodListItemDTO]{
-		kind:        ResourceKindPods,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindPods),
-		capGroup:    "",
-		capResource: "pods",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       pods.ListPods,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.PodListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference, dto.ResourceRelationshipFamilyLabels},
+		kind:                      ResourceKindPods,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindPods),
+		capGroup:                  "",
+		capResource:               "pods",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     pods.ListPods,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.podsStore, desc)
 }
@@ -1042,12 +1057,14 @@ func (p *clusterPlane) PodsSnapshot(ctx context.Context, sched *workScheduler, c
 // DeploymentsSnapshot returns a raw snapshot for deployments in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) DeploymentsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (DeploymentsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.DeploymentListItemDTO]{
-		kind:        ResourceKindDeployments,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindDeployments),
-		capGroup:    "",
-		capResource: "deployments",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       deployments.ListDeployments,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.DeploymentListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindDeployments,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindDeployments),
+		capGroup:                  "",
+		capResource:               "deployments",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     deployments.ListDeployments,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.depsStore, desc)
 }
@@ -1055,12 +1072,14 @@ func (p *clusterPlane) DeploymentsSnapshot(ctx context.Context, sched *workSched
 // ServicesSnapshot returns a raw snapshot for services in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) ServicesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ServicesSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.ServiceListItemDTO]{
-		kind:        ResourceKindServices,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindServices),
-		capGroup:    "",
-		capResource: "services",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       svcs.ListServices,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.ServiceListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilySelector},
+		kind:                      ResourceKindServices,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindServices),
+		capGroup:                  "",
+		capResource:               "services",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     svcs.ListServices,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.svcsStore, desc)
 }
@@ -1068,12 +1087,14 @@ func (p *clusterPlane) ServicesSnapshot(ctx context.Context, sched *workSchedule
 // IngressesSnapshot returns a raw snapshot for ingresses in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) IngressesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (IngressesSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.IngressListItemDTO]{
-		kind:        ResourceKindIngresses,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindIngresses),
-		capGroup:    "networking.k8s.io",
-		capResource: "ingresses",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       ingresses.ListIngresses,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.IngressListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindIngresses,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindIngresses),
+		capGroup:                  "networking.k8s.io",
+		capResource:               "ingresses",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     ingresses.ListIngresses,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.ingStore, desc)
 }
@@ -1081,12 +1102,13 @@ func (p *clusterPlane) IngressesSnapshot(ctx context.Context, sched *workSchedul
 // NetworkPoliciesSnapshot returns a raw snapshot for network policies in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) NetworkPoliciesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (NetworkPoliciesSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.NetworkPolicyDTO]{
-		kind:        ResourceKindNetworkPolicies,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindNetworkPolicies),
-		capGroup:    "networking.k8s.io",
-		capResource: "networkpolicies",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       networkpolicies.ListNetworkPolicies,
+		extractRelationships: dto.ExtractResourceRelationships[dto.NetworkPolicyDTO],
+		kind:                 ResourceKindNetworkPolicies,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindNetworkPolicies),
+		capGroup:             "networking.k8s.io",
+		capResource:          "networkpolicies",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                networkpolicies.ListNetworkPolicies,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.networkPoliciesStore, desc)
 }
@@ -1094,12 +1116,14 @@ func (p *clusterPlane) NetworkPoliciesSnapshot(ctx context.Context, sched *workS
 // PVCsSnapshot returns a raw snapshot for PVCs in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) PVCsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (PVCsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.PersistentVolumeClaimDTO]{
-		kind:        ResourceKindPVCs,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindPVCs),
-		capGroup:    "",
-		capResource: "persistentvolumeclaims",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       pvcs.ListPersistentVolumeClaims,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.PersistentVolumeClaimDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindPVCs,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindPVCs),
+		capGroup:                  "",
+		capResource:               "persistentvolumeclaims",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     pvcs.ListPersistentVolumeClaims,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.pvcsStore, desc)
 }
@@ -1107,12 +1131,13 @@ func (p *clusterPlane) PVCsSnapshot(ctx context.Context, sched *workScheduler, c
 // ConfigMapsSnapshot returns a raw snapshot for configmaps in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) ConfigMapsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ConfigMapsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.ConfigMapDTO]{
-		kind:        ResourceKindConfigMaps,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindConfigMaps),
-		capGroup:    "",
-		capResource: "configmaps",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       configmaps.ListConfigMaps,
+		extractRelationships: dto.ExtractResourceRelationships[dto.ConfigMapDTO],
+		kind:                 ResourceKindConfigMaps,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindConfigMaps),
+		capGroup:             "",
+		capResource:          "configmaps",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                configmaps.ListConfigMaps,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.cmsStore, desc)
 }
@@ -1120,12 +1145,13 @@ func (p *clusterPlane) ConfigMapsSnapshot(ctx context.Context, sched *workSchedu
 // SecretsSnapshot returns a raw snapshot for secrets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) SecretsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (SecretsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.SecretDTO]{
-		kind:        ResourceKindSecrets,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindSecrets),
-		capGroup:    "",
-		capResource: "secrets",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       secrets.ListSecrets,
+		extractRelationships: dto.ExtractResourceRelationships[dto.SecretDTO],
+		kind:                 ResourceKindSecrets,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindSecrets),
+		capGroup:             "",
+		capResource:          "secrets",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                secrets.ListSecrets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.secsStore, desc)
 }
@@ -1133,12 +1159,14 @@ func (p *clusterPlane) SecretsSnapshot(ctx context.Context, sched *workScheduler
 // ServiceAccountsSnapshot returns a raw snapshot for serviceaccounts in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) ServiceAccountsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ServiceAccountsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.ServiceAccountListItemDTO]{
-		kind:        ResourceKindServiceAccounts,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindServiceAccounts),
-		capGroup:    "",
-		capResource: "serviceaccounts",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       serviceaccounts.ListServiceAccounts,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.ServiceAccountListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindServiceAccounts,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindServiceAccounts),
+		capGroup:                  "",
+		capResource:               "serviceaccounts",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     serviceaccounts.ListServiceAccounts,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.saStore, desc)
 }
@@ -1146,12 +1174,13 @@ func (p *clusterPlane) ServiceAccountsSnapshot(ctx context.Context, sched *workS
 // RolesSnapshot returns a raw snapshot for roles in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) RolesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (RolesSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.RoleListItemDTO]{
-		kind:        ResourceKindRoles,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindRoles),
-		capGroup:    "rbac.authorization.k8s.io",
-		capResource: "roles",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       roles.ListRoles,
+		extractRelationships: dto.ExtractResourceRelationships[dto.RoleListItemDTO],
+		kind:                 ResourceKindRoles,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindRoles),
+		capGroup:             "rbac.authorization.k8s.io",
+		capResource:          "roles",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                roles.ListRoles,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rolesStore, desc)
 }
@@ -1159,18 +1188,21 @@ func (p *clusterPlane) RolesSnapshot(ctx context.Context, sched *workScheduler, 
 // RoleBindingsSnapshot returns a raw snapshot for rolebindings in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) RoleBindingsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (RoleBindingsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.RoleBindingListItemDTO]{
-		kind:        ResourceKindRoleBindings,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindRoleBindings),
-		capGroup:    "rbac.authorization.k8s.io",
-		capResource: "rolebindings",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       rolebindings.ListRoleBindings,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.RoleBindingListItemDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindRoleBindings,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindRoleBindings),
+		capGroup:                  "rbac.authorization.k8s.io",
+		capResource:               "rolebindings",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     rolebindings.ListRoleBindings,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.roleBindingsStore, desc)
 }
 
 // HelmReleasesSnapshot returns a raw snapshot for Helm releases in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) HelmReleasesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (HelmReleasesSnapshot, error) {
+	// Helm releases are virtual projections over Secrets, not Kubernetes relationship carriers.
 	desc := namespacedSnapshotDescriptor[dto.HelmReleaseDTO]{
 		kind:        ResourceKindHelmReleases,
 		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindHelmReleases),
@@ -1185,12 +1217,14 @@ func (p *clusterPlane) HelmReleasesSnapshot(ctx context.Context, sched *workSche
 // DaemonSetsSnapshot returns a raw snapshot for daemonsets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) DaemonSetsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (DaemonSetsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.DaemonSetDTO]{
-		kind:        ResourceKindDaemonSets,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindDaemonSets),
-		capGroup:    "",
-		capResource: "daemonsets",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       daemonsets.ListDaemonSets,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.DaemonSetDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindDaemonSets,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindDaemonSets),
+		capGroup:                  "",
+		capResource:               "daemonsets",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     daemonsets.ListDaemonSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.dsStore, desc)
 }
@@ -1198,12 +1232,14 @@ func (p *clusterPlane) DaemonSetsSnapshot(ctx context.Context, sched *workSchedu
 // StatefulSetsSnapshot returns a raw snapshot for statefulsets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) StatefulSetsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (StatefulSetsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.StatefulSetDTO]{
-		kind:        ResourceKindStatefulSets,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindStatefulSets),
-		capGroup:    "",
-		capResource: "statefulsets",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       statefulsets.ListStatefulSets,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.StatefulSetDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindStatefulSets,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindStatefulSets),
+		capGroup:                  "",
+		capResource:               "statefulsets",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     statefulsets.ListStatefulSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.stsStore, desc)
 }
@@ -1211,12 +1247,14 @@ func (p *clusterPlane) StatefulSetsSnapshot(ctx context.Context, sched *workSche
 // ReplicaSetsSnapshot returns a raw snapshot for replicasets in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) ReplicaSetsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ReplicaSetsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.ReplicaSetDTO]{
-		kind:        ResourceKindReplicaSets,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindReplicaSets),
-		capGroup:    "",
-		capResource: "replicasets",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       replicasets.ListReplicaSets,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.ReplicaSetDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindReplicaSets,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindReplicaSets),
+		capGroup:                  "",
+		capResource:               "replicasets",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     replicasets.ListReplicaSets,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rsStore, desc)
 }
@@ -1224,12 +1262,14 @@ func (p *clusterPlane) ReplicaSetsSnapshot(ctx context.Context, sched *workSched
 // JobsSnapshot returns a raw snapshot for jobs in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) JobsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (JobsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.JobDTO]{
-		kind:        ResourceKindJobs,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindJobs),
-		capGroup:    "batch",
-		capResource: "jobs",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       jobs.ListJobs,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.JobDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindJobs,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindJobs),
+		capGroup:                  "batch",
+		capResource:               "jobs",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     jobs.ListJobs,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.jobsStore, desc)
 }
@@ -1237,12 +1277,14 @@ func (p *clusterPlane) JobsSnapshot(ctx context.Context, sched *workScheduler, c
 // CronJobsSnapshot returns a raw snapshot for cronjobs in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) CronJobsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (CronJobsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.CronJobDTO]{
-		kind:        ResourceKindCronJobs,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindCronJobs),
-		capGroup:    "batch",
-		capResource: "cronjobs",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       cronjobs.ListCronJobs,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.CronJobDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindCronJobs,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindCronJobs),
+		capGroup:                  "batch",
+		capResource:               "cronjobs",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     cronjobs.ListCronJobs,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.cjStore, desc)
 }
@@ -1250,12 +1292,14 @@ func (p *clusterPlane) CronJobsSnapshot(ctx context.Context, sched *workSchedule
 // HPAsSnapshot returns a raw snapshot for horizontal pod autoscalers in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) HPAsSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (HPAsSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.HorizontalPodAutoscalerDTO]{
-		kind:        ResourceKindHPAs,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindHPAs),
-		capGroup:    "autoscaling",
-		capResource: "horizontalpodautoscalers",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       hpas.ListHorizontalPodAutoscalers,
+		extractRelationships:      dto.ExtractResourceRelationships[dto.HorizontalPodAutoscalerDTO],
+		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
+		kind:                      ResourceKindHPAs,
+		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindHPAs),
+		capGroup:                  "autoscaling",
+		capResource:               "horizontalpodautoscalers",
+		capScope:                  CapabilityScopeNamespace,
+		fetch:                     hpas.ListHorizontalPodAutoscalers,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.hpaStore, desc)
 }
@@ -1263,12 +1307,13 @@ func (p *clusterPlane) HPAsSnapshot(ctx context.Context, sched *workScheduler, c
 // ResourceQuotasSnapshot returns a raw snapshot for resource quotas in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) ResourceQuotasSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (ResourceQuotasSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.ResourceQuotaDTO]{
-		kind:        ResourceKindResourceQuotas,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindResourceQuotas),
-		capGroup:    "",
-		capResource: "resourcequotas",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       rquotas.ListResourceQuotaItems,
+		extractRelationships: dto.ExtractResourceRelationships[dto.ResourceQuotaDTO],
+		kind:                 ResourceKindResourceQuotas,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindResourceQuotas),
+		capGroup:             "",
+		capResource:          "resourcequotas",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                rquotas.ListResourceQuotaItems,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.rqStore, desc)
 }
@@ -1276,12 +1321,13 @@ func (p *clusterPlane) ResourceQuotasSnapshot(ctx context.Context, sched *workSc
 // LimitRangesSnapshot returns a raw snapshot for limit ranges in the given namespace plus metadata and any normalized error.
 func (p *clusterPlane) LimitRangesSnapshot(ctx context.Context, sched *workScheduler, clients ClientsProvider, namespace string, prio WorkPriority) (LimitRangesSnapshot, error) {
 	desc := namespacedSnapshotDescriptor[dto.LimitRangeDTO]{
-		kind:        ResourceKindLimitRanges,
-		ttl:         p.currentPolicy().SnapshotTTL(ResourceKindLimitRanges),
-		capGroup:    "",
-		capResource: "limitranges",
-		capScope:    CapabilityScopeNamespace,
-		fetch:       limitranges.ListLimitRanges,
+		extractRelationships: dto.ExtractResourceRelationships[dto.LimitRangeDTO],
+		kind:                 ResourceKindLimitRanges,
+		ttl:                  p.currentPolicy().SnapshotTTL(ResourceKindLimitRanges),
+		capGroup:             "",
+		capResource:          "limitranges",
+		capScope:             CapabilityScopeNamespace,
+		fetch:                limitranges.ListLimitRanges,
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.lrStore, desc)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 	kubepods "github.com/korex-labs/kview/v5/internal/kube/resource/pods"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 const nodeListChunkLimit int64 = 500
@@ -32,29 +33,33 @@ func ListNodes(ctx context.Context, c *cluster.Clients) ([]dto.NodeListItemDTO, 
 		}
 	}
 
-	now := time.Now()
-	out := make([]dto.NodeListItemDTO, 0, len(nodes.Items))
-	for _, n := range nodes.Items {
+	return nodeListItems(nodes.Items, podCounts, time.Now()), nil
+}
+
+func nodeListItems(nodes []corev1.Node, podCounts map[string]int, now time.Time) []dto.NodeListItemDTO {
+	out := make([]dto.NodeListItemDTO, 0, len(nodes))
+	for _, n := range nodes {
 		age := int64(0)
 		if !n.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(n.CreationTimestamp.Time).Seconds())
 		}
 
 		out = append(out, dto.NodeListItemDTO{
-			Name:              n.Name,
-			Labels:            n.Labels,
-			Annotations:       n.Annotations,
-			Status:            nodeReadyStatus(n.Status.Conditions),
-			Roles:             deriveNodeRoles(n.Labels),
-			CPUAllocatable:    kubepods.QuantityString(n.Status.Allocatable[corev1.ResourceCPU]),
-			MemoryAllocatable: kubepods.QuantityString(n.Status.Allocatable[corev1.ResourceMemory]),
-			PodsAllocatable:   kubepods.QuantityString(n.Status.Allocatable[corev1.ResourcePods]),
-			PodsCount:         podCounts[n.Name],
-			KubeletVersion:    n.Status.NodeInfo.KubeletVersion,
-			AgeSec:            age,
+			ResourceRelationshipCarrier: relationships.Capture(&n, relationships.NodeDescriptor),
+			Name:                        n.Name,
+			Labels:                      n.Labels,
+			Annotations:                 n.Annotations,
+			Status:                      nodeReadyStatus(n.Status.Conditions),
+			Roles:                       deriveNodeRoles(n.Labels),
+			CPUAllocatable:              kubepods.QuantityString(n.Status.Allocatable[corev1.ResourceCPU]),
+			MemoryAllocatable:           kubepods.QuantityString(n.Status.Allocatable[corev1.ResourceMemory]),
+			PodsAllocatable:             kubepods.QuantityString(n.Status.Allocatable[corev1.ResourcePods]),
+			PodsCount:                   podCounts[n.Name],
+			KubeletVersion:              n.Status.NodeInfo.KubeletVersion,
+			AgeSec:                      age,
 		})
 	}
-	return out, nil
+	return out
 }
 
 func listAllNodes(ctx context.Context, c *cluster.Clients) (*corev1.NodeList, error) {

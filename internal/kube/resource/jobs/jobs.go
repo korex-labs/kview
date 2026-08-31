@@ -10,6 +10,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.JobDTO, error) {
@@ -25,18 +26,21 @@ func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		if !job.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(job.CreationTimestamp.Time).Seconds())
 		}
+		carrier := relationships.Capture(&job, relationships.JobDescriptor)
+		carrier = relationships.WithObjectReferences(carrier, relationships.PodSpecReferences(job.Namespace, "spec.template.spec", job.Spec.Template.Spec))
 
 		out = append(out, dto.JobDTO{
-			Name:        job.Name,
-			Namespace:   job.Namespace,
-			Labels:      job.Labels,
-			Annotations: job.Annotations,
-			Active:      job.Status.Active,
-			Succeeded:   job.Status.Succeeded,
-			Failed:      job.Status.Failed,
-			DurationSec: JobDurationSec(&job),
-			AgeSec:      age,
-			Status:      JobStatus(&job),
+			ResourceRelationshipCarrier: carrier,
+			Name:                        job.Name,
+			Namespace:                   job.Namespace,
+			Labels:                      job.Labels,
+			Annotations:                 job.Annotations,
+			Active:                      job.Status.Active,
+			Succeeded:                   job.Status.Succeeded,
+			Failed:                      job.Status.Failed,
+			DurationSec:                 JobDurationSec(&job),
+			AgeSec:                      age,
+			Status:                      JobStatus(&job),
 		})
 	}
 

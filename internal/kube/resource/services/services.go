@@ -14,6 +14,7 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListServices(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.ServiceListItemDTO, error) {
@@ -40,22 +41,25 @@ func serviceListItems(services []corev1.Service, endpointSlicesByName map[string
 		}
 
 		ready, notReady := EndpointSlicesCounts(endpointSlicesByName[svc.Name])
+		carrier := relationships.Capture(&svc, relationships.ServiceDescriptor)
+		carrier = relationships.WithSelectors(carrier, relationships.ServiceSelector(svc.Spec.Selector))
 
 		out = append(out, dto.ServiceListItemDTO{
-			Name:              svc.Name,
-			Namespace:         svc.Namespace,
-			Labels:            svc.Labels,
-			Annotations:       svc.Annotations,
-			Type:              ServiceType(svc.Spec.Type),
-			ClusterIPs:        serviceClusterIPs(svc.Spec),
-			Selector:          maps.Clone(svc.Spec.Selector),
-			Ports:             mapServicePorts(svc.Spec.Ports),
-			PortsObserved:     true,
-			PortsSummary:      FormatServicePortsSummary(svc.Spec.Ports),
-			EndpointCoverage:  endpointCoverage,
-			EndpointsReady:    int32(ready),
-			EndpointsNotReady: int32(notReady),
-			AgeSec:            age,
+			ResourceRelationshipCarrier: carrier,
+			Name:                        svc.Name,
+			Namespace:                   svc.Namespace,
+			Labels:                      svc.Labels,
+			Annotations:                 svc.Annotations,
+			Type:                        ServiceType(svc.Spec.Type),
+			ClusterIPs:                  serviceClusterIPs(svc.Spec),
+			Selector:                    maps.Clone(svc.Spec.Selector),
+			Ports:                       mapServicePorts(svc.Spec.Ports),
+			PortsObserved:               true,
+			PortsSummary:                FormatServicePortsSummary(svc.Spec.Ports),
+			EndpointCoverage:            endpointCoverage,
+			EndpointsReady:              int32(ready),
+			EndpointsNotReady:           int32(notReady),
+			AgeSec:                      age,
 		})
 	}
 

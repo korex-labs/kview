@@ -1,6 +1,7 @@
 package dto
 
 type NetworkPolicyDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name           string   `json:"name"`
 	Namespace      string   `json:"namespace"`
 	PodSelector    string   `json:"podSelector,omitempty"`

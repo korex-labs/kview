@@ -11,6 +11,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
 func ListLimitRanges(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.LimitRangeDTO, error) {
@@ -79,10 +80,11 @@ func mapLimitRange(lr corev1.LimitRange, now time.Time) dto.LimitRangeDTO {
 		})
 	}
 	return dto.LimitRangeDTO{
-		Name:      lr.Name,
-		Namespace: lr.Namespace,
-		AgeSec:    age,
-		Items:     limits,
+		ResourceRelationshipCarrier: relationships.Capture(&lr, relationships.LimitRangeDescriptor),
+		Name:                        lr.Name,
+		Namespace:                   lr.Namespace,
+		AgeSec:                      age,
+		Items:                       limits,
 	}
 }
 

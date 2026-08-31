@@ -3,6 +3,7 @@ package dto
 // CustomResourceInstanceDTO represents a single deployed custom resource instance
 // in the aggregated cross-kind list.
 type CustomResourceInstanceDTO struct {
+	ResourceRelationshipCarrier `json:"-"`
 	Name           string `json:"name"`
 	Namespace      string `json:"namespace,omitempty"`
 	Kind           string `json:"kind"`
