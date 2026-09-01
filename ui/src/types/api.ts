@@ -11,10 +11,27 @@ export type ApiResourceIdentity = {
   version: string;
   resource: string;
   kind: string;
-  scope: "namespaced" | "cluster";
+  scope: "namespaced" | "cluster" | "unknown";
   namespace?: string;
   name: string;
   uid?: string;
+};
+
+export type ResourcePresenceIdentity = Omit<ApiResourceIdentity, "scope"> & {
+  scope: "namespaced" | "cluster";
+};
+
+export type ResourcePresenceItem = {
+  requested: ResourcePresenceIdentity;
+  identity: ResourcePresenceIdentity;
+  resolved: boolean;
+  ambiguous?: boolean;
+  availability: "present" | "missing" | "unknown";
+};
+
+export type ResourcePresenceResponse = {
+  active: string;
+  items: ResourcePresenceItem[];
 };
 
 export type ResourceMapNode = {
@@ -32,7 +49,7 @@ export type ResourceMapEdge = {
   id: string;
   from: string;
   to: string;
-  type: "owner" | "namespace" | "objectReference" | "kindDefinition" | "selector";
+  type: "owner" | "namespace" | "objectReference" | "kindDefinition" | "selector" | "helmManifest";
   source: { type: "kubernetes" | "product"; fieldPath?: string };
   evidence?: { description?: string; selector?: Record<string, string> };
   confidence: "exact" | "high";

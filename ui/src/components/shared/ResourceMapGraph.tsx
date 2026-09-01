@@ -53,26 +53,35 @@ export default function ResourceMapGraph({
   nodes,
   edges,
   onOpenResource,
+  canOpenResource,
+  showCacheFreshness = true,
+  layoutDirection = "TB",
 }: {
   response: ResourceMapResponse;
   nodes: ResourceMapNode[];
   edges: ResourceMapEdge[];
   onOpenResource: (identity: ApiResourceIdentity) => void;
+  canOpenResource?: (identity: ApiResourceIdentity) => boolean;
+  showCacheFreshness?: boolean;
+  layoutDirection?: "TB" | "LR";
 }) {
-  const graph = useMemo(() => buildResourceMapGraph(nodes, edges), [edges, nodes]);
+  const graph = useMemo(
+    () => buildResourceMapGraph(nodes, edges, canOpenResource, layoutDirection),
+    [canOpenResource, edges, layoutDirection, nodes],
+  );
   const coveragePartial = response.coverage.coverage !== "full" || response.coverage.completeness !== "complete";
   const flowNodes = useMemo<ResourceMapFlowNode[]>(() => graph.nodes.map((node) => ({
     ...node,
     data: {
       ...node.data,
-      cacheFreshness: response.cache.freshness,
+      cacheFreshness: showCacheFreshness ? response.cache.freshness : undefined,
       coveragePartial,
       onOpenResource,
     },
-  })), [coveragePartial, graph.nodes, onOpenResource, response.cache.freshness]);
+  })), [coveragePartial, graph.nodes, onOpenResource, response.cache.freshness, showCacheFreshness]);
   const layoutKey = useMemo(
-    () => `${response.targetId}|${flowNodes.map((node) => node.id).join("|")}|${graph.edges.map((edge) => edge.id).join("|")}`,
-    [flowNodes, graph.edges, response.targetId],
+    () => `${layoutDirection}|${response.targetId}|${flowNodes.map((node) => node.id).join("|")}|${graph.edges.map((edge) => edge.id).join("|")}`,
+    [flowNodes, graph.edges, layoutDirection, response.targetId],
   );
 
   return (

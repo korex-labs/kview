@@ -9,18 +9,18 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
-// Error codes for structured mutation error responses.
+// Error codes for structured API error responses.
 const (
-	ErrCodeForbidden  = "FORBIDDEN"
-	ErrCodeNotFound   = "NOT_FOUND"
-	ErrCodeConflict   = "CONFLICT"
-	ErrCodeTimeout    = "TIMEOUT"
-	ErrCodeValidation = "VALIDATION"
-	ErrCodeInternal   = "INTERNAL"
+	ErrCodeUnauthorized = "UNAUTHORIZED"
+	ErrCodeForbidden    = "FORBIDDEN"
+	ErrCodeNotFound     = "NOT_FOUND"
+	ErrCodeConflict     = "CONFLICT"
+	ErrCodeTimeout      = "TIMEOUT"
+	ErrCodeValidation   = "VALIDATION"
+	ErrCodeInternal     = "INTERNAL"
 )
 
-// APIError is the structured error type returned by mutation endpoints.
-// Envelope: mutations use {"error": {"code", "message"}}; simple errors use {"message": "..."}.
+// APIError is the structured error type returned by API endpoints.
 type APIError struct {
 	Code    string         `json:"code"`
 	Message string         `json:"message"`
@@ -37,6 +37,8 @@ func mapKubeError(err error) (int, *APIError) {
 	}
 
 	switch {
+	case apierrors.IsUnauthorized(err):
+		return http.StatusUnauthorized, &APIError{Code: ErrCodeUnauthorized, Message: err.Error()}
 	case apierrors.IsForbidden(err):
 		return http.StatusForbidden, &APIError{Code: ErrCodeForbidden, Message: err.Error()}
 	case apierrors.IsNotFound(err):

@@ -178,6 +178,14 @@ type resourceMapCollector struct {
 	replicaSets  map[resourceIdentityKey]ResourceMapReplicaSetPresentation
 	truncated    bool
 	freshnessSet bool
+	scanLimit    int
+}
+
+func (c *resourceMapCollector) maxScannedRecords() int {
+	if c.scanLimit > 0 {
+		return c.scanLimit
+	}
+	return ResourceMapMaxScannedRecords
 }
 
 type resourceMapFamilyState struct {
@@ -254,7 +262,7 @@ func (c *resourceMapCollector) snapshotFiltered(store string, visibleItems, rela
 	for i := range relationships {
 		// ScannedRecords is a hard work bound: every examined sidecar record
 		// counts, including records rejected by an all-namespaces filter.
-		if c.meta.ScannedRecords >= ResourceMapMaxScannedRecords {
+		if c.meta.ScannedRecords >= c.maxScannedRecords() {
 			c.truncated = true
 			c.reasons["relationship scan limit"] = struct{}{}
 			if metadataValid {

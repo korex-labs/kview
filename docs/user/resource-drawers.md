@@ -56,6 +56,24 @@ objects, events, metadata, YAML, and supported actions.
   unavailable, and legacy ReplicaSets without status metadata remain visible.
   Select a present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>)
   to open its drawer without losing the original drawer.
+
+  Helm release drawers expose a separate **Resource Map** when their rendered
+  manifest contains resources. The release is the current node and each unique
+  manifest object is a direct declared child. This map is an inventory projection
+  of the release details already loaded by the drawer: opening it performs no
+  additional Helm or Kubernetes reads. Manifest membership is exact, but the
+  manifest alone does not prove that an object currently exists. The drawer
+  enriches canonical manifest identities with one bounded cache-only dataplane
+  projection: **present** means a unique cached identity match, **missing** is
+  shown only when the relevant snapshot cell is complete and untruncated, and
+  **unknown** covers unavailable, partial, ambiguous, unsupported, or unresolved
+  custom-resource cache evidence. These states are cache observations, not a live
+  cluster check. Built-in resources retain canonical stacked-drawer
+  navigation. Custom-resource plural, storage version, and scope are resolved
+  from the cached CRD snapshot only when the node is selected; objects without a
+  safe drawer identity remain visible but are not selectable. Dense manifests are
+  capped at 99 resource nodes plus the release node and report truncation
+  explicitly.
 - **Search and Activity**: saved investigation snapshots can appear in header
   search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,

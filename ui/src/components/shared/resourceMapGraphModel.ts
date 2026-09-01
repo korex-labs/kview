@@ -43,6 +43,7 @@ export function resourceMapEdgeLabel(type: ResourceMapEdge["type"]): string {
     case "objectReference": return "Object reference";
     case "kindDefinition": return "Kind definition";
     case "selector": return "Selector match";
+    case "helmManifest": return "Rendered manifest resource";
   }
 }
 
@@ -63,6 +64,7 @@ function edgeStroke(edge: ResourceMapEdge): string {
     case "objectReference": return "#1e88e5";
     case "kindDefinition": return "#8e24aa";
     case "namespace": return "#78909c";
+    case "helmManifest": return "#ef6c00";
   }
 }
 
@@ -86,6 +88,8 @@ function routeAnchor(node: LayoutNode, point: RoutePoint): { position: Position;
 export function buildResourceMapGraph(
   nodes: ResourceMapNode[],
   edges: ResourceMapEdge[],
+  canOpenResource: (identity: ApiResourceIdentity) => boolean = supportsResourceIdentityDrawer,
+  layoutDirection: "TB" | "LR" = "TB",
 ): { nodes: ResourceMapFlowNode[]; edges: ResourceMapFlowEdge[] } {
   const orderedNodes = [...nodes].sort(nodeSort);
   const orderedEdges = [...edges].sort(edgeSort);
@@ -100,7 +104,7 @@ export function buildResourceMapGraph(
 
   const graph = new dagre.graphlib.Graph({ multigraph: true });
   graph.setGraph({
-    rankdir: "TB",
+    rankdir: layoutDirection,
     ranker: "network-simplex",
     acyclicer: "greedy",
     nodesep: 56,
@@ -146,9 +150,13 @@ export function buildResourceMapGraph(
       sourceHandleOffsets.set(resourceEdge.id, sourceAnchor.offset);
       targetHandleOffsets.set(resourceEdge.id, targetAnchor.offset);
     } else {
-      const downward = source.y <= target.y;
-      sourceHandlePositions.set(resourceEdge.id, downward ? Position.Bottom : Position.Top);
-      targetHandlePositions.set(resourceEdge.id, downward ? Position.Top : Position.Bottom);
+      const forward = layoutDirection === "LR" ? source.x <= target.x : source.y <= target.y;
+      sourceHandlePositions.set(resourceEdge.id, layoutDirection === "LR"
+        ? (forward ? Position.Right : Position.Left)
+        : (forward ? Position.Bottom : Position.Top));
+      targetHandlePositions.set(resourceEdge.id, layoutDirection === "LR"
+        ? (forward ? Position.Left : Position.Right)
+        : (forward ? Position.Top : Position.Bottom));
       sourceHandleOffsets.set(resourceEdge.id, 50);
       targetHandleOffsets.set(resourceEdge.id, 50);
     }
@@ -184,8 +192,8 @@ export function buildResourceMapGraph(
         x: position.x - RESOURCE_MAP_NODE_WIDTH / 2,
         y: position.y - RESOURCE_MAP_NODE_HEIGHT / 2,
       },
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
+      sourcePosition: layoutDirection === "LR" ? Position.Right : Position.Bottom,
+      targetPosition: layoutDirection === "LR" ? Position.Left : Position.Top,
       draggable: false,
       selectable: false,
       connectable: false,
@@ -194,7 +202,7 @@ export function buildResourceMapGraph(
       height: RESOURCE_MAP_NODE_HEIGHT,
       data: {
         resourceNode,
-        uiNavigable: !resourceNode.current && resourceNode.navigable && supportsResourceIdentityDrawer(resourceNode.identity),
+        uiNavigable: !resourceNode.current && resourceNode.navigable && canOpenResource(resourceNode.identity),
         incoming: incoming.get(resourceNode.id) || [],
         outgoing: outgoing.get(resourceNode.id) || [],
         incomingHandlePositions: Object.fromEntries((incoming.get(resourceNode.id) || []).map((edge) => [edge.id, targetHandlePositions.get(edge.id) || Position.Top])),

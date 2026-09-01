@@ -154,4 +154,39 @@ describe("buildResourceMapGraph", () => {
     expect(target.data.incomingHandlePositions.loop).toBe(Position.Right);
     expect(result.edges[0].data?.selfLoop).toBe(true);
   });
+
+  it("keeps strict navigation by default and accepts an explicit projection predicate", () => {
+    const custom = {
+      ...node("custom", "child", 1),
+      navigable: true,
+      identity: {
+        ...identity,
+        group: "cert-manager.io",
+        resource: "",
+        kind: "ClusterIssuer",
+        scope: "unknown" as const,
+        namespace: undefined,
+        name: "production",
+      },
+    };
+    expect(buildResourceMapGraph([custom], []).nodes[0].data.uiNavigable).toBe(false);
+    expect(buildResourceMapGraph([custom], [], () => true).nodes[0].data.uiNavigable).toBe(true);
+  });
+
+  it("lays product fan-out left-to-right with children in a vertical column", () => {
+    const nodes = [node("release", "current", 0), node("service", "child", 1), node("deployment", "child", 1)];
+    const edges = [
+      edge("release-service", "release", "service", "helmManifest"),
+      edge("release-deployment", "release", "deployment", "helmManifest"),
+    ];
+    const result = buildResourceMapGraph(nodes, edges, () => true, "LR");
+    const byId = new Map(result.nodes.map((item) => [item.id, item]));
+    const release = byId.get("release")!;
+    const service = byId.get("service")!;
+    const deployment = byId.get("deployment")!;
+
+    expect(service.position.x).toBeGreaterThan(release.position.x);
+    expect(deployment.position.x).toBe(service.position.x);
+    expect(deployment.position.y).not.toBe(service.position.y);
+  });
 });

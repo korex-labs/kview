@@ -338,6 +338,7 @@ exports[`drawer layout order snapshots > locks tab order and overview section or
     "path": "helm/HelmReleaseDrawer.tsx",
     "tabs": [
       "Overview",
+      "Resource Map",
       "Values",
       "Manifest",
       "Hooks",

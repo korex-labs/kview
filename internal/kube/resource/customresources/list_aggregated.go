@@ -160,5 +160,6 @@ func mapCustomResourceInstance(item unstructured.Unstructured, crd dto.CRDListIt
 		AgeSec:                      age,
 		SignalSeverity:              severity,
 		StatusSummary:               statusSummary,
+		Provenance:                  dto.CustomResourceProvenanceKubernetes,
 	}
 }

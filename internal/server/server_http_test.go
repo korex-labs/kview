@@ -191,6 +191,59 @@ func TestResourceMapRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestResourcePresenceRequiresAuthAndDispatchesValidatedBatch(t *testing.T) {
+	const path = "/api/dataplane/resource-presence"
+	t.Run("requires auth", func(t *testing.T) {
+		s, h := newTestServer(t)
+		dp := s.dp.(*stubDataplane)
+		rec := doReq(t, h, http.MethodPost, path, "", []byte(`{"identities":[]}`))
+		if rec.Code != http.StatusUnauthorized || len(dp.resourcePresenceCalls) != 0 {
+			t.Fatalf("unauthenticated presence request: status=%d calls=%+v", rec.Code, dp.resourcePresenceCalls)
+		}
+	})
+
+	t.Run("validated batch and explicit context", func(t *testing.T) {
+		s, h := newTestServer(t)
+		dp := s.dp.(*stubDataplane)
+		dp.resourcePresenceResult = dataplane.ResourcePresenceResponse{Items: []dataplane.ResourcePresenceItem{{Availability: dataplane.ResourceMapAvailabilityPresent}}}
+		body := []byte(`{"identities":[{"group":"","version":"v1","resource":"services","kind":"Service","scope":"namespaced","namespace":"apps","name":"api"}]}`)
+		rec := doReqWithHeader(t, h, http.MethodPost, path, map[string]string{
+			"Authorization":   "Bearer " + testToken,
+			"X-Kview-Context": "other-context",
+		}, body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+		}
+		if len(dp.resourcePresenceCalls) != 1 || dp.resourcePresenceCalls[0].contextName != "other-context" {
+			t.Fatalf("presence calls = %+v", dp.resourcePresenceCalls)
+		}
+		identities := dp.resourcePresenceCalls[0].request.Identities
+		if len(identities) != 1 || identities[0].Resource != "services" || identities[0].Namespace != "apps" {
+			t.Fatalf("presence identities = %+v", identities)
+		}
+		response := mustDecodeJSON(t, rec.Body.Bytes())
+		if response["active"] != "other-context" {
+			t.Fatalf("presence response context = %v", response)
+		}
+	})
+
+	for name, body := range map[string][]byte{
+		"empty":            []byte(`{"identities":[]}`),
+		"trailing json":    []byte(`{"identities":[{"version":"v1","resource":"nodes","kind":"Node","scope":"cluster","name":"worker"}]} {}`),
+		"unknown field":    []byte(`{"identities":[],"items":[]}`),
+		"invalid identity": []byte(`{"identities":[{"version":"v1","resource":"nodes","kind":"Node","scope":"cluster","namespace":"apps","name":"worker"}]}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, h := newTestServer(t)
+			dp := s.dp.(*stubDataplane)
+			rec := doReq(t, h, http.MethodPost, path, testToken, body)
+			if rec.Code != http.StatusBadRequest || len(dp.resourcePresenceCalls) != 0 {
+				t.Fatalf("invalid presence request: status=%d body=%s calls=%+v", rec.Code, rec.Body.String(), dp.resourcePresenceCalls)
+			}
+		})
+	}
+}
+
 func TestResourceMapValidTargetsAndContextRouting(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -431,6 +484,9 @@ type stubDataplane struct {
 	resourceMapCalls        []stubResourceMapCall
 	resourceMapResult       dataplane.ResourceMapResponse
 	resourceMapErr          error
+	resourcePresenceResult  dataplane.ResourcePresenceResponse
+	resourcePresenceErr     error
+	resourcePresenceCalls   []stubResourcePresenceCall
 	suppressCalls           []stubSuppressCall
 	unsuppressCalls         []stubUnsuppressCall
 	suppressionExportCalls  []string
@@ -446,6 +502,11 @@ type stubDataplane struct {
 type stubResourceMapCall struct {
 	contextName string
 	request     dataplane.ResourceMapRequest
+}
+
+type stubResourcePresenceCall struct {
+	contextName string
+	request     dataplane.ResourcePresenceRequest
 }
 
 type stubSuppressCall struct {
@@ -714,6 +775,15 @@ func (s *stubDataplane) ResourceMap(contextName string, req dataplane.ResourceMa
 		return dataplane.ResourceMapResponse{}, s.resourceMapErr
 	}
 	result := s.resourceMapResult
+	result.Active = contextName
+	return result, nil
+}
+func (s *stubDataplane) ResourcePresence(contextName string, req dataplane.ResourcePresenceRequest) (dataplane.ResourcePresenceResponse, error) {
+	s.resourcePresenceCalls = append(s.resourcePresenceCalls, stubResourcePresenceCall{contextName: contextName, request: req})
+	if s.resourcePresenceErr != nil {
+		return dataplane.ResourcePresenceResponse{}, s.resourcePresenceErr
+	}
+	result := s.resourcePresenceResult
 	result.Active = contextName
 	return result, nil
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Chip, CircularProgress, Tabs, Tab } from "@mui/material";
-import { apiGet } from "../../../api";
+import { apiGet, toApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
@@ -63,10 +63,20 @@ export type CRRef = {
   resource?: string;
   kind: string;
   namespace: string; // "" for cluster-scoped
+  /** Namespace to use only when lazy CRD resolution reports Namespaced scope. */
+  defaultNamespace?: string;
   name: string;
+  provenance?: "kubernetes" | "helmManifest";
 };
 
-type ResolveResult = { resource: string; storageVersion: string };
+type ResolveResult = { resource: string; storageVersion: string; scope?: string };
+
+export function resolvedCustomResourceNamespace(
+  ref: Pick<CRRef, "namespace" | "defaultNamespace">,
+  resolvedScope?: string | null,
+): string {
+  return ref.namespace || (resolvedScope === "Namespaced" ? ref.defaultNamespace || "" : "");
+}
 
 export default function CustomResourceDrawer(props: {
   open: boolean;
@@ -79,17 +89,21 @@ export default function CustomResourceDrawer(props: {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CRDetails | null>(null);
   const [err, setErr] = useState("");
+  const [errStatus, setErrStatus] = useState<number | undefined>();
+  const [notFoundMessage, setNotFoundMessage] = useState<string | undefined>();
   const [namespaceDrawerOpen, setNamespaceDrawerOpen] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   // Resolved plural resource name — populated either directly from ref.resource
   // or via /api/customresources/resolve when resource is absent.
   const [resolvedResource, setResolvedResource] = useState<string | null>(null);
   const [resolvedVersion, setResolvedVersion] = useState<string | null>(null);
+  const [resolvedScope, setResolvedScope] = useState<string | null>(null);
 
   const ref = props.crRef;
   const refKey = ref
-    ? `${ref.group}|${ref.version}|${ref.resource ?? ""}|${ref.kind}|${ref.namespace}|${ref.name}`
+    ? `${ref.group}|${ref.version}|${ref.resource ?? ""}|${ref.kind}|${ref.namespace}|${ref.defaultNamespace ?? ""}|${ref.name}|${ref.provenance ?? ""}`
     : "";
+  const unresolvedManifestReference = ref?.provenance === "helmManifest" && !resolvedResource && Boolean(err);
 
   // Reset tab only when the displayed resource identity changes.
   useEffect(() => {
@@ -103,12 +117,16 @@ export default function CustomResourceDrawer(props: {
     if (ref.resource) {
       setResolvedResource(ref.resource);
       setResolvedVersion(ref.version);
+      setResolvedScope(ref.namespace ? "Namespaced" : "Cluster");
       return;
     }
 
     setResolvedResource(null);
     setResolvedVersion(null);
+    setResolvedScope(null);
     setErr("");
+    setErrStatus(undefined);
+    setNotFoundMessage(undefined);
     setLoading(true);
 
     const path = `/api/customresources/resolve?group=${encodeURIComponent(ref.group)}&kind=${encodeURIComponent(ref.kind)}`;
@@ -116,9 +134,15 @@ export default function CustomResourceDrawer(props: {
       .then((res) => {
         setResolvedResource(res.resource);
         setResolvedVersion(res.storageVersion || ref.version);
+        setResolvedScope(res.scope || null);
       })
       .catch((e) => {
-        setErr(`Could not resolve CRD for ${ref.kind} (${ref.group}): ${String(e)}`);
+        const apiError = toApiError(e);
+        setErr(`Could not resolve CRD for ${ref.kind} (${ref.group}): ${apiError.message}`);
+        setErrStatus(apiError.status);
+        if (apiError.status === 404) {
+          setNotFoundMessage("CRD metadata for this manifest reference is not available in the active context. The row does not confirm that a live custom resource exists.");
+        }
         setLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,19 +157,24 @@ export default function CustomResourceDrawer(props: {
     setLoading(true);
 
     const version = resolvedVersion || ref.version;
-    const params = ref.namespace ? `?namespace=${encodeURIComponent(ref.namespace)}` : "";
+    const effectiveNamespace = resolvedCustomResourceNamespace(ref, resolvedScope);
+    const params = effectiveNamespace ? `?namespace=${encodeURIComponent(effectiveNamespace)}` : "";
     const path = `/api/customresources/${encodeURIComponent(ref.group)}/${encodeURIComponent(version)}/${encodeURIComponent(resolvedResource)}/${encodeURIComponent(ref.name)}${params}`;
 
     apiGet<ApiItemResponse<CRDetails>>(path, props.token)
       .then((res) => setDetails(res?.item ?? null))
-      .catch((e) => setErr(String(e)))
+      .catch((e) => {
+        const apiError = toApiError(e);
+        setErr(apiError.message);
+        setErrStatus(apiError.status);
+      })
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, refKey, resolvedResource, resolvedVersion, props.token, refreshNonce]);
+  }, [props.open, refKey, resolvedResource, resolvedVersion, resolvedScope, props.token, refreshNonce]);
 
   const summary = details?.summary;
-  const drawerResourceKey: ListResourceKey = ref?.namespace ? "customresources" : "clusterresources";
-  const drawerNamespace = ref?.namespace || "";
+  const drawerNamespace = ref ? resolvedCustomResourceNamespace(ref, resolvedScope) : "";
+  const drawerResourceKey: ListResourceKey = drawerNamespace ? "customresources" : "clusterresources";
   const labels = summary?.labels;
   const annotations = summary?.annotations;
 
@@ -181,7 +210,7 @@ export default function CustomResourceDrawer(props: {
   const title = ref ? (
     <>
       {ref.kind}: {ref.name || "-"}{" "}
-      {ref.namespace ? <ResourceLinkChip label={ref.namespace} onClick={() => setNamespaceDrawerOpen(true)} /> : null}
+      {drawerNamespace ? <ResourceLinkChip label={drawerNamespace} onClick={() => setNamespaceDrawerOpen(true)} /> : null}
     </>
   ) : "-";
 
@@ -195,7 +224,7 @@ export default function CustomResourceDrawer(props: {
         headerMeta={
           ref ? <ResourceDrawerTags resource={drawerResourceKey} namespace={drawerNamespace} name={ref.name} labels={labels} annotations={annotations} /> : null
         }
-        dynamicLinks={ref ? {
+        dynamicLinks={ref && !unresolvedManifestReference ? {
           resource: drawerResourceKey,
           namespace: drawerNamespace,
           name: ref.name,
@@ -206,10 +235,10 @@ export default function CustomResourceDrawer(props: {
             version: resolvedVersion || ref.version,
             apiResource: resolvedResource,
             kind: ref.kind,
-            scope: ref.namespace ? "namespaced" as const : "cluster" as const,
+            scope: drawerNamespace ? "namespaced" as const : "cluster" as const,
           } : {}),
         } : undefined}
-        headerActions={ref ? (
+        headerActions={ref && !unresolvedManifestReference ? (
           <>
             <ResourceDrawerMacros
               resource={drawerResourceKey}
@@ -227,7 +256,7 @@ export default function CustomResourceDrawer(props: {
             <CircularProgress />
           </Box>
         ) : err ? (
-          <ErrorState message={err} />
+          <ErrorState message={err} status={errStatus} notFoundMessage={notFoundMessage} />
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
@@ -244,7 +273,7 @@ export default function CustomResourceDrawer(props: {
                     <DrawerActionStrip>
                       <CustomResourceActions
                         token={props.token}
-                        namespace={ref.namespace}
+                        namespace={drawerNamespace}
                         name={ref.name}
                         group={ref.group}
                         version={resolvedVersion || ref.version}
@@ -286,7 +315,7 @@ export default function CustomResourceDrawer(props: {
                     resource: resolvedResource,
                     apiVersion: ref.group ? `${ref.group}/${resolvedVersion || ref.version}` : (resolvedVersion || ref.version),
                     name: ref.name,
-                    namespace: ref.namespace || undefined,
+                    namespace: drawerNamespace || undefined,
                   }}
                   onApplied={() => setRefreshNonce((v) => v + 1)}
                 />
@@ -299,7 +328,7 @@ export default function CustomResourceDrawer(props: {
         open={namespaceDrawerOpen}
         onClose={() => setNamespaceDrawerOpen(false)}
         token={props.token}
-        namespaceName={summary?.namespace || null}
+        namespaceName={summary?.namespace || drawerNamespace || null}
       />
     </RightDrawer>
   );

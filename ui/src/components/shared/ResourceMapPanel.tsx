@@ -71,7 +71,7 @@ export function hiddenHistoryBranchNodeIDs(response: ResourceMapResponse, histor
   return Array.from(hidden);
 }
 
-export function ResourceMapView({ response, onOpenResource }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void }) {
+export function ResourceMapView({ response, onOpenResource, canOpenResource, showCacheFreshness, layoutDirection }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void; canOpenResource?: (identity: ApiResourceIdentity) => boolean; showCacheFreshness?: boolean; layoutDirection?: "TB" | "LR" }) {
   const [showHistoricalReplicaSets, setShowHistoricalReplicaSets] = useState(false);
   const historicalReplicaSetIds = useMemo(() => historicalReplicaSetNodeIDs(response), [response]);
   const hiddenHistoryBranchIds = useMemo(() => hiddenHistoryBranchNodeIDs(response, historicalReplicaSetIds), [historicalReplicaSetIds, response]);
@@ -94,7 +94,7 @@ export function ResourceMapView({ response, onOpenResource }: { response: Resour
         </Stack>
       ) : null}
       <Suspense fallback={<Box aria-label="Loading resource map graph" sx={{ display: "flex", justifyContent: "center", p: 5 }}><CircularProgress size={28} /></Box>}>
-        <LazyResourceMapGraph response={response} nodes={visibleNodes} edges={visibleEdges} onOpenResource={onOpenResource} />
+        <LazyResourceMapGraph response={response} nodes={visibleNodes} edges={visibleEdges} onOpenResource={onOpenResource} canOpenResource={canOpenResource} showCacheFreshness={showCacheFreshness} layoutDirection={layoutDirection} />
       </Suspense>
       {evidenceRows.length ? (
         <Box component="details" sx={{ borderTop: 1, borderColor: "divider" }}>

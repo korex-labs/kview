@@ -20,6 +20,7 @@ type CRInstanceItem = {
   ageSec: number;
   signalSeverity?: string;
   statusSummary?: string;
+  provenance?: "kubernetes" | "helmManifest";
 };
 
 type AggregationMeta = {
@@ -43,6 +44,12 @@ const columns: GridColDef<Row>[] = [
     ),
   },
   { field: "name", headerName: "Name", flex: 1, minWidth: 220 },
+  {
+    field: "provenance",
+    headerName: "Source",
+    width: 130,
+    valueGetter: (_value, row) => row.provenance === "kubernetes" ? "Live API" : row.provenance === "helmManifest" ? "Helm manifest" : "Unknown source",
+  },
   {
     field: "signalSeverity",
     headerName: "Status",
@@ -100,7 +107,8 @@ export default function CustomResourcesTable({
       row.kind.toLowerCase().includes(q) ||
       (row.group || "").toLowerCase().includes(q) ||
       (row.signalSeverity || "").toLowerCase().includes(q) ||
-      (row.statusSummary || "").toLowerCase().includes(q),
+      (row.statusSummary || "").toLowerCase().includes(q) ||
+      (row.provenance === "kubernetes" ? "live api" : row.provenance === "helmManifest" ? "helm manifest" : "unknown source").includes(q),
     [],
   );
 
@@ -138,6 +146,7 @@ export default function CustomResourcesTable({
               kind: selectedRow.kind,
               namespace: selectedRow.namespace || namespace,
               name: selectedRow.name,
+              provenance: selectedRow.provenance,
             }
           : null;
         return (

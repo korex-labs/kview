@@ -115,6 +115,99 @@ func testResourceMapLabelMap(entries int, large bool) map[string]string {
 	return labels
 }
 
+func TestResourcePresenceCacheOnlyAvailability(t *testing.T) {
+	plane := newClusterPlane("ctx", "", "", ObservationScope{}, nil, nil, nil)
+	seedCompleteEmptyResourceMapInventory(plane)
+	present := resourceMapIdentity("", "v1", "services", "Service", "apps", "api", "svc")
+	missing := resourceMapIdentity("", "v1", "services", "Service", "apps", "missing", "")
+	setNamespacedSnapshot(&plane.svcsStore, "apps", ServicesSnapshot{
+		Items:                make([]dto.ServiceListItemDTO, 1),
+		Meta:                 resourceMapMeta(),
+		Relationships:        []dto.ResourceRelationshipRecord{testResourceMapRecord(present)},
+		RelationshipMetadata: completeResourceMapRelationshipMetadata(1, 1),
+	})
+
+	response, err := plane.ResourcePresence(ResourcePresenceRequest{Identities: []dto.ResourceIdentityDTO{present, missing}})
+	if err != nil {
+		t.Fatalf("ResourcePresence returned error: %v", err)
+	}
+	if got := response.Items[0].Availability; got != ResourceMapAvailabilityPresent || !response.Items[0].Resolved {
+		t.Fatalf("present item = %#v", response.Items[0])
+	}
+	if got := response.Items[1].Availability; got != ResourceMapAvailabilityMissing || response.Items[1].Resolved {
+		t.Fatalf("missing item = %#v", response.Items[1])
+	}
+}
+
+func TestResourcePresenceKeepsAbsenceUnknownWithPartialCache(t *testing.T) {
+	plane := newClusterPlane("ctx", "", "", ObservationScope{}, nil, nil, nil)
+	present := resourceMapIdentity("", "v1", "services", "Service", "apps", "api", "svc")
+	unknown := resourceMapIdentity("", "v1", "pods", "Pod", "apps", "missing", "")
+	setNamespacedSnapshot(&plane.svcsStore, "apps", ServicesSnapshot{
+		Items:                make([]dto.ServiceListItemDTO, 1),
+		Meta:                 resourceMapMeta(),
+		Relationships:        []dto.ResourceRelationshipRecord{testResourceMapRecord(present)},
+		RelationshipMetadata: completeResourceMapRelationshipMetadata(1, 1),
+	})
+
+	response, err := plane.ResourcePresence(ResourcePresenceRequest{Identities: []dto.ResourceIdentityDTO{present, unknown}})
+	if err != nil {
+		t.Fatalf("ResourcePresence returned error: %v", err)
+	}
+	if got := response.Items[0].Availability; got != ResourceMapAvailabilityPresent {
+		t.Fatalf("present availability = %q", got)
+	}
+	if got := response.Items[1].Availability; got != ResourceMapAvailabilityUnknown {
+		t.Fatalf("partial-cache absence = %q, want unknown", got)
+	}
+}
+
+func TestResourcePresenceCanonicalResolutionRejectsCompatibilityCollision(t *testing.T) {
+	observedIdentity := resourceMapIdentity("alpha.example", "v1", "widgets", "Widget", "apps", "demo", "alpha-uid")
+	observed := testResourceMapRecord(observedIdentity)
+	collector := resourceMapCollector{records: []resourceMapRecord{{record: &observed}}}
+	index := newResourceMapIndex(&collector)
+	requested := resourceMapIdentity("beta.example", "v1", "widgets", "Widget", "apps", "demo", "")
+
+	if record, _ := index.resolveTarget(requested); record < 0 {
+		t.Fatal("fixture no longer exercises the compatibility fallback")
+	}
+	if record, ambiguous := index.resolveCanonicalPresenceTarget(requested); record >= 0 || ambiguous {
+		t.Fatalf("canonical presence resolved a different GVR: record=%d ambiguous=%v", record, ambiguous)
+	}
+
+	plane := newClusterPlane("ctx", "", "", ObservationScope{}, nil, nil, nil)
+	sourceItems := 1
+	setNamespacedSnapshot(&plane.customResourcesStore, "apps", CustomResourcesSnapshot{
+		Items: []dto.CustomResourceInstanceDTO{{
+			Name: "demo", Namespace: "apps", Kind: "Widget", Group: "alpha.example", Version: "v1", Resource: "widgets",
+		}},
+		Meta:                    resourceMapMeta(),
+		Aggregation:             &dto.CustomResourceAggregationMeta{TotalKinds: 1, AccessibleKinds: 1},
+		Relationships:           []dto.ResourceRelationshipRecord{observed},
+		RelationshipMetadata:    completeResourceMapRelationshipMetadata(1, 1),
+		RelationshipSourceItems: &sourceItems,
+	})
+	response, err := plane.ResourcePresence(ResourcePresenceRequest{Identities: []dto.ResourceIdentityDTO{requested}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item := response.Items[0]; item.Availability == ResourceMapAvailabilityPresent || item.Resolved {
+		t.Fatalf("presence returned a different canonical GVR as present: %+v", item)
+	}
+}
+
+func TestResourcePresenceRejectsOversizedBatch(t *testing.T) {
+	plane := newClusterPlane("ctx", "", "", ObservationScope{}, nil, nil, nil)
+	items := make([]dto.ResourceIdentityDTO, ResourcePresenceMaxItems+1)
+	for i := range items {
+		items[i] = resourceMapIdentity("", "v1", "services", "Service", "apps", fmt.Sprintf("service-%d", i), "")
+	}
+	if _, err := plane.ResourcePresence(ResourcePresenceRequest{Identities: items}); err == nil {
+		t.Fatal("expected oversized batch error")
+	}
+}
+
 func TestResourceMapServicePodSelectorProjectionBothDirections(t *testing.T) {
 	plane := newClusterPlane("ctx", "", "", ObservationScope{}, nil, nil, nil)
 	seedCompleteEmptyResourceMapInventory(plane)

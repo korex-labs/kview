@@ -531,11 +531,8 @@ func (s *Server) registerClusterResourceRoutes(api chi.Router) {
 
 		det, err := crs.GetCustomResourceDetails(ctx, dynClient, group, version, resource, namespace, name)
 		if err != nil {
-			status := http.StatusInternalServerError
-			if apierrors.IsForbidden(err) {
-				status = http.StatusForbidden
-			}
-			writeJSON(w, status, map[string]any{"error": err.Error(), "active": active})
+			status, apiErr := mapKubeError(err)
+			writeJSON(w, status, map[string]any{"error": apiErr, "active": active})
 			return
 		}
 

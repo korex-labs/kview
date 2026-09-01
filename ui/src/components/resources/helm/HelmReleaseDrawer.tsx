@@ -12,12 +12,14 @@ import {
   TableRow,
   TableCell,
 } from "@mui/material";
-import { apiGet } from "../../../api";
+import { apiGet, apiPostWithContext } from "../../../api";
+import { useActiveContext } from "../../../activeContext";
 import { useConnectionState } from "../../../connectionState";
 import { fmtTs, valueOrDash } from "../../../utils/format";
 import { helmStatusChipColor } from "../../../utils/k8sUi";
 import { parseManifestResources, groupResourcesByKind, canNavigateToKind, isCRManifestResource, parseApiVersion } from "../../../utils/helmManifest";
 import type { ManifestResource } from "../../../utils/helmManifest";
+import type { ResourcePresenceItem, ResourcePresenceResponse } from "../../../types/api";
 import Section from "../../shared/Section";
 import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -29,6 +31,12 @@ import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import AutolinkText from "../../shared/AutolinkText";
 import StatusChip from "../../shared/StatusChip";
 import { HelmReleaseActions, HelmRollbackActionButton } from "./HelmActions";
+import HelmReleaseResourceMap from "./HelmReleaseResourceMap";
+import {
+  helmManifestPresenceIdentities,
+  isCanonicalHelmManifestResource,
+  isCustomHelmManifestResource,
+} from "./helmReleaseResourceMapModel";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
 import StatefulSetDrawer from "../statefulsets/StatefulSetDrawer";
 import DaemonSetDrawer from "../daemonsets/DaemonSetDrawer";
@@ -117,11 +125,13 @@ export default function HelmReleaseDrawer(props: {
   onRefresh?: () => void;
 }) {
   const { retryNonce } = useConnectionState();
+  const activeContext = useActiveContext();
   const [tab, setTab] = useState(0);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<HelmReleaseDetails | null>(null);
   const [err, setErr] = useState("");
+  const [presenceItems, setPresenceItems] = useState<ResourcePresenceItem[]>([]);
 
   // Sub-drawer state for cross-links
   const [linkedResource, setLinkedResource] = useState<ManifestResource | null>(null);
@@ -176,6 +186,12 @@ export default function HelmReleaseDrawer(props: {
     () => (manifest ? parseManifestResources(manifest) : []),
     [manifest],
   );
+  const presenceIdentities = useMemo(
+    () => helmManifestPresenceIdentities(manifestResources, ns),
+    [manifestResources, ns],
+  );
+
+
   const groupedResources = useMemo(
     () => groupResourcesByKind(manifestResources),
     [manifestResources],
@@ -190,6 +206,7 @@ export default function HelmReleaseDrawer(props: {
     const tabs: { label: string; id: string; actionId: DrawerTabActionId }[] = [
       { label: "Overview", id: "overview", actionId: "drawer.tab.overview" },
     ];
+    if (manifestResources.length > 0) tabs.push({ label: "Resource Map", id: "resource-map", actionId: "drawer.tab.resourceMap" });
     if (values.trim()) tabs.push({ label: "Values", id: "values", actionId: "drawer.tab.values" });
     if (manifest.trim()) tabs.push({ label: "Manifest", id: "manifest", actionId: "drawer.tab.manifest" });
     if (hooks.length > 0) tabs.push({ label: "Hooks", id: "hooks", actionId: "drawer.tab.hooks" });
@@ -198,9 +215,31 @@ export default function HelmReleaseDrawer(props: {
     tabs.push({ label: "Metadata", id: "metadata", actionId: "drawer.tab.metadata" });
     if (yaml.trim()) tabs.push({ label: "YAML", id: "yaml", actionId: "drawer.tab.yaml" });
     return tabs;
-  }, [values, manifest, hooks, notes, yaml]);
+  }, [values, manifest, manifestResources.length, hooks, notes, yaml]);
 
   const activeTabId = tabDefs[tab]?.id || "overview";
+
+  useEffect(() => {
+    setPresenceItems([]);
+    if (activeTabId !== "resource-map" || !props.open || !name || !activeContext || presenceIdentities.length === 0) return;
+    let cancelled = false;
+    apiPostWithContext<ResourcePresenceResponse>(
+      "/api/dataplane/resource-presence",
+      props.token,
+      activeContext,
+      { identities: presenceIdentities },
+    )
+      .then((response) => {
+        if (!cancelled && response.active === activeContext) setPresenceItems(response.items || []);
+      })
+      .catch(() => {
+        // Cache enrichment is best-effort. Manifest membership remains useful,
+        // and unknown never means absent.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeContext, activeTabId, name, presenceIdentities, props.open, props.token]);
 
   const summaryItems = useMemo(
     () => [
@@ -231,23 +270,25 @@ export default function HelmReleaseDrawer(props: {
   );
 
   function openManifestResource(r: ManifestResource) {
-    if (r.kind === "Namespace") {
+    if (r.kind === "Namespace" && isCanonicalHelmManifestResource(r)) {
       setDrawerNamespace(r.name);
       return;
     }
-    if (canNavigateToKind(r.kind)) {
+    if (isCanonicalHelmManifestResource(r)) {
       setLinkedResource(r);
       return;
     }
-    if (isCRManifestResource(r)) {
+    if (isCustomHelmManifestResource(r)) {
       const parsed = r.apiVersion ? parseApiVersion(r.apiVersion) : null;
       setLinkedCR({
         group: parsed?.group ?? "",
         version: parsed?.version ?? "",
         // resource (plural) is absent here — CustomResourceDrawer resolves it lazily
         kind: r.kind,
-        namespace: r.namespace ?? ns,
+        namespace: r.namespace ?? "",
+        defaultNamespace: r.namespace ? undefined : ns,
         name: r.name,
+        provenance: "helmManifest",
       });
     }
   }
@@ -358,6 +399,17 @@ export default function HelmReleaseDrawer(props: {
                     </Section>
                   )}
                 </Box>
+              )}
+
+              {/* RESOURCE MAP */}
+              {activeTabId === "resource-map" && name && (
+                <HelmReleaseResourceMap
+                  releaseName={name}
+                  releaseNamespace={ns}
+                  manifestResources={manifestResources}
+                  presenceItems={presenceItems}
+                  onOpenResource={openManifestResource}
+                />
               )}
 
               {/* VALUES */}

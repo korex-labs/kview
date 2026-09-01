@@ -183,6 +183,45 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, response)
 	})
 
+	api.Post("/dataplane/resource-presence", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "dataplane unavailable")
+			return
+		}
+		var req dataplane.ResourcePresenceRequest
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 128<<10))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&req); err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource presence request")
+			return
+		}
+		var extra any
+		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource presence request")
+			return
+		}
+		if len(req.Identities) == 0 || len(req.Identities) > dataplane.ResourcePresenceMaxItems {
+			writeErrorResponse(w, http.StatusBadRequest, "invalid resource presence request")
+			return
+		}
+		for _, identity := range req.Identities {
+			if err := identity.Validate(); err != nil || !validResourceMapIdentityQuery(identity) {
+				writeErrorResponse(w, http.StatusBadRequest, "invalid resource presence request")
+				return
+			}
+		}
+		response, err := s.dp.ResourcePresence(s.readContextName(r), req)
+		if errors.Is(err, dataplane.ErrResourceMapPlaneUnavailable) {
+			writeErrorResponse(w, http.StatusServiceUnavailable, "resource presence unavailable")
+			return
+		}
+		if err != nil {
+			writeErrorResponse(w, http.StatusInternalServerError, "failed to resolve resource presence")
+			return
+		}
+		writeJSON(w, http.StatusOK, response)
+	})
+
 	api.Get("/dataplane/config", func(w http.ResponseWriter, r *http.Request) {
 		if s.dp == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})

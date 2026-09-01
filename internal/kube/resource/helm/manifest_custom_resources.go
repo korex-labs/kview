@@ -127,6 +127,7 @@ func ManifestCustomResources(manifest, defaultNamespace string, crds []dto.CRDLi
 			Resource:       resource,
 			SignalSeverity: "unknown",
 			StatusSummary:  "Referenced by Helm manifest",
+			Provenance:     dto.CustomResourceProvenanceHelmManifest,
 		})
 	}
 	return dedupeManifestCustomResources(out)
