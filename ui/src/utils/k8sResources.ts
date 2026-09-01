@@ -127,7 +127,7 @@ const validResourceIcons = new Set<ResourceIconName>([
   "limitranges",
 ]);
 
-function isResourceIconName(value: unknown): value is ResourceIconName {
+export function isResourceIconName(value: unknown): value is ResourceIconName {
   return typeof value === "string" && validResourceIcons.has(value as ResourceIconName);
 }
 

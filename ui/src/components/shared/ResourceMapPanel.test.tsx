@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { apiGet } from "../../api";
 import { ActiveContextProvider } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapResponse } from "../../types/api";
-import ResourceMapPanel, { historicalReplicaSetNodeIDs, layoutResourceMap, ResourceMapSvg, summarizeResourceMapEvidence } from "./ResourceMapPanel";
+import ResourceMapPanel, { historicalReplicaSetNodeIDs, ResourceMapSvg, summarizeResourceMapEvidence } from "./ResourceMapPanel";
 
 vi.mock("../../api", () => ({ apiGet: vi.fn() }));
 const identity: ApiResourceIdentity = { group: "apps", version: "v1", resource: "deployments", kind: "Deployment", scope: "namespaced", namespace: "prod", name: "api" };
@@ -27,31 +27,32 @@ const response: ResourceMapResponse = {
   cache: { freshness: "hot", snapshotsPresent: 2, snapshotsMissing: 0, scannedRecords: 3, totalNodes: 3, returnedNodes: 3, totalEdges: 2, returnedEdges: 2 },
 };
 
+class ResizeObserverMock {
+  private readonly callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) { this.callback = callback; }
+  observe(target: Element) {
+    this.callback([{ target, contentRect: target.getBoundingClientRect() } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+class DOMMatrixReadOnlyMock { readonly m22 = 1; }
+vi.stubGlobal("DOMMatrixReadOnly", DOMMatrixReadOnlyMock);
+Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+  configurable: true,
+  value() {
+    return { x: 0, y: 0, width: 900, height: 600, top: 0, left: 0, right: 900, bottom: 600, toJSON: () => ({}) };
+  },
+});
+
+beforeAll(async () => { await import("./ResourceMapGraph"); });
+
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("ResourceMapPanel", () => {
-  it("lays parent above center and child below deterministically", () => {
-    const first = layoutResourceMap(response.nodes, response.targetId);
-    const second = layoutResourceMap([...response.nodes].reverse(), response.targetId);
-    const positions = new Map(first.nodes.map((item) => [item.id, item.y]));
-    expect(positions.get("parent")).toBeLessThan(positions.get("target")!);
-    expect(positions.get("child")).toBeGreaterThan(positions.get("target")!);
-    expect(second).toEqual(first);
-  });
 
-  it("wraps broad fan-out into compact centered rows", () => {
-    const children = Array.from({ length: 10 }, (_, index) => node(`child-${index}`, "Pod", `api-${index}`, "child", 1, "pods"));
-    const layout = layoutResourceMap([response.nodes[1], ...children], response.targetId);
-    const childRows = new Map<number, number>();
-    for (const item of layout.nodes.filter((candidate) => candidate.direction === "child")) {
-      childRows.set(item.y, (childRows.get(item.y) || 0) + 1);
-    }
-    expect(layout.width).toBe(602);
-    expect(childRows.size).toBe(4);
-    expect(Math.max(...childRows.values())).toBe(3);
-  });
-
-  it("collapses direct zero-replica rollout history while preserving current and unknown ReplicaSets", () => {
+  it("collapses direct zero-replica rollout history while preserving current and unknown ReplicaSets", async () => {
     const current = { ...node("rs-current", "ReplicaSet", "api-current", "child", 1, "replicasets"), replicaSet: { revision: 10, desired: 0, ready: 0 } };
     const oldOne = { ...node("rs-old-1", "ReplicaSet", "api-old-1", "child", 1, "replicasets"), replicaSet: { revision: 1, desired: 0, ready: 0 } };
     const oldTwo = { ...node("rs-old-2", "ReplicaSet", "api-old-2", "child", 1, "replicasets"), replicaSet: { revision: 2, desired: 0, ready: 0 } };
@@ -73,7 +74,7 @@ describe("ResourceMapPanel", () => {
       edges: rollout.edges.filter((edge) => edge.from !== oldTwo.id && edge.to !== oldTwo.id),
     })).toEqual([]);
     render(<ResourceMapSvg response={rollout} onOpenResource={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "ReplicaSet: api-current, revision 10, desired 0, ready 0" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "ReplicaSet: api-current, revision 10, desired 0, ready 0" }, { timeout: 5_000 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "ReplicaSet: api-unknown" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "ReplicaSet: api-old-1, revision 1, desired 0, ready 0" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Pod: api-old-1-terminating" })).toBeNull();
@@ -99,17 +100,53 @@ describe("ResourceMapPanel", () => {
     expect(screen.getByText("×4")).toBeTruthy();
   });
 
-  it("opens only supported navigable nodes by click and keyboard", () => {
+  it("explains full node identity on hover", async () => {
+    render(<ResourceMapSvg response={response} onOpenResource={vi.fn()} />);
+    const child = await screen.findByRole("button", { name: "Pod: api-abc" });
+    fireEvent.mouseOver(child);
+    expect(await screen.findByText("Child or dependant · depth 1")).toBeTruthy();
+    expect(screen.getByText("Pod prod/api-abc")).toBeTruthy();
+  });
+
+  it("explains full node identity on keyboard focus", async () => {
+    render(<ResourceMapSvg response={response} onOpenResource={vi.fn()} />);
+    const child = await screen.findByRole("button", { name: "Pod: api-abc" });
+    fireEvent.keyDown(document, { key: "Tab" });
+    child.focus();
+    expect(document.activeElement).toBe(child);
+    expect(await screen.findByText("Child or dependant · depth 1")).toBeTruthy();
+  });
+
+  it("keeps graph nodes pointer-enabled and opens only supported navigable resources", async () => {
     const open = vi.fn();
     const unsupported = { ...response.nodes[0], id: "unsupported", identity: { ...identity, group: "", resource: "widgets", kind: "Widget", name: "api-abc" } };
     render(<ResourceMapSvg response={{ ...response, nodes: [...response.nodes, unsupported] }} onOpenResource={open} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pod: api-abc" }));
-    fireEvent.keyDown(screen.getByRole("button", { name: "Namespace: prod" }), { key: "Enter" });
-    fireEvent.keyDown(screen.getByRole("button", { name: "Namespace: prod" }), { key: " " });
+    const childButton = await screen.findByRole("button", { name: "Pod: api-abc" });
+    expect(childButton.tagName).toBe("BUTTON");
+    fireEvent.click(childButton, { detail: 0 });
+    expect(open).toHaveBeenCalledTimes(1);
+    const childNode = screen.getByTestId("rf__node-child");
+    expect(childNode.style.pointerEvents).not.toBe("none");
+    fireEvent.click(childNode);
+    expect(open).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Namespace: prod" }));
+    fireEvent.click(screen.getByRole("button", { name: "Namespace: prod" }));
     fireEvent.click(screen.getByRole("button", { name: "Deployment: api" }));
     fireEvent.click(screen.getByRole("button", { name: "Widget: api-abc" }));
-    expect(open).toHaveBeenCalledTimes(3);
-    expect(screen.getByRole("button", { name: "Widget: api-abc" }).hasAttribute("disabled")).toBe(true);
+    expect(open).toHaveBeenCalledTimes(4);
+    expect(screen.getByRole("button", { name: "Widget: api-abc" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("zooms the graph with the mouse wheel", async () => {
+    render(<ResourceMapSvg response={response} onOpenResource={vi.fn()} />);
+    const region = await screen.findByRole("region", { name: "Resource relationship map" });
+    const viewport = region.querySelector<HTMLElement>(".react-flow__viewport");
+    const pane = region.querySelector<HTMLElement>(".react-flow__pane");
+    expect(viewport).toBeTruthy();
+    expect(pane).toBeTruthy();
+    const before = viewport?.style.transform;
+    fireEvent.wheel(pane!, { deltaY: -120, deltaMode: 0, clientX: 450, clientY: 300 });
+    await waitFor(() => expect(viewport?.style.transform).not.toBe(before));
   });
 
   it("fetches the strict depth-2 query lazily and renders partial/truncated status", async () => {
@@ -135,17 +172,6 @@ describe("ResourceMapPanel", () => {
     expect(vi.mocked(apiGet).mock.calls[0][2]?.signal?.aborted).toBe(true);
   });
 
-  it("places bidirectional nodes beside the centered target and uses unique SVG markers", () => {
-    const both = node("both", "Pod", "peer", "both", 1, "pods");
-    const layout = layoutResourceMap([...response.nodes, both], response.targetId);
-    const target = layout.nodes.find((item) => item.id === "target")!;
-    const peer = layout.nodes.find((item) => item.id === "both")!;
-    expect(target.x + 87).toBe(layout.width / 2);
-    expect(peer.y).toBe(target.y);
-    const view = render(<><ResourceMapSvg response={response} onOpenResource={vi.fn()} /><ResourceMapSvg response={response} onOpenResource={vi.fn()} /></>);
-    const ids = Array.from(view.container.querySelectorAll("marker"), (marker) => marker.id);
-    expect(new Set(ids).size).toBe(2);
-  });
 
   it("does not fetch without authentication", async () => {
     render(<ActiveContextProvider value="ctx"><ResourceMapPanel identity={identity} token="" onOpenResource={vi.fn()} /></ActiveContextProvider>);

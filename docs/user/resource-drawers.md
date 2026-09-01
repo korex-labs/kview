@@ -26,22 +26,36 @@ objects, events, metadata, YAML, and supported actions.
  Markdown Export bundle.
 - **Resource Map tab**: shows the current resource in the center, cached
   parents/dependencies above, cached children/dependants below, and cyclic or
-  bidirectional relations beside the current resource. Nodes visibly include
-  namespace and cache availability; the collapsed **Relationship details** section
-  groups repeated evidence and shows relationship type, confidence, source path,
-  evidence, and resolution status when expanded. To keep depth-2 maps focused,
-  namespace containment is shown for the current resource but is not used as a
-  transit hop to pull every sibling resource from that namespace into the map.
-  Depth-2 traversal is also direction-preserving: a dependency path continues
-  toward further dependencies, while a dependant path continues toward further
-  dependants. Shared dependencies are not traversed backwards into unrelated
-  consumers. In Deployment maps, two or more directly owned ReplicaSets with
-  cached desired replicas equal to zero are collapsed into a rollout-history
-  group by default. **Show history** restores every exact node and edge; current,
-  non-zero, unavailable, and legacy ReplicaSets without status metadata remain
-  visible. Select a
-  present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>) to open
-  its drawer without losing the original drawer.
+  bidirectional relations in the same bounded layered graph. Use the graph
+  controls to fit the complete map, zoom, or center the current resource; drag
+  the empty canvas to pan and use the mouse wheel to zoom. Resource cards show kind, namespace,
+  availability, rollout revision when available, and wrapped resource names.
+  Hover a card or focus it with the keyboard to see the exact full identity,
+  direction/depth, cached rollout state, incident relationship summary, cache
+  freshness, and coverage caveats. Relationship edges use compact midpoint
+  markers instead of persistent text labels; hover or focus a marker to reveal
+  the relationship label and see its exact endpoints, confidence, resolution,
+  source field, description, and selector evidence. Edges sharing a resource or
+  rank corridor use distinct card anchors and Dagre-calculated routes that avoid
+  unrelated resource cards and reduce unnecessary crossings. Reverse and cyclic
+  relationships follow outer layout routes, while self-relations loop outside the
+  card. The graph is read-only: nodes cannot be moved, connected, or used to
+  mutate Kubernetes resources.
+
+  The collapsed **Relationship details** section groups repeated evidence and
+  shows relationship type, confidence, source path, evidence, and resolution
+  status when expanded. To keep depth-2 maps focused, namespace containment is
+  shown for the current resource but is not used as a transit hop to pull every
+  sibling resource from that namespace into the map. Depth-2 traversal is also
+  direction-preserving: a dependency path continues toward further dependencies,
+  while a dependant path continues toward further dependants. Shared dependencies
+  are not traversed backwards into unrelated consumers. In Deployment maps, two
+  or more directly owned ReplicaSets with cached desired replicas equal to zero
+  are collapsed into a rollout-history group by default. **Show history** restores
+  every exact node and edge and automatically refits the graph; current, non-zero,
+  unavailable, and legacy ReplicaSets without status metadata remain visible.
+  Select a present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>)
+  to open its drawer without losing the original drawer.
 - **Search and Activity**: saved investigation snapshots can appear in header
   search results and the Activity panel, linking back to their primary resource.
 - **Attention banner**: shows resource signals in a consistent order: severity,

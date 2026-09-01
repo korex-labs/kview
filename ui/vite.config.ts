@@ -44,6 +44,13 @@ export default defineConfig({
           if (id.includes("/node_modules/@mui/") || id.includes("/node_modules/@emotion/")) {
             return "mui-vendor";
           }
+          if (
+            id.includes("/node_modules/@xyflow/")
+            || id.includes("/node_modules/@dagrejs/")
+            || id.includes("/node_modules/zustand/")
+          ) {
+            return "resource-map-vendor";
+          }
           if (id.includes("/node_modules/@xterm/")) {
             return "terminal-vendor";
           }

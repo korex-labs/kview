@@ -1,101 +1,14 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
-import { Alert, Box, Button, ButtonBase, Chip, CircularProgress, Stack, Typography } from "@mui/material";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from "@mui/material";
 import { apiGet } from "../../api";
 import { useActiveContext } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse } from "../../types/api";
-import { supportsResourceIdentityDrawer } from "./ResourceIdentityDrawer";
-import { resourceIdentityKey } from "./resourceMapIdentity";
 
-type PositionedNode = ResourceMapNode & { x: number; y: number; uiNavigable: boolean };
-
-const NODE_WIDTH = 174;
-const NODE_HEIGHT = 48;
-const X_GAP = 28;
+const LazyResourceMapGraph = lazy(() => import("./ResourceMapGraph"));
 
 function nodeSort(a: ResourceMapNode, b: ResourceMapNode) {
   return [a.depth, a.identity.kind, a.identity.namespace, a.identity.name, a.id]
     .join("|").localeCompare([b.depth, b.identity.kind, b.identity.namespace, b.identity.name, b.id].join("|"));
-}
-
-const MAX_LANE_COLUMNS = 3;
-const ROW_GAP = 24;
-const BAND_GAP = 52;
-const GRAPH_PADDING = 12;
-
-type LayoutRow = { level: number; nodes: ResourceMapNode[] };
-
-function rowsForLevels(lanes: Map<number, ResourceMapNode[]>, levels: number[]): LayoutRow[] {
-  const rows: LayoutRow[] = [];
-  for (const level of levels) {
-    const lane = lanes.get(level) || [];
-    for (let offset = 0; offset < lane.length; offset += MAX_LANE_COLUMNS) {
-      rows.push({ level, nodes: lane.slice(offset, offset + MAX_LANE_COLUMNS) });
-    }
-  }
-  return rows;
-}
-
-function rowsHeight(rows: LayoutRow[]): number {
-  if (!rows.length) return 0;
-  let height = rows.length * NODE_HEIGHT + (rows.length - 1) * ROW_GAP;
-  for (let index = 1; index < rows.length; index += 1) {
-    if (rows[index].level !== rows[index - 1].level) height += ROW_GAP;
-  }
-  return height;
-}
-
-export function layoutResourceMap(nodes: ResourceMapNode[], targetId: string): { nodes: PositionedNode[]; width: number; height: number } {
-  const lanes = new Map<number, ResourceMapNode[]>();
-  for (const node of [...nodes].sort(nodeSort)) {
-    const level = node.id === targetId || node.current || node.direction === "both" ? 0 : node.direction === "parent" ? -Math.max(1, node.depth) : Math.max(1, node.depth);
-    lanes.set(level, [...(lanes.get(level) || []), node]);
-  }
-
-  const width = MAX_LANE_COLUMNS * NODE_WIDTH + (MAX_LANE_COLUMNS - 1) * X_GAP + 2 * GRAPH_PADDING;
-  const parentLevels = Array.from(lanes.keys()).filter((level) => level < 0).sort((a, b) => a - b);
-  const childLevels = Array.from(lanes.keys()).filter((level) => level > 0).sort((a, b) => a - b);
-  const parentRows = rowsForLevels(lanes, parentLevels);
-  const childRows = rowsForLevels(lanes, childLevels);
-  const centerLane = lanes.get(0) || [];
-  const current = centerLane.find((node) => node.id === targetId || node.current);
-  const bidirectional = centerLane.filter((node) => node !== current);
-  const extraCenterRows = Math.max(0, Math.ceil(bidirectional.length / 2) - 1);
-  const parentHeight = rowsHeight(parentRows);
-  const centerY = 24 + parentHeight + (parentRows.length ? BAND_GAP : 0);
-  const childStartY = centerY + NODE_HEIGHT + extraCenterRows * (NODE_HEIGHT + ROW_GAP) + (childRows.length ? BAND_GAP : 0);
-  const height = childStartY + rowsHeight(childRows) + 24;
-  const positioned: PositionedNode[] = [];
-
-  const placeRows = (rows: LayoutRow[], startY: number) => {
-    let y = startY;
-    rows.forEach((row, rowIndex) => {
-      if (rowIndex > 0 && row.level !== rows[rowIndex - 1].level) y += ROW_GAP;
-      const rowWidth = row.nodes.length * NODE_WIDTH + Math.max(0, row.nodes.length - 1) * X_GAP;
-      row.nodes.forEach((node, index) => positioned.push({
-        ...node,
-        x: (width - rowWidth) / 2 + index * (NODE_WIDTH + X_GAP),
-        y,
-        uiNavigable: node.navigable && supportsResourceIdentityDrawer(node.identity),
-      }));
-      y += NODE_HEIGHT + ROW_GAP;
-    });
-  };
-
-  placeRows(parentRows, 24);
-  if (current) positioned.push({ ...current, x: width / 2 - NODE_WIDTH / 2, y: centerY, uiNavigable: false });
-  bidirectional.forEach((node, index) => {
-    const side = index % 2 === 0 ? -1 : 1;
-    const row = Math.floor(index / 2);
-    positioned.push({
-      ...node,
-      x: width / 2 - NODE_WIDTH / 2 + side * (NODE_WIDTH + X_GAP),
-      y: centerY + row * (NODE_HEIGHT + ROW_GAP),
-      uiNavigable: node.navigable && supportsResourceIdentityDrawer(node.identity),
-    });
-  });
-  placeRows(childRows, childStartY);
-
-  return { nodes: positioned.sort((a, b) => a.id.localeCompare(b.id)), width, height };
 }
 
 function edgeTitle(edge: ResourceMapEdge): string {
@@ -158,20 +71,18 @@ export function hiddenHistoryBranchNodeIDs(response: ResourceMapResponse, histor
   return Array.from(hidden);
 }
 
-export function ResourceMapSvg({ response, onOpenResource }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void }) {
+export function ResourceMapView({ response, onOpenResource }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void }) {
   const [showHistoricalReplicaSets, setShowHistoricalReplicaSets] = useState(false);
   const historicalReplicaSetIds = useMemo(() => historicalReplicaSetNodeIDs(response), [response]);
   const hiddenHistoryBranchIds = useMemo(() => hiddenHistoryBranchNodeIDs(response, historicalReplicaSetIds), [historicalReplicaSetIds, response]);
   const hiddenNodeIds = useMemo(() => showHistoricalReplicaSets ? new Set<string>() : new Set(hiddenHistoryBranchIds), [hiddenHistoryBranchIds, showHistoricalReplicaSets]);
   const visibleNodes = useMemo(() => response.nodes.filter((node) => !hiddenNodeIds.has(node.id)), [hiddenNodeIds, response.nodes]);
   const visibleEdges = useMemo(() => response.edges.filter((edge) => !hiddenNodeIds.has(edge.from) && !hiddenNodeIds.has(edge.to)), [hiddenNodeIds, response.edges]);
-  const layout = useMemo(() => layoutResourceMap(visibleNodes, response.targetId), [response.targetId, visibleNodes]);
-  const byId = useMemo(() => new Map(layout.nodes.map((node) => [node.id, node])), [layout.nodes]);
   const evidenceRows = useMemo(() => summarizeResourceMapEvidence(response.edges), [response.edges]);
-  const markerId = `resource-map-arrow-${useId().replace(/:/g, "")}`;
   useEffect(() => setShowHistoricalReplicaSets(false), [response.targetId]);
+
   return (
-    <Box role="region" aria-label="Resource relationship map" sx={{ overflowX: "auto", border: 1, borderColor: "divider", borderRadius: 1 }}>
+    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, overflow: "hidden" }}>
       {historicalReplicaSetIds.length ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "center", px: 1, py: 0.75, borderBottom: 1, borderColor: "divider", bgcolor: "action.hover" }}>
           <Typography variant="caption" color="text.secondary">
@@ -182,28 +93,9 @@ export function ResourceMapSvg({ response, onOpenResource }: { response: Resourc
           </Button>
         </Stack>
       ) : null}
-      <Box sx={{ position: "relative", width: layout.width, height: layout.height }}>
-      <svg aria-hidden="true" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`}>
-        <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" /></marker></defs>
-        {visibleEdges.map((edge) => {
-          const from = byId.get(edge.from); const to = byId.get(edge.to);
-          if (!from || !to) return null;
-          return <g key={edge.id}><line x1={from.x + NODE_WIDTH / 2} y1={from.y + NODE_HEIGHT / 2} x2={to.x + NODE_WIDTH / 2} y2={to.y + NODE_HEIGHT / 2} stroke={edge.resolved ? "#718096" : "#a0aec0"} strokeDasharray={edge.confidence === "high" ? "5 4" : undefined} markerEnd={`url(#${markerId})`} /><text x={(from.x + to.x + NODE_WIDTH) / 2} y={(from.y + to.y + NODE_HEIGHT) / 2 - 5} textAnchor="middle" fontSize="10" fill="currentColor">{edge.type}</text></g>;
-        })}
-      </svg>
-        {layout.nodes.map((node) => {
-          const label = node.replicaSet
-            ? `${node.identity.kind}: ${node.identity.name}, revision ${node.replicaSet.revision}, desired ${node.replicaSet.desired}, ready ${node.replicaSet.ready}`
-            : `${node.identity.kind}: ${node.identity.name}`;
-          const open = () => node.uiNavigable && onOpenResource(node.identity);
-          return (
-            <ButtonBase key={node.id} aria-label={label} disabled={!node.uiNavigable} data-direction={node.direction} data-depth={node.depth} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }} sx={{ position: "absolute", left: node.x, top: node.y, width: NODE_WIDTH, height: NODE_HEIGHT, display: "block", textAlign: "left", px: 1.25, border: 1, borderColor: node.current ? "primary.main" : "text.primary", borderStyle: node.availability === "present" ? "solid" : "dashed", borderRadius: 1, bgcolor: node.current ? "action.selected" : "background.paper", opacity: node.availability === "present" ? 1 : 0.7, "&.Mui-focusVisible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 } }}>
-              <Box component="span" sx={{ display: "block", typography: "caption", fontWeight: 700 }}>{node.identity.kind}{node.replicaSet ? ` · rev ${node.replicaSet.revision}` : ""}{node.direction === "both" ? " · parent + child" : ""}</Box>
-              <Box component="span" sx={{ display: "block", typography: "caption", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.identity.namespace ? `${node.identity.namespace}/` : ""}{node.identity.name} · {node.availability}</Box>
-            </ButtonBase>
-          );
-        })}
-      </Box>
+      <Suspense fallback={<Box aria-label="Loading resource map graph" sx={{ display: "flex", justifyContent: "center", p: 5 }}><CircularProgress size={28} /></Box>}>
+        <LazyResourceMapGraph response={response} nodes={visibleNodes} edges={visibleEdges} onOpenResource={onOpenResource} />
+      </Suspense>
       {evidenceRows.length ? (
         <Box component="details" sx={{ borderTop: 1, borderColor: "divider" }}>
           <Box component="summary" sx={{ px: 1, py: 0.75, cursor: "pointer", typography: "caption", color: "text.secondary", userSelect: "none" }}>
@@ -223,12 +115,14 @@ export function ResourceMapSvg({ response, onOpenResource }: { response: Resourc
   );
 }
 
+// Compatibility export for focused tests and callers while the v1 SVG renderer is replaced.
+export const ResourceMapSvg = ResourceMapView;
+
 export default function ResourceMapPanel({ identity, token, onOpenResource }: { identity: ApiResourceIdentity; token: string; onOpenResource: (identity: ApiResourceIdentity) => void }) {
   const activeContext = useActiveContext();
   const [response, setResponse] = useState<ResourceMapResponse | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const key = resourceIdentityKey(identity);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(""); setResponse(null);
@@ -255,7 +149,18 @@ export default function ResourceMapPanel({ identity, token, onOpenResource }: { 
       .catch(() => { if (!controller.signal.aborted) setError("Resource Map is unavailable. Try again."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [activeContext, key, token]);
+  }, [
+    activeContext,
+    identity.group,
+    identity.kind,
+    identity.name,
+    identity.namespace,
+    identity.resource,
+    identity.scope,
+    identity.uid,
+    identity.version,
+    token,
+  ]);
 
   const contextMatches = !response || response.active === activeContext;
   if (loading || !contextMatches) return <Box aria-label="Loading resource map" sx={{ display: "flex", justifyContent: "center", p: 5 }}><CircularProgress /></Box>;
@@ -272,7 +177,7 @@ export default function ResourceMapPanel({ identity, token, onOpenResource }: { 
     </Stack>
     {partial ? <Alert severity="warning">Relationship coverage is partial. Some resources or relationship families may be absent.</Alert> : null}
     {response.truncated ? <Alert severity="warning">Map truncated at API limits{response.truncationReasons?.length ? `: ${response.truncationReasons.join(", ")}` : "."}</Alert> : null}
-    {response.nodes.length <= 1 ? <Alert severity="info">No related resources are present in the current cache.</Alert> : <ResourceMapSvg response={response} onOpenResource={onOpenResource} />}
-    <Typography variant="caption" color="text.secondary">Solid: exact · dashed: high confidence or unavailable · arrows follow dependency evidence. Expand Relationship details when source evidence is needed.</Typography>
+    {response.nodes.length <= 1 ? <Alert severity="info">No related resources are present in the current cache.</Alert> : <ResourceMapView response={response} onOpenResource={onOpenResource} />}
+    <Typography variant="caption" color="text.secondary">Use the graph controls to fit, zoom, or center the current resource. Hover or focus resource cards and relationship markers for full identity and evidence.</Typography>
   </Stack>;
 }

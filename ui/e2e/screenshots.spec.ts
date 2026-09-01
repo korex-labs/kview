@@ -571,6 +571,18 @@ async function captureDeploymentDrawerScreenshots(page: Page, token: string, the
   await waitForSettled(drawer);
   if (await drawerHasRequestFailed(drawer)) throw new Error(`Deployment drawer failed to load in namespace ${namespace}`);
   await screenshotPage(page, theme, "deployment-detail");
+  const resourceMapTab = drawer.getByRole("tab", { name: "Resource Map" });
+  if (await resourceMapTab.isVisible().catch(() => false)) {
+    await resourceMapTab.click();
+    await waitForSettled(drawer);
+    const resourceMap = drawer.getByRole("region", { name: "Resource relationship map" });
+    if (await resourceMap.isVisible().catch(() => false)) {
+      await screenshotPage(page, theme, "deployment-resource-map");
+      await drawer.getByRole("button", { name: "Expand drawer to full screen" }).click();
+      await expect(drawer.getByRole("button", { name: "Restore drawer size" })).toBeVisible();
+      await screenshotPage(page, theme, "deployment-resource-map-fullscreen");
+    }
+  }
 }
 
 async function captureNodeDrawerScreenshots(page: Page, token: string, theme: ScreenshotTheme, warm: WarmScreenshotContext) {

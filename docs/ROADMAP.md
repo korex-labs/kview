@@ -47,6 +47,9 @@ Recently completed foundation work:
   non-privileged ephemeral container through backend-owned orchestration, wait
   for runtime status, and attach through the existing terminal Activity surface
   with exact RBAC checks and request-id idempotency.
+- **v5.16 operator relationship release**: cache-derived Resource Map v1,
+  compact Deployment rollout history, connectivity-aware runtime suppression,
+  and full-screen resource drawers shipped together and are locally accepted.
 
 ## Product Direction
 
@@ -58,33 +61,27 @@ staying local-first, read-honest, and safe by default.
 The main rule: local operator knowledge belongs in kview's local store/export
 model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 
-## Active Release Sequence
+## Active Post-v5.16 Sequence
 
 kview ships broad, coherent product releases rather than publishing every
 packaging or maintenance improvement separately. The current sequence is:
 
-1. **Connectivity And Routing Diagnostics — implemented and verified**: honest
-   cache-only Service and Ingress evidence distinguishes real routing failures
-   from unknown EndpointSlice, Pod, or Service coverage.
-2. **Signal Snooze And Runtime Suppression — implemented and verified**:
-   context-local, reversible **Snooze** and **Ignore until changed** decisions
-   have visible exact suppressed counts and remain separate from inherited
-   exclusion policy and operator profiles.
-3. **Resource Map — implemented, verified, and locally accepted**: the standard
-   cache-derived parent/child graph tab is available in real Kubernetes resource
-   drawers, with bounded lazy navigation and explicit coverage/confidence.
-4. **Full-screen resource drawers — implemented, verified, and locally accepted**:
-   resource drawers can expand across the available workspace below the app
-   header for dense details and logs, then restore the previous persisted width
-   without changing it.
-5. **Release preparation — next after local validation**: run the release audit,
-   finalize notes and What's New, then prepare the user-controlled tag/publish
-   sequence.
-6. **Dataplane Explanation — post-release**: explain freshness and coverage from
-   existing scheduler/dataplane metadata without exploratory live reads.
-7. Continue with the Search Query Mini-Language, Runbook integration,
-   Investigation Workspaces, and Exportable Incident Reports in that order,
-   adjusting only when real operator feedback changes the priority.
+1. **Resource Map Visual UX v2 — active**: replace the hand-positioned SVG with
+   a lazy-loaded, deterministic layered graph viewport; add readable resource
+   cards, rich hover/focus evidence, and fit/pan/zoom while preserving the exact
+   cache-only v1 relationship contract.
+2. **Shared Dataplane Explanation**: explain freshness, coverage, missing
+   families, RBAC/degradation, scheduler pressure, sweep state, and active
+   profile through one reusable metadata surface without exploratory live reads.
+3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local
+   `key:value` search with plain-text fallback and an explicit entry from search
+   results into a focused Resource Map path.
+4. **Runbook Bindings And Investigation Workspaces**: bind local template-based
+   runbooks first, then persist intentional incident workspaces containing
+   filters, focused identities, compact impact paths, notes, snapshots, and
+   dataplane quality context.
+5. **Exportable Incident Reports**: generate reports from the workspace model,
+   freezing evidence timestamps and known unknowns at export time.
 
 The connectivity implementation contract and status checklist live in
 [plans/2026-08-27-connectivity-routing-detectors.md](plans/2026-08-27-connectivity-routing-detectors.md).
@@ -127,7 +124,7 @@ Every result must expose coverage/unknown state instead of triggering live
 exploratory scans. This functional tranche is implemented and verified; see the
 linked plan above for implementation status and acceptance criteria.
 
-### 3. Resource Map (Implemented; Awaiting Local Validation)
+### 3. Resource Map (v1 Shipped; Visual UX v2 Active)
 
 The standard **Resource Map** tab is implemented for real Kubernetes resource
 drawers. It centers the current
@@ -137,6 +134,13 @@ Build only from persisted dataplane snapshots: owner references, explicit object
 references, complete selector evidence, namespace containment, and CRD/type
 relationships. Show missing/stale/partial links and confidence per edge; use hard
 depth/node/edge caps and avoid a general graph hairball or hidden Kubernetes reads.
+
+The next tranche replaces only the presentation layer with a lazy-loaded React
+Flow + Dagre viewport. It keeps the bounded cache-only response unchanged while
+adding readable MUI resource cards, full identity and relationship evidence on
+hover/focus, fit/pan/zoom controls, deterministic relayout after rollout-history
+changes, and normal/full-screen visual coverage. See
+[plans/2026-09-01-resource-map-v2.md](plans/2026-09-01-resource-map-v2.md).
 
 ### 4. Dataplane Explanation Drawer
 
@@ -151,18 +155,17 @@ Parse simple cached/local `key:value` filters with plain-text fallback and visib
 chips, for example `kind:pod ns:prod signal:high`, `note:watch`, `stale:true`, or
 `service:no-endpoints`. Preserve both keyboard and mouse selection behavior.
 
-### 6. Investigation Workspaces
-
-Evolve saved views into explicit, exportable incident workspaces containing list
-state, search/signal filters, focused resources, linked notes/snapshots, and a
-dataplane profile. Do not auto-create workspaces for every signal.
-
-### 7. Runbook And Dynamic Link Integration
+### 6. Runbook Integration And Investigation Workspaces
 
 Associate local template-based runbook links with signal types/resource kinds and
-surface them from signals, notes, and Investigation Snapshots.
+surface them from signals, notes, Resource Map selections, and Investigation
+Snapshots. Then evolve saved views into explicit, exportable incident workspaces
+containing list state, search/signal filters, focused resources, selected compact
+impact paths, linked notes/snapshots/runbooks, and a dataplane profile. Persist
+semantic identities and evidence, not graph coordinates, and do not auto-create
+workspaces for every signal.
 
-### 8. Exportable Incident Reports
+### 7. Exportable Incident Reports
 
 Generate a copyable Markdown report from current investigation state: context,
 profile, filters, top signals/resources, local notes/snapshots, dataplane quality,
