@@ -941,7 +941,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
         {effectiveTitle}
       </Typography>
       <Box sx={{ flexShrink: 0 }}>
-        <DataplaneListMetaStrip meta={dataplaneMeta} prefix={dataplaneMetaPrefix} />
+        <DataplaneListMetaStrip
+          meta={dataplaneMeta}
+          token={token}
+          activeContext={activeContext}
+          prefix={dataplaneMetaPrefix}
+        />
       </Box>
 
       <Box

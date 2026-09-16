@@ -358,6 +358,28 @@ describe("DashboardView sections", () => {
     expect(apiGet).toHaveBeenCalledTimes(2);
   }, 20_000);
 
+  it("opens one exact-context explanation lazily from the loaded Dataplane tab", async () => {
+    localStorage.setItem("kview:dashboardTab:v1", "dataplane");
+    apiGet.mockImplementation((path: string) => path === "/api/dataplane/explanation"
+      ? Promise.resolve({ active: "ctx", item: { loaded: false, observers: [] } })
+      : Promise.resolve(readyDashboardResponse()));
+
+    renderDashboard("ctx");
+
+    await screen.findByText("Known Resources");
+    expect(apiGet.mock.calls.filter((call) => call[0] === "/api/dataplane/explanation")).toHaveLength(0);
+    expect(apiGet.mock.calls.filter((call) => call[0] === "/api/dashboard/dataplane")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Explain" }));
+
+    expect(await screen.findByText("Dashboard visibility")).toBeTruthy();
+    expect(screen.getByText("Dashboard coverage")).toBeTruthy();
+    await waitFor(() => expect(apiGet.mock.calls.filter((call) => call[0] === "/api/dataplane/explanation")).toHaveLength(1));
+    const explanationCall = apiGet.mock.calls.find((call) => call[0] === "/api/dataplane/explanation");
+    expect(explanationCall?.slice(0, 3)).toEqual(["/api/dataplane/explanation", "test-token", "ctx"]);
+    expect((explanationCall?.[3] as { signal?: AbortSignal } | undefined)?.signal).toBeInstanceOf(AbortSignal);
+    expect(apiGet.mock.calls.filter((call) => call[0] === "/api/dashboard/dataplane")).toHaveLength(1);
+  }, 20_000);
+
   it("does not render inactive-tab data after the context changes", async () => {
     apiGet.mockImplementation((...args: unknown[]) =>
       args.includes("new-context") ? new Promise(() => undefined) : Promise.resolve(readyDashboardResponse()),

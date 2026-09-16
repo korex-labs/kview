@@ -3,16 +3,20 @@ import { Box } from "@mui/material";
 import type { DataplaneListMeta } from "../../types/api";
 import { fmtTimeAgo } from "../../utils/format";
 import { dataplaneCoarseStateChipColor, formatChipLabel } from "../../utils/k8sUi";
+import DataplaneExplanationAction from "./DataplaneExplanationAction";
+import { buildDataplaneListExplanationSurface } from "./dataplaneExplanationModel";
 import ScopedCountChip from "./ScopedCountChip";
 
 type Props = {
   meta: DataplaneListMeta | null;
+  token: string;
+  activeContext: string;
   /** Shown before meta line, e.g. namespace list row-projection caption */
   prefix?: React.ReactNode;
 };
 
 /** Compact list-level quality line for cached resource lists (shown under the toolbar). */
-export default function DataplaneListMetaStrip({ meta, prefix }: Props) {
+export default function DataplaneListMetaStrip({ meta, token, activeContext, prefix }: Props) {
   if (!meta || (!meta.state && !meta.freshness && !meta.observed)) {
     return null;
   }
@@ -43,6 +47,11 @@ export default function DataplaneListMetaStrip({ meta, prefix }: Props) {
         <ScopedCountChip size="small" variant="outlined" label="Issues" count={formatChipLabel(meta.degradation ?? "—")} />
         <ScopedCountChip size="small" variant="outlined" label="Detail" count={formatChipLabel(meta.completeness ?? "—")} />
         {checkedValue ? <ScopedCountChip size="small" variant="outlined" label="Checked" count={checkedValue} /> : null}
+        <DataplaneExplanationAction
+          token={token}
+          activeContext={activeContext}
+          surface={buildDataplaneListExplanationSurface(meta)}
+        />
       </Box>
     </Box>
   );

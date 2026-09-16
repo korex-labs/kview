@@ -63,17 +63,70 @@ func buildNamespaceListRowProjection(podsSnap PodsSnapshot, depsSnap Deployments
 	return out
 }
 
+type cachedNamespaceListRowSources struct {
+	pods   PodsSnapshot
+	podsOK bool
+	deps   DeploymentsSnapshot
+	depsOK bool
+	rq     ResourceQuotasSnapshot
+	rqOK   bool
+	lr     LimitRangesSnapshot
+	lrOK   bool
+}
+
+func cachedNamespaceListRowSourcesFor(plane *clusterPlane, namespace string) cachedNamespaceListRowSources {
+	var sources cachedNamespaceListRowSources
+	if plane == nil || namespace == "" {
+		return sources
+	}
+	sources.pods, sources.podsOK = plane.podsStore.getCached(namespace)
+	sources.deps, sources.depsOK = plane.depsStore.getCached(namespace)
+	sources.rq, sources.rqOK = plane.rqStore.getCached(namespace)
+	sources.lr, sources.lrOK = plane.lrStore.getCached(namespace)
+	return sources
+}
+
+func (sources cachedNamespaceListRowSources) available() bool {
+	return sources.podsOK || sources.depsOK || sources.rqOK || sources.lrOK
+}
+
+func (sources cachedNamespaceListRowSources) freshness() FreshnessClass {
+	metas := make([]SnapshotMetadata, 0, 4)
+	normalizedMeta := func(meta SnapshotMetadata) SnapshotMetadata {
+		switch meta.Freshness {
+		case FreshnessClassHot, FreshnessClassWarm, FreshnessClassCold, FreshnessClassStale, FreshnessClassUnknown:
+		default:
+			meta.Freshness = FreshnessClassUnknown
+		}
+		return meta
+	}
+	if sources.podsOK {
+		metas = append(metas, normalizedMeta(sources.pods.Meta))
+	}
+	if sources.depsOK {
+		metas = append(metas, normalizedMeta(sources.deps.Meta))
+	}
+	if sources.rqOK {
+		metas = append(metas, normalizedMeta(sources.rq.Meta))
+	}
+	if sources.lrOK {
+		metas = append(metas, normalizedMeta(sources.lr.Meta))
+	}
+	return WorstFreshnessFromSnapshots(metas...)
+}
+
 func buildCachedNamespaceListRowProjection(plane *clusterPlane, namespace string, policy DataplanePolicy) (dto.NamespaceListItemDTO, bool) {
 	if plane == nil || namespace == "" {
 		return dto.NamespaceListItemDTO{}, false
 	}
-	podsSnap, podsOK := plane.podsStore.getCached(namespace)
-	depsSnap, depsOK := plane.depsStore.getCached(namespace)
-	rqSnap, rqOK := plane.rqStore.getCached(namespace)
-	lrSnap, lrOK := plane.lrStore.getCached(namespace)
-	if !podsOK && !depsOK && !rqOK && !lrOK {
+	sources := cachedNamespaceListRowSourcesFor(plane, namespace)
+	if !sources.available() {
 		return dto.NamespaceListItemDTO{}, false
 	}
+	podsSnap, podsOK := sources.pods, sources.podsOK
+	depsSnap, depsOK := sources.deps, sources.depsOK
+	rqSnap, rqOK := sources.rq, sources.rqOK
+	lrSnap, lrOK := sources.lr, sources.lrOK
 
 	var out dto.NamespaceListItemDTO
 	out.RowEnriched = true

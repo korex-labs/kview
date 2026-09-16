@@ -54,6 +54,28 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, s.dp.SchedulerLiveWork())
 	})
 
+	api.Get("/dataplane/explanation", func(w http.ResponseWriter, r *http.Request) {
+		if s.dp == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "dataplane unavailable"})
+			return
+		}
+		active := strings.TrimSpace(r.Header.Get("X-Kview-Context"))
+		if active == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": validationError("X-Kview-Context header is required")})
+			return
+		}
+		if _, ok := s.mgr.ContextInfo(active); !ok {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"error": &APIError{Code: ErrCodeNotFound, Message: "unknown context: " + active},
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"active": active,
+			"item":   s.dp.DataplaneExplanation(active),
+		})
+	})
+
 	api.Get("/dataplane/metrics/status", func(w http.ResponseWriter, r *http.Request) {
 		// Always return 200 with the canonical {active, enabled, capability}
 		// shape the UI expects. Returning 5xx here would flip the UI's

@@ -31,6 +31,14 @@ its short-lived local cache; background refresh applies only to the active tab.
 A load failure is shown inside that tab with a **Retry** action and does not
 remove the other tab's cached projection. Switching tabs does not reset signal
 filters, sorting, search, or pagination.
+
+The **Dataplane** tab includes a compact **Explain** action. Its first opening
+reuses the visibility and coverage facts already loaded by the tab, then lazily
+adds exact-context runtime evidence for profile, observers, scheduler pressure,
+and namespace sweep state. It does not reload the dashboard projection. Dashboard
+visibility and aggregate coverage retain their own vocabulary: cached row
+projections, resource-total scope, list-only namespaces, and current enrichment
+session evidence are not flattened into resource-list freshness semantics.
 Dashboard saved views remain part of **Signals** because they store signal-view
 state rather than dataplane statistics. Applying one opens Signals before its
 request is issued.

@@ -120,6 +120,71 @@ export type DataplaneListMeta = {
   observed?: string;
 };
 
+export type DataplaneExplanationObserver = {
+  kind: string;
+  enabled: boolean;
+  state?: string;
+};
+
+export type DataplaneExplanationScheduler = {
+  state: string;
+  backgroundAdmission: string;
+  consecutiveFailures: number;
+  recentFailures: number;
+  recentSuccesses: number;
+  lastErrorClass?: string;
+  lastTransition?: string;
+  lastEvent?: string;
+  reason?: string;
+};
+
+export type DataplaneExplanationPressure = {
+  running: number;
+  queued: number;
+  maxSlots: number;
+  lowPriorityQueued: number;
+  longestQueueWaitMs: number;
+};
+
+export type DataplaneExplanationNamespaceSweep = {
+  enabled: boolean;
+  totalNamespaces: number;
+  cachedEnrichmentNamespaces: number;
+  noCachedEnrichmentNamespaces: number;
+  cachedHotNamespaces: number;
+  cachedWarmNamespaces: number;
+  cachedColdNamespaces: number;
+  cachedStaleNamespaces: number;
+  cachedUnknownNamespaces: number;
+  enrichedNamespaces: number;
+  staleNamespaces: number;
+  neverScannedNamespaces: number;
+  systemNamespacesSkipped: number;
+  inFlight?: boolean;
+  stage?: string;
+  detailDone?: number;
+  relatedDone?: number;
+  enrichTargets?: number;
+  hourUsed?: number;
+  hourLimit?: number;
+  pausedReason?: string;
+};
+
+export type DataplaneExplanationItem = {
+  loaded: boolean;
+  profile: string;
+  observers: DataplaneExplanationObserver[];
+  scheduler?: DataplaneExplanationScheduler;
+  pressure?: DataplaneExplanationPressure;
+  namespaceSweep?: DataplaneExplanationNamespaceSweep;
+};
+
+/** GET /api/dataplane/explanation */
+export type ApiDataplaneExplanationResponse = {
+  active: string;
+  item: DataplaneExplanationItem;
+};
+
 /** Typical JSON for namespaced dataplane list APIs */
 export type ApiDataplaneListResponse<T> = {
   active?: string;

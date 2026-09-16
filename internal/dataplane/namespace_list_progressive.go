@@ -40,13 +40,7 @@ func (m *manager) selectNamespaceSweepNames(cluster string, order []string, focu
 	if !policy.Enabled || !sweep.Enabled || sweep.MaxNamespacesPerCycle <= 0 || sweep.MaxNamespacesPerHour <= 0 {
 		return nil
 	}
-	if sweep.PauseWhenSchedulerBusy && m.schedulerHasWork(cluster) {
-		return nil
-	}
-	if m.scheduler != nil && m.scheduler.BackgroundAdmission(cluster) != SchedulerBackgroundAdmissionOpen {
-		return nil
-	}
-	if sweep.PauseOnRateLimitOrConnectivity && m.clusterHasSweepBlockingIssue(cluster) {
+	if m.namespaceSweepRuntimePauseReason(cluster, policy) != "" {
 		return nil
 	}
 	now := time.Now().UTC()
@@ -119,6 +113,13 @@ func (m *manager) selectNamespaceSweepNames(cluster string, order []string, focu
 	}
 	m.nsSweepHourCount[cluster] += len(out)
 	return out
+}
+
+func projectedNamespaceSweepHourUsed(now, hourStart time.Time, hourCount int) int {
+	if hourStart.IsZero() || now.Sub(hourStart) >= time.Hour {
+		return 0
+	}
+	return hourCount
 }
 
 func (m *manager) schedulerHasWork(cluster string) bool {
@@ -196,51 +197,77 @@ func (m *manager) NamespaceSweepCoverageSnapshot(now time.Time) []NamespaceSweep
 	for _, plane := range planes {
 		cluster := plane.name
 		policy := m.EffectivePolicy(cluster).NamespaceEnrichment
-		row := NamespaceSweepCoverageSnapshot{
-			Cluster:   cluster,
-			Enabled:   policy.Enabled && policy.Sweep.Enabled,
-			HourLimit: policy.Sweep.MaxNamespacesPerHour,
-		}
-		row.InFlight, row.Stage, row.DetailDone, row.RelatedDone, row.EnrichTargets = m.namespaceEnrichmentProgress(cluster)
-
-		if nsSnap, ok := peekClusterSnapshot(&plane.nsStore); ok {
-			row.TotalNamespaces = len(nsSnap.Items)
-			minAge := time.Duration(policy.Sweep.MinReenrichIntervalMinutes) * time.Minute
-			m.nsSweepMu.Lock()
-			lastByNS := make(map[string]time.Time, len(m.nsSweepLast[cluster]))
-			for name, last := range m.nsSweepLast[cluster] {
-				lastByNS[name] = last
-			}
-			row.HourUsed = m.nsSweepHourCount[cluster]
-			m.nsSweepMu.Unlock()
-			for _, item := range nsSnap.Items {
-				if item.Name == "" {
-					continue
-				}
-				if !policy.Sweep.IncludeSystemNamespaces && isSystemNamespace(item.Name) {
-					row.SystemNamespacesSkipped++
-					continue
-				}
-				last := lastByNS[item.Name]
-				if last.IsZero() {
-					row.NeverScannedNamespaces++
-				} else {
-					row.EnrichedNamespaces++
-					if minAge > 0 && now.Sub(last) >= minAge {
-						row.StaleNamespaces++
-					}
-				}
-			}
-		} else {
-			m.nsSweepMu.Lock()
-			row.HourUsed = m.nsSweepHourCount[cluster]
-			m.nsSweepMu.Unlock()
-		}
-
-		row.PausedReason = m.namespaceSweepPausedReason(cluster, row, policy)
-		out = append(out, row)
+		out = append(out, m.namespaceSweepCoverageForPlane(cluster, plane, policy, now))
 	}
 	return out
+}
+
+func (m *manager) namespaceSweepCoverageForPlane(cluster string, plane *clusterPlane, policy NamespaceEnrichmentPolicy, now time.Time) NamespaceSweepCoverageSnapshot {
+	row := NamespaceSweepCoverageSnapshot{
+		Cluster:   cluster,
+		Enabled:   policy.Enabled && policy.Sweep.Enabled,
+		HourLimit: policy.Sweep.MaxNamespacesPerHour,
+	}
+	row.InFlight, row.Stage, row.DetailDone, row.RelatedDone, row.EnrichTargets = m.namespaceEnrichmentProgress(cluster)
+
+	m.nsSweepMu.Lock()
+	lastByNS := make(map[string]time.Time, len(m.nsSweepLast[cluster]))
+	for name, last := range m.nsSweepLast[cluster] {
+		lastByNS[name] = last
+	}
+	row.HourUsed = projectedNamespaceSweepHourUsed(now, m.nsSweepHourStart[cluster], m.nsSweepHourCount[cluster])
+	m.nsSweepMu.Unlock()
+
+	if nsSnap, ok := peekClusterSnapshot(&plane.nsStore); ok {
+		minAge := time.Duration(policy.Sweep.MinReenrichIntervalMinutes) * time.Minute
+		for _, item := range nsSnap.Items {
+			if item.Name == "" {
+				continue
+			}
+			row.TotalNamespaces++
+			sources := cachedNamespaceListRowSourcesFor(plane, item.Name)
+			if sources.available() {
+				row.CachedEnrichmentNamespaces++
+				switch sources.freshness() {
+				case FreshnessClassHot:
+					row.CachedHotNamespaces++
+				case FreshnessClassWarm:
+					row.CachedWarmNamespaces++
+				case FreshnessClassCold:
+					row.CachedColdNamespaces++
+				case FreshnessClassStale:
+					row.CachedStaleNamespaces++
+				default:
+					row.CachedUnknownNamespaces++
+				}
+			} else {
+				row.NoCachedEnrichmentNamespaces++
+			}
+			if !policy.Sweep.IncludeSystemNamespaces && isSystemNamespace(item.Name) {
+				row.SystemNamespacesSkipped++
+				continue
+			}
+			last := lastByNS[item.Name]
+			if last.IsZero() {
+				row.NeverScannedNamespaces++
+			} else {
+				row.EnrichedNamespaces++
+				if minAge > 0 && now.Sub(last) >= minAge {
+					row.StaleNamespaces++
+				}
+			}
+		}
+	}
+
+	row.PausedReason = m.namespaceSweepPausedReason(cluster, namespaceSweepPauseFacts{
+		totalNamespaces:        row.TotalNamespaces,
+		inFlight:               row.InFlight,
+		hourUsed:               row.HourUsed,
+		hourLimit:              row.HourLimit,
+		neverScannedNamespaces: row.NeverScannedNamespaces,
+		staleNamespaces:        row.StaleNamespaces,
+	}, policy)
+	return row
 }
 
 func (m *manager) namespaceEnrichmentProgress(cluster string) (bool, string, int, int, int) {
@@ -258,31 +285,53 @@ func (m *manager) namespaceEnrichmentProgress(cluster string) (bool, string, int
 	return true, sess.stage, sess.detailDone, sess.relatedDone, sess.total
 }
 
-func (m *manager) namespaceSweepPausedReason(cluster string, row NamespaceSweepCoverageSnapshot, policy NamespaceEnrichmentPolicy) string {
+type namespaceSweepPauseFacts struct {
+	totalNamespaces        int
+	inFlight               bool
+	hourUsed               int
+	hourLimit              int
+	neverScannedNamespaces int
+	staleNamespaces        int
+}
+
+func (m *manager) namespaceSweepPausedReason(cluster string, row namespaceSweepPauseFacts, policy NamespaceEnrichmentPolicy) string {
 	switch {
 	case !policy.Enabled:
 		return "namespace enrichment disabled"
 	case !policy.Sweep.Enabled:
 		return "sweep disabled"
-	case row.TotalNamespaces == 0:
+	case row.totalNamespaces == 0:
 		return "waiting for namespace snapshot"
-	case row.InFlight:
+	case row.inFlight:
 		return "enrichment already running"
 	case policy.Sweep.MaxNamespacesPerCycle <= 0 || policy.Sweep.MaxNamespacesPerHour <= 0:
 		return "sweep budget disabled"
-	case row.HourLimit > 0 && row.HourUsed >= row.HourLimit:
-		return "hourly sweep budget exhausted"
-	case policy.Sweep.PauseWhenSchedulerBusy && m.schedulerHasWork(cluster):
-		return "scheduler busy"
-	case m.scheduler != nil && m.scheduler.BackgroundAdmission(cluster) != SchedulerBackgroundAdmissionOpen:
-		return "background admission " + string(m.scheduler.BackgroundAdmission(cluster))
-	case policy.Sweep.PauseOnRateLimitOrConnectivity && m.clusterHasSweepBlockingIssue(cluster):
-		return "rate limit or connectivity pressure"
-	case row.NeverScannedNamespaces == 0 && row.StaleNamespaces == 0:
-		return "coverage fresh"
-	default:
-		return "eligible when idle"
 	}
+	if reason := m.namespaceSweepRuntimePauseReason(cluster, policy); reason != "" {
+		return reason
+	}
+	if row.hourLimit > 0 && row.hourUsed >= row.hourLimit {
+		return "hourly sweep budget exhausted"
+	}
+	if row.neverScannedNamespaces == 0 && row.staleNamespaces == 0 {
+		return "coverage fresh"
+	}
+	return "eligible when idle"
+}
+
+func (m *manager) namespaceSweepRuntimePauseReason(cluster string, policy NamespaceEnrichmentPolicy) string {
+	if policy.Sweep.PauseWhenSchedulerBusy && m.schedulerHasWork(cluster) {
+		return "scheduler busy"
+	}
+	if m.scheduler != nil && m.scheduler.health != nil {
+		if health, ok := m.scheduler.health.snapshotIfTracked(cluster); ok && health.BackgroundAdmission != SchedulerBackgroundAdmissionOpen {
+			return "background admission " + string(health.BackgroundAdmission)
+		}
+	}
+	if policy.Sweep.PauseOnRateLimitOrConnectivity && m.clusterHasSweepBlockingIssue(cluster) {
+		return "rate limit or connectivity pressure"
+	}
+	return ""
 }
 
 func isSystemNamespace(name string) bool {

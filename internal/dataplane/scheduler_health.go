@@ -74,6 +74,26 @@ func (h *schedulerHealthTracker) snapshot(cluster string) SchedulerHealthSnapsho
 	return h.snapshotLocked(cluster, h.now())
 }
 
+// snapshotIfTracked projects current health without creating or mutating tracked state.
+func (h *schedulerHealthTracker) snapshotIfTracked(cluster string) (SchedulerHealthSnapshot, bool) {
+	if h == nil {
+		return SchedulerHealthSnapshot{}, false
+	}
+	h.mu.Lock()
+	st := h.clusters[cluster]
+	if st == nil {
+		h.mu.Unlock()
+		return SchedulerHealthSnapshot{}, false
+	}
+	now := h.now()
+	window := h.window
+	copyState := *st
+	copyState.events = append([]schedulerHealthEvent(nil), st.events...)
+	h.mu.Unlock()
+
+	return projectSchedulerHealthSnapshot(cluster, &copyState, now, window), true
+}
+
 func (h *schedulerHealthTracker) allSnapshots() []SchedulerHealthSnapshot {
 	if h == nil {
 		return nil
@@ -129,7 +149,11 @@ func (h *schedulerHealthTracker) clusterLocked(cluster string, now time.Time) *c
 }
 
 func (h *schedulerHealthTracker) pruneLocked(st *clusterSchedulerHealth, now time.Time) {
-	cutoff := now.Add(-h.window)
+	pruneSchedulerHealth(st, now, h.window)
+}
+
+func pruneSchedulerHealth(st *clusterSchedulerHealth, now time.Time, window time.Duration) {
+	cutoff := now.Add(-window)
 	keep := 0
 	for _, ev := range st.events {
 		if ev.at.After(cutoff) || ev.at.Equal(cutoff) {
@@ -141,6 +165,10 @@ func (h *schedulerHealthTracker) pruneLocked(st *clusterSchedulerHealth, now tim
 }
 
 func (h *schedulerHealthTracker) updateStateLocked(st *clusterSchedulerHealth, now time.Time) {
+	updateSchedulerHealthState(st, now)
+}
+
+func updateSchedulerHealthState(st *clusterSchedulerHealth, now time.Time) {
 	failures, successes := schedulerHealthCounts(st.events)
 	next := SchedulerHealthHealthy
 	if st.consecutive >= 3 || failures >= 5 {
@@ -158,8 +186,12 @@ func (h *schedulerHealthTracker) updateStateLocked(st *clusterSchedulerHealth, n
 
 func (h *schedulerHealthTracker) snapshotLocked(cluster string, now time.Time) SchedulerHealthSnapshot {
 	st := h.clusterLocked(cluster, now)
-	h.pruneLocked(st, now)
-	h.updateStateLocked(st, now)
+	return projectSchedulerHealthSnapshot(cluster, st, now, h.window)
+}
+
+func projectSchedulerHealthSnapshot(cluster string, st *clusterSchedulerHealth, now time.Time, window time.Duration) SchedulerHealthSnapshot {
+	pruneSchedulerHealth(st, now, window)
+	updateSchedulerHealthState(st, now)
 	failures, successes := schedulerHealthCounts(st.events)
 	admission := SchedulerBackgroundAdmissionOpen
 	reason := ""

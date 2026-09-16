@@ -50,6 +50,10 @@ Recently completed foundation work:
 - **v5.16 operator relationship release**: cache-derived Resource Map v1,
   compact Deployment rollout history, connectivity-aware runtime suppression,
   and full-screen resource drawers shipped together and are locally accepted.
+- **Resource Map Visual UX v2 and Helm release maps**: the deterministic React
+  Flow/Dagre viewport and manifest-derived Helm release map with bounded,
+  cache-only availability enrichment are implemented, verified, and locally
+  accepted after v5.16; they have not yet been pushed or released.
 
 ## Product Direction
 
@@ -66,11 +70,11 @@ model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 kview ships broad, coherent product releases rather than publishing every
 packaging or maintenance improvement separately. The current sequence is:
 
-1. **Resource Map Visual UX v2 — active**: replace the hand-positioned SVG with
+1. **Resource Map Visual UX v2 — implemented and locally accepted**: replace the hand-positioned SVG with
    a lazy-loaded, deterministic layered graph viewport; add readable resource
    cards, rich hover/focus evidence, and fit/pan/zoom while preserving the exact
    cache-only v1 relationship contract.
-2. **Shared Dataplane Explanation**: explain freshness, coverage, missing
+2. **Shared Dataplane Explanation — active**: explain freshness, coverage, missing
    families, RBAC/degradation, scheduler pressure, sweep state, and active
    profile through one reusable metadata surface without exploratory live reads.
 3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local
@@ -87,6 +91,8 @@ The connectivity implementation contract and status checklist live in
 [plans/2026-08-27-connectivity-routing-detectors.md](plans/2026-08-27-connectivity-routing-detectors.md).
 The active Resource Map contract and delivery plan live in
 [plans/2026-08-28-resource-map.md](plans/2026-08-28-resource-map.md).
+The active Shared Dataplane Explanation contract and delivery plan live in
+[plans/2026-09-01-shared-dataplane-explanation.md](plans/2026-09-01-shared-dataplane-explanation.md).
 
 ## Primary Feature Track
 
@@ -124,7 +130,7 @@ Every result must expose coverage/unknown state instead of triggering live
 exploratory scans. This functional tranche is implemented and verified; see the
 linked plan above for implementation status and acceptance criteria.
 
-### 3. Resource Map (v1 Shipped; Visual UX v2 Active)
+### 3. Resource Map (v1 Shipped; Visual UX v2 and Helm Extension Locally Accepted)
 
 The standard **Resource Map** tab is implemented for real Kubernetes resource
 drawers. It centers the current
@@ -135,19 +141,25 @@ references, complete selector evidence, namespace containment, and CRD/type
 relationships. Show missing/stale/partial links and confidence per edge; use hard
 depth/node/edge caps and avoid a general graph hairball or hidden Kubernetes reads.
 
-The next tranche replaces only the presentation layer with a lazy-loaded React
-Flow + Dagre viewport. It keeps the bounded cache-only response unchanged while
-adding readable MUI resource cards, full identity and relationship evidence on
-hover/focus, fit/pan/zoom controls, deterministic relayout after rollout-history
-changes, and normal/full-screen visual coverage. See
+The completed local tranche replaces only the presentation layer with a
+lazy-loaded React Flow + Dagre viewport. It keeps the bounded cache-only response
+unchanged while adding readable MUI resource cards, full identity and
+relationship evidence on hover/focus, fit/pan/zoom controls, deterministic
+relayout after rollout-history changes, and normal/full-screen visual coverage.
+The follow-up Helm extension projects rendered manifest membership separately
+from cache-derived availability. See
 [plans/2026-09-01-resource-map-v2.md](plans/2026-09-01-resource-map-v2.md).
 
-### 4. Dataplane Explanation Drawer
+### 4. Shared Dataplane Explanation (Active)
 
 Explain resource/list/dashboard freshness through existing metadata: last
 observed, TTL, source, coverage, completeness, RBAC denial, scheduler pressure,
 sweep state, backoff, and active profile. Reuse current scheduler and coverage
-state instead of adding another diagnostics system.
+state instead of adding another diagnostics system. Compose surface-owned quality
+metadata with a lazy, active-context runtime snapshot; opening the explanation
+must not create or hydrate a plane, start observers, schedule work, or read
+Kubernetes. See
+[plans/2026-09-01-shared-dataplane-explanation.md](plans/2026-09-01-shared-dataplane-explanation.md).
 
 ### 5. Search Query Mini-Language
 
@@ -186,6 +198,39 @@ This pack is deferred. If activated, begin with local-mode-preserving interfaces
 and live user-authorized reads; enable shared cached surfaces resource by
 resource only after exact authorization contracts and cross-user isolation tests
 exist.
+
+### Time-Series / RRD-Style Operator Statistics (Candidate Spike)
+
+kview already computes many bounded gauges and counters: resource totals, signal
+counts/severity, cache coverage and freshness, scheduler/dataplane pressure,
+namespace sweep progress, profile/scope usage, and projection degradation. A
+future investigation pack should estimate the cost of retaining these as
+local-first time-series statistics and drawing historical trends without turning
+kview into a general metrics backend.
+
+The spike should:
+
+- inventory existing metric producers and classify each value as a gauge,
+  monotonic counter, bounded distribution, state transition, or event count;
+- define stable low-cardinality identity dimensions (`context`, resource kind,
+  scope/family, signal type/severity, dataplane profile) and explicitly reject
+  resource-name/UID and other unbounded labels;
+- compare an embedded round-robin/ring design with minute/hour/day rollups against
+  reuse of the existing local database, including schema/versioning, retention,
+  restart behavior, disk/memory budgets, compaction, and export/reset semantics;
+- sample only already-computed snapshots/projections/runtime state—never add
+  Kubernetes reads or make dashboard rendering the owner of collection;
+- preserve exact-context isolation and record unknown/partial/stale evidence
+  separately from numeric zero;
+- prototype bounded query APIs and compact trend graphs for resource totals,
+  signals, dataplane metrics/usage/scope, scheduler pressure, cache coverage, and
+  degradation;
+- benchmark write amplification, cardinality, storage growth, query latency, and
+  UI payload size before selecting a storage format or implementation tranche.
+
+Do not adopt Prometheus-style unrestricted labels or retain raw per-resource
+samples by default. The expected outcome of the spike is a costed architecture
+choice and one narrow end-to-end graph, not a broad observability rewrite.
 
 ### Backend-Owned View And Workflow Contracts
 

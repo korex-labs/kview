@@ -25,8 +25,18 @@ type clusterObservers struct {
 }
 
 func (p *clusterPlane) setObserverState(kind observerKind, state ObserverState, rt runtime.RuntimeManager) {
+	switch kind {
+	case observerKindNamespaces, observerKindNodes, observerKindPods, observerKindDeployments:
+	default:
+		return
+	}
+
 	var prev ObserverState
 
+	p.obsMu.Lock()
+	if p.observers == nil {
+		p.observers = &clusterObservers{}
+	}
 	switch kind {
 	case observerKindNamespaces:
 		prev = p.observers.namespacesState
@@ -41,12 +51,11 @@ func (p *clusterPlane) setObserverState(kind observerKind, state ObserverState, 
 		prev = p.observers.deployState
 		p.observers.deployState = state
 	}
+	p.obsMu.Unlock()
 
-	if prev != state {
-		if rt != nil {
-			rt.Log(runtime.LogLevelInfo, "dataplane",
-				fmt.Sprintf("observer %s for cluster %s transitioned %s -> %s", kind, p.name, prev, state))
-		}
+	if prev != state && rt != nil {
+		rt.Log(runtime.LogLevelInfo, "dataplane",
+			fmt.Sprintf("observer %s for cluster %s transitioned %s -> %s", kind, p.name, prev, state))
 	}
 }
 

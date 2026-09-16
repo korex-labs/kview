@@ -93,6 +93,7 @@ func isBackgroundPollingPath(p string) bool {
 		"/api/activity",
 		"/api/activity/runtime/logs",
 		"/api/dataplane/work/live",
+		"/api/dataplane/explanation",
 		"/api/dataplane/config",
 		"/api/dataplane/signals/catalog",
 		"/api/dataplane/metrics/status",

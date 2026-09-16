@@ -39,7 +39,24 @@ Snapshot persistence is optional and enabled by default unless the user has expl
 
 A shared **work scheduler** limits concurrent snapshot work per cluster, **deduplicates** in-flight work by key, applies **priorities** (user-facing API vs dashboard vs observers vs enrichment), and retries transient failures with backoff. It also maintains per-cluster adaptive health from recent pressure signals (rate limits, timeouts, transient upstream/proxy/connectivity failures) so background work can slow down before it starves foreground/user-facing reads. Background/observer/enrichment reads use source-aware adaptive TTLs: when a cluster is limited/throttled or has queued work, cached snapshots remain acceptable for longer, with an extra multiplier for expensive kinds such as custom resources, CRDs, RBAC, ConfigMaps, and Secrets. Critical/high foreground reads keep the configured base TTL/manual-refresh behavior. Periodic all-context warmup intentionally skips cluster-scoped custom-resource inventory outside `diagnostic` profile because that fan-out is expensive and can trigger client-side throttling every warmup interval.
 
-Operators can inspect **running and queued** snapshot work plus scheduler health via `GET /api/dataplane/work/live` (authenticated like other `/api` routes). Work rows include cluster, kind, namespace (if any), priority, source label (e.g. api, observer, enrichment), and queue/run timing. Health rows include state (`healthy`, `limited`, `throttled`, `recovering`), background admission (`open`, `limited`, `paused`), recent failure/success counts, last pressure class, and a human-readable paused/limited reason. Pressure rows include per-cluster running/queued counts, low-priority queue counts, longest queue wait, and slot limit. Namespace sweep rows include total namespaces plus mutually exclusive coverage buckets: scanned/enriched namespaces, never-scanned eligible namespaces, and system namespaces skipped by policy; stale is a subset of scanned namespaces. Rows also include hourly budget use, stage/progress, and the current paused/eligible reason. The Activity panel surfaces the same health/admission and sweep coverage chips so operators can see when background sweep/enrichment has intentionally slowed down and how much namespace coverage exists.
+Operators can inspect **running and queued** snapshot work plus scheduler health via `GET /api/dataplane/work/live` (authenticated like other `/api` routes). Work rows include cluster, kind, namespace (if any), priority, source label (e.g. api, observer, enrichment), and queue/run timing. Health rows include state (`healthy`, `limited`, `throttled`, `recovering`), background admission (`open`, `limited`, `paused`), recent failure/success counts, last pressure class, and a human-readable paused/limited reason. Pressure rows include per-cluster running/queued counts, low-priority queue counts, longest queue wait, and slot limit. Namespace sweep rows report cache-backed row-summary availability and freshness separately from current-process sweep timestamps, plus hourly budget use, stage/progress, system exclusions, and the current paused/eligible reason. The Activity panel surfaces the same evidence without treating a missing runtime sweep timestamp as missing cached data.
+
+`GET /api/dataplane/explanation` is the narrower active-context operator
+explanation contract. It combines the effective profile with only already-loaded
+observer, scheduler-pressure, and namespace-sweep state for the explicit
+`X-Kview-Context`. It peeks in-memory state and never creates or hydrates a plane,
+starts observers, schedules work, probes capabilities, or reads Kubernetes. An
+unloaded plane is returned truthfully as `loaded: false`; absent scheduler or
+observer evidence is not synthesized as healthy.
+
+Namespace sweep reporting separates cache-backed evidence from process-local
+sweep history. A cached row summary is available when at least one of its
+Pods, Deployments, ResourceQuotas, or LimitRanges source snapshots is cached.
+Hot/Warm/Cold/Stale/Unknown is the worst freshness among those present source
+snapshots; it does not claim that every resource kind warmed for that namespace
+has the same freshness. Swept-this-runtime, due-for-
+re-sweep, and no-runtime-sweep-record counts describe only timestamps held by the
+current process and must not be interpreted as cache presence or absence.
 
 ---
 

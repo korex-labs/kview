@@ -196,6 +196,7 @@ func TestIsBackgroundPollingPath(t *testing.T) {
 		"/api/dashboard/cluster",
 		"/api/dashboard/cluster/query",
 		"/api/dataplane/work/live",
+		"/api/dataplane/explanation",
 		"/api/dataplane/revision",
 		"/api/namespaces/enrichment",
 		"/api/sessions",

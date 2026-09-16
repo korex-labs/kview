@@ -2,12 +2,12 @@
 import React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { apiGet } from "../../api";
+import { apiGet, apiGetWithContext } from "../../api";
 import { ActiveContextProvider } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapResponse } from "../../types/api";
 import ResourceMapPanel, { historicalReplicaSetNodeIDs, ResourceMapSvg, summarizeResourceMapEvidence } from "./ResourceMapPanel";
 
-vi.mock("../../api", () => ({ apiGet: vi.fn() }));
+vi.mock("../../api", () => ({ apiGet: vi.fn(), apiGetWithContext: vi.fn() }));
 const identity: ApiResourceIdentity = { group: "apps", version: "v1", resource: "deployments", kind: "Deployment", scope: "namespaced", namespace: "prod", name: "api" };
 const descriptors: Record<string, Pick<ApiResourceIdentity, "group" | "version" | "kind" | "scope">> = {
   pods: { group: "", version: "v1", kind: "Pod", scope: "namespaced" },
@@ -160,6 +160,26 @@ describe("ResourceMapPanel", () => {
     expect(screen.getByText(/Map truncated at API limits: node limit/)).toBeTruthy();
     expect(vi.mocked(apiGet).mock.calls[0][0]).toBe("/api/dataplane/resource-map?group=apps&version=v1&resource=deployments&kind=Deployment&scope=namespaced&namespace=prod&name=api&depth=2");
     expect(vi.mocked(apiGet).mock.calls[0][2]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("opens one exact-context explanation lazily from the loaded map projection", async () => {
+    vi.mocked(apiGet).mockResolvedValue(response);
+    vi.mocked(apiGetWithContext).mockResolvedValue({ active: "ctx", item: { loaded: false, observers: [] } });
+    render(<ActiveContextProvider value="ctx"><ResourceMapPanel identity={identity} token="token" onOpenResource={vi.fn()} /></ActiveContextProvider>);
+
+    await screen.findByRole("region", { name: "Resource relationship map" });
+    expect(apiGetWithContext).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Explain" }));
+
+    expect(await screen.findByText("Relationship projection")).toBeTruthy();
+    expect(screen.getByText("Map cache")).toBeTruthy();
+    await waitFor(() => expect(apiGetWithContext).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(apiGetWithContext).mock.calls[0].slice(0, 3)).toEqual([
+      "/api/dataplane/explanation",
+      "token",
+      "ctx",
+    ]);
+    expect(vi.mocked(apiGetWithContext).mock.calls[0][3]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("shows errors and aborts stale requests on identity change", async () => {

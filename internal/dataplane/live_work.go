@@ -17,9 +17,18 @@ type SchedulerLiveWork struct {
 
 // NamespaceSweepCoverageSnapshot describes namespace radar sweep coverage for operator visibility.
 type NamespaceSweepCoverageSnapshot struct {
-	Cluster                 string `json:"cluster"`
-	Enabled                 bool   `json:"enabled"`
-	TotalNamespaces         int    `json:"totalNamespaces"`
+	Cluster                      string `json:"cluster"`
+	Enabled                      bool   `json:"enabled"`
+	TotalNamespaces              int    `json:"totalNamespaces"`
+	CachedEnrichmentNamespaces   int    `json:"cachedEnrichmentNamespaces"`
+	NoCachedEnrichmentNamespaces int    `json:"noCachedEnrichmentNamespaces"`
+	CachedHotNamespaces          int    `json:"cachedHotNamespaces"`
+	CachedWarmNamespaces         int    `json:"cachedWarmNamespaces"`
+	CachedColdNamespaces         int    `json:"cachedColdNamespaces"`
+	CachedStaleNamespaces        int    `json:"cachedStaleNamespaces"`
+	CachedUnknownNamespaces      int    `json:"cachedUnknownNamespaces"`
+	// EnrichedNamespaces, StaleNamespaces, and NeverScannedNamespaces describe
+	// in-process sweep timestamps. They do not describe persisted cache availability.
 	EnrichedNamespaces      int    `json:"enrichedNamespaces"`
 	StaleNamespaces         int    `json:"staleNamespaces"`
 	NeverScannedNamespaces  int    `json:"neverScannedNamespaces"`

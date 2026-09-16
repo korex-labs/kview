@@ -193,3 +193,15 @@ func TestMergeCachedNamespaceRowProjectionOverlaysItems(t *testing.T) {
 		t.Fatalf("expected second row to remain list-only, got %+v", items[1])
 	}
 }
+
+func TestCachedNamespaceListRowSourcesFreshnessNormalizesLegacyUnknown(t *testing.T) {
+	sources := cachedNamespaceListRowSources{
+		pods:   PodsSnapshot{Meta: SnapshotMetadata{Freshness: FreshnessClassHot}},
+		podsOK: true,
+		deps:   DeploymentsSnapshot{Meta: SnapshotMetadata{}},
+		depsOK: true,
+	}
+	if got := sources.freshness(); got != FreshnessClassUnknown {
+		t.Fatalf("freshness = %q, want %q for mixed hot and legacy-empty metadata", got, FreshnessClassUnknown)
+	}
+}

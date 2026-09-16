@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from "vitest";
-import {
+import React from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import ResourceListPage, {
   loadPersistedColumnWidths,
   resourceMemoryTargetForListRow,
   resourceListRowMatchesSearchFields,
@@ -10,8 +12,59 @@ import {
 } from "./ResourceListPage";
 import type { DataplaneListMeta } from "../../types/api";
 
+vi.mock("../../activeContext", () => ({ useActiveContext: () => "kind-causal" }));
+vi.mock("../../connectionState", () => ({ useConnectionState: () => ({ health: "healthy" }) }));
+vi.mock("../../keyboard/KeyboardProvider", () => ({
+  useKeyboardControls: () => ({ keyboardSettings: {}, requestKeyboardFocus: vi.fn() }),
+  useTableKeyboardControls: vi.fn(),
+}));
+vi.mock("../../settingsContext", () => ({
+  useUserSettings: () => ({
+    settings: {
+      resourceTags: { enabled: false, definitions: [], assignments: {} },
+      savedViews: [],
+    },
+    setSettings: vi.fn(),
+  }),
+}));
+vi.mock("../../utils/useEmptyListAccessCheck", () => ({ default: () => null }));
+vi.mock("../../utils/useListFilters", () => ({
+  default: ({ rows }: { rows: Array<{ id: string }> }) => ({
+    filter: "",
+    setFilter: vi.fn(),
+    selectedQuickFilter: null,
+    toggleQuickFilter: vi.fn(),
+    quickFilters: [],
+    filteredRows: rows,
+  }),
+}));
+vi.mock("../../utils/useListQuery", () => ({
+  default: () => ({
+    items: [],
+    dataplaneMeta: { state: "ok", freshness: "hot", coverage: "full", completeness: "complete" },
+    error: null,
+    loading: false,
+    lastRefresh: 0,
+    refetch: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+vi.mock("@mui/x-data-grid", () => ({
+  DataGrid: () => <div data-testid="resource-grid" />,
+  gridPaginatedVisibleSortedGridRowIdsSelector: () => [],
+  gridVisibleColumnDefinitionsSelector: () => [],
+  useGridApiRef: () => ({ current: { rootElementRef: { current: null }, getAllRowIds: () => [] } }),
+}));
+vi.mock("./ResourceTableToolbar", () => ({ default: () => null }));
+vi.mock("./DataplaneListMetaStrip", () => ({
+  default: ({ token, activeContext }: { token: string; activeContext: string }) => (
+    <output data-testid="dataplane-meta-boundary">{token}|{activeContext}</output>
+  ),
+}));
+
 afterEach(() => {
+  cleanup();
   window.localStorage.clear();
+  vi.clearAllMocks();
 });
 
 const completeHotMeta: DataplaneListMeta = {
@@ -100,5 +153,21 @@ describe("ResourceListPage resource notes target", () => {
       namespace: "ops",
       name: "chart-a",
     });
+  });
+});
+
+describe("ResourceListPage dataplane explanation boundary", () => {
+  it("renders the shared meta strip with the actual token and active context", () => {
+    render(
+      <ResourceListPage
+        token="actual-token"
+        columns={[{ field: "name", headerName: "Name" }]}
+        fetchRows={async () => ({ rows: [], meta: null })}
+        resourceKey="pods"
+        renderDrawer={() => null}
+      />,
+    );
+
+    expect(screen.getByTestId("dataplane-meta-boundary").textContent).toBe("actual-token|kind-causal");
   });
 });

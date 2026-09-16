@@ -242,6 +242,7 @@ func TestNamespaceSweepCoverageSnapshotCountsFreshStaleAndNeverScanned(t *testin
 		"app":   now.Add(-5 * time.Minute),
 		"stale": now.Add(-45 * time.Minute),
 	}
+	mm.nsSweepHourStart[cluster] = now
 	mm.nsSweepHourCount[cluster] = 2
 	mm.nsSweepMu.Unlock()
 
@@ -261,6 +262,90 @@ func TestNamespaceSweepCoverageSnapshotCountsFreshStaleAndNeverScanned(t *testin
 	}
 	if got.PausedReason != "eligible when idle" {
 		t.Fatalf("paused reason: got %q", got.PausedReason)
+	}
+}
+
+func TestNamespaceSweepCoverageSeparatesCachedEnrichmentFromRuntimeSweepHistory(t *testing.T) {
+	dm := NewManager(ManagerConfig{})
+	mm := dm.(*manager)
+	mm.clients = panicExplanationClientsProvider{}
+	cluster := "ctx-cache-coverage"
+	planeAny, _ := mm.PlaneForCluster(t.Context(), cluster)
+	plane := planeAny.(*clusterPlane)
+	now := time.Now().UTC()
+	setClusterSnapshot(&plane.nsStore, NamespaceSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: now},
+		Items: []dto.NamespaceListItemDTO{
+			{Name: "app-hot"},
+			{Name: "app-none"},
+			{Name: "kube-system"},
+			{}, // Malformed cached rows do not represent a usable namespace.
+		},
+	})
+	setNamespacedSnapshot(&plane.rqStore, "app-hot", ResourceQuotasSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
+	})
+	setNamespacedSnapshot(&plane.podsStore, "kube-system", PodsSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassHot},
+	})
+	setNamespacedSnapshot(&plane.depsStore, "kube-system", DeploymentsSnapshot{
+		Meta: SnapshotMetadata{ObservedAt: now, Freshness: FreshnessClassStale},
+	})
+	policy := mm.Policy()
+	policy.NamespaceEnrichment.Enabled = true
+	policy.NamespaceEnrichment.Sweep.Enabled = true
+	policy.NamespaceEnrichment.Sweep.MaxNamespacesPerCycle = 2
+	policy.NamespaceEnrichment.Sweep.MaxNamespacesPerHour = 8
+	policy.NamespaceEnrichment.Sweep.IncludeSystemNamespaces = false
+	mm.SetPolicy(policy)
+
+	coverage := mm.NamespaceSweepCoverageSnapshot(now)
+	if len(coverage) != 1 {
+		t.Fatalf("coverage rows: got %d, want 1", len(coverage))
+	}
+	got := coverage[0]
+	if got.TotalNamespaces != 3 {
+		t.Fatalf("total namespaces = %d, want 3 named rows", got.TotalNamespaces)
+	}
+	if got.CachedEnrichmentNamespaces != 2 || got.NoCachedEnrichmentNamespaces != 1 {
+		t.Fatalf("cached coverage = %+v, want cached=2 noCached=1", got)
+	}
+	if got.CachedHotNamespaces != 1 || got.CachedWarmNamespaces != 0 || got.CachedColdNamespaces != 0 || got.CachedStaleNamespaces != 1 || got.CachedUnknownNamespaces != 0 {
+		t.Fatalf("cached freshness buckets = %+v, want hot=1 stale=1", got)
+	}
+	if got.CachedEnrichmentNamespaces+got.NoCachedEnrichmentNamespaces != got.TotalNamespaces {
+		t.Fatalf("cached coverage buckets should equal named total: %+v", got)
+	}
+	if got.CachedHotNamespaces+got.CachedWarmNamespaces+got.CachedColdNamespaces+got.CachedStaleNamespaces+got.CachedUnknownNamespaces != got.CachedEnrichmentNamespaces {
+		t.Fatalf("cached freshness buckets should equal cached total: %+v", got)
+	}
+	if got.EnrichedNamespaces != 0 || got.StaleNamespaces != 0 || got.NeverScannedNamespaces != 2 || got.SystemNamespacesSkipped != 1 {
+		t.Fatalf("runtime sweep history should remain independent: %+v", got)
+	}
+
+	explanation := mm.DataplaneExplanation(cluster)
+	if explanation.NamespaceSweep == nil {
+		t.Fatal("namespace sweep explanation is nil")
+	}
+	explained := explanation.NamespaceSweep
+	if explained.CachedEnrichmentNamespaces != got.CachedEnrichmentNamespaces ||
+		explained.NoCachedEnrichmentNamespaces != got.NoCachedEnrichmentNamespaces ||
+		explained.CachedHotNamespaces != got.CachedHotNamespaces ||
+		explained.CachedStaleNamespaces != got.CachedStaleNamespaces ||
+		explained.EnrichedNamespaces != 0 || explained.NeverScannedNamespaces != 2 {
+		t.Fatalf("explanation cache/runtime evidence drifted: coverage=%+v explanation=%+v", got, explained)
+	}
+
+	mm.nsSweepMu.Lock()
+	defer mm.nsSweepMu.Unlock()
+	if _, ok := mm.nsSweepLast[cluster]; ok {
+		t.Fatalf("coverage/explanation created runtime sweep history: %+v", mm.nsSweepLast[cluster])
+	}
+	if _, ok := mm.nsSweepHourStart[cluster]; ok {
+		t.Fatalf("coverage/explanation created sweep hour start: %+v", mm.nsSweepHourStart[cluster])
+	}
+	if _, ok := mm.nsSweepHourCount[cluster]; ok {
+		t.Fatalf("coverage/explanation created sweep hour count: %+v", mm.nsSweepHourCount[cluster])
 	}
 }
 

@@ -179,6 +179,115 @@ func TestPerformanceSnapshotReturnsRuntimeStats(t *testing.T) {
 	}
 }
 
+func TestDataplaneExplanationRequiresAuth(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+
+	rec := doReq(t, h, http.MethodGet, "/api/dataplane/explanation", "", nil)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	if len(dp.explanationCalls) != 0 {
+		t.Fatalf("unauthenticated request reached dataplane: %+v", dp.explanationCalls)
+	}
+}
+
+func TestDataplaneExplanationUnavailable(t *testing.T) {
+	s, _ := newTestServer(t)
+	s.dp = nil
+	router := chi.NewRouter()
+	s.registerActivityAndDataplaneRoutes(router)
+	req := httptest.NewRequest(http.MethodGet, "/dataplane/explanation", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want %d body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+}
+
+func TestDataplaneExplanationRequiresExplicitContext(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+
+	rec := doReq(t, h, http.MethodGet, "/api/dataplane/explanation", testToken, nil)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(dp.explanationCalls) != 0 {
+		t.Fatalf("missing-context request reached dataplane: %+v", dp.explanationCalls)
+	}
+}
+
+func TestDataplaneExplanationRejectsUnknownContext(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+
+	rec := doReqWithHeader(t, h, http.MethodGet, "/api/dataplane/explanation", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "unknown-context",
+	}, nil)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d, want %d body=%s", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+	if len(dp.explanationCalls) != 0 {
+		t.Fatalf("unknown-context request reached dataplane: %+v", dp.explanationCalls)
+	}
+}
+
+func TestDataplaneExplanationForwardsAndEchoesExactContext(t *testing.T) {
+	s, h := newTestServer(t)
+	dp := s.dp.(*stubDataplane)
+	dp.explanationResult = dataplane.DataplaneExplanationSnapshot{
+		Loaded:  true,
+		Profile: dataplane.DataplaneProfileBalanced,
+		Observers: []dataplane.DataplaneExplanationObserver{
+			{Kind: "namespaces", Enabled: true, State: dataplane.ObserverStateActive},
+			{Kind: "nodes", Enabled: false, State: dataplane.ObserverStateDisabled},
+		},
+		Scheduler: &dataplane.DataplaneExplanationScheduler{
+			State:               dataplane.SchedulerHealthLimited,
+			BackgroundAdmission: dataplane.SchedulerBackgroundAdmissionLimited,
+			RecentFailures:      2,
+		},
+	}
+
+	rec := doReqWithHeader(t, h, http.MethodGet, "/api/dataplane/explanation", map[string]string{
+		"Authorization":   "Bearer " + testToken,
+		"X-Kview-Context": "test-context",
+	}, nil)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(dp.explanationCalls) != 1 || dp.explanationCalls[0] != "test-context" {
+		t.Fatalf("explanation calls = %+v", dp.explanationCalls)
+	}
+	dp.mu.Lock()
+	activityCalls := dp.activityCalls
+	dp.mu.Unlock()
+	if activityCalls != 0 {
+		t.Fatalf("explanation request noted user activity %d times", activityCalls)
+	}
+	var got struct {
+		Active string                                 `json:"active"`
+		Item   dataplane.DataplaneExplanationSnapshot `json:"item"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.Active != "test-context" || !got.Item.Loaded || got.Item.Profile != dataplane.DataplaneProfileBalanced {
+		t.Fatalf("response = %+v", got)
+	}
+	if len(got.Item.Observers) != 2 || got.Item.Scheduler == nil || got.Item.Scheduler.State != dataplane.SchedulerHealthLimited {
+		t.Fatalf("typed explanation shape = %+v", got.Item)
+	}
+}
+
 func TestResourceMapRequiresAuth(t *testing.T) {
 	s, h := newTestServer(t)
 	dp := s.dp.(*stubDataplane)
@@ -497,6 +606,9 @@ type stubDataplane struct {
 	unsuppressErr           error
 	suppressionImportErr    error
 	suppressionResetErr     error
+	explanationCalls        []string
+	explanationResult       dataplane.DataplaneExplanationSnapshot
+	activityCalls           int
 }
 
 type stubResourceMapCall struct {
@@ -535,7 +647,11 @@ func newStubDataplane() *stubDataplane {
 	return &stubDataplane{policy: bundle.Global, bundle: bundle, effective: map[string]dataplane.DataplanePolicy{}, acks: map[string]dataplane.SignalAcknowledgementRecord{}, suppressions: map[string]dataplane.SignalSuppressionRecord{}, history: map[string]dataplane.SignalHistoryRecord{}}
 }
 
-func (s *stubDataplane) NoteUserActivity()                                       {}
+func (s *stubDataplane) NoteUserActivity() {
+	s.mu.Lock()
+	s.activityCalls++
+	s.mu.Unlock()
+}
 func (s *stubDataplane) EnsureObservers(_ context.Context, _ string)             {}
 func (s *stubDataplane) WarmClusterBackground(_ context.Context, _ string) error { return nil }
 func (s *stubDataplane) Policy() dataplane.DataplanePolicy                       { return s.policy }
@@ -562,6 +678,10 @@ func (s *stubDataplane) SetPolicyBundle(bundle dataplane.DataplanePolicyBundle) 
 }
 func (s *stubDataplane) SchedulerLiveWork() dataplane.SchedulerLiveWork {
 	return dataplane.SchedulerLiveWork{}
+}
+func (s *stubDataplane) DataplaneExplanation(contextName string) dataplane.DataplaneExplanationSnapshot {
+	s.explanationCalls = append(s.explanationCalls, contextName)
+	return s.explanationResult
 }
 func (s *stubDataplane) SchedulerRunStats() dataplane.SchedulerRunStatsSnapshot {
 	return dataplane.SchedulerRunStatsSnapshot{}

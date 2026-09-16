@@ -14,12 +14,16 @@ import MetricCard from "../../shared/MetricCard";
 import StackedMetricBar from "../../shared/StackedMetricBar";
 import GaugeTableRow from "../../shared/GaugeTableRow";
 import ScopedCountChip from "../../shared/ScopedCountChip";
+import DataplaneExplanationAction from "../../shared/DataplaneExplanationAction";
+import { buildDashboardExplanationSurface } from "../../shared/dataplaneExplanationModel";
 import { formatCPUMilli, formatMemoryBytes } from "../../metrics/format";
 
 type Props = {
   item: NonNullable<ApiDashboardDataplaneResponse["item"]>;
   metricsUsable: boolean;
   refreshSec: number;
+  token: string;
+  activeContext: string;
 };
 
 function stateChipColor(state: string): "success" | "warning" | "error" | "default" {
@@ -53,7 +57,7 @@ function StatCell({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export default function DashboardDataplaneTab({ item, metricsUsable, refreshSec }: Props) {
+export default function DashboardDataplaneTab({ item, metricsUsable, refreshSec, token, activeContext }: Props) {
   const { plane, visibility, coverage: cov, resources, dataplane, usage } = item;
   const ns = visibility.namespaces;
   const nodes = visibility.nodes;
@@ -61,6 +65,13 @@ export default function DashboardDataplaneTab({ item, metricsUsable, refreshSec 
 
   return (
     <>
+      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+        <DataplaneExplanationAction
+          token={token}
+          activeContext={activeContext}
+          surface={buildDashboardExplanationSurface(item)}
+        />
+      </Box>
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
         <MetricCard
           label="Known namespace scope"

@@ -906,6 +906,8 @@ export default function DashboardView(props: Props) {
               item={visibleDataplaneData.item}
               metricsUsable={metricsUsable}
               refreshSec={effectiveDashboardRefreshSec}
+              token={props.token}
+              activeContext={activeContext}
             />
           ) : null}
         </Box>

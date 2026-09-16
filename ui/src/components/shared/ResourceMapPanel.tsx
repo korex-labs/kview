@@ -3,6 +3,8 @@ import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from "@
 import { apiGet } from "../../api";
 import { useActiveContext } from "../../activeContext";
 import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse } from "../../types/api";
+import DataplaneExplanationAction from "./DataplaneExplanationAction";
+import { buildResourceMapExplanationSurface } from "./dataplaneExplanationModel";
 
 const LazyResourceMapGraph = lazy(() => import("./ResourceMapGraph"));
 
@@ -174,6 +176,11 @@ export default function ResourceMapPanel({ identity, token, onOpenResource }: { 
         <Chip size="small" label={`${response.cache.freshness} cache`} variant="outlined" />
       </> : null}
       <Typography variant="caption" color="text.secondary">{response.cache.returnedNodes}/{response.cache.totalNodes} nodes · {response.cache.returnedEdges}/{response.cache.totalEdges} edges</Typography>
+      <DataplaneExplanationAction
+        token={token}
+        activeContext={activeContext}
+        surface={buildResourceMapExplanationSurface(response)}
+      />
     </Stack>
     {partial ? <Alert severity="warning">Relationship coverage is partial. Some resources or relationship families may be absent.</Alert> : null}
     {response.truncated ? <Alert severity="warning">Map truncated at API limits{response.truncationReasons?.length ? `: ${response.truncationReasons.join(", ")}` : "."}</Alert> : null}

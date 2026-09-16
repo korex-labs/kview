@@ -87,6 +87,24 @@ data if the dataplane already has enough visible snapshots to build a useful
 view. List metadata describes freshness, coverage, degradation, and completeness
 when that information is available.
 
+Select **Explain** beside list metadata to see what those values mean together
+with the active dataplane profile, observer state, scheduler pressure, and
+namespace sweep state already known to kview. The list metadata remains the
+authoritative description of that list: for example, a stale snapshot can still
+be complete, while partial or unknown coverage does not prove that a resource is
+missing. Opening **Explain** does not refresh the list or read Kubernetes. If
+runtime explanation is unavailable, the list metadata remains visible.
+
+In **Namespace sweep**, **Cached summaries** is the primary coverage measure.
+It means kview can build the namespace row summary from at least one cached
+Pods, Deployments, ResourceQuotas, or LimitRanges snapshot. The Hot, Warm, Cold,
+Stale, and Unknown values show the worst freshness among those available summary
+sources, not every resource kind in the namespace. **Swept this runtime**,
+**Due for re-sweep**, and **No runtime sweep record** describe only the current
+kview process history. A namespace with no
+runtime sweep record can still have a cached summary from earlier activity or a
+previous process.
+
 ## Related Settings
 
 - **Dataplane**

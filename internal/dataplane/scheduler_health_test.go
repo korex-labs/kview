@@ -37,6 +37,36 @@ func TestSchedulerHealth_BackgroundAdmissionTransitions(t *testing.T) {
 	}
 }
 
+func TestSchedulerHealthSnapshotIfTrackedIsObservational(t *testing.T) {
+	h := newSchedulerHealthTracker()
+	now := time.Unix(1000, 0)
+	h.now = func() time.Time { return now }
+
+	if got, ok := h.snapshotIfTracked("absent"); ok {
+		t.Fatalf("absent snapshot = %+v, want untracked", got)
+	}
+	if len(h.clusters) != 0 {
+		t.Fatalf("absent peek inserted health state: %+v", h.clusters)
+	}
+
+	h.recordError("tracked", NormalizedErrorClassTimeout)
+	before := *h.clusters["tracked"]
+	beforeEvents := append([]schedulerHealthEvent(nil), before.events...)
+	now = now.Add(3 * time.Minute)
+	if _, ok := h.snapshotIfTracked("tracked"); !ok {
+		t.Fatal("tracked snapshot reported absent")
+	}
+	after := h.clusters["tracked"]
+	if after.state != before.state || !after.lastTransition.Equal(before.lastTransition) || len(after.events) != len(beforeEvents) {
+		t.Fatalf("tracked peek mutated state: before=%+v after=%+v", before, *after)
+	}
+	for i := range beforeEvents {
+		if after.events[i] != beforeEvents[i] {
+			t.Fatalf("tracked peek mutated event %d: before=%+v after=%+v", i, beforeEvents[i], after.events[i])
+		}
+	}
+}
+
 func TestWorkScheduler_RecordsPressureHealth(t *testing.T) {
 	s := newWorkScheduler(1)
 	s.configureRetries(1, time.Millisecond, time.Millisecond)

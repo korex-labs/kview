@@ -78,10 +78,17 @@ type SchedulerHealthSnapshot = {
   reason?: string;
 };
 
-type NamespaceSweepCoverage = {
+export type NamespaceSweepCoverage = {
   cluster: string;
   enabled: boolean;
   totalNamespaces: number;
+  cachedEnrichmentNamespaces: number;
+  noCachedEnrichmentNamespaces: number;
+  cachedHotNamespaces: number;
+  cachedWarmNamespaces: number;
+  cachedColdNamespaces: number;
+  cachedStaleNamespaces: number;
+  cachedUnknownNamespaces: number;
   enrichedNamespaces: number;
   staleNamespaces: number;
   neverScannedNamespaces: number;
@@ -218,30 +225,67 @@ function backgroundAdmissionColor(admission?: string) {
   }
 }
 
-function formatNamespaceSweepDetail(row: NamespaceSweepCoverage) {
-  const bucketTotal = row.enrichedNamespaces + row.neverScannedNamespaces + row.systemNamespacesSkipped;
+export function formatNamespaceSweepDetail(row: NamespaceSweepCoverage) {
   const bits = [
     `total=${row.totalNamespaces}`,
-    `scanned=${row.enrichedNamespaces}`,
-    `never eligible=${row.neverScannedNamespaces}`,
-    `system skipped=${row.systemNamespacesSkipped}`,
-    `buckets=${bucketTotal}/${row.totalNamespaces}`,
-    `stale scanned=${row.staleNamespaces}`,
+    `cached summaries=${row.cachedEnrichmentNamespaces}/${row.totalNamespaces}`,
+    `no cached summary=${row.noCachedEnrichmentNamespaces}`,
+    `cached hot=${row.cachedHotNamespaces}`,
+    `cached warm=${row.cachedWarmNamespaces}`,
+    `cached cold=${row.cachedColdNamespaces}`,
+    `cached stale=${row.cachedStaleNamespaces}`,
+    `cached unknown=${row.cachedUnknownNamespaces}`,
+    `swept this runtime=${row.enrichedNamespaces}`,
+    `due for re-sweep=${row.staleNamespaces}`,
+    `no runtime sweep record=${row.neverScannedNamespaces}`,
+    `system excluded=${row.systemNamespacesSkipped}`,
     `hour=${row.hourUsed ?? 0}/${row.hourLimit ?? 0}`,
   ];
   if (row.stage) bits.push(`stage=${row.stage}`);
   if (row.enrichTargets) bits.push(`progress=${row.relatedDone ?? 0}/${row.enrichTargets}`);
-  if (row.systemNamespacesSkipped) bits.push(`system skipped=${row.systemNamespacesSkipped}`);
   if (row.pausedReason) bits.push(`reason=${row.pausedReason}`);
   return bits.join(" · ");
 }
 
-function namespaceSweepColor(row: NamespaceSweepCoverage) {
-  if (!row.enabled || row.pausedReason === "coverage fresh") return "default" as const;
+export function namespaceSweepColor(row: NamespaceSweepCoverage) {
+  if (!row.enabled) return "default" as const;
+  if (row.noCachedEnrichmentNamespaces > 0) return "warning" as const;
+  if (row.cachedStaleNamespaces + row.cachedUnknownNamespaces > 0) return "info" as const;
   if (row.inFlight) return "info" as const;
-  if (row.neverScannedNamespaces > 0) return "warning" as const;
-  if (row.staleNamespaces > 0) return "info" as const;
+  if (row.pausedReason === "coverage fresh") return "default" as const;
   return "success" as const;
+}
+
+type NamespaceSweepEvidence = {
+  label: string;
+  color: "default" | "info" | "success" | "warning";
+  primary?: boolean;
+};
+
+function namespaceSweepEvidence(row: NamespaceSweepCoverage): NamespaceSweepEvidence[] {
+  const evidence: NamespaceSweepEvidence[] = [
+    { label: `${row.cachedEnrichmentNamespaces}/${row.totalNamespaces} cached`, color: namespaceSweepColor(row), primary: true },
+  ];
+  if (row.noCachedEnrichmentNamespaces > 0) evidence.push({ label: `${row.noCachedEnrichmentNamespaces} no cached summary`, color: "warning" });
+  const freshness = [
+    [row.cachedHotNamespaces, "hot", "default"],
+    [row.cachedWarmNamespaces, "warm", "default"],
+    [row.cachedColdNamespaces, "cold", "default"],
+    [row.cachedStaleNamespaces, "stale", "info"],
+    [row.cachedUnknownNamespaces, "unknown", "info"],
+  ] as const;
+  freshness.forEach(([count, label, color]) => {
+    if (count > 0) evidence.push({ label: `${count} ${label}`, color });
+  });
+  if (row.enrichedNamespaces > 0) evidence.push({ label: `${row.enrichedNamespaces} swept this runtime`, color: "default" });
+  if (row.staleNamespaces > 0) evidence.push({ label: `${row.staleNamespaces} due for re-sweep`, color: "info" });
+  if (row.neverScannedNamespaces > 0) evidence.push({ label: `${row.neverScannedNamespaces} no runtime sweep record`, color: "default" });
+  if (row.systemNamespacesSkipped > 0) evidence.push({ label: `${row.systemNamespacesSkipped} system excluded`, color: "default" });
+  return evidence;
+}
+
+export function namespaceSweepEvidenceLabels(row: NamespaceSweepCoverage): string[] {
+  return namespaceSweepEvidence(row).map((item) => item.label);
 }
 
 function namespaceSweepStateLabel(row: NamespaceSweepCoverage) {
@@ -715,10 +759,16 @@ export default function ActivityTabs({
                       <Typography variant="caption" noWrap sx={{ maxWidth: 180, color: "text.secondary" }}>
                         {row.cluster}
                       </Typography>
-                      <StatusChip size="small" label={`${row.enrichedNamespaces}/${row.totalNamespaces} scanned`} color={namespaceSweepColor(row)} sx={activityChipSx} />
-                      {row.neverScannedNamespaces > 0 ? <StatusChip size="small" label={`${row.neverScannedNamespaces} never eligible`} color="warning" variant="outlined" sx={activityChipSx} /> : null}
-                      {row.systemNamespacesSkipped > 0 ? <StatusChip size="small" label={`${row.systemNamespacesSkipped} system skipped`} color="default" variant="outlined" sx={activityChipSx} /> : null}
-                      {row.staleNamespaces > 0 ? <StatusChip size="small" label={`${row.staleNamespaces} stale`} color="info" variant="outlined" sx={activityChipSx} /> : null}
+                      {namespaceSweepEvidence(row).map((item) => (
+                        <StatusChip
+                          key={item.label}
+                          size="small"
+                          label={item.label}
+                          color={item.color}
+                          variant={item.primary ? undefined : "outlined"}
+                          sx={activityChipSx}
+                        />
+                      ))}
                       <StatusChip size="small" label={namespaceSweepStateLabel(row)} color={namespaceSweepStateColor(row)} variant="outlined" sx={activityChipSx} />
                     </Box>
                   </Tooltip>

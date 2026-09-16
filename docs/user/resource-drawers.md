@@ -57,6 +57,14 @@ objects, events, metadata, YAML, and supported actions.
   Select a present node (or focus it and press <kbd>Enter</kbd>/<kbd>Space</kbd>)
   to open its drawer without losing the original drawer.
 
+  Use **Explain** above a loaded Kubernetes Resource Map to inspect the map's own
+  relationship coverage, extractor-family completeness and reasons, truncation
+  limits, and cache freshness/counts alongside exact-context dataplane runtime
+  evidence. The dialog reuses the map response already on screen; it does not
+  reload the map, flatten family reasons into resource-list metadata, or perform
+  Kubernetes/Helm reads. Evidence remains collapsed by default in normal and
+  full-screen drawers.
+
   Helm release drawers expose a separate **Resource Map** when their rendered
   manifest contains resources. The release is the current node and each unique
   manifest object is a direct declared child. This map is an inventory projection

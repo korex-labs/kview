@@ -258,6 +258,8 @@ type DataPlaneManager interface {
 
 	// SchedulerLiveWork returns running and queued snapshot scheduler work (for operator visibility).
 	SchedulerLiveWork() SchedulerLiveWork
+	// DataplaneExplanation returns a bounded cache-only runtime explanation for one exact context.
+	DataplaneExplanation(contextName string) DataplaneExplanationSnapshot
 
 	// SearchCachedResources returns persisted dataplane name-index matches without live Kubernetes reads.
 	SearchCachedResources(ctx context.Context, clusterName string, query string, limit int, offset int) (CachedResourceSearch, error)
