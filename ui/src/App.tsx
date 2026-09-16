@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert } from "@mui/material";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
 import ConstructionIcon from "@mui/icons-material/Construction";
@@ -105,7 +106,7 @@ const INITIAL_NAMESPACE_RETRY_ATTEMPTS = 5;
 const INITIAL_NAMESPACE_RETRY_DELAY_MS = 400;
 
 type ContextOption = NonNullable<ApiContextsResponse["contexts"]>[number];
-type BootstrapPhase = "contexts" | "context" | "migration" | "namespaces" | "ready" | "no-context" | "error";
+type BootstrapPhase = "contexts" | "context" | "migration" | "ready" | "no-context" | "error";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -141,7 +142,6 @@ function startupSteps(phase: BootstrapPhase, detail: Partial<Record<BootstrapPha
     { id: "contexts", label: "Reading kube contexts" },
     { id: "context", label: "Selecting active context" },
     { id: "migration", label: "Checking local cache" },
-    { id: "namespaces", label: "Loading namespaces and dataplane cache" },
   ];
   const phaseIndex = order.findIndex((step) => step.id === phase);
   return order.map((step, index) => {
@@ -175,6 +175,13 @@ function AppInner() {
   const [kubeconfigInfo, setKubeconfigInfo] = useState<StartupKubeconfigInfo | null>(null);
   const [bootstrapNonce, setBootstrapNonce] = useState(0);
   const [contextSwitching, setContextSwitching] = useState(false);
+  const [namespaceLoading, setNamespaceLoading] = useState(false);
+  const [namespaceError, setNamespaceError] = useState("");
+  const [namespaceNonce, setNamespaceNonce] = useState(0);
+  const namespaceGeneration = useRef(0);
+  const namespaceSelection = useRef(0);
+  const contextGeneration = useRef(0);
+  const namespaceAbort = useRef<AbortController | null>(null);
 
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [nsLimited, setNsLimited] = useState<boolean>(false);
@@ -192,6 +199,8 @@ function AppInner() {
 
   // load from localStorage once
   const [appState, setAppState] = useState(() => loadState());
+  const namespaceRequest = useRef({ state: appState, preferred: "" });
+  useEffect(() => () => { ++contextGeneration.current; }, []);
 
   useEffect(() => {
     setApiDefaultContext(activeContext);
@@ -292,13 +301,23 @@ function AppInner() {
   // initial bootstrap
   useEffect(() => {
     let cancelled = false;
+    const generation = ++contextGeneration.current;
+    ++namespaceGeneration.current;
+    namespaceAbort.current?.abort();
+    const current = () => !cancelled && generation === contextGeneration.current;
     (async () => {
+      // Retry may select a different context. Retire all previous context inventory
+      // before releasing the shell, including restriction/error state.
+      setNamespaces([]);
+      setNsLimited(false);
+      setNamespaceError("");
+      setNamespaceLoading(false);
       setBootstrapPhase("contexts");
       setBootstrapError("");
       setBootstrapDetail({ contexts: "Reading configured kubeconfig files" });
       // 1) contexts
       const ctxRes = await apiGet<ApiContextsResponse>("/api/contexts", token);
-      if (cancelled) return;
+      if (!current()) return;
       const ctxs = ctxRes.contexts || [];
       setContexts(ctxs);
       setKubeconfigInfo(ctxRes.kubeconfig || null);
@@ -329,7 +348,8 @@ function AppInner() {
         setBootstrapDetail((d) => ({ ...d, context: `Selecting ${chosenCtx}` }));
         await apiPost("/api/context/select", token, { name: chosenCtx });
       }
-      if (cancelled) return;
+      if (!current()) return;
+      setNamespaceLoading(true);
       setActiveContext(chosenCtx);
       if (optimisticNamespace) {
         setNamespace(optimisticNamespace);
@@ -349,50 +369,13 @@ function AppInner() {
               : "Local cache schema is up to date";
       setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
 
-      // 3) namespaces
-      setBootstrapPhase("namespaces");
-      setBootstrapDetail((d) => ({
-        ...d,
-        namespaces: "Starting observers and asking the dataplane for the namespace snapshot",
-      }));
-      const nsPath0 = namespacesListApiPath(appState, chosenCtx, appState.activeNamespace || "");
-      const { limited, items: nsItems } = await fetchNamespacesWithWarmup(token, nsPath0, chosenCtx);
-      if (cancelled) return;
-      setNsLimited(limited);
-      setNamespaces(nsItems);
-
-      // 4) pick namespace
-      const chosenNs = pickNamespace({
-        limited,
-        items: nsItems,
-        preferred: optimisticNamespace || "",
-      });
-      setNamespace(chosenNs);
-
-      // 5) section
-      setSection(appState.activeSection || "pods");
-
-      // 6) favourites for this ctx
-      const fav = (appState.favouriteNamespacesByContext[chosenCtx] || []).slice();
-      setFavourites(fav);
-
-      // update stored state if we auto-picked; record MRU for enrichment hints
-      setAppState((s) => {
-        let next: typeof s = {
-          ...s,
-          activeContext: chosenCtx || s.activeContext,
-          activeNamespace: chosenNs || s.activeNamespace,
-          activeSection: s.activeSection || "pods",
-        };
-        if (chosenCtx && chosenNs) {
-          next = recordRecentNamespace(next, chosenCtx, chosenNs);
-        }
-        return next;
-      });
-      setBootstrapDetail((d) => ({ ...d, namespaces: `${nsItems.length} namespaces available` }));
+      // Context selection is the shell gate. Namespace inventory/cache warmup is
+      // independent and must not keep navigation behind the startup modal.
+      namespaceRequest.current = { state: appState, preferred: optimisticNamespace };
+      setAppState((s) => ({ ...s, activeContext: chosenCtx, activeNamespace: optimisticNamespace }));
       setBootstrapPhase("ready");
     })().catch((err) => {
-      if (cancelled) return;
+      if (!current()) return;
       const message = String((err as Error | undefined)?.message || err || "Startup failed");
       setBootstrapError(message);
       setBootstrapPhase("error");
@@ -408,9 +391,10 @@ function AppInner() {
     currentToken: string,
     apiPath: string,
     contextName: string,
+    signal: AbortSignal,
   ): Promise<{ limited: boolean; items: string[] }> {
     try {
-      const nsRes = await apiGetWithContext<ApiNamespacesListResponse>(apiPath, currentToken, contextName);
+      const nsRes = await apiGetWithContext<ApiNamespacesListResponse>(apiPath, currentToken, contextName, { signal });
       return {
         limited: !!nsRes.limited,
         items: (nsRes.items || []).map((x) => x.name),
@@ -428,89 +412,92 @@ function AppInner() {
     currentToken: string,
     apiPath: string,
     contextName: string,
+    current: () => boolean,
+    signal: AbortSignal,
   ): Promise<{ limited: boolean; items: string[] }> {
-    let result = await fetchNamespaces(currentToken, apiPath, contextName);
+    let result = await fetchNamespaces(currentToken, apiPath, contextName, signal);
     if (result.limited || result.items.length > 0) return result;
     for (let i = 0; i < INITIAL_NAMESPACE_RETRY_ATTEMPTS; i += 1) {
+      if (!current()) return result;
       await sleep(INITIAL_NAMESPACE_RETRY_DELAY_MS);
-      result = await fetchNamespaces(currentToken, apiPath, contextName);
+      if (!current()) return result;
+      result = await fetchNamespaces(currentToken, apiPath, contextName, signal);
       if (result.limited || result.items.length > 0) break;
     }
     return result;
   }
 
+  // Each context/retry owns its namespace completion. A pending response cannot
+  // publish into a newer context, restart retries after unmount, or undo a choice
+  // the operator made while the shell was already usable.
+  useEffect(() => {
+    if (!activeContext || bootstrapPhase !== "ready") return;
+    let cancelled = false;
+    const generation = ++namespaceGeneration.current;
+    const controller = new AbortController();
+    namespaceAbort.current = controller;
+    const selection = namespaceSelection.current;
+    const current = () => !cancelled && generation === namespaceGeneration.current;
+    const { state, preferred } = namespaceRequest.current;
+    setNamespaceLoading(true);
+    setNamespaceError("");
+    const path = namespacesListApiPath(state, activeContext, preferred);
+    void fetchNamespacesWithWarmup(token, path, activeContext, current, controller.signal).then(({ limited, items }) => {
+      if (!current()) return;
+      setNsLimited(limited);
+      setNamespaces(items);
+      if (selection === namespaceSelection.current) {
+        const chosen = pickNamespace({ limited, items, preferred });
+        setNamespace(chosen);
+        setAppState((s) => {
+          const next = { ...s, activeNamespace: chosen };
+          return chosen ? recordRecentNamespace(next, activeContext, chosen) : next;
+        });
+      }
+    }).catch((err) => {
+      if (current()) setNamespaceError(String((err as Error)?.message || err || "Namespace loading failed"));
+    }).finally(() => {
+      if (current()) setNamespaceLoading(false);
+    });
+    return () => { cancelled = true; controller.abort(); };
+    // Requests use the context-selection snapshot, not changing navigation state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeContext, bootstrapPhase, namespaceNonce, token]);
+
   async function onSelectContext(name: string, preferredNamespace?: string) {
     if (!name || name === activeContext || contextSwitching) return;
     const selected = contexts.find((c) => c.name === name);
-    const optimisticNamespace = preferredNamespace || optimisticNamespaceForContext(appState, name, selected?.namespace);
-    const showStartupDialog = bootstrapPhase !== "ready";
+    const preferred = preferredNamespace || optimisticNamespaceForContext(appState, name, selected?.namespace);
+    const generation = ++contextGeneration.current;
+    ++namespaceGeneration.current;
+    namespaceAbort.current?.abort();
     setContextSwitching(true);
     setBootstrapError("");
-    if (showStartupDialog) {
-      setBootstrapPhase("context");
-      setBootstrapDetail({
-        context: `Selecting ${name}`,
-        migration: "Checking local cache schema",
-        namespaces: "Waiting for namespace snapshot",
-      });
-    }
     try {
       await apiPost("/api/context/select", token, { name });
+      if (generation !== contextGeneration.current) return;
+      namespaceRequest.current = { state: appState, preferred };
+      setNamespaces([]);
+      setNsLimited(false);
+      setNamespaceError("");
+      setNamespaceLoading(true);
       setActiveContext(name);
-      if (optimisticNamespace) setNamespace(optimisticNamespace);
-
-      if (showStartupDialog) {
-        setBootstrapPhase("migration");
-        const refreshedContexts = await apiGet<ApiContextsResponse>("/api/contexts", token);
-        const migrationPhase = refreshedContexts.cacheMigration?.phase || "idle";
-        const migrationDetail =
-          migrationPhase === "running"
-            ? "Checking local cache state"
-            : migrationPhase === "failed"
-              ? "Local cache migration failed, cache persistence disabled"
-              : refreshedContexts.cacheMigration?.applied
-                ? `Upgraded local cache schema to v${refreshedContexts.cacheMigration?.toVersion || "?"}`
-                : "Local cache schema is up to date";
-        setBootstrapDetail((d) => ({ ...d, migration: migrationDetail }));
-        setBootstrapPhase("namespaces");
-      }
-
-      const nsPath = namespacesListApiPath(appState, name, optimisticNamespace || "");
-      const { limited, items: nsItems } = showStartupDialog
-        ? await fetchNamespacesWithWarmup(token, nsPath, name)
-        : await fetchNamespaces(token, nsPath, name);
-      setNsLimited(limited);
-      setNamespaces(nsItems);
-
-      // pick namespace from state if possible
-      const chosenNs = pickNamespace({
-        limited,
-        items: nsItems,
-        preferred: optimisticNamespace || "",
-      });
-      setNamespace(chosenNs);
-
-      // load favourites for this context
-      const fav = (appState.favouriteNamespacesByContext[name] || []).slice();
-      setFavourites(fav);
-
-      setAppState((s) => {
-        let next: AppStateV1 = { ...s, activeContext: name, activeNamespace: chosenNs };
-        if (name && chosenNs) next = recordRecentNamespace(next, name, chosenNs);
-        return next;
-      });
-      setBootstrapDetail((d) => ({ ...d, namespaces: `${nsItems.length} namespaces available` }));
+      setNamespace(preferred);
+      setAppState((s) => ({ ...s, activeContext: name, activeNamespace: preferred }));
       setBootstrapPhase("ready");
     } catch (err) {
+      if (generation !== contextGeneration.current) return;
       const message = String((err as Error | undefined)?.message || err || "Context switch failed");
       setBootstrapError(message);
       setBootstrapPhase("error");
     } finally {
-      setContextSwitching(false);
+      if (generation === contextGeneration.current) setContextSwitching(false);
     }
   }
 
   function onSelectNamespace(ns: string) {
+    ++namespaceSelection.current;
+    namespaceRequest.current.preferred = ns;
     setNamespace(ns);
     setAppState((s) => {
       let next: AppStateV1 = { ...s, activeNamespace: ns };
@@ -733,6 +720,7 @@ function AppInner() {
               namespace={namespace}
               onSelectNamespace={onSelectNamespace}
               nsLimited={nsLimited}
+              namespaceInventoryUnavailable={namespaceLoading || !!namespaceError}
               favourites={favourites}
               recentNamespaces={recentNamespaces}
               recentSections={appState.recentSections || []}
@@ -766,6 +754,18 @@ function AppInner() {
             }}
           >
             <ConnectionBanner />
+            {bootstrapPhase === "ready" && namespaceLoading ? (
+              <Alert severity="info" role="status">Loading namespaces and dataplane cache in the background. You can keep navigating.</Alert>
+            ) : null}
+            {bootstrapPhase === "ready" && !namespaceLoading && (namespaceError || namespaces.length === 0) ? (
+              <Alert severity={namespaceError ? "warning" : "info"} action={
+                <AppIconButton tooltip="Retry namespaces" label="Retry namespaces" onClick={() => setNamespaceNonce((n) => n + 1)}>
+                  <RefreshIcon fontSize="small" />
+                </AppIconButton>
+              }>
+                {namespaceError || (nsLimited ? "Namespace listing is restricted. Use a known namespace." : "No namespaces returned. Choose another context or retry.")}
+              </Alert>
+            ) : null}
             {/* Single bounded main column: children fill width/height; dashboard scrolls here; tables scroll inside Paper/DataGrid */}
             <Box className="kview-main-content" sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               {helpOpen ? (
@@ -928,6 +928,11 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
   const { settings } = useUserSettings();
   const activeContext = useActiveContext();
   const lastSweepWarmKeyRef = useRef<string>("");
+  // Mount-local only: a new app/backend session must still receive its bundle.
+  const configSyncRef = useRef<{ inFlight: Promise<void> | null; syncedKey: string | null }>({
+    inFlight: null,
+    syncedKey: null,
+  });
   const dashboardRefreshSec = settings.appearance.dashboardRefreshSec;
   const dataplaneSettings = settings.dataplane;
   const dataplaneBundle = useMemo(
@@ -943,8 +948,31 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       if (cancelled) return;
-      apiPost("/api/dataplane/config", token, dataplaneBundle)
-        .then(() => {
+      void (async () => {
+          const sync = configSyncRef.current;
+          // Cleanup retires queued work, not server mutations. Wait for the
+          // current POST before applying only the latest still-mounted intent.
+          while (sync.inFlight) {
+            await sync.inFlight.catch(() => {});
+            if (cancelled) return;
+          }
+          // Context selects effective sweep policy, not the full config payload.
+          // Include credentials so a success under an old token cannot suppress
+          // a new identity's sync. Failed writes are never remembered as synced.
+          const key = JSON.stringify([token, dataplaneBundle]);
+          if (sync.syncedKey !== key) {
+            sync.syncedKey = null;
+            const request = apiPost("/api/dataplane/config", token, dataplaneBundle).then(() => {
+              sync.syncedKey = key;
+            });
+            sync.inFlight = request;
+            try {
+              await request;
+            } finally {
+              sync.inFlight = null;
+            }
+          }
+          if (cancelled) return;
           dispatchSignalExclusionsChanged();
           const sweep = effectiveDataplane.namespaceEnrichment.sweep;
           const warmKey = effectiveDataplane.namespaceEnrichment.enabled && sweep.enabled
@@ -966,7 +994,7 @@ export function DataplaneSettingsSync({ token }: { token: string }) {
           apiGetWithContext<ApiNamespacesListResponse>("/api/namespaces", token, activeContext).catch(() => {
             /* Sweep warm-up is best-effort; connection banner handles backend failures. */
           });
-        })
+      })()
         .catch(() => {
           /* Settings sync is best-effort; connection banner handles backend failures. */
         });

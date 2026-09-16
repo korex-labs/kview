@@ -81,6 +81,19 @@ func DetectMetricsAPI(ctx context.Context, c *cluster.Clients) (bool, error) {
 }
 
 func mapPodMetrics(pm metricsv1beta1.PodMetrics) dto.PodMetricsDTO {
+	var capturedAt int64
+	if !pm.Timestamp.IsZero() {
+		capturedAt = pm.Timestamp.Unix()
+	}
+	// Round the window outward so fractional seconds cannot turn an interval
+	// crossing pod creation into apparent evidence for the replacement pod.
+	windowSec := int64(-1)
+	if pm.Window.Duration >= 0 {
+		windowSec = int64(pm.Window.Duration / time.Second)
+		if pm.Window.Duration%time.Second != 0 {
+			windowSec++
+		}
+	}
 	containers := make([]dto.ContainerMetricsDTO, 0, len(pm.Containers))
 	for _, cm := range pm.Containers {
 		cpu, mem := cpuAndMemoryFromUsage(cm.Usage)
@@ -91,10 +104,11 @@ func mapPodMetrics(pm metricsv1beta1.PodMetrics) dto.PodMetricsDTO {
 		})
 	}
 	return dto.PodMetricsDTO{
+		UID:        string(pm.UID),
 		Name:       pm.Name,
 		Namespace:  pm.Namespace,
-		WindowSec:  durationSeconds(pm.Window.Duration),
-		CapturedAt: pm.Timestamp.Unix(),
+		WindowSec:  windowSec,
+		CapturedAt: capturedAt,
 		Containers: containers,
 	}
 }

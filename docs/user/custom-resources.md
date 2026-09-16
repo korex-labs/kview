@@ -43,11 +43,41 @@ Custom resource drawers also support:
 - Use macros or dynamic links for operator-specific dashboards, logs, or runbooks.
 - Use YAML for full custom-resource state when no specialized panel exists.
 
+## Signals And Warnings
+
+Generic health summaries interpret recognized conditions, not every boolean in
+an operator's status. Positive conditions include `Ready`, `Available`, and
+`Healthy`; negative conditions include `Degraded`, `Failed`, and `Stalled`.
+Current failure evidence takes precedence over readiness. `Degraded=False`
+alone does not prove that a resource is healthy.
+
+An unrecognized-only condition set or stale readiness evidence produces
+**Unknown** rather than invented readiness; current failure evidence still wins. For resources with a metadata generation, missing
+observed-generation evidence also produces **Unknown**. Condition-level
+`observedGeneration` takes precedence over the status-level value. Older objects
+without a generation may use recognized phase values as a fallback.
+
+Raw condition values in the drawer remain neutral: `True` is not universally
+good, and `False` is not universally bad. Inspect condition reasons, messages,
+and YAML for operator-specific meaning.
+
 ## Permission And Data Notes
 
 Custom resource discovery depends on access to CRDs and the custom resource
 endpoints. Some CRDs may be visible while their instances are not, or vice
 versa, depending on RBAC.
+
+If listing CRDs is forbidden, the namespace and cluster instance views can use
+API discovery plus permission to read individual CRDs. Only types confirmed by
+an exact CRD read are listed, using a served version and the same credentials.
+Namespaced discovery stays within the selected namespace. Aggregated APIs are
+not assumed to be CRDs.
+
+This fallback is bounded and incomplete: it considers preferred API versions,
+limits metadata probes, and reports partial coverage even when all confirmed
+types are readable. If individual CRD reads are also denied, an empty result
+does not prove that no custom resources exist. The CRD list and group/kind
+resolve endpoint still require CRD-list access.
 
 ## Related Settings
 

@@ -111,7 +111,8 @@ func crdVersionsCompact(obj map[string]interface{}) string {
 	return strings.Join(parts, ", ")
 }
 
-// crdStorageVersion returns the storage version name, falling back to the first served version.
+// crdStorageVersion selects a served request version (the DTO's legacy field
+// name is StorageVersion). Prefer storage only when it is also served.
 func crdStorageVersion(obj map[string]interface{}) string {
 	versions, found, err := unstructured.NestedSlice(obj, "spec", "versions")
 	if err != nil || !found || len(versions) == 0 {
@@ -124,8 +125,9 @@ func crdStorageVersion(obj map[string]interface{}) string {
 			continue
 		}
 		storage, _, _ := unstructured.NestedBool(vm, "storage")
-		if storage {
-			name, _, _ := unstructured.NestedString(vm, "name")
+		served, _, _ := unstructured.NestedBool(vm, "served")
+		name, _, _ := unstructured.NestedString(vm, "name")
+		if storage && served && name != "" {
 			return name
 		}
 	}
@@ -136,8 +138,8 @@ func crdStorageVersion(obj map[string]interface{}) string {
 			continue
 		}
 		served, _, _ := unstructured.NestedBool(vm, "served")
-		if served {
-			name, _, _ := unstructured.NestedString(vm, "name")
+		name, _, _ := unstructured.NestedString(vm, "name")
+		if served && name != "" {
 			return name
 		}
 	}

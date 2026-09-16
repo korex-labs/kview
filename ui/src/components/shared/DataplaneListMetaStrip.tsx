@@ -6,6 +6,7 @@ import { dataplaneCoarseStateChipColor, formatChipLabel } from "../../utils/k8sU
 import DataplaneExplanationAction from "./DataplaneExplanationAction";
 import { buildDataplaneListExplanationSurface } from "./dataplaneExplanationModel";
 import ScopedCountChip from "./ScopedCountChip";
+import { AppButton } from "./AppActions";
 
 type Props = {
   meta: DataplaneListMeta | null;
@@ -13,16 +14,22 @@ type Props = {
   activeContext: string;
   /** Shown before meta line, e.g. namespace list row-projection caption */
   prefix?: React.ReactNode;
+  /** Compact control alongside the metadata chips. */
+  control?: React.ReactNode;
+  onRefresh?: () => Promise<void>;
+  refreshDisabled?: boolean;
+  refreshing?: boolean;
 };
 
 /** Compact list-level quality line for cached resource lists (shown under the toolbar). */
-export default function DataplaneListMetaStrip({ meta, token, activeContext, prefix }: Props) {
-  if (!meta || (!meta.state && !meta.freshness && !meta.observed)) {
+export default function DataplaneListMetaStrip({ meta, token, activeContext, prefix, control, onRefresh, refreshDisabled, refreshing = false }: Props) {
+  const hasMeta = Boolean(meta && (meta.state || meta.freshness || meta.observed));
+  if (!hasMeta && !onRefresh && !control) {
     return null;
   }
 
   const checkedValue = (() => {
-    const raw = meta.observed;
+    const raw = meta?.observed;
     if (!raw) return null;
     if (/^\d+$/.test(raw)) {
       const num = Number(raw);
@@ -39,19 +46,37 @@ export default function DataplaneListMetaStrip({ meta, token, activeContext, pre
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mb: 1 }}>
       {prefix}
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75 }}>
-        {meta.state && (
-          <ScopedCountChip size="small" label="Sync" count={formatChipLabel(meta.state)} color={dataplaneCoarseStateChipColor(meta.state)} />
-        )}
-        <ScopedCountChip size="small" variant="outlined" label="Updated" count={formatChipLabel(meta.freshness ?? "—")} />
-        <ScopedCountChip size="small" variant="outlined" label="Scope" count={formatChipLabel(meta.coverage ?? "—")} />
-        <ScopedCountChip size="small" variant="outlined" label="Issues" count={formatChipLabel(meta.degradation ?? "—")} />
-        <ScopedCountChip size="small" variant="outlined" label="Detail" count={formatChipLabel(meta.completeness ?? "—")} />
-        {checkedValue ? <ScopedCountChip size="small" variant="outlined" label="Checked" count={checkedValue} /> : null}
-        <DataplaneExplanationAction
-          token={token}
-          activeContext={activeContext}
-          surface={buildDataplaneListExplanationSurface(meta)}
-        />
+        {control}
+        {hasMeta && meta ? (
+          <>
+            {meta.state && (
+              <ScopedCountChip size="small" label="Sync" count={formatChipLabel(meta.state)} color={dataplaneCoarseStateChipColor(meta.state)} />
+            )}
+            <ScopedCountChip size="small" variant="outlined" label="Updated" count={formatChipLabel(meta.freshness ?? "—")} />
+            <ScopedCountChip size="small" variant="outlined" label="Scope" count={formatChipLabel(meta.coverage ?? "—")} />
+            <ScopedCountChip size="small" variant="outlined" label="Issues" count={formatChipLabel(meta.degradation ?? "—")} />
+            <ScopedCountChip size="small" variant="outlined" label="Detail" count={formatChipLabel(meta.completeness ?? "—")} />
+            {checkedValue ? <ScopedCountChip size="small" variant="outlined" label="Checked" count={checkedValue} /> : null}
+            <DataplaneExplanationAction
+              token={token}
+              activeContext={activeContext}
+              surface={buildDataplaneListExplanationSurface(meta)}
+            />
+          </>
+        ) : null}
+        {onRefresh ? (
+          <AppButton
+            variant="outlined"
+            aria-label="Refresh"
+            aria-busy={refreshing}
+            loading={refreshing}
+            disabled={refreshDisabled || refreshing}
+            onClick={() => void onRefresh()}
+            sx={{ minWidth: 0, px: 1, py: 0, height: 24, minHeight: 24, maxHeight: 24, lineHeight: 1, flexShrink: 0 }}
+          >
+            Refresh
+          </AppButton>
+        ) : null}
       </Box>
     </Box>
   );

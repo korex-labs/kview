@@ -10,7 +10,6 @@ import (
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
-	kubeevents "github.com/korex-labs/kview/v5/internal/kube/resource/events"
 	"github.com/korex-labs/kview/v5/internal/kube/resource/relationships"
 )
 
@@ -20,12 +19,17 @@ func ListPods(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		return nil, err
 	}
 
-	latestEvents, _ := kubeevents.LatestEventsByObject(ctx, c, namespace, "Pod")
-
-	return podListItems(pods.Items, latestEvents, time.Now()), nil
+	// Optional Events are enriched by the dataplane after authoritative rows
+	// have been published. A denied or slow Events LIST must not delay Pods.
+	return podListItems(pods.Items, nil, time.Now()), nil
 }
 
-func podListItems(pods []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, now time.Time) []dto.PodListItemDTO {
+func podListItems(items []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, now time.Time) []dto.PodListItemDTO {
+	return MapPodListItems(items, latestEvents, now)
+}
+
+// MapPodListItems maps pods without making API calls.
+func MapPodListItems(pods []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, now time.Time) []dto.PodListItemDTO {
 	out := make([]dto.PodListItemDTO, 0, len(pods))
 	for _, p := range pods {
 		var lastEvent *dto.EventBriefDTO
@@ -46,7 +50,9 @@ func podListItems(pods []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, 
 		}
 
 		age := int64(0)
+		createdAt := int64(0)
 		if !p.CreationTimestamp.IsZero() {
+			createdAt = p.CreationTimestamp.Unix()
 			age = int64(now.Sub(p.CreationTimestamp.Time).Seconds())
 		}
 
@@ -56,6 +62,8 @@ func podListItems(pods []corev1.Pod, latestEvents map[string]dto.EventBriefDTO, 
 		carrier = relationships.WithLabels(carrier, p.Labels)
 		out = append(out, dto.PodListItemDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(p.UID),
+			CreatedAt:                   createdAt,
 			Name:                        p.Name,
 			Namespace:                   p.Namespace,
 			Labels:                      p.Labels,

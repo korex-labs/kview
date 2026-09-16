@@ -288,8 +288,14 @@ export default function CustomResourceDrawer(props: {
                       <KeyValueTable rows={summaryItems} columns={2} />
                     </Box>
                   </Section>
+                  {/* Raw conditions have controller-specific polarity and no freshness
+                      metadata in this DTO. Only the server-derived summary is a
+                      health verdict; do not color arbitrary True values healthy. */}
                   <ConditionsTable
                     conditions={details?.conditions || []}
+                    isHealthy={() => true}
+                    chipColor={() => "default"}
+                    unhealthyFirst={false}
                     variant="section"
                     title="Conditions"
                     emptyMessage="No conditions reported for this custom resource."

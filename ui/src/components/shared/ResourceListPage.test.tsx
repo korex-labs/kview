@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ResourceListPage, {
   loadPersistedColumnWidths,
@@ -11,6 +11,9 @@ import ResourceListPage, {
   shouldCleanupResourceTagAssignments,
 } from "./ResourceListPage";
 import type { DataplaneListMeta } from "../../types/api";
+import { apiGetWithContext } from "../../api";
+
+vi.mock("../../api", () => ({ apiGetWithContext: vi.fn().mockResolvedValue({ item: { observers: [] } }) }));
 
 vi.mock("../../activeContext", () => ({ useActiveContext: () => "kind-causal" }));
 vi.mock("../../connectionState", () => ({ useConnectionState: () => ({ health: "healthy" }) }));
@@ -38,16 +41,6 @@ vi.mock("../../utils/useListFilters", () => ({
     filteredRows: rows,
   }),
 }));
-vi.mock("../../utils/useListQuery", () => ({
-  default: () => ({
-    items: [],
-    dataplaneMeta: { state: "ok", freshness: "hot", coverage: "full", completeness: "complete" },
-    error: null,
-    loading: false,
-    lastRefresh: 0,
-    refetch: vi.fn().mockResolvedValue(undefined),
-  }),
-}));
 vi.mock("@mui/x-data-grid", () => ({
   DataGrid: () => <div data-testid="resource-grid" />,
   gridPaginatedVisibleSortedGridRowIdsSelector: () => [],
@@ -55,16 +48,48 @@ vi.mock("@mui/x-data-grid", () => ({
   useGridApiRef: () => ({ current: { rootElementRef: { current: null }, getAllRowIds: () => [] } }),
 }));
 vi.mock("./ResourceTableToolbar", () => ({ default: () => null }));
-vi.mock("./DataplaneListMetaStrip", () => ({
-  default: ({ token, activeContext }: { token: string; activeContext: string }) => (
-    <output data-testid="dataplane-meta-boundary">{token}|{activeContext}</output>
-  ),
-}));
 
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
   vi.clearAllMocks();
+  vi.useRealTimers();
+});
+
+describe("ResourceListPage refresh reason boundary", () => {
+  it.each(["interval", "dataplane", "revision"] as const)(
+    "forwards manual Refresh and keeps %s polling automatic",
+    async (lane) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      const fetchRows = vi.fn().mockResolvedValue({ rows: [{ id: "pod", name: "pod" }] });
+      const fetchRevision = vi.fn().mockResolvedValue("1");
+      render(
+        <ResourceListPage
+          token="actual-token"
+          columns={[{ field: "name", headerName: "Name" }]}
+          fetchRows={fetchRows}
+          resourceKey="pods"
+          namespace="app"
+          initialRefreshSec={lane === "interval" ? 5 : 0}
+          dataplaneRevisionPoll={lane === "interval" ? undefined : { fetchRevision, pollSec: 5 }}
+          dataplaneRefreshSec={lane === "dataplane" ? 15 : 0}
+          renderDrawer={() => null}
+        />,
+      );
+      await waitFor(() => expect(fetchRows).toHaveBeenCalledExactlyOnceWith("kind-causal", "initial", expect.any(AbortSignal)));
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Refresh" })); });
+      expect(fetchRows.mock.calls).toEqual([["kind-causal", "initial", expect.any(AbortSignal)], ["kind-causal", "manual", expect.any(AbortSignal)]]);
+
+      if (lane === "revision") fetchRevision.mockResolvedValue("2");
+      await act(async () => { await vi.advanceTimersByTimeAsync(lane === "dataplane" ? 15_100 : 5_100); });
+      expect(fetchRows.mock.calls).toEqual([
+        ["kind-causal", "initial", expect.any(AbortSignal)],
+        ["kind-causal", "manual", expect.any(AbortSignal)],
+        ["kind-causal", lane === "interval" ? "refresh" : lane, expect.any(AbortSignal)],
+      ]);
+    },
+  );
 });
 
 const completeHotMeta: DataplaneListMeta = {
@@ -157,17 +182,20 @@ describe("ResourceListPage resource notes target", () => {
 });
 
 describe("ResourceListPage dataplane explanation boundary", () => {
-  it("renders the shared meta strip with the actual token and active context", () => {
+  it("renders the shared meta strip with the actual token and active context", async () => {
     render(
       <ResourceListPage
         token="actual-token"
         columns={[{ field: "name", headerName: "Name" }]}
-        fetchRows={async () => ({ rows: [], meta: null })}
+        fetchRows={async () => ({ rows: [], dataplaneMeta: completeHotMeta })}
         resourceKey="pods"
         renderDrawer={() => null}
       />,
     );
 
-    expect(screen.getByTestId("dataplane-meta-boundary").textContent).toBe("actual-token|kind-causal");
+    fireEvent.click(await screen.findByRole("button", { name: "Explain" }));
+    await waitFor(() => expect(apiGetWithContext).toHaveBeenCalledWith(
+      "/api/dataplane/explanation", "actual-token", "kind-causal", { signal: expect.any(AbortSignal) },
+    ));
   });
 });

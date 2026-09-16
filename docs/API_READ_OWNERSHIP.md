@@ -51,6 +51,67 @@ Dataplane-backed read endpoints accept optional `X-Kview-Context`; when absent, 
 
 ---
 
+### Pod refresh intent
+
+`GET /api/namespaces/{ns}/pods` accepts optional `refresh=manual|auto|revision`;
+unknown values return `400`. The UI supplies its active `X-Kview-Context` for
+both Pod and metrics requests. The list route retains the existing authenticated
+context-selection contract (including the legacy absent-header fallback).
+
+Only `manual` can bypass a fresh Pod snapshot, and only when effective policy
+`ManualRefreshBypassesTTL` permits it. Scheduler admission and context/kind/
+namespace deduplication remain in force; failure preserves usable cached rows
+with stale/error metadata. The marker does not force other resource families.
+
+Absent intent and `auto` use ordinary TTL-aware snapshot reads.
+`refresh=revision` now reads only an existing Pod snapshot, requires an explicit
+context and namespace, returns `503` when the cache is absent, and neither starts
+observers nor warms metrics. The revision check endpoint also remains cache-only.
+The Pod page polls source snapshots independently of metrics outside Live mode;
+metrics requests run separately and cannot hold up the first Pod render or status
+updates.
+
+### Live Pod stream
+
+`GET /api/namespaces/{ns}/pods/live` uses SSE (`event: pods`) with JSON state and
+revision notifications. It requires the app Bearer token in the Authorization
+header and an explicit exact `X-Kview-Context`; query-token authentication is
+rejected. The selected namespace must be valid and nonempty.
+
+The stream owns a bounded subscription to a shared context/namespace LIST/WATCH.
+Notifications follow committed snapshots; browsers fetch rows through the
+cache-only revision route. A publication ownership gate prevents older ordinary
+LIST results from overwriting Live snapshots. Kubernetes uses the selected
+context's existing credentials, not a privileged fallback.
+
+Streams have a five-minute lease, fifteen-second heartbeat and bounded write
+deadline. Disconnect or cancellation releases the subscription; server shutdown
+closes Live workers. Capacity rejection returns `429` before streaming; later
+upstream failures are explicit state events, not a healthy Live indication.
+This is not event replay and does not promise delivery of every intermediate Pod
+state. Metrics and Events are not fetched on the watch-event path.
+
+### Restricted custom-resource discovery
+
+When the CRD snapshot reports Forbidden, custom-resource instance snapshots may
+construct a temporary type index from API discovery plus exact CRD GETs, using
+the active context's existing credentials. The authoritative CRD list and resolve
+endpoint are unchanged. Discovery alone never proves CRD backing.
+
+The fallback bounds metadata work to 64 groups and 64 candidate CRD probes,
+sequential requests, three-second request timeouts and an eight-second discovery
+deadline. Only matching CRD identities/scopes with the advertised version marked
+served become instance-list targets. Namespaced fallback requires an explicit
+namespace; it never retries at all-namespaces scope.
+
+`aggregation.discovery` records the denied list, unknown universe, probe outcomes
+and truncation. Snapshot and kind-definition relationship coverage remain partial;
+confirmed-kind counts do not represent the cluster's complete inventory. Restricted
+results use the ordinary snapshot TTL and are not persisted as successful full
+snapshots. See `internal/kube/resource/customresources/CORRECTNESS.md` for the
+contract and limitations, including preferred-version-only discovery and the
+requirement for individual CRD GET permission.
+
 ## 2. Dataplane snapshot–backed (custom JSON shape)
 
 | Route | Behavior |

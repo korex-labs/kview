@@ -23,6 +23,7 @@ import (
 )
 
 func (s *Server) registerWorkloadRoutes(api chi.Router) {
+	api.Get("/namespaces/{ns}/pods/live", s.handlePodLive)
 	api.Get("/namespaces/{ns}/pods", func(w http.ResponseWriter, r *http.Request) {
 		ns := chi.URLParam(r, "ns")
 		if ns == "" {
@@ -31,16 +32,39 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), ctxTimeoutList)
 		defer cancel()
-		active := s.readContextName(r)
-		if s.dp != nil {
-			s.dp.EnsureObservers(ctx, active)
+		// Refresh intent stays on the normal authenticated, context-scoped list route.
+		switch r.URL.Query().Get("refresh") {
+		case "":
+			ctx = dataplane.WithPodInitialRead(ctx)
+		case "auto", "revision":
+		case "manual":
+			ctx = dataplane.WithPodManualRefresh(ctx)
+		default:
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid pod refresh intent"})
+			return
 		}
-		// Warm pod metrics cache in the background so the NEXT render
-		// has live usage. Current render reads from cache (may be empty
-		// on cold start). The scheduler dedupes concurrent warmups and
-		// honors TTL so auto-refreshing lists don't pile up work.
-		warmPodMetricsAsync(s, active, ns)
-		snap, err := s.dp.PodsSnapshot(ctx, active, ns)
+		active := s.readContextName(r)
+		var snap dataplane.PodsSnapshot
+		var err error
+		if r.URL.Query().Get("refresh") == "revision" {
+			var valid bool
+			active, ns, valid = s.podLiveScope(w, r)
+			if !valid {
+				return
+			}
+			var found bool
+			snap, found = s.dp.PodsCachedSnapshot(active, ns)
+			if !found {
+				writeErrorResponse(w, http.StatusServiceUnavailable, "pod snapshot unavailable")
+				return
+			}
+		} else {
+			if s.dp != nil {
+				s.dp.EnsureObservers(ctx, active)
+			}
+			warmPodMetricsAsync(s, active, ns)
+			snap, err = s.dp.PodsSnapshot(ctx, active, ns)
+		}
 		if err != nil && listLength(snap.Items) == 0 {
 			writeDataplaneListError(w, active, err)
 			return
@@ -54,8 +78,12 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		if msnap, ok := s.dp.PodMetricsCachedSnapshot(active, ns); ok && len(msnap.Items) > 0 {
 			podMetricsItems = msnap.Items
 		}
+		now := time.Now()
+		// A Live revision can replace a pod before the independent metrics cache
+		// advances. Filter before BOTH usage and signal enrichment.
+		podMetricsItems = dataplane.FilterPodMetricsForInstances(snap.Items, podMetricsItems, now)
 		items := dataplane.EnrichPodListItemsWithMetrics(snap.Items, dataplane.BuildPodMetricsIndex(podMetricsItems))
-		items = dataplane.EnrichPodListItemsWithSignalSummary(items, ns, podMetricsItems, s.dp.EffectivePolicy(active), active, time.Now())
+		items = dataplane.EnrichPodListItemsWithSignalSummary(items, ns, podMetricsItems, s.dp.EffectivePolicy(active), active, now)
 		writeDataplaneListResponse(w, active, items, snap.Meta, snap.Err)
 	})
 

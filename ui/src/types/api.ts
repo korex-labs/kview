@@ -1314,6 +1314,7 @@ export type ContainerUsage = {
  * values for row-level display, so most UI code should prefer that instead.
  */
 export type PodMetricsItem = {
+  uid?: string;
   name: string;
   namespace: string;
   windowSec?: number;

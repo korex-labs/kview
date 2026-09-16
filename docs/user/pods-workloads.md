@@ -112,6 +112,46 @@ appear only when metrics.k8s.io is available and allowed. During a background
 metrics refresh, kview keeps the previous sample visible until a replacement is
 available instead of briefly clearing the CPU and Memory columns.
 
+Pod status loading and metrics refresh run independently: slow or unavailable
+metrics do not hold up the Pod list. With Live off, while the page is visible,
+Pods periodically request dataplane-backed data even without metrics; automatic
+reads still obey snapshot freshness policy. This default mode is polling.
+
+The Pod list **Refresh** button beside **Explain** updates the selected namespace
+without reloading the application. It keeps rows, filters, selection, scroll, and
+an open drawer while the request runs. When the dataplane policy permits manual
+TTL bypass, it fetches source data even if the existing snapshot is still fresh.
+This does not bypass Kubernetes permissions or scheduler limits.
+
+### Live Pods
+
+**Live=polling** is the default neutral chip in the metadata row. Click it (or
+focus it and press <kbd>Enter</kbd> or <kbd>Space</kbd>) to enable Live and follow
+Pod changes in the selected context and namespace through Kubernetes LIST/WATCH
+rather than waiting for the ordinary polling interval. Favorites do not
+automatically start subscriptions.
+
+- **Live=starting** is warning-colored: the stream or its displayed snapshot is
+  not ready yet.
+- **Live=live** is success-colored: a committed stream snapshot has reached the table.
+- **Live=reconnecting**, **Live=paused**, and **Live=stopped** are warning-colored;
+  **Live=blocked** is error-colored. Existing rows may be stale in these states;
+  they do not promise current data. Hover the chip for the server reason when available.
+- The chip stays the same compact size in every state. Click it again to disable Live.
+  **Refresh** is hidden while Live is enabled and returns when Live is off.
+- Hiding the browser tab pauses the subscription. Returning resumes it if Live
+  remains enabled. Turning Live off restores ordinary polling.
+- A transient snapshot-read failure retries with backoff even if no new Pod event
+  arrives. Permission failures are not bypassed.
+
+Updates preserve the table and open drawer for the same Pod instance. Deleting
+the selected Pod or replacing its UID clears its selection and drawer, rather
+than silently treating another Pod with the same name as the original.
+
+Metrics have their own sampling cadence and may lag behind Pod status. Live does
+not promise every intermediate Kubernetes state or zero latency. To use manual
+**Refresh**, turn Live off first.
+
 Pod Debug additionally requires `get` on `pods`, `patch` on
 `pods/ephemeralcontainers`, and `create` on `pods/attach`. It is unavailable in
 read-only mode and does not support Windows Pods or static/mirror Pods. A

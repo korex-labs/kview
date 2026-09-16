@@ -90,6 +90,18 @@ list through `KUBECONFIG` unless the exec environment already defines it.
 The startup dialog shows the default path and the exact readable files kview
 resolved for the current run.
 
+## Background Namespace Loading
+
+After context selection succeeds, kview opens the main interface while namespace
+inventory and dataplane cache loading continue in the background. A loading
+message remains visible, but you can navigate to other sections. Resource views
+may still need to wait for their own data.
+
+If namespace loading fails or returns no namespaces, the interface shows the
+result and a **Retry namespaces** action. Restricted namespace listing does not
+mean the cluster has no namespaces; use a known namespace when your permissions
+allow it. You can also choose another context.
+
 ## What To Check First
 
 - Use the context selector to choose the cluster you want to inspect.

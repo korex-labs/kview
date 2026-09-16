@@ -1,6 +1,9 @@
 package dto
 
 type PodListItemDTO struct {
+	UID string `json:"uid,omitempty"`
+	// CreatedAt is the Pod object's creation time, not the list fetch time.
+	CreatedAt                   int64 `json:"createdAt,omitempty"`
 	ResourceRelationshipCarrier `json:"-"`
 	Name                        string            `json:"name"`
 	Namespace                   string            `json:"namespace"`
@@ -16,6 +19,9 @@ type PodListItemDTO struct {
 	Restarts       int32          `json:"restarts"`
 	AgeSec         int64          `json:"ageSec"`
 	LastEvent      *EventBriefDTO `json:"lastEvent,omitempty"`
+	// EventsObservedAt is the optional Events LIST observation, independent of
+	// Pod freshness. Absent means unknown, not a successful empty Events list.
+	EventsObservedAt int64 `json:"eventsObservedAt,omitempty"`
 	// ContainerWaitingReasons carries distinct waiting reasons from init and regular
 	// container status, such as CrashLoopBackOff, ImagePullBackOff, or ErrImagePull.
 	// It is populated by the list layer so dashboard detectors can surface

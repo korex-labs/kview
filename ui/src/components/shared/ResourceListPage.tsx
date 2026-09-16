@@ -21,7 +21,7 @@ import {
   gridVisibleColumnDefinitionsSelector,
   useGridApiRef,
 } from "@mui/x-data-grid";
-import useListQuery from "../../utils/useListQuery";
+import useListQuery, { type ListFetchReason } from "../../utils/useListQuery";
 import { defaultRevisionPollSec } from "../../utils/dataplaneRevisionPoll";
 import useEmptyListAccessCheck from "../../utils/useEmptyListAccessCheck";
 import useListFilters from "../../utils/useListFilters";
@@ -266,9 +266,13 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   columns: GridColDef<TRow>[];
   getResourceTagTarget?: (row: TRow, contextName: string) => ResourceTagTarget | null;
   /** Return rows plus optional dataplane list metadata for the shared meta strip. */
-  fetchRows: (contextName?: string) => Promise<ResourceListFetchResult<TRow>>;
+  fetchRows: (contextName?: string, reason?: ListFetchReason, signal?: AbortSignal) => Promise<ResourceListFetchResult<TRow>>;
   /** Optional line above list quality strip (e.g. namespace row status). */
   dataplaneMetaPrefix?: React.ReactNode;
+  /** Optional compact control in the metadata chip row. */
+  dataplaneMetaControl?: React.ReactNode;
+  /** Hide manual refresh controls while a resource owns its update stream. */
+  hideRefresh?: boolean;
   /** Optional merge of fetched rows (e.g. progressive namespace enrichment). */
   mapRows?: (rows: TRow[]) => TRow[];
   mapRowsDeps?: unknown[];
@@ -306,6 +310,10 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
   };
   /** Full dataplane-backed refetch cadence while toolbar refresh remains Off. Default 0: revision changes drive refetches. */
   dataplaneRefreshSec?: number;
+  externalRevision?: string;
+  suspendPolling?: boolean;
+  onSnapshotRevision?: (revision?: string) => void;
+  getRowInstance?: (row: TRow) => string | undefined;
 };
 
 /**
@@ -331,6 +339,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
   initialColumnVisibilityModel,
   initialRefreshSec,
   dataplaneMetaPrefix,
+  dataplaneMetaControl,
+  hideRefresh = false,
   mapRows,
   mapRowsDeps,
   renderDrawer,
@@ -339,6 +349,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
   skipEmptyAccessCheck = false,
   dataplaneRevisionPoll,
   dataplaneRefreshSec,
+  externalRevision,
+  suspendPolling,
+  onSnapshotRevision,
+  getRowInstance,
 }: ResourceListPageProps<TRow>) {
   const { settings, setSettings } = useUserSettings();
   const resourceTagsIndex = useMemo(() => buildResourceTagsIndex(settings.resourceTags), [settings.resourceTags]);
@@ -544,7 +558,11 @@ export default function ResourceListPage<TRow extends { id: string }>({
     setRefreshSec(initialRefreshSec ?? 0);
   }, [initialRefreshSec]);
 
-  const fetchRowsStable = useCallback(() => fetchRows(activeContext), [activeContext, fetchRows]);
+  const fetchRowsStable = useCallback((reason: ListFetchReason, signal?: AbortSignal) => {
+    // A refresh updates rows in place; only a new list load resets selection.
+    if (reason === "initial") setSelectionModel(emptyRowSelectionModel);
+    return fetchRows(activeContext, reason, signal);
+  }, [activeContext, fetchRows]);
   const fetchRevisionStable = useCallback(
     () => dataplaneRevisionPoll?.fetchRevision(activeContext) ?? Promise.resolve("0"),
     [activeContext, dataplaneRevisionPoll],
@@ -552,10 +570,12 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const { items: rows, dataplaneMeta, error, loading, lastRefresh, refetch } = useListQuery<TRow>({
     enabled,
-    queryKey: [activeContext, namespace ?? "", effectiveResourceLabel, fetchRows],
+    externalRevision,
+    suspendPolling,
+    abortWhenHidden: suspendPolling,
+    queryKey: [token, activeContext, namespace ?? "", effectiveResourceLabel, fetchRows],
     refreshSec,
     fetchItems: fetchRowsStable,
-    onInitialResult: () => setSelectionModel(emptyRowSelectionModel),
     mapRows,
     mapRowsDeps,
     fetchRevision: dataplaneRevisionPoll ? fetchRevisionStable : undefined,
@@ -565,6 +585,25 @@ export default function ResourceListPage<TRow extends { id: string }>({
       : 0,
     diagnosticsLabel,
   });
+
+  useEffect(() => { onSnapshotRevision?.(dataplaneMeta?.revision); }, [dataplaneMeta, onSnapshotRevision]);
+  const instancesRef = useRef(new Map<string, string | undefined>());
+  useEffect(() => {
+    if (!getRowInstance) return;
+    const previous = instancesRef.current;
+    const current = new Map(rows.map((row) => [row.id, getRowInstance(row)]));
+    // Disappearance invalidates the old instance immediately, not just when a
+    // different UID arrives in the very next snapshot.
+    const invalidated = new Set([...previous.keys()].filter((id) => !current.has(id) || previous.get(id) !== current.get(id)));
+    if (invalidated.size) {
+      setSelectionModel((old) => ({ ...old, ids: new Set([...old.ids].filter((id) => !invalidated.has(String(id)))) }));
+      if (drawerSelectedId && invalidated.has(drawerSelectedId)) {
+        setDrawerOpen(false);
+        setDrawerSelectedId(null);
+      }
+    }
+    instancesRef.current = current;
+  }, [rows, getRowInstance, drawerSelectedId]);
 
   const accessDenied = useEmptyListAccessCheck({
     token,
@@ -946,6 +985,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
           token={token}
           activeContext={activeContext}
           prefix={dataplaneMetaPrefix}
+          control={dataplaneMetaControl}
+          onRefresh={hideRefresh ? undefined : refetch}
+          refreshDisabled={!enabled || offline}
+          refreshing={loading}
         />
       </Box>
 
@@ -964,7 +1007,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
           columns={gridColumns}
           apiRef={apiRef}
           density="compact"
-          loading={loading}
+          loading={loading && rows.length === 0}
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
           disableMultipleRowSelection
           hideFooterSelectedRowCount
@@ -1037,7 +1080,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
               onSavedViewSave: handleSaveCurrentView,
               onSavedViewDelete: handleDeleteSavedView,
               disabled: offline,
-              showRefresh: !dataplaneRevisionPoll,
+              showRefresh: !hideRefresh && !dataplaneRevisionPoll,
             } as ResourceTableToolbarProps,
             noRowsOverlay: {
               error,

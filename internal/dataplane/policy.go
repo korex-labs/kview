@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 )
@@ -672,7 +673,7 @@ func (b DataplanePolicyBundle) EffectivePolicy(contextName string) DataplanePoli
 func CloneDataplanePolicy(in DataplanePolicy) DataplanePolicy {
 	out := in
 	out.Snapshots.TTLSeconds = cloneStringIntMap(in.Snapshots.TTLSeconds)
-	out.NamespaceEnrichment.WarmResourceKinds = append([]string(nil), in.NamespaceEnrichment.WarmResourceKinds...)
+	out.NamespaceEnrichment.WarmResourceKinds = slices.Clone(in.NamespaceEnrichment.WarmResourceKinds)
 	out.Signals.Overrides = cloneSignalOverrideMap(in.Signals.Overrides)
 	out.Signals.ContextOverrides = cloneContextSignalOverrideMap(in.Signals.ContextOverrides)
 	return out
@@ -683,7 +684,7 @@ func CloneDataplanePolicyBundle(in DataplanePolicyBundle) DataplanePolicyBundle 
 		Version: in.Version,
 		Global:  CloneDataplanePolicy(in.Global),
 	}
-	if len(in.ContextOverrides) > 0 {
+	if in.ContextOverrides != nil {
 		out.ContextOverrides = make(map[string]DataplanePolicyOverride, len(in.ContextOverrides))
 		for k, v := range in.ContextOverrides {
 			out.ContextOverrides[k] = cloneDataplanePolicyOverride(v)
@@ -692,15 +693,211 @@ func CloneDataplanePolicyBundle(in DataplanePolicyBundle) DataplanePolicyBundle 
 	return out
 }
 
+// Override clones own every pointer, including optional scalar values. Keep
+// these typed so ownership changes remain visible when the policy evolves.
 func cloneDataplanePolicyOverride(in DataplanePolicyOverride) DataplanePolicyOverride {
 	out := in
-	if in.Signals != nil {
-		signals := *in.Signals
-		signals.Overrides = cloneSignalOverrideMap(in.Signals.Overrides)
-		signals.ContextOverrides = cloneContextSignalOverrideMap(in.Signals.ContextOverrides)
-		out.Signals = &signals
-	}
+	out.Profile = clonePolicyScalar(in.Profile)
+	out.Snapshots = cloneSnapshotPolicyOverride(in.Snapshots)
+	out.Observers = cloneObserverPolicyOverride(in.Observers)
+	out.NamespaceEnrichment = cloneNamespaceEnrichmentPolicyOverride(in.NamespaceEnrichment)
+	out.AllContextEnrichment = cloneAllContextEnrichmentPolicyOverride(in.AllContextEnrichment)
+	out.BackgroundBudget = cloneBackgroundBudgetPolicyOverride(in.BackgroundBudget)
+	out.Metrics = cloneMetricsPolicyOverride(in.Metrics)
+	out.Signals = cloneSignalsPolicyOverride(in.Signals)
+	out.Persistence = clonePersistencePolicyOverride(in.Persistence)
 	return out
+}
+
+func cloneSnapshotPolicyOverride(in *SnapshotPolicyOverride) *SnapshotPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	if in.TTLSeconds != nil {
+		out.TTLSeconds = make(map[string]*int, len(in.TTLSeconds))
+		for kind, ttl := range in.TTLSeconds {
+			out.TTLSeconds[kind] = clonePolicyScalar(ttl)
+		}
+	}
+	out.ManualRefreshBypassesTTL = clonePolicyScalar(in.ManualRefreshBypassesTTL)
+	out.InvalidateAfterKnownWrites = clonePolicyScalar(in.InvalidateAfterKnownWrites)
+	return &out
+}
+
+func cloneObserverPolicyOverride(in *ObserverPolicyOverride) *ObserverPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.NamespacesEnabled = clonePolicyScalar(in.NamespacesEnabled)
+	out.NamespacesIntervalSec = clonePolicyScalar(in.NamespacesIntervalSec)
+	out.NodesEnabled = clonePolicyScalar(in.NodesEnabled)
+	out.NodesIntervalSec = clonePolicyScalar(in.NodesIntervalSec)
+	out.NodesBackoffMaxSec = clonePolicyScalar(in.NodesBackoffMaxSec)
+	return &out
+}
+
+func cloneNamespaceEnrichmentPolicyOverride(in *NamespaceEnrichmentPolicyOverride) *NamespaceEnrichmentPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.IncludeFocus = clonePolicyScalar(in.IncludeFocus)
+	out.IncludeRecent = clonePolicyScalar(in.IncludeRecent)
+	out.RecentLimit = clonePolicyScalar(in.RecentLimit)
+	out.IncludeFavourites = clonePolicyScalar(in.IncludeFavourites)
+	out.FavouriteLimit = clonePolicyScalar(in.FavouriteLimit)
+	out.MaxTargets = clonePolicyScalar(in.MaxTargets)
+	out.MaxParallel = clonePolicyScalar(in.MaxParallel)
+	out.IdleQuietMs = clonePolicyScalar(in.IdleQuietMs)
+	out.EnrichDetails = clonePolicyScalar(in.EnrichDetails)
+	out.EnrichPods = clonePolicyScalar(in.EnrichPods)
+	out.EnrichDeployments = clonePolicyScalar(in.EnrichDeployments)
+	if in.WarmResourceKinds != nil {
+		values := slices.Clone(*in.WarmResourceKinds)
+		out.WarmResourceKinds = &values
+	}
+	out.PollMs = clonePolicyScalar(in.PollMs)
+	out.Sweep = cloneNamespaceSweepPolicyOverride(in.Sweep)
+	return &out
+}
+
+func cloneNamespaceSweepPolicyOverride(in *NamespaceSweepPolicyOverride) *NamespaceSweepPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.IdleQuietMs = clonePolicyScalar(in.IdleQuietMs)
+	out.MaxNamespacesPerCycle = clonePolicyScalar(in.MaxNamespacesPerCycle)
+	out.MaxNamespacesPerHour = clonePolicyScalar(in.MaxNamespacesPerHour)
+	out.MinReenrichIntervalMinutes = clonePolicyScalar(in.MinReenrichIntervalMinutes)
+	out.MaxParallel = clonePolicyScalar(in.MaxParallel)
+	out.PauseOnUserActivity = clonePolicyScalar(in.PauseOnUserActivity)
+	out.PauseWhenSchedulerBusy = clonePolicyScalar(in.PauseWhenSchedulerBusy)
+	out.PauseOnRateLimitOrConnectivity = clonePolicyScalar(in.PauseOnRateLimitOrConnectivity)
+	out.IncludeSystemNamespaces = clonePolicyScalar(in.IncludeSystemNamespaces)
+	return &out
+}
+
+func cloneAllContextEnrichmentPolicyOverride(in *AllContextEnrichmentPolicyOverride) *AllContextEnrichmentPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.IntervalSec = clonePolicyScalar(in.IntervalSec)
+	out.MaxContextsPerCycle = clonePolicyScalar(in.MaxContextsPerCycle)
+	out.IdleQuietMs = clonePolicyScalar(in.IdleQuietMs)
+	out.PauseOnUserActivity = clonePolicyScalar(in.PauseOnUserActivity)
+	out.PauseWhenSchedulerBusy = clonePolicyScalar(in.PauseWhenSchedulerBusy)
+	return &out
+}
+
+func cloneBackgroundBudgetPolicyOverride(in *BackgroundBudgetPolicyOverride) *BackgroundBudgetPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.MaxConcurrentPerCluster = clonePolicyScalar(in.MaxConcurrentPerCluster)
+	out.MaxBackgroundConcurrentPerCluster = clonePolicyScalar(in.MaxBackgroundConcurrentPerCluster)
+	out.LongRunNoticeSec = clonePolicyScalar(in.LongRunNoticeSec)
+	out.TransientRetries = clonePolicyScalar(in.TransientRetries)
+	return &out
+}
+
+func cloneMetricsPolicyOverride(in *MetricsPolicyOverride) *MetricsPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.PodMetricsTTLSeconds = clonePolicyScalar(in.PodMetricsTTLSeconds)
+	out.NodeMetricsTTLSeconds = clonePolicyScalar(in.NodeMetricsTTLSeconds)
+	out.ContainerNearLimitPct = clonePolicyScalar(in.ContainerNearLimitPct)
+	out.NodePressurePct = clonePolicyScalar(in.NodePressurePct)
+	return &out
+}
+
+func cloneSignalDetectorsPolicyOverride(in *SignalDetectorsPolicyOverride) *SignalDetectorsPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.PodRestarts = cloneSignalPodRestartDetectorPolicyOverride(in.PodRestarts)
+	out.ContainerNearLimit = cloneSignalPercentDetectorPolicyOverride(in.ContainerNearLimit)
+	out.NodeResourcePressure = cloneSignalPercentDetectorPolicyOverride(in.NodeResourcePressure)
+	out.ResourceQuotaPressure = cloneSignalResourceQuotaDetectorPolicyOverride(in.ResourceQuotaPressure)
+	return &out
+}
+
+func cloneSignalPodRestartDetectorPolicyOverride(in *SignalPodRestartDetectorPolicyOverride) *SignalPodRestartDetectorPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.RestartCount = clonePolicyScalar(in.RestartCount)
+	return &out
+}
+
+func cloneSignalPercentDetectorPolicyOverride(in *SignalPercentDetectorPolicyOverride) *SignalPercentDetectorPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Percent = clonePolicyScalar(in.Percent)
+	return &out
+}
+
+func cloneSignalResourceQuotaDetectorPolicyOverride(in *SignalResourceQuotaDetectorPolicyOverride) *SignalResourceQuotaDetectorPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.WarnPercent = clonePolicyScalar(in.WarnPercent)
+	out.CriticalPercent = clonePolicyScalar(in.CriticalPercent)
+	return &out
+}
+
+func cloneSignalsPolicyOverride(in *SignalsPolicyOverride) *SignalsPolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.LongRunningJobSec = clonePolicyScalar(in.LongRunningJobSec)
+	out.CronJobNoRecentSuccessSec = clonePolicyScalar(in.CronJobNoRecentSuccessSec)
+	out.StaleHelmReleaseSec = clonePolicyScalar(in.StaleHelmReleaseSec)
+	out.UnusedResourceAgeSec = clonePolicyScalar(in.UnusedResourceAgeSec)
+	out.PodYoungRestartWindowSec = clonePolicyScalar(in.PodYoungRestartWindowSec)
+	out.DeploymentUnavailableSec = clonePolicyScalar(in.DeploymentUnavailableSec)
+	out.QuotaWarnPercent = clonePolicyScalar(in.QuotaWarnPercent)
+	out.QuotaCriticalPercent = clonePolicyScalar(in.QuotaCriticalPercent)
+	out.Detectors = cloneSignalDetectorsPolicyOverride(in.Detectors)
+	out.Overrides = cloneSignalOverrideMap(in.Overrides)
+	out.ContextOverrides = cloneContextSignalOverrideMap(in.ContextOverrides)
+	return &out
+}
+
+func clonePersistencePolicyOverride(in *PersistencePolicyOverride) *PersistencePolicyOverride {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Enabled = clonePolicyScalar(in.Enabled)
+	out.MaxAgeHours = clonePolicyScalar(in.MaxAgeHours)
+	return &out
+}
+
+// Restrict this helper to scalars; structs and containers need deep clones.
+func clonePolicyScalar[T ~bool | ~int | ~string](in *T) *T {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	return &out
 }
 
 func applyDataplanePolicyOverride(global DataplanePolicy, override DataplanePolicyOverride) DataplanePolicy {
@@ -1064,7 +1261,7 @@ func signalOverrideEmpty(in SignalOverride) bool {
 }
 
 func cloneSignalOverrideMap(in map[string]SignalOverride) map[string]SignalOverride {
-	if len(in) == 0 {
+	if in == nil {
 		return nil
 	}
 	out := make(map[string]SignalOverride, len(in))
@@ -1101,7 +1298,7 @@ func mergeSignalOverrideMaps(base, override map[string]SignalOverride) map[strin
 }
 
 func cloneContextSignalOverrideMap(in map[string]map[string]SignalOverride) map[string]map[string]SignalOverride {
-	if len(in) == 0 {
+	if in == nil {
 		return nil
 	}
 	out := make(map[string]map[string]SignalOverride, len(in))

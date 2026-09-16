@@ -1,13 +1,16 @@
-import React, { useCallback, useMemo } from "react";
-import { Box } from "@mui/material";
+import React, { useCallback, useMemo, useState } from "react";
+import { Box, Chip, Tooltip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
+import { useActiveContext } from "../../../activeContext";
+import useListQuery, { type ListFetchReason } from "../../../utils/useListQuery";
 import {
   type ApiDataplaneListResponse,
   dataplaneListMetaFromResponse,
   type PodListItemUsage,
   type PodMetricsItem,
 } from "../../../types/api";
+import usePodLive from "../../../utils/usePodLive";
 import PodDrawer from "./PodDrawer";
 import { fmtAge } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
@@ -18,8 +21,11 @@ import { formatCPUMilli, formatMemoryBytes, severityForPct } from "../../metrics
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
+import { ScopedCountContent, scopedCountChipSx } from "../../shared/ScopedCountChip";
 
 type Pod = PodListItemUsage & {
+  uid?: string;
+  createdAt?: number;
   name: string;
   namespace: string;
   node?: string;
@@ -140,7 +146,28 @@ function percentOf(usage: number, denominator: number | undefined): number | und
   return (usage / denominator) * 100;
 }
 
-function mergePodMetrics(rows: Row[], metrics: PodMetricsItem[]): Row[] {
+// Keep identity evidence aligned with internal/dataplane/pod_metrics_identity.go.
+// metrics-server usually omits UID; metadata creation time and request-time
+// association with a Pod are NOT sample identity evidence.
+function podMetricsMatchInstance(pod: Pod, sample: PodMetricsItem, now: number): boolean {
+  if (sample.uid && pod.uid && sample.uid !== pod.uid) return false;
+  const capturedAt = sample.capturedAt ?? 0;
+  const windowSec = sample.windowSec ?? 0;
+  const createdAt = pod.createdAt ?? 0;
+  // Go's wire fields are integers; reject non-finite/unsafe JS numbers too.
+  if (!Number.isSafeInteger(capturedAt) || !Number.isSafeInteger(windowSec) ||
+      !Number.isSafeInteger(createdAt)) return false;
+  if (capturedAt < 0 || windowSec < 0 || capturedAt > now) return false;
+  if (capturedAt > 0) {
+    if (windowSec > capturedAt) return false;
+    if (createdAt > 0 && capturedAt - windowSec < createdAt) return false;
+  }
+  if (pod.uid && sample.uid === pod.uid) return true;
+  return createdAt > 0 && capturedAt > 0 && windowSec > 0 &&
+    capturedAt - windowSec > createdAt;
+}
+
+export function mergePodMetrics(rows: Row[], metrics: PodMetricsItem[], now = Math.floor(Date.now() / 1000)): Row[] {
   if (!rows.length || !metrics.length) return rows;
   const metricsByPod = new Map<string, PodMetricsItem>();
   for (const item of metrics) {
@@ -148,7 +175,11 @@ function mergePodMetrics(rows: Row[], metrics: PodMetricsItem[]): Row[] {
   }
   return rows.map((row) => {
     const sample = metricsByPod.get(`${row.namespace}/${row.name}`);
-    if (!sample?.containers?.length) return row;
+    if (!sample?.containers?.length || !podMetricsMatchInstance(row, sample, now)) return row;
+    // The backend already checked the instance for its usage. Without its
+    // sample timestamp we cannot prove an independently fetched sample newer,
+    // so this lane only fills missing usage, never overwrites backend values.
+    if (row.usageAvailable || row.cpuMilli != null || row.memoryBytes != null) return row;
     let cpuMilli = 0;
     let memoryBytes = 0;
     for (const container of sample.containers) {
@@ -181,27 +212,43 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
     cols.splice(insertAt, 0, ...metricsColumns);
     return cols;
   }, [metricsUsable]);
-  const fetchRows = useCallback(async (contextName?: string) => {
-    const podsPromise = apiGetWithContext<ApiDataplaneListResponse<Pod>>(
-      `/api/namespaces/${encodeURIComponent(namespace)}/pods`,
+  const activeContext = useActiveContext();
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const [appliedRevision, setAppliedRevision] = useState<string>();
+  const live = usePodLive({ token, contextName: activeContext, namespace, enabled: liveEnabled });
+  const liveState = live.state === "live" && (!appliedRevision || Number(appliedRevision) < (live.update?.revision ?? 0)) ? "starting" : live.state;
+  const getRowInstance = useCallback((row: Row) => row.uid, []);
+  // Independent enrichment lane: a slow or failed metrics request cannot hold
+  // up pod status, initial rendering, or the pod source refresh cadence.
+  const fetchMetrics = useCallback(async (_reason: ListFetchReason, signal?: AbortSignal) => {
+    const res = await apiGetWithContext<ApiDataplaneListResponse<PodMetricsItem>>(
+      `/api/namespaces/${encodeURIComponent(namespace)}/podmetrics`, token, activeContext,
+      { signal },
+    );
+    return { rows: res.items || [] };
+  }, [token, namespace, activeContext]);
+  const { items: metrics } = useListQuery<PodMetricsItem>({
+    enabled: !!namespace && !!activeContext && metricsUsable,
+    queryKey: [token, activeContext, namespace],
+    refreshSec: podMetricsRefreshSec,
+    abortWhenHidden: liveEnabled,
+    fetchItems: fetchMetrics,
+  });
+  const mapRows = useCallback((rows: Row[]) => metricsUsable ? mergePodMetrics(rows, metrics) : rows, [metricsUsable, metrics]);
+  const fetchRows = useCallback(async (contextName?: string, reason?: ListFetchReason, signal?: AbortSignal) => {
+    const intent = reason === "manual" ? "manual" : reason === "revision" ? "revision" : reason === "initial" || !reason ? "" : "auto";
+    const res = await apiGetWithContext<ApiDataplaneListResponse<Pod>>(
+      `/api/namespaces/${encodeURIComponent(namespace)}/pods${intent ? `?refresh=${intent}` : ""}`,
       token,
       contextName || "",
+      ...(signal ? [{ signal }] : []),
     );
-    const metricsPromise = metricsUsable
-      ? apiGetWithContext<ApiDataplaneListResponse<PodMetricsItem>>(
-          `/api/namespaces/${encodeURIComponent(namespace)}/podmetrics`,
-          token,
-          contextName || "",
-        ).catch(() => null)
-      : Promise.resolve(null);
-    const [res, metricsRes] = await Promise.all([podsPromise, metricsPromise]);
-    const items = res.items || [];
-    const rows = items.map((p) => ({ ...p, id: `${p.namespace}/${p.name}` }));
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return {
-      rows: metricsRes?.items ? mergePodMetrics(rows, metricsRes.items) : rows,
+      rows: (res.items || []).map((p) => ({ ...p, id: `${p.namespace}/${p.name}` })),
       dataplaneMeta: dataplaneListMetaFromResponse({ meta: res.meta, observed: res.observed }),
     };
-  }, [token, namespace, metricsUsable]);
+  }, [token, namespace]);
 
   const filterPredicate = useCallback((row: Row, q: string) => {
     return (
@@ -215,15 +262,34 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
 
   const list = (
     <ResourceListPage<Row>
-      key={`${namespace}:${metricsUsable ? "metrics" : "base"}`}
+      key={`${activeContext}:${namespace}`}
       token={token}
       columns={columns}
       fetchRows={fetchRows}
+      suspendPolling={liveEnabled}
+      externalRevision={liveEnabled && live.update?.revision ? String(live.update.revision) : undefined}
+      onSnapshotRevision={setAppliedRevision}
+      getRowInstance={getRowInstance}
+      hideRefresh={liveEnabled}
+      dataplaneMetaControl={
+        <Tooltip title={live.update?.reason || `Live=${liveEnabled ? liveState : "polling"}`} describeChild arrow>
+          <Chip
+            size="small"
+            variant="outlined"
+            aria-pressed={liveEnabled}
+            aria-label={`Live=${liveEnabled ? liveState : "polling"}; ${liveEnabled ? "disable Live and resume polling" : "enable Live"}`}
+            label={<ScopedCountContent label="Live" count={liveEnabled ? liveState : "polling"} size="small" />}
+            onClick={() => { setAppliedRevision(undefined); setLiveEnabled(!liveEnabled); }}
+            sx={scopedCountChipSx(!liveEnabled ? "default" : liveState === "live" ? "success" : liveState === "blocked" ? "error" : "warning", "outlined", "default")}
+          />
+        </Tooltip>
+      }
+      mapRows={mapRows}
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "pods", namespace),
         pollSec: defaultRevisionPollSec,
       }}
-      dataplaneRefreshSec={metricsUsable ? podMetricsRefreshSec : undefined}
+      dataplaneRefreshSec={15}
       enabled={!!namespace}
       filterPredicate={filterPredicate}
       resourceKey="pods"

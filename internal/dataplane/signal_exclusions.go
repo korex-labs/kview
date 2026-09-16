@@ -3,6 +3,7 @@ package dataplane
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -236,11 +237,11 @@ func cloneSignalExclusionSet(in *SignalExclusionSet) *SignalExclusionSet {
 	if in == nil {
 		return nil
 	}
-	out := &SignalExclusionSet{Rules: make([]SignalExclusionRule, len(in.Rules))}
+	out := &SignalExclusionSet{Rules: slices.Clone(in.Rules)}
 	for i, rule := range in.Rules {
 		out.Rules[i] = rule
 		out.Rules[i].Enabled = cloneBool(rule.Enabled)
-		out.Rules[i].Conditions = append([]SignalExclusionCondition(nil), rule.Conditions...)
+		out.Rules[i].Conditions = slices.Clone(rule.Conditions)
 	}
 	return out
 }

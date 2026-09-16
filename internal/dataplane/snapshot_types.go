@@ -9,6 +9,9 @@ import (
 // Snapshot is the shared raw snapshot container across dataplane-owned resources.
 // It keeps items, truthful metadata, and an optional normalized error.
 type Snapshot[I any] struct {
+	// restored is process-local provenance, never serialized. A hydrated cell
+	// can be served stale while its first live refresh is in progress.
+	restored             bool
 	Items                []I
 	Meta                 SnapshotMetadata
 	Err                  *NormalizedError

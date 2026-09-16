@@ -74,9 +74,21 @@ packaging or maintenance improvement separately. The current sequence is:
    a lazy-loaded, deterministic layered graph viewport; add readable resource
    cards, rich hover/focus evidence, and fit/pan/zoom while preserving the exact
    cache-only v1 relationship contract.
-2. **Shared Dataplane Explanation — active**: explain freshness, coverage, missing
+2. **Shared Dataplane Explanation — implemented and locally accepted**: explain freshness, coverage, missing
    families, RBAC/degradation, scheduler pressure, sweep state, and active
    profile through one reusable metadata surface without exploratory live reads.
+   Locally committed as `1387128`.
+
+**Immediate operator-feedback priority:** Pod refresh/metrics coupling,
+CR condition health and restricted-RBAC discovery are implemented. Refresh, the
+fit-content Live chip, and improved startup/reload are user-accepted; full checks
+and build passed and commit permission was received (2026-09-16). First launch
+remains slower but acceptable; further tuning is deferred without claiming full
+latency attribution. The next queue is **generic CR Details → guarded Helm
+Recovery**. These separate verified tranches take priority over the longer-term
+tracks below. See
+[Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
+
 3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local
    `key:value` search with plain-text fallback and an explicit entry from search
    results into a focused Resource Map path.

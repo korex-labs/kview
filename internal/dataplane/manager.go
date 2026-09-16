@@ -3,6 +3,7 @@ package dataplane
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -109,6 +110,9 @@ type DataPlaneManager interface {
 	ClusterCustomResourcesSnapshot(ctx context.Context, clusterName string) (CustomResourcesSnapshot, error)
 	// PodsSnapshot returns a raw snapshot for pods in the given namespace.
 	PodsSnapshot(ctx context.Context, clusterName, namespace string) (PodsSnapshot, error)
+	PodsCachedSnapshot(contextName, namespace string) (PodsSnapshot, bool)
+	SubscribePods(ctx context.Context, contextName, namespace string) (PodLiveSubscription, error)
+	ClosePodsLive()
 	// CustomResourcesSnapshot returns aggregated namespaced custom resource instances.
 	CustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) (CustomResourcesSnapshot, error)
 	// DeploymentsSnapshot returns a raw snapshot for deployments in the given namespace.
@@ -315,21 +319,31 @@ func (mc managerClients) GetClientsForContext(ctx context.Context, name string) 
 // manager is the foundational implementation of DataPlaneManager: per-cluster planes,
 // scheduler-mediated snapshot reads, namespace summary projection, dashboard aggregate, and observers.
 type manager struct {
-	rt runtime.RuntimeManager
+	// Shared by published, initializing and future planes.
+	podEventsLifecycle podEventsLifecycle
+	liveMu             sync.Mutex
+	liveSubscribers    int
+	liveCells          int
+	liveClosed         bool
+	rt                 runtime.RuntimeManager
 
 	defaultProfile       Profile
 	defaultDiscoveryMode DiscoveryMode
 
-	mu     sync.RWMutex
-	planes map[string]*clusterPlane
+	mu        sync.RWMutex
+	planes    map[string]*clusterPlane
+	planeInit map[string]chan struct{}
 
 	scheduler *workScheduler
 	clients   ClientsProvider
 	stats     *dataplaneSessionStats
 
-	policyMu sync.RWMutex
-	policy   DataplanePolicy
-	bundle   DataplanePolicyBundle
+	// Serialize the complete apply (including scheduler and persistence effects).
+	// Never hold policyMu or mu while waiting for persistence/plane initialization.
+	policyApplyMu sync.Mutex
+	policyMu      sync.RWMutex
+	policy        DataplanePolicy
+	bundle        DataplanePolicyBundle
 
 	persistenceMu sync.RWMutex
 	persistence   snapshotPersistence
@@ -437,13 +451,26 @@ func (m *manager) EffectivePolicy(contextName string) DataplanePolicy {
 }
 
 func (m *manager) SetPolicy(policy DataplanePolicy) DataplanePolicy {
+	m.policyApplyMu.Lock()
+	defer m.policyApplyMu.Unlock()
 	bundle := m.PolicyBundle()
 	bundle.Global = policy
-	return m.SetPolicyBundle(bundle).Global
+	return m.setPolicyBundle(bundle).Global
 }
 
 func (m *manager) SetPolicyBundle(bundle DataplanePolicyBundle) DataplanePolicyBundle {
+	m.policyApplyMu.Lock()
+	defer m.policyApplyMu.Unlock()
+	return m.setPolicyBundle(bundle)
+}
+
+// setPolicyBundle requires policyApplyMu, including for the legacy global-only update.
+func (m *manager) setPolicyBundle(bundle DataplanePolicyBundle) DataplanePolicyBundle {
 	nextBundle := ValidateDataplanePolicyBundle(bundle)
+	previous := m.PolicyBundle()
+	if reflect.DeepEqual(previous, nextBundle) {
+		return previous
+	}
 	next := nextBundle.Global
 	m.policyMu.Lock()
 	m.bundle = nextBundle
@@ -458,15 +485,35 @@ func (m *manager) SetPolicyBundle(bundle DataplanePolicyBundle) DataplanePolicyB
 		m.scheduler.configureRetries(next.BackgroundBudget.TransientRetries, 100*time.Millisecond, 1500*time.Millisecond)
 		m.scheduler.configureLongRun(time.Duration(next.BackgroundBudget.LongRunNoticeSec)*time.Second, newDataplaneLongRunRecorder(m.activityReg()))
 	}
-	if err := m.configurePersistence(next); err != nil {
-		next.Persistence.Enabled = false
-		nextBundle.Global = next
-		m.policyMu.Lock()
-		m.bundle = nextBundle
-		m.policy = next
-		m.policyMu.Unlock()
+	if !persistencePoliciesEqual(previous, nextBundle) {
+		if err := m.configurePersistence(next); err != nil {
+			next.Persistence.Enabled = false
+			nextBundle.Global = next
+			m.policyMu.Lock()
+			m.bundle = nextBundle
+			m.policy = next
+			m.policyMu.Unlock()
+		}
 	}
-	return nextBundle
+	return CloneDataplanePolicyBundle(nextBundle)
+}
+
+// Compare effective persistence only: UI/scheduler changes must not rehydrate disk caches.
+func persistencePoliciesEqual(a, b DataplanePolicyBundle) bool {
+	if a.Global.Persistence != b.Global.Persistence {
+		return false
+	}
+	for name := range a.ContextOverrides {
+		if a.EffectivePolicy(name).Persistence != b.EffectivePolicy(name).Persistence {
+			return false
+		}
+	}
+	for name := range b.ContextOverrides {
+		if a.EffectivePolicy(name).Persistence != b.EffectivePolicy(name).Persistence {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *manager) configurePersistence(policy DataplanePolicy) error {
@@ -533,6 +580,18 @@ func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {
 	_ = sp.PruneSignalHistoryOlderThan("", maxAge)
 	_ = sp.PruneSignalAcknowledgementsOlderThan("", maxAge)
 	_ = m.pruneSignalSuppressions(sp, time.Now().UTC(), maxAge)
+	// A concurrent policy enable/reconfiguration must also hydrate planes
+	// whose private initialization started under the previous policy. Wait
+	// outside m.mu so normal lookups and initialization publication can proceed.
+	m.mu.RLock()
+	pending := make([]<-chan struct{}, 0, len(m.planeInit))
+	for _, ready := range m.planeInit {
+		pending = append(pending, ready)
+	}
+	m.mu.RUnlock()
+	for _, ready := range pending {
+		<-ready
+	}
 	m.mu.RLock()
 	planes := make([]*clusterPlane, 0, len(m.planes))
 	for _, plane := range m.planes {
@@ -576,11 +635,39 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 	}
 	m.mu.RUnlock()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if p, ok := m.planes[clusterName]; ok {
-		return p, nil
+	// Preserve the existing non-cancelable, best-effort local initialization
+	// contract (snapshot wrappers rely on a non-nil plane even for canceled
+	// requests). Cancellation is handled by the subsequent live read.
+	// Coalesce initialization per exact context. Disk hydration and history
+	// loading must not hold the manager-wide lock: unrelated foreground planes
+	// remain usable even when another context's startup is slow. Publish only
+	// after hydration, preserving cache-only readers' visibility boundary.
+	for {
+		m.mu.Lock()
+		if p, ok := m.planes[clusterName]; ok {
+			m.mu.Unlock()
+			return p, nil
+		}
+		if ready := m.planeInit[clusterName]; ready != nil {
+			m.mu.Unlock()
+			<-ready
+			continue
+		}
+		if m.planeInit == nil {
+			m.planeInit = make(map[string]chan struct{})
+		}
+		m.planeInit[clusterName] = make(chan struct{})
+		m.mu.Unlock()
+		break
 	}
+	// Always release the reservation, including when persistence panics. A
+	// recovered caller can retry; no partially hydrated plane is published.
+	defer func() {
+		m.mu.Lock()
+		close(m.planeInit[clusterName])
+		delete(m.planeInit, clusterName)
+		m.mu.Unlock()
+	}()
 
 	scope := ObservationScope{
 		ClusterName:   clusterName,
@@ -590,12 +677,17 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 	p := newClusterPlane(clusterName, m.defaultProfile, m.defaultDiscoveryMode, scope, func() DataplanePolicy {
 		return m.EffectivePolicy(clusterName)
 	}, m.currentPersistence, m.stats)
-	m.planes[clusterName] = p
+	p.podEventsLifecycle = &m.podEventsLifecycle
 	policy := m.EffectivePolicy(clusterName)
 	if policy.Persistence.Enabled {
+		// Persistence is best-effort, as before: unreadable cells must not
+		// prevent a cold plane from serving live reads.
 		_ = p.hydratePersistedSnapshots(policy.PersistenceMaxAge())
 		m.ensureSignalHistory(clusterName)
 	}
+	m.mu.Lock()
+	m.planes[clusterName] = p
+	m.mu.Unlock()
 	return p, nil
 }
 
@@ -649,10 +741,17 @@ func shouldWarmClusterCustomResources(policy DataplanePolicy) bool {
 }
 
 type clusterPlane struct {
-	name          string
-	profile       Profile
-	discoveryMode DiscoveryMode
-	scope         ObservationScope
+	startupRefreshMu   sync.Mutex
+	startupRefreshes   map[workKey]bool
+	podEventsJobs      map[string]context.CancelFunc // protected by podPublishMu
+	podEventsLifecycle *podEventsLifecycle
+	podPublishMu       sync.Mutex
+	podEpoch           map[string]uint64
+	podLive            map[string]*podLiveCell
+	name               string
+	profile            Profile
+	discoveryMode      DiscoveryMode
+	scope              ObservationScope
 
 	healthMu sync.RWMutex
 	health   PlaneHealth
@@ -934,10 +1033,20 @@ func hydratePersistedClusterSnapshotInto[I any](store *snapshotStore[Snapshot[I]
 		return err
 	}
 	if markPersistedSnapshot(&snap, maxAge) {
-		if store.telemetry.stats != nil {
-			store.telemetry.stats.recordHydration(store.telemetry.kind, len(payload))
+		snap.restored = true
+		// A live publication may have raced with JSON decoding. Restore only
+		// into an empty cell, atomically with the normal publication lock.
+		store.mu.Lock()
+		if store.snap.Meta.ObservedAt.IsZero() {
+			if store.telemetry.stats != nil {
+				store.telemetry.stats.recordHydration(store.telemetry.kind, len(payload))
+			}
+			store.rev++
+			snap.Meta.Revision = store.rev
+			store.snap = snap
+			store.telemetry.recordCacheWrite("", snap)
 		}
-		setClusterSnapshot(store, snap)
+		store.mu.Unlock()
 	}
 	return nil
 }
@@ -951,10 +1060,24 @@ func hydratePersistedNamespacedSnapshotInto[I any](store *namespacedSnapshotStor
 		return err
 	}
 	if markPersistedSnapshot(&snap, maxAge) {
-		if store.telemetry.stats != nil {
-			store.telemetry.stats.recordHydration(store.telemetry.kind, len(payload))
+		snap.restored = true
+		store.mu.Lock()
+		if store.snaps[namespace].Meta.ObservedAt.IsZero() {
+			if store.telemetry.stats != nil {
+				store.telemetry.stats.recordHydration(store.telemetry.kind, len(payload))
+			}
+			if store.snaps == nil {
+				store.snaps = make(map[string]Snapshot[I])
+			}
+			if store.nsRev == nil {
+				store.nsRev = make(map[string]uint64)
+			}
+			store.nsRev[namespace]++
+			snap.Meta.Revision = store.nsRev[namespace]
+			store.snaps[namespace] = snap
+			store.telemetry.recordCacheWrite(namespace, snap)
 		}
-		setNamespacedSnapshot(store, namespace, snap)
+		store.mu.Unlock()
 	}
 	return nil
 }
@@ -1056,6 +1179,9 @@ func (p *clusterPlane) PodsSnapshot(ctx context.Context, sched *workScheduler, c
 		capResource:               "pods",
 		capScope:                  CapabilityScopeNamespace,
 		fetch:                     pods.ListPods,
+		afterPodPublish: func(ctx context.Context) {
+			p.refreshPodEventsLocked(ctx, sched, clients, namespace)
+		},
 	}
 	return executeNamespacedSnapshot(p, ctx, sched, prio, clients, namespace, &p.podsStore, desc)
 }

@@ -34,6 +34,9 @@ type namespacedSnapshotDescriptor[I any] struct {
 	capResource string
 	capScope    CapabilityScope
 	fetch       func(context.Context, *cluster.Clients, string) ([]I, error)
+	// afterPodPublish admits optional enrichment only after a successful Pod
+	// source publication, under podPublishMu. It must not wait for I/O.
+	afterPodPublish func(context.Context)
 	// extractRelationships has the same raw-output contract as the cluster descriptor.
 	extractRelationships      func([]I) []dto.ResourceRelationshipRecord
 	extraRelationshipFamilies []dto.ResourceRelationshipFamily
@@ -86,7 +89,16 @@ func executeClusterSnapshot[I any](
 	if sched != nil {
 		ttl = effectiveSnapshotTTL(desc.ttl, source, prio, desc.kind, sched.HealthSnapshot(p.name), sched.ClusterPressureSnapshot(p.name))
 	}
-	if cached, ok := store.getFresh(ttl); ok {
+	if cached, ok := peekClusterSnapshot(store); ok && !desc.skipPersistence && serveStartupSnapshot(ctx, prio, cached, p.currentPolicy().PersistenceMaxAge()) {
+		p.refreshStartupSnapshot(ctx, sched, workKey{Cluster: p.name, Class: WorkClassSnapshot, Kind: desc.kind}, func(refreshCtx context.Context) {
+			_, _ = executeClusterSnapshot(p, refreshCtx, sched, WorkPriorityLow, clients, store, desc)
+		})
+		if p.stats != nil {
+			p.stats.recordRequest(source, desc.kind, true)
+		}
+		return cached, nil
+	}
+	if cached, ok := store.getFresh(ttl); ok && !cached.restored {
 		if p.stats != nil {
 			p.stats.recordRequest(source, desc.kind, true)
 		}
@@ -210,16 +222,61 @@ func executeNamespacedSnapshot[I any](
 	store *namespacedSnapshotStore[Snapshot[I]],
 	desc namespacedSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
+	var podEpoch uint64
+	if desc.kind == ResourceKindPods {
+		p.podPublishMu.Lock()
+		podEpoch = p.podEpoch[namespace]
+		if live := p.podLive[namespace]; live != nil {
+			if podManualRefresh(ctx) {
+				live.requestResync(time.Now())
+			}
+			cached, ok := store.getCached(namespace)
+			p.podPublishMu.Unlock()
+			if !ok {
+				return cached, ErrPodLiveUnavailable
+			}
+			return cached, nil
+		}
+		p.podPublishMu.Unlock()
+	}
 	source := workSourceOrAPI(ctx)
 	ttl := desc.ttl
 	if sched != nil {
 		ttl = effectiveSnapshotTTL(desc.ttl, source, prio, desc.kind, sched.HealthSnapshot(p.name), sched.ClusterPressureSnapshot(p.name))
 	}
-	if cached, ok := store.getFresh(namespace, ttl); ok {
+	bypassTTL := desc.kind == ResourceKindPods && (podInitialRevalidation(ctx) || (podManualRefresh(ctx) && p.currentPolicy().Snapshots.ManualRefreshBypassesTTL))
+	if cached, ok := peekNamespacedSnapshot(store, namespace); ok && !desc.skipPersistence && !podManualRefresh(ctx) && serveStartupSnapshot(ctx, prio, cached, p.currentPolicy().PersistenceMaxAge()) {
+		p.refreshStartupSnapshot(ctx, sched, workKey{Cluster: p.name, Class: WorkClassSnapshot, Kind: desc.kind, Namespace: namespace}, func(refreshCtx context.Context) {
+			_, _ = executeNamespacedSnapshot(p, refreshCtx, sched, WorkPriorityLow, clients, namespace, store, desc)
+		})
 		if p.stats != nil {
 			p.stats.recordRequest(source, desc.kind, true)
 		}
 		return cached, nil
+	}
+	if cached, ok := store.getFresh(namespace, ttl); ok && !cached.restored && !bypassTTL && (desc.kind != ResourceKindPods || cached.Meta.Freshness != FreshnessClassStale) {
+		if p.stats != nil {
+			p.stats.recordRequest(source, desc.kind, true)
+		}
+		return cached, nil
+	}
+	if desc.kind == ResourceKindPods {
+		if cached, ok := peekNamespacedSnapshot(store, namespace); ok && servePodInitialSnapshot(ctx, prio, cached, p.currentPolicy().PersistenceMaxAge()) {
+			// The exact plane/store/namespace lookup owns identity. Staleness is
+			// response metadata, not a new observation or cache revision.
+			cached.Meta.Freshness = FreshnessClassStale
+			cached.Meta.Degradation = WorstDegradation(cached.Meta.Degradation, DegradationClassMinor)
+			p.refreshStartupSnapshot(ctx, sched, workKey{Cluster: p.name, Class: WorkClassSnapshot, Kind: desc.kind, Namespace: namespace}, func(refreshCtx context.Context) {
+				// Low-priority adaptive TTLs must not turn revalidation into a
+				// cache hit. Normal execution still owns Pod epochs/publication.
+				refreshCtx = context.WithValue(refreshCtx, podInitialRevalidationKey{}, true)
+				_, _ = executeNamespacedSnapshot(p, refreshCtx, sched, WorkPriorityLow, clients, namespace, store, desc)
+			})
+			if p.stats != nil {
+				p.stats.recordRequest(source, desc.kind, true)
+			}
+			return cached, nil
+		}
 	}
 	if p.stats != nil {
 		p.stats.recordRequest(source, desc.kind, false)
@@ -227,7 +284,7 @@ func executeNamespacedSnapshot[I any](
 
 	var staleCached Snapshot[I]
 	var haveStaleCached bool
-	if desc.skipPersistence {
+	if desc.skipPersistence || desc.kind == ResourceKindPods {
 		staleCached, haveStaleCached = peekNamespacedSnapshot(store, namespace)
 	}
 	var persisted Snapshot[I]
@@ -251,6 +308,33 @@ func executeNamespacedSnapshot[I any](
 	executed := false
 	runErr := sched.Run(ctx, prio, key, func(runCtx context.Context) error {
 		executed = true
+		// Publish the pod result before releasing scheduler followers. Keep the
+		// last usable cell on failure, including when persistence is disabled.
+		if desc.kind == ResourceKindPods {
+			defer func() {
+				p.podPublishMu.Lock()
+				defer p.podPublishMu.Unlock()
+				if p.podEpoch[namespace] != podEpoch || p.podLive[namespace] != nil {
+					out, _ = store.getCached(namespace)
+					return
+				}
+				if out.Err != nil && haveStaleCached {
+					out = staleCachedSnapshotFallback(staleCached, out)
+				} else if out.Err != nil && havePersisted {
+					out = persistedSnapshotFallback(persisted, out)
+				}
+				setNamespacedSnapshot(store, namespace, out)
+				out, _ = store.getCached(namespace)
+				if out.Err == nil && !desc.skipPersistence {
+					if sp := p.currentPersistence(); sp != nil {
+						_ = sp.Save(p.name, desc.kind, namespace, out)
+					}
+				}
+				if out.Err == nil && out.Meta.Freshness == FreshnessClassHot && desc.afterPodPublish != nil {
+					desc.afterPodPublish(runCtx)
+				}
+			}()
+		}
 		if p.stats != nil {
 			p.stats.recordFetchAttempt(source, desc.kind)
 		}
@@ -308,6 +392,9 @@ func executeNamespacedSnapshot[I any](
 		if joined, ok := peekNamespacedSnapshot(store, namespace); ok {
 			return joined, runErr
 		}
+		return out, runErr
+	}
+	if desc.kind == ResourceKindPods {
 		return out, runErr
 	}
 	if runErr != nil && len(out.Items) == 0 && haveStaleCached {

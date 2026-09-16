@@ -34,6 +34,25 @@ afterEach(() => {
 });
 
 describe("resolvedCustomResourceNamespace", () => {
+  it("renders raw CR conditions neutrally instead of guessing polarity or freshness", async () => {
+    apiGetMock.mockResolvedValue({ item: {
+      summary: { name: "demo", signalSeverity: "unknown" },
+      conditions: [
+        { type: "Degraded", status: "True" },
+        { type: "Installed", status: "False" },
+      ],
+      yaml: "",
+    } });
+    render(<CustomResourceDrawer open onClose={vi.fn()} token="token"
+      crRef={{ group: "example.io", version: "v1", resource: "widgets", kind: "Widget", namespace: "apps", name: "demo" }} />);
+    await screen.findByText("Degraded");
+    for (const label of ["True", "False"]) {
+      const chip = screen.getByText(label).closest(".MuiChip-root");
+      expect(chip?.classList.contains("MuiChip-colorDefault")).toBe(true);
+      expect(getComputedStyle(chip!.closest("tr")!).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    }
+  });
+
   it("preserves explicit namespaces and applies defaults only to namespaced CRDs", () => {
     expect(resolvedCustomResourceNamespace({ namespace: "explicit", defaultNamespace: "release" }, "Cluster")).toBe("explicit");
     expect(resolvedCustomResourceNamespace({ namespace: "", defaultNamespace: "release" }, "Namespaced")).toBe("release");

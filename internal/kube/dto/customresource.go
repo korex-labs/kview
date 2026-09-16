@@ -23,12 +23,27 @@ type CustomResourceInstanceDTO struct {
 	Provenance                  CustomResourceProvenance `json:"provenance,omitempty"`
 }
 
-// CustomResourceAggregationMeta summarises how the server-side fan-out went.
+// CustomResourceDiscoveryMeta describes an incomplete, GET-confirmed type index.
+// Counts describe metadata probes, independently of instance-list counters.
+type CustomResourceDiscoveryMeta struct {
+	Source          string `json:"source"`
+	ListDenied      bool   `json:"listDenied"`
+	UniverseUnknown bool   `json:"universeUnknown"`
+	CandidateLimit  int    `json:"candidateLimit"`
+	Candidates      int    `json:"candidates"`
+	Confirmed       int    `json:"confirmed"`
+	Denied          int    `json:"denied"`
+	NotFound        int    `json:"notFound"`
+	Errors          int    `json:"errors"`
+	Truncated       bool   `json:"truncated"`
+}
+
 type CustomResourceAggregationMeta struct {
-	TotalKinds      int `json:"totalKinds"`
-	AccessibleKinds int `json:"accessibleKinds"`
-	DeniedKinds     int `json:"deniedKinds"`
-	ErrorKinds      int `json:"errorKinds"`
+	Discovery       *CustomResourceDiscoveryMeta `json:"discovery,omitempty"`
+	TotalKinds      int                          `json:"totalKinds"`
+	AccessibleKinds int                          `json:"accessibleKinds"`
+	DeniedKinds     int                          `json:"deniedKinds"`
+	ErrorKinds      int                          `json:"errorKinds"`
 }
 
 // CustomResourceDetailsDTO is the full representation for a single CR instance drawer.

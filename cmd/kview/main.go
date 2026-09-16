@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/korex-labs/kview/v5/internal/buildinfo"
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -50,6 +56,7 @@ func main() {
 
 	token := randomToken(24)
 	srv := server.New(mgr, rt, token)
+	defer srv.CloseStreams()
 	srv.SetReadOnly(*readOnly)
 
 	srv.Actions().Register("scale", kubeactions.HandleDeploymentScale)
@@ -140,8 +147,22 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 
+	httpServer := &http.Server{Handler: srv.Router(), ReadHeaderTimeout: 10 * time.Second}
+	shutdownCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	go func() {
+		<-shutdownCtx.Done()
+		srv.CloseStreams()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = httpServer.Shutdown(ctx)
+	}()
 	serve := func() error {
-		return http.Serve(listener, srv.Router())
+		err := httpServer.Serve(listener)
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
 	}
 	launch := func() error {
 		if err := launcher.Launch(mode, url); err != nil {

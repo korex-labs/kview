@@ -21,7 +21,8 @@ const (
 )
 
 // ListAllNamespacedCRs aggregates instances of all Namespaced CRDs in the given namespace.
-// Uses the already-cached CRD list as type index — no extra RBAC requirement beyond CRD list access.
+// Uses an authoritative CRD list or exact-GET-confirmed type index. Instance list
+// permission is independently enforced by the API server.
 func ListAllNamespacedCRs(ctx context.Context, dynClient dynamic.Interface, crds []dto.CRDListItemDTO, namespace string) ([]dto.CustomResourceInstanceDTO, dto.CustomResourceAggregationMeta, error) {
 	var filtered []dto.CRDListItemDTO
 	for _, c := range crds {

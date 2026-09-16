@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
+	crds "github.com/korex-labs/kview/v5/internal/kube/resource/customresourcedefinitions"
 	crs "github.com/korex-labs/kview/v5/internal/kube/resource/customresources"
 	helmres "github.com/korex-labs/kview/v5/internal/kube/resource/helm"
 	"k8s.io/client-go/dynamic"
@@ -21,7 +22,7 @@ func dynamicClientWithoutWarnings(cfg *rest.Config) (dynamic.Interface, error) {
 
 func (p *clusterPlane) customResourceSnapshotMeta(now time.Time, agg dto.CustomResourceAggregationMeta) SnapshotMetadata {
 	meta := p.snapshotMetaHot(now)
-	if agg.DeniedKinds > 0 || agg.ErrorKinds > 0 {
+	if agg.Discovery != nil || agg.DeniedKinds > 0 || agg.ErrorKinds > 0 {
 		meta.Coverage = CoverageClassPartial
 		meta.Completeness = CompletenessClassInexact
 		meta.Degradation = DegradationClassMinor
@@ -59,7 +60,11 @@ func (p *clusterPlane) ClusterCustomResourcesSnapshot(ctx context.Context, sched
 	}
 
 	crdSnap, crdErr := p.CRDsSnapshot(ctx, sched, clients, prio)
-	if crdErr != nil && len(crdSnap.Items) == 0 {
+	restricted := crdSnap.Err != nil && crdSnap.Err.Class == NormalizedErrorClassAccessDenied
+	if crdErr == nil && crdSnap.Err != nil && !restricted {
+		crdErr = fmt.Errorf("CRD index unavailable: %s", crdSnap.Err.UpstreamMessage)
+	}
+	if crdErr != nil && !restricted && len(crdSnap.Items) == 0 {
 		out := CustomResourcesSnapshot{Meta: p.snapshotMetaCold(time.Now().UTC())}
 		n := NormalizeError(crdErr)
 		out.Err = &n
@@ -118,7 +123,13 @@ func (p *clusterPlane) ClusterCustomResourcesSnapshot(ctx context.Context, sched
 			return err
 		}
 
-		items, agg, err := crs.ListAllClusterCRs(runCtx, dynClient, crdSnap.Items)
+		typeIndex := crdSnap.Items
+		var discoveryMeta *dto.CustomResourceDiscoveryMeta
+		if restricted {
+			typeIndex, discoveryMeta = crds.DiscoverRestrictedTypes(runCtx, c.RestConfig, false)
+		}
+		items, agg, err := crs.ListAllClusterCRs(runCtx, dynClient, typeIndex)
+		agg.Discovery = discoveryMeta
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
@@ -136,6 +147,9 @@ func (p *clusterPlane) ClusterCustomResourcesSnapshot(ctx context.Context, sched
 		out.RelationshipSourceItems = relationshipSourceItemCountPtr(items)
 		out.Aggregation = &agg
 		out.Meta = p.customResourceSnapshotMeta(now, agg)
+		if restricted {
+			out.Err = crdSnap.Err
+		}
 		if p.stats != nil {
 			p.stats.recordFetchResult(source, kind, estimateSnapshotPayloadBytes(out), nil)
 		}
@@ -191,7 +205,11 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 	}
 
 	crdSnap, crdErr := p.CRDsSnapshot(ctx, sched, clients, prio)
-	if crdErr != nil && len(crdSnap.Items) == 0 {
+	restricted := crdSnap.Err != nil && crdSnap.Err.Class == NormalizedErrorClassAccessDenied
+	if crdErr == nil && crdSnap.Err != nil && !restricted {
+		crdErr = fmt.Errorf("CRD index unavailable: %s", crdSnap.Err.UpstreamMessage)
+	}
+	if crdErr != nil && !restricted && len(crdSnap.Items) == 0 {
 		out := CustomResourcesSnapshot{Meta: p.snapshotMetaCold(time.Now().UTC())}
 		n := NormalizeError(crdErr)
 		out.Err = &n
@@ -250,7 +268,20 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 			return err
 		}
 
-		items, agg, err := crs.ListAllNamespacedCRs(runCtx, dynClient, crdSnap.Items, namespace)
+		typeIndex := crdSnap.Items
+		var discoveryMeta *dto.CustomResourceDiscoveryMeta
+		if restricted {
+			if namespace == "" {
+				err := fmt.Errorf("restricted custom resource discovery requires an explicit namespace")
+				n := NormalizeError(err)
+				out.Err = &n
+				out.Meta = p.snapshotMetaUnknown(now)
+				return err
+			}
+			typeIndex, discoveryMeta = crds.DiscoverRestrictedTypes(runCtx, c.RestConfig, true)
+		}
+		items, agg, err := crs.ListAllNamespacedCRs(runCtx, dynClient, typeIndex, namespace)
+		agg.Discovery = discoveryMeta
 		if err != nil {
 			n := NormalizeError(err)
 			out.Err = &n
@@ -267,12 +298,15 @@ func (p *clusterPlane) CustomResourcesSnapshot(ctx context.Context, sched *workS
 		// manifest projections are carrierless display rows, not source items.
 		out.Relationships, out.RelationshipMetadata = finalizeCustomResourceRelationshipSnapshot(items, []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyKindDefinition}, agg)
 		out.RelationshipSourceItems = relationshipSourceItemCountPtr(items)
-		if manifestItems, manifestErr := helmres.ListManifestCustomResources(runCtx, c, namespace, crdSnap.Items); manifestErr == nil {
+		if manifestItems, manifestErr := helmres.ListManifestCustomResources(runCtx, c, namespace, typeIndex); manifestErr == nil {
 			items = mergeCustomResourceItems(items, manifestItems)
 		}
 		out.Items = items
 		out.Aggregation = &agg
 		out.Meta = p.customResourceSnapshotMeta(now, agg)
+		if restricted {
+			out.Err = crdSnap.Err
+		}
 		if p.stats != nil {
 			p.stats.recordFetchResult(source, kind, estimateSnapshotPayloadBytes(out), nil)
 		}
@@ -360,7 +394,7 @@ func finalizeCustomResourceRelationshipSnapshot(
 ) ([]dto.ResourceRelationshipRecord, *dto.ResourceRelationshipSnapshotMetadata) {
 	records, metadata := normalizeSnapshotRelationships(items, finalizeCustomResourceRelationships, extraFamilies)
 	metadata.SourceItems = customResourceRelationshipSourceItemCount(items)
-	if aggregation.DeniedKinds == 0 && aggregation.ErrorKinds == 0 && aggregation.AccessibleKinds >= aggregation.TotalKinds {
+	if aggregation.Discovery == nil && aggregation.DeniedKinds == 0 && aggregation.ErrorKinds == 0 && aggregation.AccessibleKinds >= aggregation.TotalKinds {
 		return records, metadata
 	}
 	for family, coverage := range metadata.FamilyCoverage {
