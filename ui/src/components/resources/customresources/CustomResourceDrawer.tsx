@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, Chip, CircularProgress, Tabs, Tab } from "@mui/material";
-import { apiGet, toApiError } from "../../../api";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Chip, CircularProgress, Tabs, Tab, Typography } from "@mui/material";
+import { apiGetWithContext, toApiError } from "../../../api";
+import { useActiveContext } from "../../../activeContext";
+import CodeBlock from "../../shared/CodeBlock";
+import EventsPanel from "../../shared/EventsPanel";
+import { AppButton } from "../../shared/AppActions";
 import { useConnectionState } from "../../../connectionState";
 import { fmtAge, fmtTs, valueOrDash } from "../../../utils/format";
 import Section from "../../shared/Section";
@@ -34,9 +38,14 @@ type CRCondition = {
   reason?: string;
   message?: string;
   lastTransitionTime?: number;
+  observedGeneration?: number;
 };
 
 type CRSummary = {
+  uid?: string;
+  resourceVersion?: string;
+  generation?: number;
+  statusObservedGeneration?: number;
   name: string;
   namespace?: string;
   group: string;
@@ -50,13 +59,22 @@ type CRSummary = {
   annotations?: Record<string, string>;
 };
 
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+// Avoid expensive syntax highlighting for large fragments; keep display/copy complete.
+const MAX_HIGHLIGHT_LENGTH = 100_000;
+
 type CRDetails = {
   summary: CRSummary;
+  spec?: JsonValue;
+  status?: JsonValue;
   conditions?: CRCondition[];
   yaml: string;
 };
 
 export type CRRef = {
+  uid?: string;
+  scope?: "namespaced" | "cluster";
   group: string;
   version: string;
   /** Plural resource name (e.g. "certificates"). Optional — resolved lazily when absent. */
@@ -78,12 +96,23 @@ export function resolvedCustomResourceNamespace(
   return ref.namespace || (resolvedScope === "Namespaced" ? ref.defaultNamespace || "" : "");
 }
 
-export default function CustomResourceDrawer(props: {
+type Props = {
   open: boolean;
   onClose: () => void;
   token: string;
   crRef: CRRef | null;
-}) {
+};
+
+export default function CustomResourceDrawer(props: Props) {
+  const contextName = useActiveContext();
+  const ref = props.crRef;
+  // Remount identity-owned state synchronously, before any stale content can render.
+  const identity = JSON.stringify([contextName, props.token, props.open, ref?.group, ref?.version,
+    ref?.resource, ref?.kind, ref?.scope, ref?.namespace, ref?.defaultNamespace, ref?.name, ref?.uid, ref?.provenance]);
+  return <CustomResourceDrawerContent key={identity} {...props} contextName={contextName} />;
+}
+
+function CustomResourceDrawerContent(props: Props & { contextName: string }) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -93,87 +122,72 @@ export default function CustomResourceDrawer(props: {
   const [notFoundMessage, setNotFoundMessage] = useState<string | undefined>();
   const [namespaceDrawerOpen, setNamespaceDrawerOpen] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  // Resolved plural resource name — populated either directly from ref.resource
-  // or via /api/customresources/resolve when resource is absent.
-  const [resolvedResource, setResolvedResource] = useState<string | null>(null);
-  const [resolvedVersion, setResolvedVersion] = useState<string | null>(null);
-  const [resolvedScope, setResolvedScope] = useState<string | null>(null);
-
+  const [resolved, setResolved] = useState<{ resource: string; version: string; scope: string; namespace: string } | null>(null);
+  const pinnedUID = useRef(props.crRef?.uid);
+  const generation = useRef(0);
   const ref = props.crRef;
-  const refKey = ref
-    ? `${ref.group}|${ref.version}|${ref.resource ?? ""}|${ref.kind}|${ref.namespace}|${ref.defaultNamespace ?? ""}|${ref.name}|${ref.provenance ?? ""}`
-    : "";
-  const unresolvedManifestReference = ref?.provenance === "helmManifest" && !resolvedResource && Boolean(err);
+  const resolvedResource = resolved?.resource;
+  const resolvedVersion = resolved?.version;
+  const unresolvedManifestReference = ref?.provenance === "helmManifest" && !resolved && Boolean(err);
 
-  // Reset tab only when the displayed resource identity changes.
-  useEffect(() => {
-    if (props.open && refKey) setTab(0);
-  }, [props.open, refKey]);
-
-  // Resolve resource (plural) if not already known.
   useEffect(() => {
     if (!props.open || !ref) return;
-
-    if (ref.resource) {
-      setResolvedResource(ref.resource);
-      setResolvedVersion(ref.version);
-      setResolvedScope(ref.namespace ? "Namespaced" : "Cluster");
-      return;
-    }
-
-    setResolvedResource(null);
-    setResolvedVersion(null);
-    setResolvedScope(null);
+    const controller = new AbortController();
+    const request = ++generation.current;
+    const current = () => !controller.signal.aborted && generation.current === request;
+    setDetails(null);
+    setResolved(null);
     setErr("");
     setErrStatus(undefined);
     setNotFoundMessage(undefined);
     setLoading(true);
-
-    const path = `/api/customresources/resolve?group=${encodeURIComponent(ref.group)}&kind=${encodeURIComponent(ref.kind)}`;
-    apiGet<ResolveResult>(path, props.token)
-      .then((res) => {
-        setResolvedResource(res.resource);
-        setResolvedVersion(res.storageVersion || ref.version);
-        setResolvedScope(res.scope || null);
-      })
-      .catch((e) => {
-        const apiError = toApiError(e);
-        setErr(`Could not resolve CRD for ${ref.kind} (${ref.group}): ${apiError.message}`);
-        setErrStatus(apiError.status);
-        if (apiError.status === 404) {
-          setNotFoundMessage("CRD metadata for this manifest reference is not available in the active context. The row does not confirm that a live custom resource exists.");
-        }
-        setLoading(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, refKey, props.token, retryNonce]);
-
-  // Fetch detail once resource is resolved.
-  useEffect(() => {
-    if (!props.open || !ref || !resolvedResource) return;
-
-    setErr("");
-    setDetails(null);
-    setLoading(true);
-
-    const version = resolvedVersion || ref.version;
-    const effectiveNamespace = resolvedCustomResourceNamespace(ref, resolvedScope);
-    const params = effectiveNamespace ? `?namespace=${encodeURIComponent(effectiveNamespace)}` : "";
-    const path = `/api/customresources/${encodeURIComponent(ref.group)}/${encodeURIComponent(version)}/${encodeURIComponent(resolvedResource)}/${encodeURIComponent(ref.name)}${params}`;
-
-    apiGet<ApiItemResponse<CRDetails>>(path, props.token)
-      .then((res) => setDetails(res?.item ?? null))
-      .catch((e) => {
-        const apiError = toApiError(e);
-        setErr(apiError.message);
-        setErrStatus(apiError.status);
-      })
-      .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, refKey, resolvedResource, resolvedVersion, resolvedScope, props.token, refreshNonce]);
+    let resolving = !ref.resource;
+    const load = async () => {
+      if (!props.contextName) throw new Error("Missing active context");
+      const options = { signal: controller.signal };
+      const descriptor = ref.resource
+        ? { resource: ref.resource, scope: ref.scope === "cluster" ? "Cluster" : ref.scope === "namespaced" ? "Namespaced" : ref.namespace ? "Namespaced" : "Cluster" }
+        : await apiGetWithContext<ResolveResult>(`/api/customresources/resolve?group=${encodeURIComponent(ref.group)}&kind=${encodeURIComponent(ref.kind)}`, props.token, props.contextName, options);
+      if (!current()) return;
+      resolving = false;
+      const namespace = resolvedCustomResourceNamespace(ref, descriptor.scope);
+      if ((descriptor.scope === "Cluster" && namespace) || (descriptor.scope === "Namespaced" && !namespace)) {
+        throw new Error("Custom resource scope and namespace do not match");
+      }
+      const version = ref.version;
+      const params = new URLSearchParams();
+      if (namespace) params.set("namespace", namespace);
+      const path = `/api/customresources/${encodeURIComponent(ref.group)}/${encodeURIComponent(version)}/${encodeURIComponent(descriptor.resource)}/${encodeURIComponent(ref.name)}${params.size ? `?${params}` : ""}`;
+      const result = await apiGetWithContext<ApiItemResponse<CRDetails>>(path, props.token, props.contextName, options);
+      if (!current()) return;
+      if (!result?.item) throw new Error("Custom resource detail response is missing");
+      if (pinnedUID.current && result.item.summary.uid !== pinnedUID.current) {
+        throw new Error("Custom resource UID changed; reopen the object to inspect its replacement");
+      }
+      pinnedUID.current = result.item.summary.uid;
+      setResolved({ resource: descriptor.resource, version, scope: descriptor.scope || (namespace ? "Namespaced" : "Cluster"), namespace });
+      setDetails(result.item);
+    };
+    void load().catch((error: unknown) => {
+      if (!current()) return;
+      const apiError = toApiError(error);
+      setErr(apiError.message);
+      setErrStatus(apiError.status);
+      if (resolving && apiError.status === 404) {
+        setNotFoundMessage("CRD metadata for this manifest reference is not available in the active context. The row does not confirm that a live custom resource exists.");
+      }
+    }).finally(() => {
+      if (current()) setLoading(false);
+    });
+    return () => controller.abort();
+    // The outer keyed boundary owns reference, context, and token changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.open, props.contextName, props.token, retryNonce, refreshNonce]);
 
   const summary = details?.summary;
-  const drawerNamespace = ref ? resolvedCustomResourceNamespace(ref, resolvedScope) : "";
+  const fragment = tab === 1 ? details?.spec : tab === 2 ? details?.status : undefined;
+  const fragmentCode = useMemo(() => fragment === undefined ? undefined : JSON.stringify(fragment, null, 2), [fragment]);
+  const drawerNamespace = resolved?.namespace ?? ref?.namespace ?? "";
   const drawerResourceKey: ListResourceKey = drawerNamespace ? "customresources" : "clusterresources";
   const labels = summary?.labels;
   const annotations = summary?.annotations;
@@ -201,6 +215,10 @@ export default function CustomResourceDrawer(props: {
         value: <CustomResourceStatusCell severity={summary?.signalSeverity} summary={summary?.statusSummary} />,
       },
       { label: "Reason", value: valueOrDash(summary?.statusSummary) },
+      { label: "UID", value: summary?.uid ?? "Absent", monospace: true },
+      { label: "Resource version", value: summary?.resourceVersion ?? "Absent", monospace: true },
+      { label: "Generation", value: summary?.generation ?? "Absent" },
+      { label: "Status observed generation", value: summary?.statusObservedGeneration ?? "Absent" },
       { label: "Age", value: fmtAge(summary?.ageSec) },
       { label: "Created", value: summary?.createdAt ? fmtTs(summary.createdAt) : "-" },
     ],
@@ -234,6 +252,7 @@ export default function CustomResourceDrawer(props: {
             group: ref.group,
             version: resolvedVersion || ref.version,
             apiResource: resolvedResource,
+            uid: summary?.uid,
             kind: ref.kind,
             scope: drawerNamespace ? "namespaced" as const : "cluster" as const,
           } : {}),
@@ -256,12 +275,18 @@ export default function CustomResourceDrawer(props: {
             <CircularProgress />
           </Box>
         ) : err ? (
-          <ErrorState message={err} status={errStatus} notFoundMessage={notFoundMessage} />
+          <Box sx={drawerTabContentSx}>
+            <ErrorState message={err} status={errStatus} notFoundMessage={notFoundMessage} />
+            <AppButton onClick={() => setRefreshNonce((value) => value + 1)}>Retry details</AppButton>
+          </Box>
         ) : (
           <>
             <Tabs value={tab} onChange={(_, v) => setTab(v)}>
               <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
+              <Tab data-keyboard-action-id="drawer.tab.spec" icon={<DetailTabIcon label="Spec" />} iconPosition="start" label="Spec" />
+              <Tab data-keyboard-action-id="drawer.tab.status" icon={<DetailTabIcon label="Status" />} iconPosition="start" label="Status" />
               <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
+              <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
               <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
             </Tabs>
 
@@ -288,14 +313,15 @@ export default function CustomResourceDrawer(props: {
                       <KeyValueTable rows={summaryItems} columns={2} />
                     </Box>
                   </Section>
-                  {/* Raw conditions have controller-specific polarity and no freshness
-                      metadata in this DTO. Only the server-derived summary is a
-                      health verdict; do not color arbitrary True values healthy. */}
+                  {/* Raw conditions have controller-specific polarity. Observed
+                      generation is evidence, not a health verdict; do not color
+                      arbitrary True values healthy. */}
                   <ConditionsTable
                     conditions={details?.conditions || []}
                     isHealthy={() => true}
                     chipColor={() => "default"}
                     unhealthyFirst={false}
+                    showObservedGeneration
                     variant="section"
                     title="Conditions"
                     emptyMessage="No conditions reported for this custom resource."
@@ -303,15 +329,30 @@ export default function CustomResourceDrawer(props: {
                 </Box>
               )}
 
-              {/* CONDITIONS */}
-              {tab === 1 && (
+              {(tab === 1 || tab === 2) && (
+                <Box sx={drawerTabContentSx}>
+                  {fragmentCode === undefined ? <Typography>Absent</Typography> : (
+                    <>
+                      {fragmentCode.length > MAX_HIGHLIGHT_LENGTH && (
+                        <Typography variant="caption">Large JSON fragment: syntax highlighting disabled. Display and Copy retain the full value.</Typography>
+                      )}
+                      <CodeBlock code={fragmentCode} language={fragmentCode.length <= MAX_HIGHLIGHT_LENGTH ? "json" : undefined} />
+                    </>
+                  )}
+                </Box>
+              )}
+              {tab === 4 && ref && resolvedResource && (summary?.uid ? (
+                <EventsPanel token={props.token} contextName={props.contextName}
+                  endpoint={`/api/customresources/${encodeURIComponent(ref.group)}/${encodeURIComponent(ref.version)}/${encodeURIComponent(resolvedResource)}/${encodeURIComponent(ref.name)}/events?${new URLSearchParams({ ...(drawerNamespace ? { namespace: drawerNamespace } : {}), uid: summary.uid })}`} />
+              ) : <ErrorState message="Events require a verified resource UID." />)}
+              {tab === 3 && (
                 <Box sx={drawerTabContentSx}>
                   <MetadataSection labels={summary?.labels} annotations={summary?.annotations} />
                 </Box>
               )}
 
               {/* YAML */}
-              {tab === 2 && ref && resolvedResource && (
+              {tab === 5 && ref && resolvedResource && (
                 <ResourceYamlPanel
                   code={details?.yaml || ""}
                   token={props.token}

@@ -79,6 +79,7 @@ const classicBindings: Record<KeyboardActionId, KeySequence[]> = {
   "drawer.tab.yaml": [["y"]],
   "drawer.tab.pods": [["p"]],
   "drawer.tab.spec": [["x"]],
+  "drawer.tab.status": [],
   "drawer.tab.keys": [["k"]],
   "drawer.tab.rules": [["q"]],
   "drawer.tab.tls": [["t"]],

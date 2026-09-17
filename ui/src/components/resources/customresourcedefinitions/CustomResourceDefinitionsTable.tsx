@@ -1,4 +1,8 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
+import { useActiveContext } from "../../../activeContext";
+import CustomResourceKindTable, { type ExactKind } from "../customresources/CustomResourceKindTable";
+import CustomResourcesTable from "../customresources/CustomResourcesTable";
+import ClusterCustomResourcesTable from "../customresources/ClusterCustomResourcesTable";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
@@ -88,9 +92,15 @@ const columns: GridColDef<Row>[] = [
   },
 ];
 
-export default function CustomResourceDefinitionsTable({ token }: { token: string }) {
-  const fetchRows = useCallback(async (contextName?: string) => {
-    const res = await apiGetWithContext<ApiDataplaneListResponse<CRDItem>>("/api/customresourcedefinitions", token, contextName || "");
+export default function CustomResourceDefinitionsTable(props: { token: string; namespace?: string | null }) {
+  const context = useActiveContext();
+  return <DefinitionsContent key={JSON.stringify([context, props.token, props.namespace])} {...props} />;
+}
+function DefinitionsContent({ token, namespace }: { token: string; namespace?: string | null }) {
+  const [exactKind, setExactKind] = useState<ExactKind | null>(null);
+  const [aggregateScope, setAggregateScope] = useState<ExactKind["scope"] | null>(null);
+  const fetchRows = useCallback(async (contextName?: string, _reason?: unknown, signal?: AbortSignal) => {
+    const res = await apiGetWithContext<ApiDataplaneListResponse<CRDItem>>("/api/customresourcedefinitions", token, contextName || "", { signal });
     const items = res.items || [];
     return {
       rows: items.map((c) => ({ ...c, id: c.name })),
@@ -109,6 +119,10 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
     [],
   );
 
+  if (exactKind) return <CustomResourceKindTable token={token} kind={exactKind} namespace={namespace || ""}
+    onBack={() => { setAggregateScope(exactKind.scope); setExactKind(null); }} />;
+  if (aggregateScope === "Cluster") return <ClusterCustomResourcesTable token={token} />;
+  if (aggregateScope === "Namespaced" && namespace) return <CustomResourcesTable token={token} namespace={namespace} />;
   return (
     <ResourceListPage<Row>
       token={token}
@@ -127,6 +141,8 @@ export default function CustomResourceDefinitionsTable({ token }: { token: strin
           onClose={onClose}
           token={token}
           crdName={selectedId}
+          namespace={namespace}
+          onBrowseKind={setExactKind}
         />
       )}
     />

@@ -865,7 +865,7 @@ function AppInner() {
                     <LimitRangesTable token={token} namespace={namespace} />
                   ) : null}
                   {section === "customresourcedefinitions" ? (
-                    <CustomResourceDefinitionsTable token={token} />
+                    <CustomResourceDefinitionsTable token={token} namespace={namespace} />
                   ) : null}
                   {section === "customresources" && namespace ? (
                     <CustomResourcesTable

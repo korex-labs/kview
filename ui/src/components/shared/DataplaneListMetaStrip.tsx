@@ -24,7 +24,7 @@ type Props = {
 /** Compact list-level quality line for cached resource lists (shown under the toolbar). */
 export default function DataplaneListMetaStrip({ meta, token, activeContext, prefix, control, onRefresh, refreshDisabled, refreshing = false }: Props) {
   const hasMeta = Boolean(meta && (meta.state || meta.freshness || meta.observed));
-  if (!hasMeta && !onRefresh && !control) {
+  if (!hasMeta && !onRefresh && !control && !prefix) {
     return null;
   }
 

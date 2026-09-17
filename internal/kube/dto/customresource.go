@@ -1,5 +1,7 @@
 package dto
 
+import "encoding/json"
+
 type CustomResourceProvenance string
 
 const (
@@ -48,21 +50,33 @@ type CustomResourceAggregationMeta struct {
 
 // CustomResourceDetailsDTO is the full representation for a single CR instance drawer.
 type CustomResourceDetailsDTO struct {
-	Summary    CustomResourceSummaryDTO `json:"summary"`
-	Conditions []CRDConditionDTO        `json:"conditions,omitempty"`
-	YAML       string                   `json:"yaml"`
+	Summary    CustomResourceSummaryDTO     `json:"summary"`
+	Conditions []CustomResourceConditionDTO `json:"conditions,omitempty"`
+	// Nil omits an absent field; non-nil JSON "null" preserves explicit null.
+	Spec   json.RawMessage `json:"spec,omitempty"`
+	Status json.RawMessage `json:"status,omitempty"`
+	YAML   string          `json:"yaml"`
+}
+
+type CustomResourceConditionDTO struct {
+	CRDConditionDTO
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
 }
 
 type CustomResourceSummaryDTO struct {
-	Name           string            `json:"name"`
-	Namespace      string            `json:"namespace,omitempty"`
-	Group          string            `json:"group"`
-	Version        string            `json:"version"`
-	Kind           string            `json:"kind"`
-	AgeSec         int64             `json:"ageSec"`
-	CreatedAt      int64             `json:"createdAt"`
-	SignalSeverity string            `json:"signalSeverity,omitempty"`
-	StatusSummary  string            `json:"statusSummary,omitempty"`
-	Labels         map[string]string `json:"labels,omitempty"`
-	Annotations    map[string]string `json:"annotations,omitempty"`
+	UID                      string            `json:"uid"`
+	ResourceVersion          string            `json:"resourceVersion"`
+	Generation               *int64            `json:"generation,omitempty"`
+	StatusObservedGeneration *int64            `json:"statusObservedGeneration,omitempty"`
+	Name                     string            `json:"name"`
+	Namespace                string            `json:"namespace,omitempty"`
+	Group                    string            `json:"group"`
+	Version                  string            `json:"version"`
+	Kind                     string            `json:"kind"`
+	AgeSec                   int64             `json:"ageSec"`
+	CreatedAt                int64             `json:"createdAt"`
+	SignalSeverity           string            `json:"signalSeverity,omitempty"`
+	StatusSummary            string            `json:"statusSummary,omitempty"`
+	Labels                   map[string]string `json:"labels,omitempty"`
+	Annotations              map[string]string `json:"annotations,omitempty"`
 }

@@ -1,4 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useActiveContext } from "../../../activeContext";
+import CustomResourceKindTable, { type ExactKind } from "./CustomResourceKindTable";
 import { Chip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
@@ -7,6 +9,7 @@ import { fmtAge } from "../../../utils/format";
 import ResourceListPage from "../../shared/ResourceListPage";
 import CustomResourceDrawer, { type CRRef } from "./CustomResourceDrawer";
 import CustomResourceStatusCell from "./CustomResourceStatusCell";
+import CustomResourceAggregationMeta, { type AggregationMeta } from "./CustomResourceAggregationMeta";
 import type { ResourceListFetchResult } from "../../../types/api";
 
 type CRInstanceItem = {
@@ -17,16 +20,11 @@ type CRInstanceItem = {
   version: string;
   resource: string;
   ageSec: number;
+  provenance?: "kubernetes" | "helmManifest";
   signalSeverity?: string;
   statusSummary?: string;
 };
 
-type AggregationMeta = {
-  totalKinds: number;
-  accessibleKinds: number;
-  deniedKinds: number;
-  errorKinds: number;
-};
 
 type Row = CRInstanceItem & { id: string };
 
@@ -65,17 +63,30 @@ const columns: GridColDef<Row>[] = [
   },
 ];
 
-export default function ClusterCustomResourcesTable({ token }: { token: string }) {
+export default function ClusterCustomResourcesTable(props: { token: string }) {
+  const context = useActiveContext();
+  return <ClusterCustomResourcesContent key={JSON.stringify([context, props.token])} {...props} />;
+}
+function ClusterCustomResourcesContent({ token }: { token: string }) {
   const [aggMeta, setAggMeta] = useState<AggregationMeta | null>(null);
+  const [exactKind, setExactKind] = useState<ExactKind | null>(null);
+  const kindColumns = useMemo<GridColDef<Row>[]>(() => columns.map((column) => column.field !== "kind" ? column : {
+    ...column,
+    renderCell: (p) => <Chip size="small" label={`${p.row.kind} · ${p.row.version}`} variant="outlined"
+      title={`${p.row.group}/${p.row.version}/${p.row.resource} · Cluster`}
+      disabled={p.row.provenance !== "kubernetes" || !p.row.group || !p.row.version || !p.row.resource}
+      onClick={(event) => { event.stopPropagation(); setExactKind({ group: p.row.group, version: p.row.version, resource: p.row.resource, scope: "Cluster" }); }} />,
+  }), []);
 
-  const fetchRows = useCallback(async (contextName?: string): Promise<ResourceListFetchResult<Row>> => {
+  const fetchRows = useCallback(async (contextName?: string, _reason?: unknown, signal?: AbortSignal): Promise<ResourceListFetchResult<Row>> => {
     const res = await apiGetWithContext<{ items?: CRInstanceItem[]; meta?: AggregationMeta }>(
       "/api/customresources/instances",
       token,
       contextName || "",
+      { signal },
     );
     const items = res.items || [];
-    setAggMeta(res.meta ?? null);
+    if (!signal?.aborted) setAggMeta(res.meta ?? null);
     return {
       rows: items.map((c) => ({ ...c, id: `${c.group}/${c.kind}/${c.name}` })),
     };
@@ -91,18 +102,13 @@ export default function ClusterCustomResourcesTable({ token }: { token: string }
     [],
   );
 
-  const metaPrefix = aggMeta ? (
-    <Typography variant="caption" color="text.secondary" sx={{ px: 1 }}>
-      {aggMeta.accessibleKinds} accessible kind{aggMeta.accessibleKinds !== 1 ? "s" : ""}
-      {aggMeta.deniedKinds > 0 ? ` · ${aggMeta.deniedKinds} access denied` : ""}
-      {aggMeta.errorKinds > 0 ? ` · ${aggMeta.errorKinds} error` : ""}
-    </Typography>
-  ) : null;
+  const metaPrefix = <CustomResourceAggregationMeta meta={aggMeta} />;
 
+  if (exactKind) return <CustomResourceKindTable token={token} kind={exactKind} onBack={() => setExactKind(null)} />;
   return (
     <ResourceListPage<Row>
       token={token}
-      columns={columns}
+      columns={kindColumns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "clusterresources"),
@@ -122,6 +128,7 @@ export default function ClusterCustomResourcesTable({ token }: { token: string }
               kind: selectedRow.kind,
               namespace: "",
               name: selectedRow.name,
+              provenance: selectedRow.provenance,
             }
           : null;
         return (

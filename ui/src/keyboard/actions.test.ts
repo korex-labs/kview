@@ -7,7 +7,7 @@ import { sections } from "../state";
 
 const knownDrawerTabLabels = [
   "resource map", "notes", "overview", "signals", "containers", "resources", "networking", "events", "logs", "metadata",
-  "yaml", "pods", "spec", "keys", "rules", "tls", "versions", "namespaces", "conditions", "inventory",
+  "yaml", "pods", "spec", "status", "keys", "rules", "tls", "versions", "namespaces", "conditions", "inventory",
   "capacity", "subjects", "role bindings", "role ref", "jobs", "values", "manifest", "hooks", "history",
 ];
 

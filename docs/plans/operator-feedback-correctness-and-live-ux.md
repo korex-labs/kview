@@ -185,11 +185,69 @@ be read as a description of the final manager locking or startup snapshot path.
 ## Tranche 4 — Generic CR Details
 
 Build on existing CR lists/details and Resource Map relationships. Add per-kind
-navigation and printer columns, structured Spec/Status, generation evidence and
+navigation and printer columns, read-only JSON Spec/Status, generation evidence and
 object Events. Preserve partial access and unresolved manifest references.
 Do not label a generic summary as complete kubectl describe equivalence.
 Operator-specific declarative adapters come later for concrete user operators;
 no general executable plugin runtime in this tranche.
+
+### Approved implementation sequence
+
+The user authorized continuing this tranche after commit `91f7244`. New work
+remains uncommitted until separate approval; no live requests or mutations are
+needed for fixture-based implementation.
+
+User accepted tranche 4, including the shared JSON viewer correction, and
+authorized its commit. Spec and quality reviews passed; full check/build passed
+before the viewer correction, whose focused tests, typecheck, lint and final
+binary build also passed. The accepted tranches 1–3 record above is unchanged.
+
+- [x] Extend exact-object details with UID/resourceVersion, generation evidence,
+  and JSON-valued Spec/Status preserving absent/null/empty/false/zero distinctions.
+- [x] Independently load Events after server-side object/expected-UID verification.
+  Namespaced reads stay scoped; cluster-scoped Events may require all-namespace
+  permission. Denial, timeout and replacement must not masquerade as empty data
+  or blank successful details.
+- [x] Reuse the shared CodeBlock viewer for read-only JSON fragments. Pin exact
+  context and full resource identity; cancel obsolete resolve/detail/Event reads
+  and reject their late results. Preserve neutral raw conditions and YAML.
+- [x] Add exact-kind navigation and printer columns without per-object detail
+  fan-out in aggregate lists. Isolate column preferences by group/version/plural/
+  scope, retain aggregate entry points, and expose standard-column fallback.
+- [x] Cover RBAC, same-name replacement, cross-context responses, JSON edge cases,
+  served-version identity, printer fallback and partial discovery with fixtures.
+- [x] Align user/API docs with source-inspected drawer and per-kind behavior.
+- [x] Complete spec review, then quality review and integrated checks/build.
+- [x] Obtain user acceptance and separate commit permission for tranche 4.
+
+### Current implementation boundaries
+
+- `customresource_details.go` preserves JSON-valued Spec/Status and generation
+  evidence; `CustomResourceDrawer.tsx` renders complete read-only JSON fragments
+  through CodeBlock (plain text for large values),
+  neutral raw conditions and existing YAML. It pins the supplied/first-read UID,
+  retains the requested version, and cancels/guards obsolete identity reads.
+- `customresource_events.go` verifies the exact object and expected UID before
+  bounded core Events reads. Events load only on their tab and fail independently
+  with retry; Forbidden, timeout, missing/replaced objects and exceeded bounds
+  are errors, not known-empty evidence. Cluster-scoped objects need all-namespace
+  Events permission. There is no broad name-only or privileged fallback.
+- Aggregate Kind chips and CRD served-version buttons enter the exact-kind view.
+  Namespaced browsing requires an explicit namespace; cluster scope omits it.
+  `exact_kind.go` requires exact CRD GET plus CR LIST permission, validates the
+  served GVR, negotiates Table printer columns, and exposes standard fallback
+  with its reason. Ordinary lists honor custom CRD `spec.names.listKind`.
+- `CustomResourceKindTable.tsx` provides manual Reload/Previous/Next, page-local
+  filtering and isolated column preferences, not automatic polling or Live.
+  Partial/truncated pages, incomplete cells and unknown identities are visible.
+  Unknown identities have no drawer/actions; unknown fallback ages stay unknown.
+  No aggregate-cache enrichment, per-object detail fan-out or schema editor was
+  added. Neither generic inspection nor printer columns imply complete
+  `kubectl describe` equivalence or operator-specific plugins.
+- Fixture files exist for inspection, exact Events, per-kind API/UI, navigation
+  and identity races; their presence alone does not establish passing results.
+  This documentation-only alignment runs `git diff --check`, not tests/builds,
+  and does not authorize live reads, `.token` access, commits or Helm changes.
 
 ## Tranche 5 — Helm Recovery
 

@@ -76,7 +76,7 @@ import { DialogActionButton } from "./AppActions";
 const defaultDataplaneRefreshSec = 0;
 const columnWidthsStoragePrefix = "kview:list:columnWidths:v1";
 
-function columnWidthsStorageKey(contextName: string, resourceKey: ListResourceKey, namespace: string | null | undefined): string {
+export function columnWidthsStorageKey(contextName: string, resourceKey: string, namespace: string | null | undefined): string {
   return [
     columnWidthsStoragePrefix,
     encodeURIComponent(contextName || "default"),
@@ -262,6 +262,10 @@ export type ResourceListPageDrawerProps<TRow extends { id: string } = { id: stri
 
 export type ResourceListPageProps<TRow extends { id: string }> = {
   token: string;
+  /** Exact resource identities must not share aggregate column preferences. */
+  columnPreferencesKey?: string;
+  isRowActionable?: (row: TRow) => boolean;
+  disableResourceNotes?: boolean;
   title?: React.ReactNode;
   columns: GridColDef<TRow>[];
   getResourceTagTarget?: (row: TRow, contextName: string) => ResourceTagTarget | null;
@@ -322,6 +326,9 @@ export type ResourceListPageProps<TRow extends { id: string }> = {
  */
 export default function ResourceListPage<TRow extends { id: string }>({
   token,
+  columnPreferencesKey,
+  isRowActionable,
+  disableResourceNotes = false,
   title,
   columns,
   getResourceTagTarget,
@@ -430,7 +437,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [activeContext, columns, resourceTagTargetForRow, settings.resourceTags.enabled]);
 
   const columnsWithResourceNotes = useMemo(() => {
-    if (columnsWithTags.some((col) => col.field === "resourceNotes")) return columnsWithTags;
+    if (disableResourceNotes || columnsWithTags.some((col) => col.field === "resourceNotes")) return columnsWithTags;
     const notesColumn: GridColDef<TRow> = {
       field: "resourceNotes",
       headerName: "Notes",
@@ -457,7 +464,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     const insertAfter = tagIndex >= 0 ? tagIndex : nameIndex;
     if (insertAfter < 0) return [notesColumn, ...columnsWithTags];
     return [...columnsWithTags.slice(0, insertAfter + 1), notesColumn, ...columnsWithTags.slice(insertAfter + 1)];
-  }, [activeContext, columnsWithTags, namespace, resourceKey, resourceMemoryStore]);
+  }, [activeContext, columnsWithTags, disableResourceNotes, namespace, resourceKey, resourceMemoryStore]);
 
   const orderedColumns = useMemo(() => {
     if (!columnsWithResourceNotes.some((col) => col.field === "listSignalSeverity")) return columnsWithResourceNotes;
@@ -480,8 +487,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
     });
   }, [columnsWithResourceNotes]);
   const columnWidthsKey = useMemo(
-    () => columnWidthsStorageKey(activeContext, resourceKey, namespace),
-    [activeContext, namespace, resourceKey],
+    () => columnWidthsStorageKey(activeContext, columnPreferencesKey || resourceKey, namespace),
+    [activeContext, columnPreferencesKey, namespace, resourceKey],
   );
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadPersistedColumnWidths(columnWidthsKey));
   const resourceViewPolicy = getResourceViewPolicy(resourceKey);
@@ -506,10 +513,17 @@ export default function ResourceListPage<TRow extends { id: string }>({
     () => JSON.stringify(initialColumnVisibilityModel || {}),
     [initialColumnVisibilityModel],
   );
-  const defaultColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
-    () => JSON.parse(defaultColumnVisibilityModelKey) as GridColumnVisibilityModel,
-    [defaultColumnVisibilityModelKey],
-  );
+  const defaultColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(() => {
+    const defaults = JSON.parse(defaultColumnVisibilityModelKey) as GridColumnVisibilityModel;
+    if (!columnPreferencesKey) return defaults;
+    try {
+      const stored: unknown = JSON.parse(window.localStorage.getItem(`${columnWidthsKey}:visibility`) || "null");
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        return { ...defaults, ...Object.fromEntries(Object.entries(stored).filter(([, value]) => typeof value === "boolean")) };
+      }
+    } catch { /* Preferences are optional when browser storage is unavailable. */ }
+    return defaults;
+  }, [columnPreferencesKey, columnWidthsKey, defaultColumnVisibilityModelKey]);
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>(defaultColumnVisibilityModel);
   useEffect(() => {
     setColumnWidths((prev) => {
@@ -680,23 +694,28 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [diagnosticsLabel, filteredRows.length, quickFilters.length, rows.length]);
 
   const handleRowDoubleClick = useCallback((row: TRow) => {
+    if (isRowActionable && !isRowActionable(row)) return;
     setSelectionModel(singleRowSelectionModel(row.id));
     setDrawerSelectedId(row.id);
     setDrawerOpen(true);
-  }, []);
+  }, [isRowActionable]);
 
   const handleOpenRowId = useCallback((rowId: string) => {
-    if (!rowId) return false;
+    const row = rows.find((item) => item.id === rowId);
+    if (!row || (isRowActionable && !isRowActionable(row))) return false;
     keepFilterFocusRef.current = false;
     setSelectionModel(singleRowSelectionModel(rowId));
     setDrawerSelectedId(rowId);
     setDrawerOpen(true);
     return true;
-  }, []);
+  }, [isRowActionable, rows]);
 
   const focusGridCell = useCallback((rowId: string, field: string) => {
     if (!rowId || !field) return false;
-    setSelectionModel(singleRowSelectionModel(rowId));
+    const target = rows.find((row) => row.id === rowId);
+    if (!isRowActionable || (target && isRowActionable(target))) {
+      setSelectionModel(singleRowSelectionModel(rowId));
+    }
     apiRef.current?.setCellFocus(rowId, field);
     const focusCell = () => {
       const root = apiRef.current?.rootElementRef?.current;
@@ -708,7 +727,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
     };
     requestKeyboardFocus({ id: "resource-table.cell", focus: focusCell });
     return true;
-  }, [apiRef, requestKeyboardFocus]);
+  }, [apiRef, isRowActionable, requestKeyboardFocus, rows]);
 
   const handleOpenSelectedRow = useCallback(() => {
     const focusedId = apiRef.current?.state?.focus?.cell?.id;
@@ -798,7 +817,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
   const emptyMessage = `No ${effectiveResourceLabel} found.`;
   const filteredEmptyMessage = `No ${effectiveResourceLabel} match the current filter. Clear or change the filter to see ${rows.length === 1 ? "the existing item" : `the ${rows.length} existing items`}.`;
 
-  const savedViewsEnabled = savedResourceViewsEnabled(resourceKey);
+  const savedViewsEnabled = !columnPreferencesKey && savedResourceViewsEnabled(resourceKey);
   const savedViews = useMemo(
     () => savedViewsEnabled ? [...settings.savedViews].sort((a, b) => a.name.localeCompare(b.name)) : [],
     [savedViewsEnabled, settings.savedViews],
@@ -808,7 +827,10 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, []);
   const handleColumnVisibilityModelChange = useCallback((next: GridColumnVisibilityModel) => {
     setColumnVisibilityModel((prev) => visibilityModelsEqual(prev, next) ? prev : next);
-  }, []);
+    if (columnPreferencesKey) {
+      try { window.localStorage.setItem(`${columnWidthsKey}:visibility`, JSON.stringify(next)); } catch { /* optional */ }
+    }
+  }, [columnPreferencesKey, columnWidthsKey]);
   const applySavedViewState = useCallback((view: SavedResourceViewDefinition) => {
     if (!savedViewsEnabled) return false;
     if (!savedViewMatchesLocation(view, {
@@ -1010,6 +1032,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
           loading={loading && rows.length === 0}
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
           disableMultipleRowSelection
+          isRowSelectable={isRowActionable ? (params) => isRowActionable(params.row) : undefined}
           hideFooterSelectedRowCount
           showToolbar
           rowSelectionModel={selectionModel}

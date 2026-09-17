@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useActiveContext } from "../../../activeContext";
+import { apiGetWithContext } from "../../../api";
+import { AppButton } from "../../shared/AppActions";
+import type { ExactKind } from "../customresources/CustomResourceKindTable";
 import {
   Box,
   Typography,
@@ -86,12 +90,19 @@ type CRDMetadata = {
   annotations?: Record<string, string>;
 };
 
-export default function CustomResourceDefinitionDrawer(props: {
+type Props = {
   open: boolean;
   onClose: () => void;
   token: string;
   crdName: string | null;
-}) {
+  namespace?: string | null;
+  onBrowseKind?: (kind: ExactKind) => void;
+};
+export default function CustomResourceDefinitionDrawer(props: Props) {
+  const context = useActiveContext();
+  return <DefinitionDrawerContent key={JSON.stringify([context, props.token, props.crdName, props.open, props.namespace])} {...props} context={context} />;
+}
+function DefinitionDrawerContent(props: Props & { context: string }) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -102,7 +113,8 @@ export default function CustomResourceDefinitionDrawer(props: {
   const name = props.crdName;
 
   useEffect(() => {
-    if (!props.open || !name) return;
+    if (!props.open || !name || !props.context) return;
+    const controller = new AbortController();
 
     setTab(0);
     setErr("");
@@ -114,14 +126,17 @@ export default function CustomResourceDefinitionDrawer(props: {
       token: props.token,
       resource: "customresourcedefinitions",
       name,
+      apiGetFn: (path, token) => apiGetWithContext(path, token, props.context, { signal: controller.signal }),
     })
       .then((res) => {
+        if (controller.signal.aborted) return;
         setDetails(res.item);
         setEvents(res.warningEvents);
       })
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [props.open, name, props.token, retryNonce]);
+      .catch((e) => { if (!controller.signal.aborted) setErr(String(e)); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [props.open, name, props.token, props.context, retryNonce]);
 
   const summary = details?.summary;
   const versions = details?.versions || [];
@@ -208,6 +223,17 @@ export default function CustomResourceDefinitionDrawer(props: {
             </Tabs>
 
             <Box sx={drawerBodySx}>
+              {props.onBrowseKind && summary?.group && summary.plural && (summary.scope === "Namespaced" || summary.scope === "Cluster") && (
+                <Section title="Browse custom resources by served version">
+                  {summary.scope === "Namespaced" && !props.namespace && <Typography variant="caption">Select a namespace before browsing this namespaced kind.</Typography>}
+                  {versions.filter((version) => version.served && version.name).map((version) => (
+                    <AppButton key={version.name} disabled={summary.scope === "Namespaced" && !props.namespace}
+                      onClick={() => props.onBrowseKind?.({ group: summary.group!, version: version.name, resource: summary.plural!, scope: summary.scope as ExactKind["scope"] })}>
+                      Browse {version.name} · {summary.scope}{summary.scope === "Namespaced" && props.namespace ? ` · ${props.namespace}` : ""}
+                    </AppButton>
+                  ))}
+                </Section>
+              )}
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={drawerTabContentSx}>

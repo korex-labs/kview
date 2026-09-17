@@ -20,11 +20,59 @@ configuration, storage, or policy APIs.
 - **Custom Cluster Resources**: cluster-scoped custom resources discovered from
   visible CRDs.
 
-## Main Controls
+## List Columns And Filters
 
-Custom resource lists support filtering and drawer inspection like other
-resource lists. Drawers emphasize metadata, status, events where available, and
-YAML.
+The aggregate namespace and cluster views remain the cross-kind entry points.
+Click a live API row's **Kind** chip to browse that exact kind and version; click
+its name/row to inspect the object. Manifest-only or unresolved kinds do not offer
+per-kind navigation. From the CRD list, open a definition and use **Browse custom
+resources by served version** to choose a served version. Namespaced kinds
+require a selected namespace; cluster-scoped kinds do not use one.
+
+The per-kind view shows **Server printer columns** supplied by Kubernetes. If
+Table negotiation is unsupported or the server returns an ordinary object list,
+it shows **Standard columns** with the fallback reason (Name, Namespace and Age
+in seconds). Column preferences are separate for each group/version/resource/
+scope. Printer columns are display data, not a schema-driven editor.
+
+Use **Reload page**, **Previous page**, and **Next page** for manual navigation.
+Each page contains up to 200 rows; filtering applies only to that page, not the
+whole kind. Navigation stops at 100 pages. **Back to all custom resources** exits
+the per-kind view. There is no automatic per-kind polling or Live mode.
+
+**Partial page**, truncation, unknown-identity and incomplete-cell counts describe
+missing evidence, not an empty cluster. Missing cells and unknown ages in the
+standard fallback display **Unknown**, not a fabricated zero age. Rows without
+verified object identity show **Unknown — no actions** and cannot open a drawer
+or invoke row actions. The per-kind list does not offer resource tags or Notes.
+
+## Drawer Tabs
+
+- **Overview**: generic status, UID, resource version, generation, status observed
+  generation and neutral raw conditions, including condition observed generation.
+  Missing generation evidence displays **Absent**; zero is retained as zero.
+- **Spec** and **Status**: read-only JSON fragments in the shared code viewer,
+  with **Copy** for the complete fragment. Missing fields display **Absent**;
+  explicit `null`, empty objects/arrays, empty strings, `false` and zero remain
+  distinct. Large fragments display without syntax highlighting; neither display
+  nor copying truncates the value. These tabs do not offer editing or applying;
+  use **YAML** for the full resource workflow.
+- **Metadata**: labels and annotations.
+- **Events**: independently loaded when opened, with filtering, pagination and
+  **Retry events**. Failed Events do not discard successful object details.
+- **YAML**: inspect the object document (managed fields are omitted), with the
+  existing edit/apply workflow when permitted.
+
+Detail and Events reads use the selected context and requested version. Changing
+context or object clears the previous identity's state and cancels obsolete
+reads. The drawer pins a supplied UID or the first detail UID; if a same-name
+object is replaced, reopen it instead of treating the replacement as the old
+object. **Retry details** retries a failed detail read.
+
+This is generic inspection, not complete `kubectl describe` equivalence or an
+operator-specific plugin. Spec/Status previews are not a schema editor.
+
+## Actions
 
 Custom resource drawers also support:
 
@@ -52,7 +100,8 @@ Current failure evidence takes precedence over readiness. `Degraded=False`
 alone does not prove that a resource is healthy.
 
 An unrecognized-only condition set or stale readiness evidence produces
-**Unknown** rather than invented readiness; current failure evidence still wins. For resources with a metadata generation, missing
+**Unknown** rather than invented readiness; current failure evidence still wins.
+For resources with a metadata generation, missing
 observed-generation evidence also produces **Unknown**. Condition-level
 `observedGeneration` takes precedence over the status-level value. Older objects
 without a generation may use recognized phase values as a fallback.
@@ -78,6 +127,26 @@ limits metadata probes, and reports partial coverage even when all confirmed
 types are readable. If individual CRD reads are also denied, an empty result
 does not prove that no custom resources exist. The CRD list and group/kind
 resolve endpoint still require CRD-list access.
+
+Per-kind browsing separately requires permission to **get the exact CRD** and
+**list that custom resource** in the requested scope. It does not need CRD-list
+permission, but can fail when the aggregate list works if exact CRD GET is
+forbidden. It preserves the selected served version rather than switching to the
+storage version. Standard-list fallback also supports a CRD's custom list kind.
+No per-object detail requests are made to populate printer columns.
+
+Events require permission to get the exact object and list core Kubernetes
+Events. The server verifies the expected UID before reading Events and matches
+UID, group, kind, namespace and name. Namespaced objects stay in that namespace;
+cluster-scoped objects require an all-namespace Events read because Events are
+namespaced. There is no broad name-only fallback or privileged retry.
+
+Denied access, timeout, missing objects, changed UIDs and incomplete bounded
+Event reads display errors, not **No events found.** That empty state means a
+successful read found no matching events for the current filter; it does not
+prove an operator has never emitted events. A Helm manifest reference alone does
+not establish that a live object exists; unresolved CRD metadata remains an
+explicit inspection failure rather than fabricated live details.
 
 ## Related Settings
 

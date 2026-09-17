@@ -10,7 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
-import { apiGet, toApiError, type ApiError } from "../../api";
+import { apiGet, apiGetWithContext, toApiError, type ApiError } from "../../api";
 import type { ApiListResponse } from "../../types/api";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -36,6 +36,7 @@ type EventsPanelProps<T extends EventCardEvent> = {
   events?: T[];
   endpoint?: string;
   token?: string;
+  contextName?: string;
   pageSize?: number;
   emptyMessage?: string;
   filterPlaceholder?: string;
@@ -63,11 +64,16 @@ function eventMatchesQuery(event: EventCardEvent, query: string) {
   return haystack.includes(query);
 }
 
-export default function EventsPanel<T extends EventCardEvent>({
+export default function EventsPanel<T extends EventCardEvent>(props: EventsPanelProps<T>) {
+  return <EventsPanelContent key={JSON.stringify([props.endpoint, props.token, props.contextName])} {...props} />;
+}
+
+function EventsPanelContent<T extends EventCardEvent>({
   title,
   events = [],
   endpoint,
   token,
+  contextName,
   pageSize = 50,
   emptyMessage = "No events found.",
   filterPlaceholder = "Filter events",
@@ -82,12 +88,19 @@ export default function EventsPanel<T extends EventCardEvent>({
   const [selectedSubResource, setSelectedSubResource] = useState("");
   const [remoteItems, setRemoteItems] = useState<T[]>([]);
   const [remoteTotal, setRemoteTotal] = useState(0);
-  const [remoteOffset, setRemoteOffset] = useState(0);
+  const [page, setPage] = useState({ filter: "", offset: 0 });
+  const filter = JSON.stringify([query.trim().toLowerCase(), selectedSubResource, pageSize]);
+  const remoteOffset = page.filter === filter ? page.offset : 0;
+  const setRemoteOffset = (offset: number) => setPage({ filter, offset });
   const [remoteLimit, setRemoteLimit] = useState(pageSize);
   const [remoteHasMore, setRemoteHasMore] = useState(false);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteErr, setRemoteErr] = useState<ApiError | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const generation = useRef(0);
+  const [resultKey, setResultKey] = useState("");
+  const [retryNonce, setRetryNonce] = useState(0);
+  const requestKey = JSON.stringify([filter, remoteOffset, retryNonce]);
   const normalizedQuery = query.trim().toLowerCase();
   const remoteMode = !!endpoint && !!token;
   const hasSubResourceFilter = subResourceOptions.length > 0 && !!getEventSubResource;
@@ -95,7 +108,7 @@ export default function EventsPanel<T extends EventCardEvent>({
 
   const filteredEvents = useMemo(
     () => {
-      if (remoteMode) return remoteItems;
+      if (remoteMode) return resultKey === requestKey ? remoteItems : [];
       return events.filter((event) => {
         if (hasSubResourceFilter && selectedSubResource && getEventSubResource(event) !== selectedSubResource) {
           return false;
@@ -103,53 +116,59 @@ export default function EventsPanel<T extends EventCardEvent>({
         return eventMatchesQuery(event, normalizedQuery);
       });
     },
-    [events, getEventSubResource, hasSubResourceFilter, normalizedQuery, remoteItems, remoteMode, selectedSubResource],
+    [events, getEventSubResource, hasSubResourceFilter, normalizedQuery, remoteItems, remoteMode, selectedSubResource, resultKey, requestKey],
   );
 
   useEffect(() => {
-    setRemoteOffset(0);
-  }, [endpoint, normalizedQuery, selectedSubResource]);
-
-  useEffect(() => {
     if (!remoteMode) return;
-    topRef.current?.scrollIntoView({ block: "start" });
+    topRef.current?.scrollIntoView?.({ block: "start" });
   }, [remoteMode, remoteOffset]);
 
   useEffect(() => {
     if (!remoteMode) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({
-      limit: String(pageSize),
-      offset: String(remoteOffset),
-    });
+    const request = ++generation.current;
+    const current = () => !controller.signal.aborted && generation.current === request;
+    const [path, existingQuery = ""] = endpoint!.split("?");
+    const params = new URLSearchParams(existingQuery);
+    params.set("limit", String(pageSize));
+    params.set("offset", String(remoteOffset));
     if (normalizedQuery) params.set("q", normalizedQuery);
     if (selectedSubResource) params.set("subResource", selectedSubResource);
-    const url = `${endpoint}?${params.toString()}`;
+    const url = `${path}?${params.toString()}`;
 
     setRemoteLoading(true);
     setRemoteErr(null);
-    apiGet<ApiListResponse<T>>(url, token, { signal: controller.signal })
-      .then((res) => {
+    const load = contextName === undefined
+      ? apiGet<ApiListResponse<T>>(url, token!, { signal: controller.signal })
+      : contextName
+        ? apiGetWithContext<ApiListResponse<T>>(url, token!, contextName, { signal: controller.signal })
+        : Promise.reject(new Error("Missing active context"));
+    load.then((res) => {
+        if (!current()) return;
+        setResultKey(requestKey);
         setRemoteItems(res.items || []);
         setRemoteTotal(res.total ?? res.items?.length ?? 0);
         setRemoteLimit(res.limit ?? pageSize);
         setRemoteHasMore(!!res.hasMore);
       })
       .catch((error) => {
-        if ((error as Error | undefined)?.name === "AbortError") return;
+        if (!current() || (error as Error | undefined)?.name === "AbortError") return;
+        setResultKey(requestKey);
         setRemoteItems([]);
         setRemoteTotal(0);
         setRemoteHasMore(false);
         setRemoteErr(toApiError(error));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setRemoteLoading(false);
+        if (current()) setRemoteLoading(false);
       });
     return () => controller.abort();
-  }, [endpoint, normalizedQuery, pageSize, remoteMode, remoteOffset, selectedSubResource, token]);
+  }, [endpoint, normalizedQuery, pageSize, remoteMode, remoteOffset, selectedSubResource, token, contextName, requestKey]);
 
   const handleSubResourceChange = (event: SelectChangeEvent) => {
     setSelectedSubResource(event.target.value);
+    setRemoteOffset(0);
   };
 
   const panelTitle = title ?? "Events";
@@ -186,7 +205,10 @@ export default function EventsPanel<T extends EventCardEvent>({
             <TextField
               size="small"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setRemoteOffset(0);
+              }}
               placeholder={filterPlaceholder}
               sx={{ minWidth: 220 }}
             />
@@ -194,9 +216,12 @@ export default function EventsPanel<T extends EventCardEvent>({
         </Box>
       ) : null}
 
-      {remoteErr ? (
-        <ErrorState message={remoteErr.message} />
-      ) : remoteLoading && filteredEvents.length === 0 ? (
+      {remoteErr && resultKey === requestKey ? (
+        <Box>
+          <ErrorState message={remoteErr.message} status={remoteErr.status} />
+          <AppButton onClick={() => setRetryNonce((value) => value + 1)}>Retry events</AppButton>
+        </Box>
+      ) : remoteMode && (remoteLoading || resultKey !== requestKey) && filteredEvents.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
           <CircularProgress size={22} />
         </Box>

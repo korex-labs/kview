@@ -24,6 +24,7 @@ export type Condition = {
   reason?: string;
   message?: string;
   lastTransitionTime?: number;
+  observedGeneration?: number;
 };
 
 type ConditionsTableProps = {
@@ -40,6 +41,7 @@ type ConditionsTableProps = {
   title?: string;
   /** When true, pins unhealthy rows to the top of the table, preserving their relative order. */
   unhealthyFirst?: boolean;
+  showObservedGeneration?: boolean;
 };
 
 function defaultIsHealthy(cond: Condition): boolean {
@@ -67,12 +69,14 @@ function ConditionsBody({
   chipColor,
   emptyMessage,
   unhealthyFirst,
+  showObservedGeneration,
 }: {
   conditions: Condition[];
   isHealthy: (cond: Condition) => boolean;
   chipColor: (cond: Condition) => ChipColor;
   emptyMessage: string;
   unhealthyFirst: boolean;
+  showObservedGeneration: boolean;
 }) {
   if (conditions.length === 0) {
     return <EmptyState message={emptyMessage} sx={{ mt: 1 }} />;
@@ -89,6 +93,7 @@ function ConditionsBody({
           <TableCell>Reason</TableCell>
           <TableCell>Message</TableCell>
           <TableCell>Last Transition</TableCell>
+          {showObservedGeneration && <TableCell>Observed generation</TableCell>}
         </TableRow>
       </TableHead>
       <TableBody>
@@ -116,6 +121,7 @@ function ConditionsBody({
               <TableCell>
                 {c.lastTransitionTime ? fmtTimeAgo(c.lastTransitionTime) : "-"}
               </TableCell>
+              {showObservedGeneration && <TableCell>{c.observedGeneration ?? "Absent"}</TableCell>}
             </TableRow>
           );
         })}
@@ -132,6 +138,7 @@ export default function ConditionsTable({
   variant = "accordion",
   title = "Conditions & Health",
   unhealthyFirst = true,
+  showObservedGeneration = false,
 }: ConditionsTableProps) {
   const hasUnhealthy = conditions.some((c) => !isHealthy(c));
 
@@ -144,6 +151,7 @@ export default function ConditionsTable({
           chipColor={chipColor}
           emptyMessage={emptyMessage}
           unhealthyFirst={unhealthyFirst}
+          showObservedGeneration={showObservedGeneration}
         />
       </Section>
     );
@@ -164,6 +172,7 @@ export default function ConditionsTable({
           chipColor={chipColor}
           emptyMessage={emptyMessage}
           unhealthyFirst={unhealthyFirst}
+          showObservedGeneration={showObservedGeneration}
         />
       </AccordionDetails>
     </Accordion>

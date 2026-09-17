@@ -124,6 +124,20 @@ requirement for individual CRD GET permission.
 | `GET /api/dataplane/search?q=…` | Cached quick-access search over already-observed dataplane snapshots for the active context, with `limit`/`offset` paging and `hasMore`. Matches resource name, namespace, kind, cluster, and cached list health/signal fields; result rows may include additive `healthBucket`, `signalSeverity`, `signalCount`, `needsAttention`, and `matchReason` fields. Prioritizes Helm releases, deployments, then ReplicaSets/DaemonSets/StatefulSets before other kinds. It does **not** perform live Kubernetes discovery; opening a result uses the normal resource detail drawer read. |
 | `POST /api/dataplane/signals/exclusions/preview` | Read-shaped cache-only evaluation of draft per-signal exclusion rules. It rebuilds candidates from already-observed typed snapshots, matches private metadata without serializing annotation values, returns at most 100 matching resource identities, and never mutates policy, history, or Kubernetes resources. |
 
+### Custom-resource aggregate and resolver shapes
+
+- `GET /api/namespaces/{ns}/customresources` uses `CustomResourcesSnapshot`;
+  `GET /api/customresources/instances` uses `ClusterCustomResourcesSnapshot`.
+  Their custom envelope is `{active, items, meta, observed, dataplane}`: `meta`
+  is kind aggregation/discovery evidence, while `dataplane` holds snapshot meta.
+  They do not fetch per-object details or printer columns. The UI retains these
+  cross-kind entry points and displays restricted/partial discovery evidence.
+- `GET /api/customresources/resolve?group=…&kind=…` reads `CRDsSnapshot` and
+  returns plural resource, storage version and scope. This is a snapshot access,
+  not a guaranteed cache-only peek: normal snapshot refresh rules apply. It does
+  not use the restricted discovery fallback. The drawer uses resolved plural/
+  scope but preserves its reference's requested version.
+
 ### 2.1 Namespace list: enrichment hints, scoring, idle worker
 
 Background row enrichment is **narrow and user-aligned**:
@@ -280,7 +294,53 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 - `GET /api/namespaces/{ns}/cronjobs/{name}` → `detailSignals` from
   `DetectCronJobDetailSignals`.
 
-### 5.5 Product and control-plane APIs
+### 5.5 Generic custom-resource inspection and exact-kind browsing
+
+All three routes below use `clientsForRequest`, the selected context's existing
+credentials and request deadlines; the UI explicitly supplies Authorization and
+`X-Kview-Context`. These are direct-read exceptions, not aggregate-cache or
+projection enrichment. They neither populate aggregate CR snapshots nor add
+per-object fan-out to aggregate lists.
+
+| Route | Read ownership |
+|-------|----------------|
+| `GET /api/customresources/{group}/{version}/{resource}/{name}?namespace=…` | One exact dynamic-client GET. Returns summary UID/resourceVersion/generation/status observed generation, condition observed generations, raw JSON-valued Spec/Status and YAML with managed fields removed. Absent fields remain omitted, distinct from explicit null, empty, false and zero. No Events read is part of details. |
+| `GET /api/customresources/{group}/{version}/{resource}/{name}/events?uid=…&namespace=…` | Required expected UID; first exact-object GET authorizes and verifies identity. Replacement returns `409`; missing UID returns `400`. Then a bounded core/v1 Events LIST with UID/kind/name/namespace selectors and post-filtering by group plus exact object identity. Namespaced objects stay in their namespace; cluster-scoped objects require all-namespace Events permission. |
+| `GET /api/customresource-kinds/{group}/{version}/{resource}?scope=Namespaced\|Cluster&namespace=…&limit=…&continue=…` | Exact CRD GET (`{resource}.{group}`), then one page from the requested served GVR, negotiating `meta.k8s.io/v1 Table` with included objects. Requires exact CRD GET and CR LIST permissions, not CRD LIST. No discovery or storage-version substitution, no object GET fan-out and no dataplane snapshot read/write. |
+
+The Events helper permits at most ten upstream pages of 500 Events. Errors,
+denial, missing/replaced objects and exceeded bounds fail the request rather
+than returning incomplete success or a known-empty result. Successful results
+are filtered/paginated for the Events panel. There is no broad name-only fallback
+or alternate privileged client. Events load lazily and independently; a failed
+Events request leaves successful detail data intact. The drawer pins a supplied
+or first-read UID and keys state by context/token/full reference identity;
+obsolete detail, resolver and Events results cannot publish after cancellation.
+
+Exact-kind scope is mandatory (`Namespaced` or `Cluster`); namespaced requests
+require one explicit namespace, and cluster requests reject a namespace. The
+CRD must match group/plural/scope and advertise the requested version as served.
+The backend defaults to 200 rows and caps requests at 500, response bodies at
+8 MiB and Table columns at 64. Continuation is caller-driven; a successful page
+reports `columnSource`, `fallbackReason`, `continue`, `resourceVersion`,
+`truncated`, `partial`, `unknownIdentityRows` and `incompleteCellRows` as applicable.
+
+Only HTTP `406`/`415` retries Table negotiation as ordinary JSON; a directly
+returned object list also uses standard columns (Name, Namespace, Age seconds).
+That list must match the requested API version and CRD `spec.names.listKind`,
+including custom list kinds (defaulting to `kind + "List"` only when absent).
+Other errors are not disguised as printer fallback. Table cells are server
+presentation data, not identities: included object/PartialObjectMetadata must
+supply validated name, namespace and UID. Unknown identities remain visible but
+non-actionable; unknown age in standard fallback stays null, not zero.
+
+The per-kind UI offers manual Reload/Previous/Next (200 rows per page, at most
+100 pages), page-local filtering and group/version/plural/scope-isolated column
+preferences. It does not poll revisions, enable Live, or fetch each row's details.
+Entry points are live aggregate Kind chips and served-version buttons in the CRD
+list's drawer; manifest-only references do not establish per-kind identity.
+
+### 5.6 Product and control-plane APIs
 
 | Route | Substrate |
 |-------|-----------|
@@ -302,7 +362,7 @@ display in `AttentionSummary`. The list of detail-level detectors lives in
 
 ## 5. Design summary
 
-For the main list read surfaces used as UI anchors (workloads, services, networking, policy, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, limit ranges, and supported cluster-scoped list families), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, and custom-resource discovery helpers).
+For the main list read surfaces used as UI anchors (workloads, services, networking, policy, storage, config, secrets, serviceaccounts, roles, rolebindings, Helm releases, quotas, limit ranges, and supported cluster-scoped list families), **dataplane snapshots** are the default substrate, with **list metadata** on each migrated list. **Namespace summary** is **projection-led** from those snapshots and preserves partial/degraded metadata instead of converting usable partial visibility into a hard failure. Remaining handler-level kube reads are **limited, intentional exceptions** (details, events, YAML, relations, Helm chart catalog reads, exact-kind custom-resource browsing, and custom-resource discovery helpers).
 
 Derived projections are allowed only when explicitly labeled as derived/sparse/inexact. They may infer useful views such as node workload rollups from cached pod snapshots or chart catalog rows from cached Helm release snapshots, but they must not be represented as direct Kubernetes list results. When a canonical route serves a derived fallback, it must preserve the normal resource identity and deep-link target while making the fallback source visible in the payload/UI.
 

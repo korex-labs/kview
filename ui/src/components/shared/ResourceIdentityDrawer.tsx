@@ -91,7 +91,7 @@ export function ResourceIdentityDrawer({ token, identity, open = true, onClose }
     case "customresourcedefinitions": drawer = <CustomResourceDefinitionDrawer {...common} crdName={name} />; break;
     default:
       drawer = <CustomResourceDrawer {...common} crRef={{
-        group: identity.group!, version: identity.version!, resource: identity.resource, kind: identity.kind!, namespace, name: identity.name,
+        group: identity.group!, version: identity.version!, resource: identity.resource, kind: identity.kind!, namespace, name: identity.name, uid: identity.uid, scope: identity.scope === "unknown" ? undefined : identity.scope,
       }} />;
   }
   return <Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", p: 4 }}><CircularProgress size={28} /></Box>}>{drawer}</Suspense>;

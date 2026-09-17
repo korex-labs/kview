@@ -502,6 +502,10 @@ func (s *Server) registerClusterResourceRoutes(api chi.Router) {
 		})
 	})
 
+	api.Get("/customresource-kinds/{group}/{version}/{resource}", s.customResourceKind)
+
+	api.Get("/customresources/{group}/{version}/{resource}/{name}/events", s.customResourceEvents)
+
 	// Single CR instance detail — group/version/resource from the aggregated list row;
 	// namespace query param for namespaced kinds, omit for cluster-scoped.
 	api.Get("/customresources/{group}/{version}/{resource}/{name}", func(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,7 @@ export default function DetailTabIcon({ label }: Props) {
       return <SecurityOutlinedIcon sx={iconSx} />;
     case "versions":
       return <DnsOutlinedIcon sx={iconSx} />;
+    case "status":
     case "conditions":
       return <ShowChartOutlinedIcon sx={iconSx} />;
     case "inventory":

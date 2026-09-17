@@ -1,4 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useActiveContext } from "../../../activeContext";
+import CustomResourceKindTable, { type ExactKind } from "./CustomResourceKindTable";
 import { Chip, Typography } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
@@ -8,6 +10,7 @@ import { getResourceLabel } from "../../../utils/k8sResources";
 import ResourceListPage from "../../shared/ResourceListPage";
 import CustomResourceDrawer, { type CRRef } from "./CustomResourceDrawer";
 import CustomResourceStatusCell from "./CustomResourceStatusCell";
+import CustomResourceAggregationMeta, { type AggregationMeta } from "./CustomResourceAggregationMeta";
 import type { ResourceListFetchResult } from "../../../types/api";
 
 type CRInstanceItem = {
@@ -23,12 +26,6 @@ type CRInstanceItem = {
   provenance?: "kubernetes" | "helmManifest";
 };
 
-type AggregationMeta = {
-  totalKinds: number;
-  accessibleKinds: number;
-  deniedKinds: number;
-  errorKinds: number;
-};
 
 type Row = CRInstanceItem & { id: string };
 
@@ -75,7 +72,11 @@ const columns: GridColDef<Row>[] = [
   },
 ];
 
-export default function CustomResourcesTable({
+export default function CustomResourcesTable(props: { token: string; namespace: string; filterIntent?: { value: string; nonce: number } | null; onFilterIntentApplied?: (nonce: number) => void }) {
+  const context = useActiveContext();
+  return <CustomResourcesContent key={JSON.stringify([context, props.token, props.namespace])} {...props} />;
+}
+function CustomResourcesContent({
   token,
   namespace,
   filterIntent,
@@ -87,15 +88,24 @@ export default function CustomResourcesTable({
   onFilterIntentApplied?: (nonce: number) => void;
 }) {
   const [aggMeta, setAggMeta] = useState<AggregationMeta | null>(null);
+  const [exactKind, setExactKind] = useState<ExactKind | null>(null);
+  const kindColumns = useMemo<GridColDef<Row>[]>(() => columns.map((column) => column.field !== "kind" ? column : {
+    ...column,
+    renderCell: (p) => <Chip size="small" label={`${p.row.kind} · ${p.row.version}`} variant="outlined"
+      title={`${p.row.group}/${p.row.version}/${p.row.resource} · Namespaced`}
+      disabled={p.row.provenance !== "kubernetes" || !p.row.group || !p.row.version || !p.row.resource}
+      onClick={(event) => { event.stopPropagation(); setExactKind({ group: p.row.group, version: p.row.version, resource: p.row.resource, scope: "Namespaced" }); }} />,
+  }), []);
 
-  const fetchRows = useCallback(async (contextName?: string): Promise<ResourceListFetchResult<Row>> => {
+  const fetchRows = useCallback(async (contextName?: string, _reason?: unknown, signal?: AbortSignal): Promise<ResourceListFetchResult<Row>> => {
     const res = await apiGetWithContext<{ items?: CRInstanceItem[]; meta?: AggregationMeta }>(
       `/api/namespaces/${encodeURIComponent(namespace)}/customresources`,
       token,
       contextName || "",
+      { signal },
     );
     const items = res.items || [];
-    setAggMeta(res.meta ?? null);
+    if (!signal?.aborted) setAggMeta(res.meta ?? null);
     return {
       rows: items.map((c) => ({ ...c, id: `${c.group}/${c.kind}/${c.namespace || ""}/${c.name}` })),
     };
@@ -112,19 +122,14 @@ export default function CustomResourcesTable({
     [],
   );
 
-  const metaPrefix = aggMeta ? (
-    <Typography variant="caption" color="text.secondary" sx={{ px: 1 }}>
-      {aggMeta.accessibleKinds} accessible kind{aggMeta.accessibleKinds !== 1 ? "s" : ""}
-      {aggMeta.deniedKinds > 0 ? ` · ${aggMeta.deniedKinds} access denied` : ""}
-      {aggMeta.errorKinds > 0 ? ` · ${aggMeta.errorKinds} error` : ""}
-    </Typography>
-  ) : null;
+  const metaPrefix = <CustomResourceAggregationMeta meta={aggMeta} />;
 
+  if (exactKind) return <CustomResourceKindTable token={token} kind={exactKind} namespace={namespace} onBack={() => setExactKind(null)} />;
   return (
     <ResourceListPage<Row>
       token={token}
       title={`${resourceLabel} · ${namespace}`}
-      columns={columns}
+      columns={kindColumns}
       fetchRows={fetchRows}
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "customresources", namespace),
