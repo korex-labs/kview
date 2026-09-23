@@ -13,6 +13,65 @@ Helm Releases are namespaced. Release drawers show status, chart/app versions,
 manifest-derived resources, metadata, YAML where available, and actions such as
 upgrade or uninstall when permissions allow.
 
+All sections share one tab row. **Release Notes** contains chart-rendered Helm
+notes; **Notes** contains kview's local operator notes. **Recovery** is a separate
+tab, not a panel above the tab row, so it does not displace normal release details.
+
+## Recovery
+
+Open a release drawer's **Recovery** tab and choose **Preview recovery** to
+inspect fresh recovery metadata. Opening Overview does not fetch recovery data.
+The preview shows the latest revision, status, description, and actual storage
+Secret, plus the preceding retained revision when available. The Secret link
+opens the usual Secret drawer; it does not delete or export the record.
+
+A `pending` status does not prove that an operation is abandoned. Check Helm,
+GitOps, and CI activity and stop competing writers before considering recovery.
+Do not use the age of a release as proof that deletion is safe.
+
+### Prefer Normal Helm Actions
+
+- For a `failed` release, inspect the failure and consider **Rollback** from
+  **History** or **Reinstall**, rather than deleting history.
+- The existing rollback action waits for the operation and disables hooks.
+- Reinstall normally uses the stored chart and values through Helm upgrade;
+  hooks may run. If the stored chart has no templates, the existing fallback
+  reapplies the stored manifest instead and does not create a Helm revision.
+- These actions can change Kubernetes resources. They are not equivalent to
+  deleting a Helm storage record.
+
+### Guarded Revision-Record Deletion
+
+The recovery deletion is an explicit break-glass operation. It deletes **only
+one latest Helm revision Secret**. It does not roll back resources, uninstall the
+release, undo hooks, or automatically retry an operation.
+
+Eligibility is conservative:
+
+- Only latest `pending-upgrade` and `pending-rollback` records are candidates.
+- Revision 1, `pending-install`, ordinary `failed` or `deployed` states, and
+  missing or unusable preceding history are excluded.
+- The immediately preceding retained revision must be `deployed` or
+  `superseded` with usable stored chart and manifest data. Recovery never skips
+  an intervening unsuitable record or deletes a chain of revisions.
+- Ambiguous or corrupt storage identity, insufficient permissions, and
+  read-only mode prevent deletion.
+
+Review the exact namespace, release, revision, and Secret. The confirmation
+requires the displayed phrase and acknowledgement that competing Helm/CI
+writers have stopped. The server rechecks fresh history and permissions and
+uses both the Secret UID and resourceVersion as deletion preconditions. If the
+record changed, load a new preview and confirm again; do not blindly retry the
+old request.
+
+These checks cannot lock out external Helm or GitOps writers. Stopping them is
+an operator responsibility even after a successful preview. After deletion,
+inspect release history and actual resources before choosing rollback or retry.
+
+No Secret backup or export is created by recovery. Helm storage contains chart
+and values data that may include credentials; treat any manual export as
+sensitive.
+
 ## Helm Charts
 
 Helm Charts are derived from cached release snapshots. Chart rows group release

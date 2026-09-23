@@ -306,3 +306,44 @@ silently back up Secret material in logs/artifacts; any export is sensitive.
 Preconditions cannot coordinate external Helm/CI writers: require stopping
 competing operations. Initially exclude first-revision recovery without usable
 prior history and never automatically delete a chain of revision records.
+
+### Coherent delivery block
+
+- [x] Fresh exact-context metadata preflight; bounded decoding and validated
+  canonical Helm Secret identity; no sensitive payload in recovery responses.
+- [x] Guarded single-record deletion for pending-upgrade/pending-rollback only,
+  immediately preceding usable history, fail-closed RBAC/read-only, typed
+  confirmation, stopped-writer acknowledgement, UID/resourceVersion
+  preconditions and post-delete verification.
+- [x] Integrated drawer recovery section, Secret navigation, ordinary-action
+  semantics, generation-safe reads/mutations and explicit stale-preview retry.
+- [x] Backend and mounted UI regression coverage plus Help/read-ownership docs.
+- [x] One integrated review and final verification/build boundary; no repeated
+  full gates after each edit. No real-cluster recovery deletion during testing.
+
+Live checkpoint `8fb3a9c` is separate; this block remains uncommitted until
+reviewed/approved. No push or release is authorized.
+
+Verification: focused Helm Recovery race tests, full `make check DOCKER_BUILD=0`,
+and `make build DOCKER_BUILD=0 OUTPUT=.cache/helm-recovery-acceptance/kview
+VERSION=helm-recovery-acceptance` completed successfully. The executable reports
+`helm-recovery-acceptance`. Independent static review found no production safety
+defect; its inconsistent blocked-middle fixture finding was corrected before
+the successful final gate. Running server was not replaced; real-cluster recovery
+deletion was not exercised. New Helm changes remain uncommitted for acceptance.
+
+### Drawer layout correction after operator review
+
+- Restored the single native tab strip required by ResourceDrawerShell; local
+  operator Notes now lives beside the distinct chart-rendered Release Notes.
+- Recovery is a native, lazy tab inside the scrollable drawer body, with compact
+  actions and collapsed guidance. Full safety wording remains in confirmation.
+- Semantic tab identity and retained detail state preserve Recovery during
+  post-mutation refresh success/failure; keyboard actions remain distinct.
+- Final focused UI/shared-shell/keyboard suite: 51 tests passed; typecheck and
+  focused ESLint passed. UI and executable build passed with stable source hashes.
+- Real Chromium with explicit fixture API data passed wide/narrow layout checks:
+  one tab strip, distinct notes, lazy recovery, compact button, bounded scrolling
+  and confirmation guard. Screenshots: `.artifacts/helm-layout/`.
+- Built `.cache/helm-layout-acceptance/kview`. Running server unchanged; its token
+  returned 401, so no live-cluster acceptance is claimed for this UI follow-up.

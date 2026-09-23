@@ -81,6 +81,8 @@ export const keyboardActionIds = [
   "drawer.tab.manifest",
   "drawer.tab.hooks",
   "drawer.tab.history",
+  "drawer.tab.recovery",
+  "drawer.tab.releaseNotes",
   "pod.portForward",
   "drawer.editYaml",
   "drawer.refresh",
@@ -136,7 +138,8 @@ export const drawerTabActions = [
   ["capacity", "capacity", "Capacity"], ["subjects", "subjects", "Subjects"],
   ["role bindings", "role-bindings", "Role Bindings"], ["role ref", "role-ref", "Role Ref"], ["jobs", "jobs", "Jobs"],
   ["values", "values", "Values"], ["manifest", "manifest", "Manifest"], ["hooks", "hooks", "Hooks"],
-  ["history", "history", "History"],
+  ["history", "history", "History"], ["recovery", "recovery", "Recovery"],
+  ["release notes", "releaseNotes", "Release Notes"],
 ] as const;
 
 export const drawerTabActionIdByLabel = new Map<string, KeyboardActionId>(

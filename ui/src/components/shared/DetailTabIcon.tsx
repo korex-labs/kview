@@ -78,6 +78,10 @@ export default function DetailTabIcon({ label }: Props) {
       return <HubOutlinedIcon sx={iconSx} />;
     case "history":
       return <HistoryOutlinedIcon sx={iconSx} />;
+    case "recovery":
+      return <SecurityOutlinedIcon sx={iconSx} />;
+    case "release notes":
+      return <DescriptionOutlinedIcon sx={iconSx} />;
     case "notes":
       return <NotesOutlinedIcon sx={iconSx} />;
     default:

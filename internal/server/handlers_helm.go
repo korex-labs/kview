@@ -13,6 +13,8 @@ import (
 )
 
 func (s *Server) registerHelmRoutes(api chi.Router) {
+	api.Get("/namespaces/{ns}/helmreleases/{name}/recovery", s.handleHelmRecovery)
+	api.Post("/namespaces/{ns}/helmreleases/{name}/recovery", s.handleHelmRecovery)
 	api.Get("/namespaces/{ns}/helmreleases", dataplaneNamespacedListHandler(s, s.dp.HelmReleasesSnapshot, func(items []dto.HelmReleaseDTO) any {
 		return dataplane.EnrichHelmReleaseListItemsForAPI(items)
 	}))

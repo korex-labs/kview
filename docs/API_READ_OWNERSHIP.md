@@ -271,6 +271,30 @@ operator transfer workflow.
 | `GET /api/helmcharts` | Cluster-scoped Helm catalog; direct read. Rows are grouped by chart name and expose version rollups. If direct catalog read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived chart rows from cached Helm release snapshots instead. |
 | `GET /api/helmcharts/{name}` | Cluster-scoped Helm chart detail; direct Helm release storage read for one chart name. Version details include exact release deployments and release-backed manifests when release storage is visible. If direct detail read is denied/unavailable and cached Helm release snapshots exist, returns explicitly marked derived details; the UI can still hydrate a selected release manifest through `GET /api/namespaces/{ns}/helmreleases/{name}` when that namespaced read is allowed. |
 
+### 5.2.1 Guarded Helm recovery
+
+`GET /api/namespaces/{ns}/helmreleases/{name}/recovery` is an explicit operator
+preflight, not a background dataplane projection. It requires an exact
+`X-Kview-Context`, reads Helm Secret history using the selected Kubernetes
+identity, validates decoded release/storage identity, and returns only recovery
+metadata and eligibility. It has no cache fallback and exposes no release data,
+chart, values, or Secret bytes. Kubernetes list/get permissions are required;
+delete permission and read-only mode affect eligibility.
+
+`POST` to the same route is a guarded mutation, not a refresh. It repeats fresh
+history/permission checks and compares expected revision, Secret name, UID and
+resourceVersion. Typed confirmation and stopped-writer acknowledgement are
+mandatory. Only one latest pending-upgrade/pending-rollback record with a usable
+immediately preceding retained revision may be deleted. Kubernetes DELETE uses
+both UID and resourceVersion preconditions; success requires a confirming read.
+No Helm rollback/uninstall, resource mutation, chain deletion, export or backup
+is implied. Successful deletion invalidates affected cached views.
+
+Object preconditions do not lock external Helm/CI writers or the complete
+release history. Operators must stop competing writers. Ambiguous identity,
+corrupt/incomplete history, changed observations and uncertain authorization
+fail closed.
+
 ### 5.3 Cluster-scoped detail families
 
 | Routes (representative) | Notes |

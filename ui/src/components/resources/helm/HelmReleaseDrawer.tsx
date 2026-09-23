@@ -32,6 +32,7 @@ import AutolinkText from "../../shared/AutolinkText";
 import StatusChip from "../../shared/StatusChip";
 import { HelmReleaseActions, HelmRollbackActionButton } from "./HelmActions";
 import HelmReleaseResourceMap from "./HelmReleaseResourceMap";
+import HelmRecovery from "./HelmRecovery";
 import {
   helmManifestPresenceIdentities,
   isCanonicalHelmManifestResource,
@@ -116,17 +117,25 @@ function canRollbackRevision(rev: HelmReleaseRevision, currentRevision?: number)
   return rev.status === "deployed" || rev.status === "superseded";
 }
 
-export default function HelmReleaseDrawer(props: {
+type HelmReleaseDrawerProps = {
   open: boolean;
   onClose: () => void;
   token: string;
   namespace: string;
   releaseName: string | null;
   onRefresh?: () => void;
-}) {
-  const { retryNonce } = useConnectionState();
+};
+
+export default function HelmReleaseDrawer(props: HelmReleaseDrawerProps) {
+  const context = useActiveContext();
+  const { health } = useConnectionState();
+  return <HelmReleaseDrawerSession key={JSON.stringify([context, props.token, props.namespace, props.releaseName, props.open, health])} {...props} />;
+}
+
+function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
+  const { retryNonce, health } = useConnectionState();
   const activeContext = useActiveContext();
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState("overview");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<HelmReleaseDetails | null>(null);
@@ -142,27 +151,31 @@ export default function HelmReleaseDrawer(props: {
   const name = props.releaseName;
 
   useEffect(() => {
-    if (!props.open || !name) return;
+    if (!props.open || !name || !activeContext || health === "unhealthy") return;
+    const controller = new AbortController();
+    let current = true;
 
-    setTab(0);
     setErr("");
-    setDetails(null);
     setLoading(true);
     setLinkedResource(null);
     setLinkedCR(null);
     setDrawerNamespace(null);
 
     (async () => {
-      const det = await apiGet<ApiItemResponse<HelmReleaseDetails>>(
+      const det = await apiGet<ApiItemResponse<HelmReleaseDetails> & { active: string }>(
         `/api/namespaces/${encodeURIComponent(ns)}/helmreleases/${encodeURIComponent(name)}`,
         props.token,
+        { headers: { "X-Kview-Context": activeContext }, signal: controller.signal },
       );
+      if (!current) return;
+      if (det.active !== activeContext) throw new Error("Helm detail context mismatch");
       const item: HelmReleaseDetails | null = det?.item ?? null;
       setDetails(item);
     })()
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce, refreshNonce]);
+      .catch((e) => { if (current) setErr(String(e)); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; controller.abort(); };
+  }, [props.open, name, ns, props.token, activeContext, health, retryNonce, refreshNonce]);
 
   const summary = details?.summary;
   const history = details?.history || [];
@@ -211,13 +224,14 @@ export default function HelmReleaseDrawer(props: {
     if (manifest.trim()) tabs.push({ label: "Manifest", id: "manifest", actionId: "drawer.tab.manifest" });
     if (hooks.length > 0) tabs.push({ label: "Hooks", id: "hooks", actionId: "drawer.tab.hooks" });
     tabs.push({ label: "History", id: "history", actionId: "drawer.tab.history" });
-    if (notes.trim()) tabs.push({ label: "Notes", id: "notes", actionId: "drawer.tab.notes" });
+    tabs.push({ label: "Recovery", id: "recovery", actionId: "drawer.tab.recovery" });
+    if (notes.trim()) tabs.push({ label: "Release Notes", id: "release-notes", actionId: "drawer.tab.releaseNotes" });
     tabs.push({ label: "Metadata", id: "metadata", actionId: "drawer.tab.metadata" });
     if (yaml.trim()) tabs.push({ label: "YAML", id: "yaml", actionId: "drawer.tab.yaml" });
     return tabs;
   }, [values, manifest, manifestResources.length, hooks, notes, yaml]);
 
-  const activeTabId = tabDefs[tab]?.id || "overview";
+  const activeTabId = tabDefs.some((item) => item.id === tab) ? tab : "overview";
 
   useEffect(() => {
     setPresenceItems([]);
@@ -312,21 +326,35 @@ export default function HelmReleaseDrawer(props: {
         resourceIdentity={{ resource: "helm", namespace: ns, name }}
         onClose={props.onClose}
       >
-        {loading ? (
+        {loading && !details ? (
           <Box sx={loadingCenterSx}>
             <CircularProgress />
           </Box>
-        ) : err ? (
+        ) : err && !details ? (
           <ErrorState message={err} />
         ) : (
           <>
-            <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
+            <Tabs value={activeTabId} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
               {tabDefs.map((t) => (
-                <Tab key={t.id} {...drawerTabProps(t.actionId)} icon={<DetailTabIcon label={t.label} />} iconPosition="start" label={t.label} />
+                <Tab key={t.id} value={t.id} {...drawerTabProps(t.actionId)} icon={<DetailTabIcon label={t.label} />} iconPosition="start" label={t.label} />
               ))}
             </Tabs>
 
-            <Box sx={drawerBodySx}>
+            <Box sx={[...(Array.isArray(drawerBodySx) ? drawerBodySx : [drawerBodySx]), { display: "flex", flexDirection: "column" }]}>
+              {err && <ErrorState message={err} />}
+              {loading && <Typography variant="body2" color="text.secondary" role="status">Refreshing release details…</Typography>}
+              {activeTabId === "recovery" && name && (
+                <Box role="tabpanel" aria-label="Recovery" sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                  <HelmRecovery
+                    open={props.open}
+                    token={props.token}
+                    namespace={ns}
+                    releaseName={name}
+                    onRecovered={() => { setRefreshNonce((n) => n + 1); props.onRefresh?.(); }}
+                    onOpenSecret={(secretName) => setLinkedResource({ kind: "Secret", name: secretName, namespace: ns })}
+                  />
+                </Box>
+              )}
               {/* OVERVIEW */}
               {activeTabId === "overview" && (
                 <Box
@@ -526,8 +554,8 @@ export default function HelmReleaseDrawer(props: {
                 </Box>
               )}
 
-              {/* NOTES */}
-              {activeTabId === "notes" && (
+              {/* RELEASE NOTES */}
+              {activeTabId === "release-notes" && (
                 <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
                   <Box
                     sx={{

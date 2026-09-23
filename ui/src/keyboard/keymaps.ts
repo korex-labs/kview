@@ -96,6 +96,8 @@ const classicBindings: Record<KeyboardActionId, KeySequence[]> = {
   "drawer.tab.manifest": [["shift+m"]],
   "drawer.tab.hooks": [["shift+k"]],
   "drawer.tab.history": [["shift+h"]],
+  "drawer.tab.recovery": [],
+  "drawer.tab.releaseNotes": [],
   "pod.portForward": [["shift+p"]],
   "drawer.editYaml": [["e"]],
   "drawer.refresh": [["r"]],

@@ -85,12 +85,13 @@ fit-content Live chip, and improved startup/reload are user-accepted; full check
 and build passed and commit permission was received (2026-09-16). First launch
 remains slower but acceptable; further tuning is deferred without claiming full
 latency attribution. Generic CR inspection and exact-kind browsing are now
-locally committed as `5b1913d`. The next queue is **finish workload Live acceptance
-→ guarded Helm Recovery**. Live is implemented for Deployments, StatefulSets,
-DaemonSets, ReplicaSets, Jobs, and CronJobs on the shared bounded Pods foundation;
-focused mounted/transport/query checks passed. Final integrated review/check/build
-and authenticated real-server acceptance are tracked in the plan, not implied by
-visible Live controls. Services, Nodes, and CR Live are not part of this tranche.
+locally committed as `5b1913d`. Workload Live is locally committed as `8fb3a9c`:
+Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs, and CronJobs share the
+bounded Pods foundation. Review, tests/race/vet, build, and six-kind API/browser
+reconnect smoke passed; final-binary cluster acceptance remains explicitly
+tracked in the plan. Services, Nodes, and CR Live are outside this tranche.
+The active next block is **guarded Helm Recovery**, delivered as one coherent
+backend/UI/documentation chunk with verification at the block boundary.
 These separate verified tranches take priority over the longer-term tracks below. See
 [Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
 
