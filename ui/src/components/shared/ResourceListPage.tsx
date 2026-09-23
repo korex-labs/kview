@@ -699,6 +699,7 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   const handleRowDoubleClick = useCallback((row: TRow) => {
     if (isRowActionable && !isRowActionable(row)) return;
+    keepFilterFocusRef.current = false;
     setSelectionModel(singleRowSelectionModel(row.id));
     setDrawerSelectedId(row.id);
     setDrawerOpen(true);
@@ -792,18 +793,25 @@ export default function ResourceListPage<TRow extends { id: string }>({
   }, [apiRef, filteredRows.length, handleFocusGrid, requestKeyboardFocus]);
 
   useEffect(() => {
-    if (saveViewDialogOpen || Boolean(deleteViewId)) return;
+    if (drawerOpen || saveViewDialogOpen || Boolean(deleteViewId)) return;
     if (!keepFilterFocusRef.current) return;
     if (!filterInputRef.current) return;
     if (document.activeElement === filterInputRef.current) return;
     requestKeyboardFocus({
       id: "resource-table.filter",
       focus: () => {
+        // A queued retry must not reclaim focus after the operator moves on.
+        if (!keepFilterFocusRef.current) return true;
+        const active = document.activeElement;
+        if (active && active !== document.body && active !== filterInputRef.current) {
+          keepFilterFocusRef.current = false;
+          return true;
+        }
         filterInputRef.current?.focus();
         return document.activeElement === filterInputRef.current;
       },
     });
-  }, [deleteViewId, filter, filteredRows, requestKeyboardFocus, saveViewDialogOpen]);
+  }, [deleteViewId, drawerOpen, filter, filteredRows, requestKeyboardFocus, saveViewDialogOpen]);
 
   const tableKeyboardControls = useMemo(() => ({
     focusFilter: () => {

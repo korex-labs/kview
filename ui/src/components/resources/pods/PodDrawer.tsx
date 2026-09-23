@@ -1448,6 +1448,10 @@ export default function PodDrawer(props: {
                         disabled={offline || creatingTerminal || actionableContainers.length === 0}
                         onClick={(e) => {
                           if (!details) return;
+                          if (commandContainers.length === 1) {
+                            void openTerminalForContainer(commandContainers[0]);
+                            return;
+                          }
                           setTerminalMenuAnchor(e.currentTarget);
                         }}
                       >

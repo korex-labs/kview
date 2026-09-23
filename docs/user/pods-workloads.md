@@ -55,6 +55,16 @@ The **Live** control tooltip explains event-driven updates versus periodic
 polling and what clicking will switch to. When Live reports a problem, the
 reason remains visible alongside this guidance.
 
+## Terminal
+
+The Pod drawer's **Terminal** action opens the only available running container
+immediately. If several running containers are available, choose one from the
+menu. With no running containers, the action is disabled. Cluster access checks
+still apply.
+
+Filtering the resource table before opening a Pod does not give the filter
+ownership of terminal input: subsequent list updates leave terminal focus alone.
+
 ## Pod Debug
 
 Running Linux Pods can show **Debug** in the Pod drawer action bar. The dialog

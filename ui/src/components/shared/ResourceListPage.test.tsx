@@ -18,7 +18,7 @@ vi.mock("../../api", () => ({ apiGetWithContext: vi.fn().mockResolvedValue({ ite
 vi.mock("../../activeContext", () => ({ useActiveContext: () => "kind-causal" }));
 vi.mock("../../connectionState", () => ({ useConnectionState: () => ({ health: "healthy" }) }));
 vi.mock("../../keyboard/KeyboardProvider", () => ({
-  useKeyboardControls: () => ({ keyboardSettings: {}, requestKeyboardFocus: vi.fn() }),
+  useKeyboardControls: () => ({ keyboardSettings: {}, requestKeyboardFocus: (request: { focus: () => boolean }) => request.focus() }),
   useTableKeyboardControls: vi.fn(),
 }));
 vi.mock("../../settingsContext", () => ({
@@ -32,17 +32,21 @@ vi.mock("../../settingsContext", () => ({
 }));
 vi.mock("../../utils/useEmptyListAccessCheck", () => ({ default: () => null }));
 vi.mock("../../utils/useListFilters", () => ({
-  default: ({ rows }: { rows: Array<{ id: string }> }) => ({
-    filter: "",
-    setFilter: vi.fn(),
-    selectedQuickFilter: null,
-    toggleQuickFilter: vi.fn(),
-    quickFilters: [],
-    filteredRows: rows,
-  }),
+  default: function useListFiltersFixture({ rows }: { rows: Array<{ id: string; name?: string }> }) {
+    const [filter, setFilter] = React.useState("");
+    return { filter, setFilter, selectedQuickFilter: null, toggleQuickFilter: vi.fn(), quickFilters: [],
+      filteredRows: React.useMemo(() => rows.filter((row) => !filter || row.name?.includes(filter)), [rows, filter]) };
+  },
 }));
 vi.mock("@mui/x-data-grid", () => ({
-  DataGrid: () => <div data-testid="resource-grid" />,
+  DataGrid: ({ rows, slotProps, onRowDoubleClick }: {
+    rows: Array<{ id: string; name: string }>;
+    slotProps: { toolbar: { filterInputRef: React.Ref<HTMLInputElement>; onFilterFocus: () => void; onFilterChange: (value: string) => void } };
+    onRowDoubleClick: (params: { row: { id: string; name: string } }) => void;
+  }) => <div data-testid="resource-grid">
+    <input aria-label="Filter fixture" ref={slotProps.toolbar.filterInputRef} onFocus={slotProps.toolbar.onFilterFocus} onChange={(e) => slotProps.toolbar.onFilterChange(e.target.value)} />
+    {rows.map((row) => <button key={row.id} onDoubleClick={() => onRowDoubleClick({ row })}>{row.name}</button>)}
+  </div>,
   gridPaginatedVisibleSortedGridRowIdsSelector: () => [],
   gridVisibleColumnDefinitionsSelector: () => [],
   useGridApiRef: () => ({ current: { rootElementRef: { current: null }, getAllRowIds: () => [] } }),
@@ -54,6 +58,27 @@ afterEach(() => {
   window.localStorage.clear();
   vi.clearAllMocks();
   vi.useRealTimers();
+});
+
+describe("ResourceListPage focus ownership", () => {
+  it("does not reclaim terminal focus after filtering, double-clicking a row and refreshing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    const fetchRows = vi.fn().mockImplementation(async () => ({ rows: [{ id: "pod", name: "api" }, { id: "other", name: "worker" }] }));
+    render(<ResourceListPage token="test" columns={[{ field: "name" }]} fetchRows={fetchRows} resourceKey="pods" initialRefreshSec={5}
+      renderDrawer={({ open }) => open ? <textarea aria-label="Terminal fixture" /> : null} />);
+    await screen.findByRole("button", { name: "api" });
+    const filter = screen.getByRole("textbox", { name: "Filter fixture" });
+    act(() => filter.focus());
+    fireEvent.change(filter, { target: { value: "api" } });
+    expect(screen.queryByRole("button", { name: "worker" })).toBeNull();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "api" }));
+    const terminal = screen.getByRole("textbox", { name: "Terminal fixture" });
+    act(() => terminal.focus());
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+    expect(fetchRows).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(terminal);
+  });
 });
 
 describe("ResourceListPage refresh reason boundary", () => {

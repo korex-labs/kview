@@ -10,7 +10,7 @@ const connection = vi.hoisted(() => ({ health: "healthy" }));
 vi.mock("../../activeContext", () => ({ useActiveContext: () => "kind-refresh" }));
 vi.mock("../../connectionState", () => ({ useConnectionState: () => connection }));
 vi.mock("../../keyboard/KeyboardProvider", () => ({
-  useKeyboardControls: () => ({ keyboardSettings: {}, requestKeyboardFocus: vi.fn() }),
+  useKeyboardControls: () => ({ keyboardSettings: {}, requestKeyboardFocus: (request: { focus: () => boolean }) => request.focus() }),
   useTableKeyboardControls: vi.fn(),
 }));
 vi.mock("../../settingsContext", async () => {
@@ -38,6 +38,31 @@ const revision = { fetchRevision: async () => "1", pollSec: 3600 };
 
 // Production DataGrid, toolbar, metadata strip and useListQuery are all mounted.
 describe("ResourceListPage production Refresh", () => {
+  it("preserves terminal input focus across Live updates after filtering and double-clicking", async () => {
+    const fetchRows = vi.fn().mockImplementation(async () => ({ rows: snapshot.rows.map((row) => ({ ...row })) }));
+    const page = (externalRevision?: string) => <ResourceListPage<Row>
+      token="token" resourceKey="pods" columns={columns} fetchRows={fetchRows}
+      suspendPolling externalRevision={externalRevision} filterLabel="Filter pods"
+      renderDrawer={({ open }) => open ? <textarea aria-label="Terminal input" /> : null}
+    />;
+    let view!: ReturnType<typeof render>;
+    await act(async () => { view = render(page()); });
+    const filter = screen.getByRole("textbox", { name: "Filter pods" }) as HTMLInputElement;
+    act(() => filter.focus());
+    fireEvent.change(filter, { target: { value: "pod-a" } });
+    await waitFor(() => expect(screen.queryByText("pod-b")).toBeNull());
+    fireEvent.doubleClick(screen.getByText("pod-a"));
+    const terminal = screen.getByRole("textbox", { name: "Terminal input" });
+    act(() => terminal.focus());
+    await act(async () => { view.rerender(page("2")); });
+    expect(fetchRows).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(terminal);
+    await act(async () => { view.rerender(page("3")); });
+    expect(fetchRows).toHaveBeenCalledTimes(3);
+    expect(document.activeElement).toBe(terminal);
+    expect(filter.value).toBe("pod-a");
+  });
+
   it("hides Refresh only when explicitly requested and preserves the inline control without metadata", async () => {
     const fetchRows = vi.fn().mockResolvedValue({ rows: [] });
     const page = (hideRefresh?: boolean) => <ResourceListPage<Row>

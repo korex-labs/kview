@@ -2,6 +2,7 @@
 import React from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createTerminalSession } from "../../../sessionsApi";
 import { apiGet } from "../../../api";
 import { ActiveContextProvider } from "../../../activeContext";
 import { UserSettingsProvider } from "../../../settingsContext";
@@ -23,6 +24,8 @@ vi.mock("../../mutations/useResourceCapabilities", () => ({ useResourceCapabilit
 vi.mock("../../mutations/useMutationDialog", () => ({ useMutationDialog: () => ({ open: vi.fn() }) }));
 vi.mock("./PodActions", () => ({ default: () => null }));
 
+vi.mock("../../../sessionsApi", () => ({ createTerminalSession: vi.fn().mockResolvedValue("session-test") }));
+
 const details = {
   summary: { uid: "pod-uid", name: "api", namespace: "prod", phase: "Running", ready: "1/1", restarts: 0, maxRestarts: 0 },
   conditions: [], lifecycle: {}, containers: [], resources: { podSecurityContext: {} },
@@ -38,6 +41,24 @@ function Harness() {
 }
 
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
+
+describe("PodDrawer terminal launch", () => {
+  it.each([0, 1, 2])("keeps selection only when needed (%s running containers)", async (count) => {
+    const containers = Array.from({ length: count }, (_, i) => ({ name: `container-${i}`, state: "Running", ready: true }));
+    vi.mocked(apiGet).mockResolvedValue({ item: { ...details, containers: [...containers, { name: "finished", state: "Terminated" }] } });
+    await act(async () => { render(<Harness />); });
+    const button = screen.getByRole("button", { name: "Terminal" });
+    expect((button as HTMLButtonElement).disabled).toBe(count === 0);
+    await act(async () => { fireEvent.click(button); });
+    if (count === 2) {
+      expect(createTerminalSession).not.toHaveBeenCalled();
+      expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+      await act(async () => { fireEvent.click(screen.getByRole("menuitem", { name: "container-1" })); });
+    } else expect(screen.queryByRole("menuitem")).toBeNull();
+    if (count) expect(createTerminalSession).toHaveBeenCalledExactlyOnceWith({ namespace: "prod", pod: "api", container: `container-${count - 1}`, title: `api / container-${count - 1}` }, "test");
+    else expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+});
 
 describe("PodDrawer Object navigation", () => {
   it("groups only Metadata/YAML, keeps direct shortcuts from other and auxiliary sections, and preserves YAML permission gating", async () => {
