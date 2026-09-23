@@ -21,8 +21,13 @@ retain the original rationale and alternatives; they are not additional scope.
 ## Boundary
 
 Accepted Helm Recovery and its drawer correction were committed locally as
-`0037c94`. No push. The navigation follow-up is a separate uncommitted change
-for operator review.
+`0037c94`. The navigation follow-up is locally committed as `fac0a77`.
+The accepted terminal follow-up is `4ff92e6`: the sole running container opens
+directly, multiple containers retain selection, and list-filter restoration
+does not reclaim terminal focus. See [Pods And Workloads](../user/pods-workloads.md)
+for current operator behavior. No push or release is implied.
+The verification below records the implementation handoff; it is not a new
+final-binary cluster acceptance run.
 
 ## Baseline code findings (before implementation)
 

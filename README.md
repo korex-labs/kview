@@ -24,7 +24,7 @@ More selected screenshots are available in [docs/screenshots](docs/screenshots/)
 ## Why kview
 
 - **Single binary, zero install.** Drop the binary on your machine and point it at your kubeconfig. Embed auth plugins on `PATH` if your contexts use them; nothing else is needed.
-- **Honest, truthful read metadata.** Every list response carries `freshness`, `coverage`, `degradation`, `completeness`, and coarse `state` so you know exactly what you are looking at, not just a stale table with no indication of when it was last read.
+- **Honest, truthful read metadata.** Dataplane-backed list responses carry `freshness`, `coverage`, `degradation`, `completeness`, and coarse `state` so you know exactly what you are looking at, not just a stale table with no indication of when it was last read.
 - **Deep cross-resource navigation.** Drawer-based inspection with nested drawers, cross-resource links, and related-resource panels let you follow a signal from a dashboard alert through to a pod log or config map without leaving the UI.
 - **RBAC-aware throughout.** Capability checks gate every action button and gracefully degrade list and detail views when permissions are limited. Derived projections such as node workload rollups from cached pod snapshots remain useful even when direct node reads are denied.
 - **Predictable operator workflows.** The cluster dashboard, namespace summaries, and signals panels are designed for triage. Signals carry stable identity, advisory text, and filter keys so you can drill from a cluster-wide view into a specific namespace and then into the exact resource.
@@ -104,7 +104,7 @@ To create a guarded release tag, run:
 make release-tag TAG=v5.5.0
 ```
 
-Release notes live in [CHANGELOG.md](CHANGELOG.md). `make release-tag` validates the Go module path, asks Codex to summarize commits from the latest release tag into the changelog, commits that changelog update, validates again, and only then creates the annotated tag. The target requires a clean worktree before it starts so the changelog commit does not include unrelated local edits.
+Release notes live in [CHANGELOG.md](CHANGELOG.md). `make release-tag` validates the Go module path, asks Codex to summarize commits from the latest release tag into the changelog, updates curated `docs/user/whats-new.md` highlights and commits both documentation files, validates again, and only then creates the annotated tag. The target requires a clean worktree before it starts so the changelog commit does not include unrelated local edits.
 
 The release-note helper runs Codex with `gpt-5.4` by default so personal Codex model settings do not affect tagging. Override it with `CODEX_MODEL`, for example `CODEX_MODEL=gpt-5.3-codex make release-tag TAG=v5.5.0`.
 
@@ -265,7 +265,7 @@ This runs `golangci-lint` with a practical baseline (`govet`, `staticcheck`, `er
 - Per-context snapshot stores with scheduler-mediated TTLs, deduplication, priority queuing, and bounded concurrency
 - Namespace and node observers, idle-gated enrichment, and background sweep option for large clusters
 - Optional local snapshot persistence in a bbolt file for stale fallback and quick-access search (`GET /api/dataplane/search`)
-- All list responses include `freshness`, `coverage`, `degradation`, `completeness`, and `state` metadata
+- Dataplane-backed list responses include `freshness`, `coverage`, `degradation`, `completeness`, and `state` metadata
 
 ### Mutations
 

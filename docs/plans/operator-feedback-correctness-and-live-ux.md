@@ -8,7 +8,7 @@ release, deployment, or real-cluster mutations are authorized by this plan.
 
 1. Correct Pod refresh, generic CR health, and restricted-RBAC CR discovery.
 2. Polish bounded Live Namespace observation, initially Pods (functional behavior
-   is now user-confirmed; current changes remain uncommitted).
+   is user-confirmed and locally committed with tranches 1–3 as `91f7244`).
 3. Make startup nonblocking after context selection; namespace/cache work must
    not hold the operator shell behind a modal.
 4. Expand generic CR Details before operator-specific adapters.
@@ -21,7 +21,8 @@ committing tranches 1–3. First backend launch is still slower but acceptable;
 further startup tuning is explicitly deferred, not declared solved. Full
 `make check DOCKER_BUILD=0`, `make build DOCKER_BUILD=0`, and `git diff --check`
 passed on the final code. No push, release, deployment or live mutation follows
-from this approval. Next: generic CR Details, then guarded Helm Recovery.
+from this approval. At that boundary, generic CR Details and guarded Helm
+Recovery were next; both are now locally committed (`5b1913d`, `0037c94`).
 
 The startup trace below records the initial investigation, not the final code.
 Subsequent gated regressions justified private per-context hydration outside the
@@ -291,8 +292,8 @@ DaemonSets, ReplicaSets, Jobs, and CronJobs to the bounded Pods foundation.
   No push/release or commit of subsequent Helm changes is implied.
 
 CronJob Live streams resource status, not Events or event-derived evidence.
-Services, Nodes, CR and Helm Live are excluded. The next implementation stage is
-Tranche 5 below, not an automatic expansion of the Live allowlist.
+Services, Nodes, CR and Helm Live are excluded. Tranche 5 below was the next
+implementation stage and is now committed, not an expansion of the Live allowlist.
 
 ## Tranche 5 — Helm Recovery
 
@@ -321,8 +322,9 @@ prior history and never automatically delete a chain of revision records.
 - [x] One integrated review and final verification/build boundary; no repeated
   full gates after each edit. No real-cluster recovery deletion during testing.
 
-Live checkpoint `8fb3a9c` is separate; this block remains uncommitted until
-reviewed/approved. No push or release is authorized.
+Live checkpoint `8fb3a9c` is separate. Helm Recovery and the drawer correction
+below were subsequently accepted and locally committed as `0037c94`. No push
+or release is implied; the real-cluster acceptance limitations remain unchanged.
 
 Verification: focused Helm Recovery race tests, full `make check DOCKER_BUILD=0`,
 and `make build DOCKER_BUILD=0 OUTPUT=.cache/helm-recovery-acceptance/kview
@@ -330,7 +332,8 @@ VERSION=helm-recovery-acceptance` completed successfully. The executable reports
 `helm-recovery-acceptance`. Independent static review found no production safety
 defect; its inconsistent blocked-middle fixture finding was corrected before
 the successful final gate. Running server was not replaced; real-cluster recovery
-deletion was not exercised. New Helm changes remain uncommitted for acceptance.
+deletion was not exercised. This verification predates the accepted local
+commit `0037c94`; it does not establish live-cluster recovery acceptance.
 
 ### Drawer layout correction after operator review
 

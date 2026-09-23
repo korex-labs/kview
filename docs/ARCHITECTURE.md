@@ -69,7 +69,7 @@ Repeated UI patterns should be **extracted** (tables, drawers, mutation dialogs,
 
 ## Action framework
 
-Generic resource mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capability checks. Specialized session workflows may use explicit endpoints, but must retain guarded UI review, exact authorization checks, read-only enforcement, and Kubernetes as the final authorization/admission boundary.
+Generic resource mutations go through **`POST /api/actions`**. Handlers register verbs on the ActionRegistry; the UI discovers allowed actions via capability checks. Specialized workflows such as Pod Debug sessions and guarded Helm recovery use explicit endpoints, but must retain guarded UI review, exact authorization checks, read-only enforcement, and Kubernetes as the final authorization/admission boundary.
 
 ---
 

@@ -1,5 +1,13 @@
 # Signal Snooze Runtime Suppression Implementation Plan
 
+## Current status
+
+The functional runtime-suppression tranche is implemented, including persistence,
+visible/suppressed projections and active-context transfer. The tasks below
+retain the original implementation sequence, not outstanding release scope.
+See [Roadmap](../ROADMAP.md) for the current queue. This status alignment is
+source-based and does not rerun or newly certify the original verification.
+
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
 **Goal:** Add context-local, reversible per-signal Snooze 1 hour / 1 day and Ignore until changed workflows with honest suppressed counts across dashboard, namespace, and resource projections.

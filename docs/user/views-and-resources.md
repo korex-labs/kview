@@ -69,9 +69,10 @@ signals for low-confidence unused resources.
 
 ## Helm
 
-Helm views include releases and chart catalog rows derived from cached cluster
-state. Release actions are capability-aware and use the same guarded mutation
-flow as Kubernetes resource actions.
+Helm views include releases and a chart catalog read from Helm release storage,
+with an explicitly marked cached fallback when that catalog read fails. Release
+actions are capability-aware. Guarded recovery is a separate confirmed workflow
+for deleting one eligible history Secret, not a rollback or uninstall.
 
 ## Extensions
 

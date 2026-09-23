@@ -1,5 +1,13 @@
 # Resource Map Visual UX v2 Implementation Plan
 
+## Current status
+
+Visual UX v2 and the subsequent Helm manifest-map extension are implemented and
+locally accepted, committed as `00726c2` and `b9d5650`. The task sequence below
+is implementation history, not an unstarted release dependency. Shared
+Dataplane Explanation subsequently landed as `1387128`; see
+[Roadmap](../ROADMAP.md) for the current queue and release boundaries.
+
 > **For Hermes:** Implement this plan as one coherent UI tranche, preserving the existing cache-only Resource Map API and relationship semantics.
 
 **Goal:** Replace the hand-positioned Resource Map SVG with a polished, accessible, responsive graph canvas that preserves exact graph evidence while making identities and relationships easier to inspect.

@@ -74,9 +74,10 @@ sensitive.
 
 ## Helm Charts
 
-Helm Charts are derived from cached release snapshots. Chart rows group release
-data by chart name and version so users can see where a chart is deployed
-across visible namespaces. When Resource Tags are enabled, chart list rows keep
+Helm Charts first reads visible Helm release storage directly. If that catalog
+read fails and cached release snapshots are available, kview can show explicitly
+marked derived rows instead. Chart rows group release data by chart name and
+version so users can see where a chart is deployed across visible namespaces. When Resource Tags are enabled, chart list rows keep
 the chart name first and show tags next to it like other resource lists.
 
 Open a chart and select **Versions** to inspect one chart version at a time.
@@ -91,8 +92,9 @@ from that Helm release's namespaced detail view when permissions allow it.
 
 ## Optional Behavior
 
-Helm chart catalog data depends on dataplane snapshots. It may be stale,
-partial, or unavailable when release secrets are not visible.
+The derived Helm chart fallback depends on dataplane snapshots and may be stale
+or partial. Catalog data can be unavailable when release Secrets are not
+visible and no usable cached fallback exists.
 
 ## Common Workflows
 

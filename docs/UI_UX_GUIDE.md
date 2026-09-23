@@ -95,12 +95,23 @@ Every drawer must answer questions in this order:
 
 ## Tab ordering
 
-All resource drawers follow the same tab order:
+The ordinary native tab order is:
 
 Overview → <kind‑specific relation tabs> → Spec? → Events → Logs? → Metadata → YAML
 
-Metadata and YAML are always the two trailing tabs, in that order.
-Events precedes them. Logs, where applicable, sits between Events and Metadata.
+Pod drawers group Metadata and YAML under **Object → Details / YAML** instead.
+Preserve the existing Metadata and YAML keyboard action IDs through explicit
+contextual handlers. Other resource groupings remain unchanged.
+
+The shared shell appends **Resource Map** and local operator **Notes** when
+available; Metadata/YAML are therefore not necessarily the final visible tabs.
+Helm has its own artifact/operation tabs: **Release Notes** is chart-rendered
+content, distinct from local **Notes**, and **Recovery** remains a native lazy tab.
+
+`ResourceDrawerShell` uses `ResourceDrawerTabs` to provide scroll controls and a
+**More** destination menu when the row overflows, including narrow/mobile
+widths. Keep original tabs and semantic action markers mounted, preserve source
+order, and reveal the selection on resize without undoing manual scrolling.
 
 Logs is owned by the resource that streams logs (today: Pod). Workload drawers
 that do not stream their own logs must not add a Logs tab; they navigate to a
@@ -129,7 +140,7 @@ with nothing to show is hidden (no empty placeholders).
 7. Compact summary KV             (name / namespace / age / phase only)
 
 The full metadata grid (labels, annotations, full key/value summary, spec
-detail) lives in the Metadata / Spec tabs, never in Overview.
+detail) lives in Metadata / Spec or Pod Object → Details, never in Overview.
 
 ## AttentionSummary component
 

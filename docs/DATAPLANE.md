@@ -1,6 +1,6 @@
 # Dataplane (read side)
 
-The **dataplane** (`internal/dataplane`) is the read-side subsystem for cluster observation: per-context **planes**, **snapshots**, a **scheduler**, **observers**, and **projections**. Kubernetes mutations remain on the shared action framework (`POST /api/actions`). Dataplane-owned signal acknowledgements and runtime suppressions mutate only kview's local operator state.
+The **dataplane** (`internal/dataplane`) is the read-side subsystem for cluster observation: per-context **planes**, **snapshots**, a **scheduler**, **observers**, and **projections**. Ordinary Kubernetes mutations use the shared action framework (`POST /api/actions`); specialized Pod Debug and guarded Helm recovery endpoints remain outside dataplane read ownership. See the explicit exceptions in `API_READ_OWNERSHIP.md`. Dataplane-owned signal acknowledgements and runtime suppressions mutate only kview's local operator state.
 
 For **which HTTP routes** use snapshots vs projections vs direct reads, see [API_READ_OWNERSHIP.md](API_READ_OWNERSHIP.md).
 

@@ -209,6 +209,6 @@ image pulling, kubelet state, and the container runtime make the final decision.
 - **Smart Filters**
 - **Resource Tags**
 - **Custom Commands**
-- **Pod Debug** defaults are configured on the **Custom Commands** settings page.
+- **Pod Debug** defaults are configured on the **Pod Debug & Commands** settings page.
 - **Custom Actions**
 - **Dataplane**

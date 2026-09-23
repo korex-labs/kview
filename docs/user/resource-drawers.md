@@ -20,10 +20,10 @@ objects, events, metadata, YAML, and supported actions.
   snapshots for the current context/resource. Use **Open snapshot** to reopen the
   saved bundle in the standard **Signal investigation** dialog. Saved mode keeps
   the familiar Summary, Evidence, Context, and Export tabs, but omits the
- **Save snapshot** action because the bundle is already persisted. Newly saved
- snapshots retain the structured investigation result for the closest possible
- replay; older snapshots use their saved summary/resource fields and complete
- Markdown Export bundle.
+  **Save snapshot** action because the bundle is already persisted. Newly saved
+  snapshots retain the structured investigation result for the closest possible
+  replay; older snapshots use their saved summary/resource fields and complete
+  Markdown Export bundle.
 - **Resource Map tab**: shows the current resource in the center, cached
   parents/dependencies above, cached children/dependants below, and cyclic or
   bidirectional relations in the same bounded layered graph. Use the graph
@@ -93,9 +93,12 @@ objects, events, metadata, YAML, and supported actions.
   available.
 - **Logs tab**: appears only for resources that stream logs directly. Today,
   pods own direct log streaming; workload drawers navigate to pods for logs.
-- **Metadata tab**: shows labels, annotations, and summary metadata.
+- **Metadata tab**: shows labels, annotations, and summary metadata. In Pod
+  drawers, metadata is under **Object → Details** instead.
 - **YAML tab**: shows the resource YAML and, for supported resources, guarded
-  live patch controls.
+  live patch controls. In Pod drawers, use **Object → YAML**.
+- **More** and the tab-row arrows: reach sections outside the visible row in a
+  narrow drawer. Configured tab shortcuts retain their destinations.
 
 ## Optional Behavior
 

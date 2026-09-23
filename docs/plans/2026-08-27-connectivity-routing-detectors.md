@@ -1,5 +1,13 @@
 # Connectivity And Routing Detector Pack Implementation Plan
 
+## Current status
+
+The connectivity tranche is implemented; the original release-per-pack sequence
+below is superseded by the broad release sequence in [Roadmap](../ROADMAP.md).
+The original final-review/handoff checkboxes at the end were not reconciled at
+completion and are retained as historical evidence gaps, not a new feature
+blocker. This documentation audit does not retroactively certify those gates.
+
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
 **Goal:** Add honest cache-only Service and Ingress connectivity diagnostics that distinguish real routing failures from incomplete EndpointSlice, Pod, or Service coverage.

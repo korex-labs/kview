@@ -90,8 +90,14 @@ Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs, and CronJobs share the
 bounded Pods foundation. Review, tests/race/vet, build, and six-kind API/browser
 reconnect smoke passed; final-binary cluster acceptance remains explicitly
 tracked in the plan. Services, Nodes, and CR Live are outside this tranche.
-The active next block is **guarded Helm Recovery**, delivered as one coherent
-backend/UI/documentation chunk with verification at the block boundary.
+**Guarded Helm Recovery** and its integrated drawer are locally committed as
+`0037c94`; fixture verification/build passed, but real-cluster recovery deletion
+was not exercised. **Drawer navigation** (shared More/scroll controls, Pod
+Object Details/YAML, Live guidance) is locally committed as `fac0a77`. The
+accepted **Pod terminal** focus and single-container selection fixes are locally
+committed as `4ff92e6`. These are completed implementation blocks, not the next
+feature queue. Release preparation must preserve the outstanding workload
+final-binary acceptance limits rather than treating commits as cluster evidence.
 These separate verified tranches take priority over the longer-term tracks below. See
 [Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
 
@@ -168,7 +174,7 @@ The follow-up Helm extension projects rendered manifest membership separately
 from cache-derived availability. See
 [plans/2026-09-01-resource-map-v2.md](plans/2026-09-01-resource-map-v2.md).
 
-### 4. Shared Dataplane Explanation (Active)
+### 4. Shared Dataplane Explanation (Implemented And Locally Accepted)
 
 Explain resource/list/dashboard freshness through existing metadata: last
 observed, TTL, source, coverage, completeness, RBAC denial, scheduler pressure,

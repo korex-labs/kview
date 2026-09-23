@@ -1,5 +1,13 @@
 # Resource Map Implementation Plan
 
+## Current status
+
+Resource Map v1 shipped in v5.16.0. The tasks below retain its original bounded
+contract. Visual UX v2 and the separate Helm manifest-map extension are now
+locally committed (`00726c2`, `b9d5650`); the v1 exclusion of virtual Helm
+resources does not mean the current Helm drawer has no map. See the
+[v2 plan](2026-09-01-resource-map-v2.md) and [Roadmap](../ROADMAP.md).
+
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
 **Goal:** Add a cache-derived Resource Map tab to every real Kubernetes resource drawer so operators can understand parent/child structure around the current Kubernetes resource and open related resources quickly.
