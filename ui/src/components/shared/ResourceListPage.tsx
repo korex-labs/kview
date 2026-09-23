@@ -602,13 +602,17 @@ export default function ResourceListPage<TRow extends { id: string }>({
 
   useEffect(() => { onSnapshotRevision?.(dataplaneMeta?.revision); }, [dataplaneMeta, onSnapshotRevision]);
   const instancesRef = useRef(new Map<string, string | undefined>());
+  const instanceRowsRef = useRef<TRow[] | null>(null);
   useEffect(() => {
-    if (!getRowInstance) return;
+    if (!getRowInstance || instanceRowsRef.current === rows) return;
+    instanceRowsRef.current = rows;
     const previous = instancesRef.current;
     const current = new Map(rows.map((row) => [row.id, getRowInstance(row)]));
     // Disappearance invalidates the old instance immediately, not just when a
     // different UID arrives in the very next snapshot.
-    const invalidated = new Set([...previous.keys()].filter((id) => !current.has(id) || previous.get(id) !== current.get(id)));
+    // Without a UID we cannot prove continuity across snapshots. Do not invent
+    // instance identity from a reusable namespace/name or a moving age value.
+    const invalidated = new Set([...previous.keys()].filter((id) => !current.has(id) || !previous.get(id) || !current.get(id) || previous.get(id) !== current.get(id)));
     if (invalidated.size) {
       setSelectionModel((old) => ({ ...old, ids: new Set([...old.ids].filter((id) => !invalidated.has(String(id)))) }));
       if (drawerSelectedId && invalidated.has(drawerSelectedId)) {

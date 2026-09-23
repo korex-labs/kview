@@ -1,6 +1,7 @@
 package dto
 
 type DeploymentListItemDTO struct {
+	UID                         string `json:"uid,omitempty"`
 	ResourceRelationshipCarrier `json:"-"`
 	Name                        string            `json:"name"`
 	Namespace                   string            `json:"namespace"`

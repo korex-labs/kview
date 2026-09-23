@@ -79,6 +79,20 @@ per-cycle, per-hour, and pause controls.
 failures before kview surfaces the error. It does not retry user-confirmed
 mutating actions such as deleting a resource or running a Job.
 
+### List Live Mode
+
+List **Live** is a separate, explicit, off-by-default control for **Pods**,
+**Deployments**, **Stateful Sets**, **Daemon Sets**, **Replica Sets**, **Jobs**,
+and **Cron Jobs** only. Profiles, favourites, and enrichment settings do not
+automatically subscribe these lists. A Live subscription follows only the active
+context, namespace, and resource kind; hiding the browser tab pauses it.
+
+While Live is enabled, ordinary list polling is suspended and **Refresh** is
+hidden. Turn Live off for the polling/manual-refresh fallback. Metrics and
+drawer evidence still load independently; CronJob Events are not streamed. See
+[Live Pods And Workloads](pods-workloads.md#live-pods-and-workloads) for status
+colors, reconnect behavior, and identity handling.
+
 ## Common Workflows
 
 - Start with **Focused** or **Balanced** before tuning individual values.

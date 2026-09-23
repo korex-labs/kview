@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
@@ -7,11 +7,17 @@ import JobDrawer from "./JobDrawer";
 import { fmtAge } from "../../../utils/format";
 import { jobStatusChipColor } from "../../../utils/k8sUi";
 import ResourceListPage from "../../shared/ResourceListPage";
+import ResourceLiveControl from "../../shared/ResourceLiveControl";
+import { useActiveContext } from "../../../activeContext";
+import type { ListFetchReason } from "../../../utils/useListQuery";
+import useResourceLive from "../../../utils/useResourceLive";
+import useResourceLiveSnapshot from "../../../utils/useResourceLiveSnapshot";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 
 type Job = {
+  uid?: string;
   name: string;
   namespace: string;
   active: number;
@@ -71,12 +77,22 @@ const columns: GridColDef<Row>[] = [
 ];
 
 export default function JobsTable({ token, namespace }: { token: string; namespace: string }) {
-  const fetchRows = useCallback(async (contextName?: string) => {
+  const activeContext = useActiveContext();
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const liveOptions = { token, contextName: activeContext, namespace, resource: "jobs" as const, enabled: liveEnabled };
+  const live = useResourceLive(liveOptions);
+  const { appliedRevision, onSnapshotRevision } = useResourceLiveSnapshot(liveOptions);
+  const getRowInstance = useCallback((row: Row) => row.uid, []);
+  const fetchRows = useCallback(async (contextName?: string, reason?: ListFetchReason, signal?: AbortSignal) => {
+    // Ordinary automatic reads retain their existing cache policy.
+    const intent = reason === "manual" ? "manual" : reason === "revision" ? "revision" : "";
     const res = await apiGetWithContext<ApiDataplaneListResponse<Job>>(
-      `/api/namespaces/${encodeURIComponent(namespace)}/jobs`,
+      `/api/namespaces/${encodeURIComponent(namespace)}/jobs${intent ? `?refresh=${intent}` : ""}`,
       token,
       contextName || "",
+      { signal },
     );
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const items = res.items || [];
     return {
       rows: items.map((j) => ({ ...j, id: `${j.namespace}/${j.name}` })),
@@ -89,6 +105,15 @@ export default function JobsTable({ token, namespace }: { token: string; namespa
       token={token}
       columns={columns}
       fetchRows={fetchRows}
+      suspendPolling={liveEnabled}
+      externalRevision={liveEnabled && live.update?.revision ? String(live.update.revision) : undefined}
+      onSnapshotRevision={onSnapshotRevision}
+      getRowInstance={getRowInstance}
+      hideRefresh={liveEnabled}
+      dataplaneMetaControl={
+        <ResourceLiveControl enabled={liveEnabled} state={live.state} update={live.update}
+          appliedRevision={appliedRevision} onToggle={() => setLiveEnabled(!liveEnabled)} />
+      }
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "jobs", namespace),
         pollSec: defaultRevisionPollSec,

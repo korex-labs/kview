@@ -117,40 +117,60 @@ metrics do not hold up the Pod list. With Live off, while the page is visible,
 Pods periodically request dataplane-backed data even without metrics; automatic
 reads still obey snapshot freshness policy. This default mode is polling.
 
-The Pod list **Refresh** button beside **Explain** updates the selected namespace
+The **Refresh** button beside **Explain** in Pods, Deployments, Stateful Sets,
+Daemon Sets, Replica Sets, Jobs, and Cron Jobs updates the selected namespace
 without reloading the application. It keeps rows, filters, selection, scroll, and
 an open drawer while the request runs. When the dataplane policy permits manual
 TTL bypass, it fetches source data even if the existing snapshot is still fresh.
 This does not bypass Kubernetes permissions or scheduler limits.
 
-### Live Pods
+### Live Pods And Workloads
 
 **Live=polling** is the default neutral chip in the metadata row. Click it (or
 focus it and press <kbd>Enter</kbd> or <kbd>Space</kbd>) to enable Live and follow
-Pod changes in the selected context and namespace through Kubernetes LIST/WATCH
-rather than waiting for the ordinary polling interval. Favorites do not
-automatically start subscriptions.
+changes for the active resource kind in the selected context and namespace
+through Kubernetes LIST/WATCH rather than waiting for the ordinary polling
+interval. Live is optional and off by default. It is available only for **Pods**,
+**Deployments**, **Stateful Sets**, **Daemon Sets**, **Replica Sets**, **Jobs**,
+and **Cron Jobs**. HPA and all other resource lists do not offer this Live mode.
+
+The subscription is bounded to that exact context, namespace, and kind; there is
+no all-namespace or all-kind subscription. Favorites do not automatically start
+subscriptions. Changing context, namespace, or resource view releases the old
+subscription; leaving the view stops it.
 
 - **Live=starting** is warning-colored: the stream or its displayed snapshot is
   not ready yet.
-- **Live=live** is success-colored: a committed stream snapshot has reached the table.
+- **Live=live** is success-colored only after the table applies a non-stale
+  snapshot at least as new as the stream revision. A connected stream alone is
+  not proof that the displayed rows are current.
 - **Live=reconnecting**, **Live=paused**, and **Live=stopped** are warning-colored;
   **Live=blocked** is error-colored. Existing rows may be stale in these states;
   they do not promise current data. Hover the chip for the server reason when available.
 - The chip stays the same compact size in every state. Click it again to disable Live.
   **Refresh** is hidden while Live is enabled and returns when Live is off.
 - Hiding the browser tab pauses the subscription. Returning resumes it if Live
-  remains enabled. Turning Live off restores ordinary polling.
-- A transient snapshot-read failure retries with backoff even if no new Pod event
+  remains enabled. Transient stream failures reconnect with backoff. Ordinary
+  polling stays suspended while Live is enabled, including reconnecting, blocked,
+  or stopped states; turn Live off to restore polling and manual **Refresh**.
+  Permission failures do not trigger a broader or more privileged subscription.
+- A transient snapshot-read failure retries with backoff even if no new resource event
   arrives. Permission failures are not bypassed.
 
-Updates preserve the table and open drawer for the same Pod instance. Deleting
-the selected Pod or replacing its UID clears its selection and drawer, rather
-than silently treating another Pod with the same name as the original.
+Updates preserve the table and open drawer for the same resource instance.
+Deleting the selected resource or replacing its UID clears its selection and
+drawer, rather than silently treating another resource with the same name as
+the original.
 
-Metrics have their own sampling cadence and may lag behind Pod status. Live does
-not promise every intermediate Kubernetes state or zero latency. To use manual
-**Refresh**, turn Live off first.
+Live updates list snapshots, not every source of evidence in a drawer. Metrics
+have their own sampling cadence and may lag behind resource status. Details,
+related resources, logs, and **Events** retain their separate loading behavior.
+In particular, **Cron Jobs** Live follows the CronJob resource and its status;
+Kubernetes Events and event-derived schedule warnings are not streamed. The
+separate **Open debug run** workflow described above is unchanged.
+
+Live does not promise every intermediate Kubernetes state or zero latency. To
+use manual **Refresh**, turn Live off first.
 
 Pod Debug additionally requires `get` on `pods`, `patch` on
 `pods/ephemeralcontainers`, and `create` on `pods/attach`. It is unavailable in

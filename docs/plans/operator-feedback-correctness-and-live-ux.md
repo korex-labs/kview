@@ -249,6 +249,51 @@ binary build also passed. The accepted tranches 1–3 record above is unchanged.
   This documentation-only alignment runs `git diff --check`, not tests/builds,
   and does not authorize live reads, `.token` access, commits or Helm changes.
 
+## Workload Live extension — implementation and acceptance
+
+Generic CR inspection/exact-kind browsing is locally committed as `5b1913d`.
+Before Helm Recovery, the approved Live extension adds Deployments, StatefulSets,
+DaemonSets, ReplicaSets, Jobs, and CronJobs to the bounded Pods foundation.
+
+- [x] Shared typed LIST/WATCH adapters and manager-wide capacity/lifecycle guards.
+- [x] Exact context/namespace/kind SSE and cache-only revision endpoints.
+- [x] Six mounted tables reuse shared transport, snapshot coverage, Live control,
+  causal query refresh and UID-safe selection/drawer handling.
+- [x] Focused verification: 67 workload mounted tests and 79 shared transport/query
+  tests passed; 5 existing Pods Live cases passed. The final strengthened coverage
+  and visibility-resume subset passed (12 cases); typecheck and focused lint passed.
+- [x] User Help and engineering read-ownership documentation updated.
+- [x] Full repository `make check DOCKER_BUILD=0` passed before the final Go
+  invalidation-generation follow-up. The long mounted UI scenario was split
+  into independent stories without raising timeouts or dropping assertions.
+- [x] Final independent review approved the invalidation-generation fix; gated
+  LIST regression reproduced RED then passed GREEN for Pods and all six kinds.
+  Focused Live race tests, complete dataplane/server tests and vet passed.
+  Pinned UI + Go executable build passed; embedded source restored by hash.
+- [x] Authenticated read-only real-server API smoke on `127.0.0.1:10443`:
+  all six SSE streams reached live with exact context/namespace/kind/scope;
+  revision snapshots covered the notification; missing/unknown context and
+  absent authorization were rejected; repeated cache misses returned 503;
+  ordinary/manual reads returned 200 after disconnect. No cluster mutations.
+  Deployment and ReplicaSet rows had UIDs; the other four lists were empty in
+  the selected namespace, so their real row behavior is not established here.
+- [x] Headless Chrome against the running server, all six real tables: enable
+  Live → `Live=live`, revision request observed, Refresh hidden, disable →
+  polling, manual Refresh → HTTP 200. No `/metrics` or `/events` requests were
+  observed in these scenarios; CronJob tooltip explicitly excludes Events.
+- [x] Browser reconnect verified for all six kinds by forcibly closing SSE
+  through a loopback proxy: reconnecting → live; no cluster mutation.
+- [ ] Final-binary acceptance. The running server was not restarted with the
+  race fix. Real resource replacement and hidden-tab transitions were not
+  exercised by this smoke; mounted regressions remain distinct from
+  cluster-backed evidence.
+- [x] User approved a local checkpoint commit and proceeding to Helm Recovery.
+  No push/release or commit of subsequent Helm changes is implied.
+
+CronJob Live streams resource status, not Events or event-derived evidence.
+Services, Nodes, CR and Helm Live are excluded. The next implementation stage is
+Tranche 5 below, not an automatic expansion of the Live allowlist.
+
 ## Tranche 5 — Helm Recovery
 
 Expose exact latest revision/status/description and storage Secret navigation.

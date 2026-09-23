@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -17,9 +19,13 @@ func ListDaemonSets(ctx context.Context, c *cluster.Clients, namespace string) (
 		return nil, err
 	}
 
-	now := time.Now()
-	out := make([]dto.DaemonSetDTO, 0, len(sets.Items))
-	for _, ds := range sets.Items {
+	return MapDaemonSets(sets.Items, time.Now()), nil
+}
+
+// MapDaemonSets projects resource status only; optional evidence is supplied explicitly.
+func MapDaemonSets(items []appsv1.DaemonSet, now time.Time) []dto.DaemonSetDTO {
+	out := make([]dto.DaemonSetDTO, 0, len(items))
+	for _, ds := range items {
 		age := int64(0)
 		if !ds.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(ds.CreationTimestamp.Time).Seconds())
@@ -41,6 +47,7 @@ func ListDaemonSets(ctx context.Context, c *cluster.Clients, namespace string) (
 
 		out = append(out, dto.DaemonSetDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(ds.UID),
 			Name:                        ds.Name,
 			Namespace:                   ds.Namespace,
 			Desired:                     ds.Status.DesiredNumberScheduled,
@@ -54,5 +61,5 @@ func ListDaemonSets(ctx context.Context, c *cluster.Clients, namespace string) (
 		})
 	}
 
-	return out, nil
+	return out
 }

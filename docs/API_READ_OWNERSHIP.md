@@ -71,25 +71,60 @@ The Pod page polls source snapshots independently of metrics outside Live mode;
 metrics requests run separately and cannot hold up the first Pod render or status
 updates.
 
-### Live Pod stream
+### Workload refresh intent
+
+The six workload list routes (`deployments`, `statefulsets`, `daemonsets`,
+`replicasets`, `jobs`, and `cronjobs`) also accept `refresh=manual|auto|revision`.
+Manual intent uses the effective `ManualRefreshBypassesTTL` policy and existing
+scheduler bounds; absent intent and `auto` retain ordinary snapshot behavior.
+Unlike the Pod route, these workload wrappers do not reject unknown intent
+values; unrecognized values take the ordinary list path.
+
+For all six, `refresh=revision` branches before observer admission and snapshot
+execution. It requires an explicit exact context and a valid nonempty namespace,
+reads only an existing in-memory snapshot, and returns `503` on a cache miss.
+It does not create/hydrate a plane, start observers, schedule a LIST, warm metrics,
+or fetch Events/details. Existing response enrichment is cache-only.
+
+### Live Pod and workload streams
 
 `GET /api/namespaces/{ns}/pods/live` uses SSE (`event: pods`) with JSON state and
 revision notifications. It requires the app Bearer token in the Authorization
 header and an explicit exact `X-Kview-Context`; query-token authentication is
 rejected. The selected namespace must be valid and nonempty.
 
-The stream owns a bounded subscription to a shared context/namespace LIST/WATCH.
-Notifications follow committed snapshots; browsers fetch rows through the
-cache-only revision route. A publication ownership gate prevents older ordinary
-LIST results from overwriting Live snapshots. Kubernetes uses the selected
-context's existing credentials, not a privileged fallback.
+`GET /api/namespaces/{ns}/{kind}/live` is additionally registered only for
+`deployments`, `statefulsets`, `daemonsets`, `replicasets`, `jobs`, and `cronjobs`.
+These use `event: resource` with the same state/revision fields plus exact
+`resource` and `scope: "Namespaced"`; Pods retain the original `event: pods`
+wire shape. Both contracts use the authentication and exact-scope requirements
+above. There is no generic arbitrary-kind, all-namespace, or cluster-wide Live
+endpoint. HPA and other resource families are not enabled.
+
+Each stream owns a bounded subscription to a shared exact context/namespace/kind
+initial LIST + WATCH. This is not accelerated LIST polling. Notifications follow
+committed snapshots; browsers fetch rows through the same list route with
+`refresh=revision` (cache-only). Per-kind publication ownership gates prevent
+older ordinary LIST results from overwriting Live snapshots. Kubernetes uses
+the selected context's existing credentials, not a privileged fallback. See
+[Live list subscriptions](DATAPLANE.md#live-list-subscriptions) for worker bounds
+and lifecycle.
 
 Streams have a five-minute lease, fifteen-second heartbeat and bounded write
 deadline. Disconnect or cancellation releases the subscription; server shutdown
 closes Live workers. Capacity rejection returns `429` before streaming; later
 upstream failures are explicit state events, not a healthy Live indication.
-This is not event replay and does not promise delivery of every intermediate Pod
-state. Metrics and Events are not fetched on the watch-event path.
+This is not event replay and does not promise delivery of every intermediate
+resource state. Metrics, Events, and detail reads are independent of the watch
+event path. CronJob Live maps resource/status data without fetching Events or
+streaming event-derived schedule evidence.
+
+The UI suspends ordinary polling and hides manual Refresh while Live is enabled;
+turning Live off restores both. Hidden tabs pause; transient failures reconnect
+with backoff. Blocked/stopped states do not silently fall back to source polling
+or privileged reads. Green requires a non-stale stream revision actually applied
+to the exact authenticated table identity, not merely an open connection. List
+UID changes or removal invalidate the selected resource and its open drawer.
 
 ### Restricted custom-resource discovery
 

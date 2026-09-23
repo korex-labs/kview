@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -18,9 +20,13 @@ func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) 
 		return nil, err
 	}
 
-	now := time.Now()
-	out := make([]dto.ReplicaSetDTO, 0, len(rss.Items))
-	for _, rs := range rss.Items {
+	return MapReplicaSets(rss.Items, time.Now()), nil
+}
+
+// MapReplicaSets projects resource status only; optional evidence is supplied explicitly.
+func MapReplicaSets(items []appsv1.ReplicaSet, now time.Time) []dto.ReplicaSetDTO {
+	out := make([]dto.ReplicaSetDTO, 0, len(items))
+	for _, rs := range items {
 		desired := int32(0)
 		if rs.Spec.Replicas != nil {
 			desired = *rs.Spec.Replicas
@@ -46,7 +52,7 @@ func ListReplicaSets(ctx context.Context, c *cluster.Clients, namespace string) 
 		})
 	}
 
-	return out, nil
+	return out
 }
 
 func mapReplicaSetOwner(refs []metav1.OwnerReference) *dto.OwnerReferenceDTO {

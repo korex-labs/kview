@@ -223,28 +223,29 @@ func executeNamespacedSnapshot[I any](
 	desc namespacedSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
 	var podEpoch uint64
-	if desc.kind == ResourceKindPods {
-		p.podPublishMu.Lock()
-		podEpoch = p.podEpoch[namespace]
-		if live := p.podLive[namespace]; live != nil {
+	mu, epochs, cells := p.resourceOwnership(desc.kind)
+	if liveEnabled(desc.kind) {
+		mu.Lock()
+		podEpoch = (*epochs)[namespace]
+		if live := (*cells)[namespace]; live != nil {
 			if podManualRefresh(ctx) {
-				live.requestResync(time.Now())
+				live.requestResync()
 			}
 			cached, ok := store.getCached(namespace)
-			p.podPublishMu.Unlock()
+			mu.Unlock()
 			if !ok {
 				return cached, ErrPodLiveUnavailable
 			}
 			return cached, nil
 		}
-		p.podPublishMu.Unlock()
+		mu.Unlock()
 	}
 	source := workSourceOrAPI(ctx)
 	ttl := desc.ttl
 	if sched != nil {
 		ttl = effectiveSnapshotTTL(desc.ttl, source, prio, desc.kind, sched.HealthSnapshot(p.name), sched.ClusterPressureSnapshot(p.name))
 	}
-	bypassTTL := desc.kind == ResourceKindPods && (podInitialRevalidation(ctx) || (podManualRefresh(ctx) && p.currentPolicy().Snapshots.ManualRefreshBypassesTTL))
+	bypassTTL := liveEnabled(desc.kind) && (podInitialRevalidation(ctx) || (podManualRefresh(ctx) && p.currentPolicy().Snapshots.ManualRefreshBypassesTTL))
 	if cached, ok := peekNamespacedSnapshot(store, namespace); ok && !desc.skipPersistence && !podManualRefresh(ctx) && serveStartupSnapshot(ctx, prio, cached, p.currentPolicy().PersistenceMaxAge()) {
 		p.refreshStartupSnapshot(ctx, sched, workKey{Cluster: p.name, Class: WorkClassSnapshot, Kind: desc.kind, Namespace: namespace}, func(refreshCtx context.Context) {
 			_, _ = executeNamespacedSnapshot(p, refreshCtx, sched, WorkPriorityLow, clients, namespace, store, desc)
@@ -254,7 +255,7 @@ func executeNamespacedSnapshot[I any](
 		}
 		return cached, nil
 	}
-	if cached, ok := store.getFresh(namespace, ttl); ok && !cached.restored && !bypassTTL && (desc.kind != ResourceKindPods || cached.Meta.Freshness != FreshnessClassStale) {
+	if cached, ok := store.getFresh(namespace, ttl); ok && !cached.restored && !bypassTTL && (!liveEnabled(desc.kind) || cached.Meta.Freshness != FreshnessClassStale) {
 		if p.stats != nil {
 			p.stats.recordRequest(source, desc.kind, true)
 		}
@@ -284,7 +285,7 @@ func executeNamespacedSnapshot[I any](
 
 	var staleCached Snapshot[I]
 	var haveStaleCached bool
-	if desc.skipPersistence || desc.kind == ResourceKindPods {
+	if desc.skipPersistence || liveEnabled(desc.kind) {
 		staleCached, haveStaleCached = peekNamespacedSnapshot(store, namespace)
 	}
 	var persisted Snapshot[I]
@@ -310,11 +311,11 @@ func executeNamespacedSnapshot[I any](
 		executed = true
 		// Publish the pod result before releasing scheduler followers. Keep the
 		// last usable cell on failure, including when persistence is disabled.
-		if desc.kind == ResourceKindPods {
+		if liveEnabled(desc.kind) {
 			defer func() {
-				p.podPublishMu.Lock()
-				defer p.podPublishMu.Unlock()
-				if p.podEpoch[namespace] != podEpoch || p.podLive[namespace] != nil {
+				mu.Lock()
+				defer mu.Unlock()
+				if (*epochs)[namespace] != podEpoch || (*cells)[namespace] != nil {
 					out, _ = store.getCached(namespace)
 					return
 				}
@@ -394,7 +395,7 @@ func executeNamespacedSnapshot[I any](
 		}
 		return out, runErr
 	}
-	if desc.kind == ResourceKindPods {
+	if liveEnabled(desc.kind) {
 		return out, runErr
 	}
 	if runErr != nil && len(out.Items) == 0 && haveStaleCached {

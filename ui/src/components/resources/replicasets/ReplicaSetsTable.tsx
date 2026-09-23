@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { Chip } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
@@ -7,11 +7,17 @@ import ReplicaSetDrawer from "./ReplicaSetDrawer";
 import { fmtAge } from "../../../utils/format";
 import { statusChipColor } from "../../../utils/k8sUi";
 import ResourceListPage from "../../shared/ResourceListPage";
+import ResourceLiveControl from "../../shared/ResourceLiveControl";
+import { useActiveContext } from "../../../activeContext";
+import type { ListFetchReason } from "../../../utils/useListQuery";
+import useResourceLive from "../../../utils/useResourceLive";
+import useResourceLiveSnapshot from "../../../utils/useResourceLiveSnapshot";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
 import { dataplaneRevisionFetcher, defaultRevisionPollSec } from "../../../utils/dataplaneRevisionPoll";
 
 type ReplicaSet = {
+  uid?: string;
   name: string;
   namespace: string;
   revision: number;
@@ -79,12 +85,22 @@ export default function ReplicaSetsTable({
   token: string;
   namespace: string;
 }) {
-  const fetchRows = useCallback(async (contextName?: string) => {
+  const activeContext = useActiveContext();
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const liveOptions = { token, contextName: activeContext, namespace, resource: "replicasets" as const, enabled: liveEnabled };
+  const live = useResourceLive(liveOptions);
+  const { appliedRevision, onSnapshotRevision } = useResourceLiveSnapshot(liveOptions);
+  const getRowInstance = useCallback((row: Row) => row.uid, []);
+  const fetchRows = useCallback(async (contextName?: string, reason?: ListFetchReason, signal?: AbortSignal) => {
+    // Ordinary automatic reads retain their existing cache policy.
+    const intent = reason === "manual" ? "manual" : reason === "revision" ? "revision" : "";
     const res = await apiGetWithContext<ApiDataplaneListResponse<ReplicaSet>>(
-      `/api/namespaces/${encodeURIComponent(namespace)}/replicasets`,
+      `/api/namespaces/${encodeURIComponent(namespace)}/replicasets${intent ? `?refresh=${intent}` : ""}`,
       token,
       contextName || "",
+      { signal },
     );
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const items = res.items || [];
     return {
       rows: items.map((rs) => ({ ...rs, id: `${rs.namespace}/${rs.name}` })),
@@ -97,6 +113,15 @@ export default function ReplicaSetsTable({
       token={token}
       columns={columns}
       fetchRows={fetchRows}
+      suspendPolling={liveEnabled}
+      externalRevision={liveEnabled && live.update?.revision ? String(live.update.revision) : undefined}
+      onSnapshotRevision={onSnapshotRevision}
+      getRowInstance={getRowInstance}
+      hideRefresh={liveEnabled}
+      dataplaneMetaControl={
+        <ResourceLiveControl enabled={liveEnabled} state={live.state} update={live.update}
+          appliedRevision={appliedRevision} onToggle={() => setLiveEnabled(!liveEnabled)} />
+      }
       dataplaneRevisionPoll={{
         fetchRevision: dataplaneRevisionFetcher(token, "replicasets", namespace),
         pollSec: defaultRevisionPollSec,

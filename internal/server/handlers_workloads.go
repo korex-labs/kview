@@ -211,7 +211,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 	// Namespaced workload list routes below (daemonsets, statefulsets, replicasets, jobs, cronjobs, HPAs) are
 	// dataplane-backed: s.dp.*Snapshot + writeDataplaneListResponse. kube.List* for these kinds runs only
 	// inside internal/dataplane snapshot executors, not in handlers. Detail/events/yaml stay direct-read.
-	api.Get("/namespaces/{ns}/deployments", dataplaneNamespacedListHandler(s, s.dp.DeploymentsSnapshot, func(items []dto.DeploymentListItemDTO) any {
+	api.Get("/namespaces/{ns}/deployments/live", s.workloadLiveHandler(dataplane.ResourceKindDeployments))
+	api.Get("/namespaces/{ns}/deployments", workloadListHandler(s, dataplane.ResourceKindDeployments, s.dp.DeploymentsSnapshot, func(items []dto.DeploymentListItemDTO) any {
 		return dataplane.EnrichDeploymentListItemsForAPI(items)
 	}))
 
@@ -279,7 +280,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		writeEventListResponse(w, active, result)
 	})
 
-	api.Get("/namespaces/{ns}/daemonsets", dataplaneNamespacedListHandler(s, s.dp.DaemonSetsSnapshot, func(items []dto.DaemonSetDTO) any {
+	api.Get("/namespaces/{ns}/daemonsets/live", s.workloadLiveHandler(dataplane.ResourceKindDaemonSets))
+	api.Get("/namespaces/{ns}/daemonsets", workloadListHandler(s, dataplane.ResourceKindDaemonSets, s.dp.DaemonSetsSnapshot, func(items []dto.DaemonSetDTO) any {
 		return dataplane.EnrichDaemonSetListItemsForAPI(items)
 	}))
 
@@ -368,7 +370,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 	})
 
-	api.Get("/namespaces/{ns}/statefulsets", dataplaneNamespacedListHandler(s, s.dp.StatefulSetsSnapshot, func(items []dto.StatefulSetDTO) any {
+	api.Get("/namespaces/{ns}/statefulsets/live", s.workloadLiveHandler(dataplane.ResourceKindStatefulSets))
+	api.Get("/namespaces/{ns}/statefulsets", workloadListHandler(s, dataplane.ResourceKindStatefulSets, s.dp.StatefulSetsSnapshot, func(items []dto.StatefulSetDTO) any {
 		return dataplane.EnrichStatefulSetListItemsForAPI(items)
 	}))
 
@@ -457,7 +460,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		writeJSON(w, http.StatusOK, map[string]any{"active": active, "yaml": y})
 	})
 
-	api.Get("/namespaces/{ns}/replicasets", dataplaneNamespacedListHandler(s, s.dp.ReplicaSetsSnapshot, func(items []dto.ReplicaSetDTO) any {
+	api.Get("/namespaces/{ns}/replicasets/live", s.workloadLiveHandler(dataplane.ResourceKindReplicaSets))
+	api.Get("/namespaces/{ns}/replicasets", workloadListHandler(s, dataplane.ResourceKindReplicaSets, s.dp.ReplicaSetsSnapshot, func(items []dto.ReplicaSetDTO) any {
 		return dataplane.EnrichReplicaSetListItemsForAPI(items)
 	}))
 
@@ -520,7 +524,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		writeEventListResponse(w, active, result)
 	})
 
-	api.Get("/namespaces/{ns}/jobs", dataplaneNamespacedListHandler(s, s.dp.JobsSnapshot, func(items []dto.JobDTO) any {
+	api.Get("/namespaces/{ns}/jobs/live", s.workloadLiveHandler(dataplane.ResourceKindJobs))
+	api.Get("/namespaces/{ns}/jobs", workloadListHandler(s, dataplane.ResourceKindJobs, s.dp.JobsSnapshot, func(items []dto.JobDTO) any {
 		return dataplane.EnrichJobListItemsForAPI(items)
 	}))
 
@@ -583,7 +588,8 @@ func (s *Server) registerWorkloadRoutes(api chi.Router) {
 		writeEventListResponse(w, active, result)
 	})
 
-	api.Get("/namespaces/{ns}/cronjobs", dataplaneNamespacedListHandler(s, s.dp.CronJobsSnapshot, func(items []dto.CronJobDTO) any {
+	api.Get("/namespaces/{ns}/cronjobs/live", s.workloadLiveHandler(dataplane.ResourceKindCronJobs))
+	api.Get("/namespaces/{ns}/cronjobs", workloadListHandler(s, dataplane.ResourceKindCronJobs, s.dp.CronJobsSnapshot, func(items []dto.CronJobDTO) any {
 		return dataplane.EnrichCronJobListItemsForAPI(items)
 	}))
 

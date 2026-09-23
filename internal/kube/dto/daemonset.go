@@ -1,6 +1,7 @@
 package dto
 
 type DaemonSetDTO struct {
+	UID                         string `json:"uid,omitempty"`
 	ResourceRelationshipCarrier `json:"-"`
 	Name                        string `json:"name"`
 	Namespace                   string `json:"namespace"`

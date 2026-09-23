@@ -150,26 +150,21 @@ func TestPodLiveWatchCapacity(t *testing.T) {
 	}
 }
 
-func TestPodLiveResyncRateBound(t *testing.T) {
+func TestPodLiveResyncQueueBound(t *testing.T) {
 	c := &podLiveCell{resync: make(chan struct{}, 1)}
-	now := time.Now()
-	c.requestResync(now)
-	<-c.resync
-	for i := 0; i < 1000; i++ {
-		c.requestResync(now.Add(time.Second))
+	for range 1000 {
+		c.requestResync()
 	}
-	if len(c.resync) != 0 {
-		t.Fatal("draining channel bypasses rate limit")
-	}
-	c.requestResync(now.Add(podLiveResyncInterval))
 	if len(c.resync) != 1 {
-		t.Fatal("resync did not recover after interval")
+		t.Fatal("requests not coalesced")
 	}
 	<-c.resync
-	c.update.State = PodLiveBlocked
-	c.requestResync(now.Add(2 * podLiveResyncInterval))
-	if len(c.resync) != 0 {
-		t.Fatal("blocked worker accepted resync")
+	for _, state := range []PodLiveState{PodLiveBlocked, PodLiveStopped} {
+		c.update.State = state
+		c.requestResync()
+		if len(c.resync) != 0 {
+			t.Fatal("inactive worker accepted resync")
+		}
 	}
 }
 

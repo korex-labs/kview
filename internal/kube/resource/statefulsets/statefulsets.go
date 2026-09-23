@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -17,9 +19,13 @@ func ListStatefulSets(ctx context.Context, c *cluster.Clients, namespace string)
 		return nil, err
 	}
 
-	now := time.Now()
-	out := make([]dto.StatefulSetDTO, 0, len(sets.Items))
-	for _, ss := range sets.Items {
+	return MapStatefulSets(sets.Items, time.Now()), nil
+}
+
+// MapStatefulSets projects resource status only; optional evidence is supplied explicitly.
+func MapStatefulSets(items []appsv1.StatefulSet, now time.Time) []dto.StatefulSetDTO {
+	out := make([]dto.StatefulSetDTO, 0, len(items))
+	for _, ss := range items {
 		desired := int32(0)
 		if ss.Spec.Replicas != nil {
 			desired = *ss.Spec.Replicas
@@ -47,6 +53,7 @@ func ListStatefulSets(ctx context.Context, c *cluster.Clients, namespace string)
 
 		out = append(out, dto.StatefulSetDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(ss.UID),
 			Name:                        ss.Name,
 			Namespace:                   ss.Namespace,
 			Desired:                     desired,
@@ -60,5 +67,5 @@ func ListStatefulSets(ctx context.Context, c *cluster.Clients, namespace string)
 		})
 	}
 
-	return out, nil
+	return out
 }

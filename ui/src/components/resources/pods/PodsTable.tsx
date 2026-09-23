@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Box, Chip, Tooltip } from "@mui/material";
+import { Box } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { apiGetWithContext } from "../../../api";
 import { useActiveContext } from "../../../activeContext";
@@ -21,7 +21,8 @@ import { formatCPUMilli, formatMemoryBytes, severityForPct } from "../../metrics
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import ListSignalChip from "../../shared/ListSignalChip";
 import StatusChip from "../../shared/StatusChip";
-import { ScopedCountContent, scopedCountChipSx } from "../../shared/ScopedCountChip";
+import ResourceLiveControl from "../../shared/ResourceLiveControl";
+import useResourceLiveSnapshot from "../../../utils/useResourceLiveSnapshot";
 
 type Pod = PodListItemUsage & {
   uid?: string;
@@ -214,9 +215,8 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
   }, [metricsUsable]);
   const activeContext = useActiveContext();
   const [liveEnabled, setLiveEnabled] = useState(false);
-  const [appliedRevision, setAppliedRevision] = useState<string>();
+  const { appliedRevision, onSnapshotRevision } = useResourceLiveSnapshot({ token, contextName: activeContext, namespace, resource: "pods", enabled: liveEnabled });
   const live = usePodLive({ token, contextName: activeContext, namespace, enabled: liveEnabled });
-  const liveState = live.state === "live" && (!appliedRevision || Number(appliedRevision) < (live.update?.revision ?? 0)) ? "starting" : live.state;
   const getRowInstance = useCallback((row: Row) => row.uid, []);
   // Independent enrichment lane: a slow or failed metrics request cannot hold
   // up pod status, initial rendering, or the pod source refresh cadence.
@@ -268,21 +268,12 @@ export default function PodsTable({ token, namespace }: { token: string; namespa
       fetchRows={fetchRows}
       suspendPolling={liveEnabled}
       externalRevision={liveEnabled && live.update?.revision ? String(live.update.revision) : undefined}
-      onSnapshotRevision={setAppliedRevision}
+      onSnapshotRevision={onSnapshotRevision}
       getRowInstance={getRowInstance}
       hideRefresh={liveEnabled}
       dataplaneMetaControl={
-        <Tooltip title={live.update?.reason || `Live=${liveEnabled ? liveState : "polling"}`} describeChild arrow>
-          <Chip
-            size="small"
-            variant="outlined"
-            aria-pressed={liveEnabled}
-            aria-label={`Live=${liveEnabled ? liveState : "polling"}; ${liveEnabled ? "disable Live and resume polling" : "enable Live"}`}
-            label={<ScopedCountContent label="Live" count={liveEnabled ? liveState : "polling"} size="small" />}
-            onClick={() => { setAppliedRevision(undefined); setLiveEnabled(!liveEnabled); }}
-            sx={scopedCountChipSx(!liveEnabled ? "default" : liveState === "live" ? "success" : liveState === "blocked" ? "error" : "warning", "outlined", "default")}
-          />
-        </Tooltip>
+        <ResourceLiveControl enabled={liveEnabled} state={live.state} update={live.update}
+          appliedRevision={appliedRevision} onToggle={() => setLiveEnabled(!liveEnabled)} />
       }
       mapRows={mapRows}
       dataplaneRevisionPoll={{

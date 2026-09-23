@@ -35,6 +35,63 @@ Snapshot persistence is optional and enabled by default unless the user has expl
 
 ---
 
+## Live list subscriptions
+
+Live is explicitly allowlisted for `pods`, `deployments`, `statefulsets`,
+`daemonsets`, `replicasets`, `jobs`, and `cronjobs` only. A visible list opts in
+for one exact context/namespace/kind identity; favourites and background
+namespace enrichment do not subscribe other namespaces or kinds. There is no
+all-namespace or cluster-scoped Live mode. The shared backend lives in
+`live_pods.go` with typed adapters in `live_resource_adapters.go`; the historical
+Pod names do not limit the shared worker to Pods.
+
+- A worker performs an initial Kubernetes LIST and a real WATCH from its resource
+  version, publishing normalized in-memory snapshots. Expired versions require
+  relisting; transient failures reconnect with backoff. Coalesced SSE messages
+  carry committed revision/state metadata, not row deltas or event replay.
+- Ownership is per context, namespace, and kind. A publication epoch gate keeps
+  older ordinary LIST results from overwriting watch-owned state. Mutation
+  invalidation/manual resync requests are bounded rather than opening another
+  observer or issuing unbounded per-event LISTs.
+- Shared manager limits are eight active cells and 32 subscribers across the
+  allowlist, with eight subscribers per cell. Each worker bounds its object set
+  to 10,000 objects / 32 MiB, coalesces publication at 250 ms, and bounds explicit
+  resync requests to a five-second interval. Subscriber notification queues hold
+  one latest update rather than accumulating every transition.
+- HTTP leases last at most five minutes, with 15-second heartbeats and five-second
+  write deadlines. Cancellation releases a subscriber; releasing the last one
+  cancels the upstream worker and marks the retained snapshot stale. Shutdown
+  closes workers for every allowlisted kind. Capacity, denial, and upstream
+  failures are explicit errors/states, never a healthy empty list.
+- Row delivery uses `refresh=revision` on the corresponding list route: exact
+  explicit context and namespace, existing in-memory cache only, `503` when
+  absent. No observer admission, plane hydration, source LIST, metrics warmup,
+  Events lookup, or detail fan-out is triggered by this read.
+
+Live is off by default. With it off, the list retains ordinary polling and
+manual **Refresh** (policy-controlled TTL bypass, not an RBAC/scheduler bypass).
+With it on, ordinary polling is suspended and Refresh is hidden even during
+reconnection or blocked/stopped states. Hiding the tab pauses the subscription;
+returning reconnects if enabled. Context/namespace/kind changes, disable, and
+unmount cancel obsolete work; transient snapshot delivery failures retry with
+backoff without requiring another watch event. Turning Live off is the explicit
+polling/manual-refresh fallback.
+
+The success-colored chip requires a non-stale committed stream revision applied
+to the exact token/context/namespace/kind table identity. A socket connection or
+notification alone is insufficient. Deletion or UID replacement invalidates
+selection and the drawer instead of reusing a same-name resource instance.
+
+Metrics, detail evidence, relations, and Events keep their independent loading
+and freshness contracts. CronJobs publish only the resource and its status;
+Kubernetes Events and event-derived schedule warnings are not streamed. Watch
+publication does not synchronously persist each event. Live does not promise
+zero latency or every intermediate Kubernetes state. See
+[API read ownership](API_READ_OWNERSHIP.md#live-pod-and-workload-streams) and
+[operator Help](user/pods-workloads.md#live-pods-and-workloads).
+
+---
+
 ## Scheduler
 
 A shared **work scheduler** limits concurrent snapshot work per cluster, **deduplicates** in-flight work by key, applies **priorities** (user-facing API vs dashboard vs observers vs enrichment), and retries transient failures with backoff. It also maintains per-cluster adaptive health from recent pressure signals (rate limits, timeouts, transient upstream/proxy/connectivity failures) so background work can slow down before it starves foreground/user-facing reads. Background/observer/enrichment reads use source-aware adaptive TTLs: when a cluster is limited/throttled or has queued work, cached snapshots remain acceptable for longer, with an extra multiplier for expensive kinds such as custom resources, CRDs, RBAC, ConfigMaps, and Secrets. Critical/high foreground reads keep the configured base TTL/manual-refresh behavior. Periodic all-context warmup intentionally skips cluster-scoped custom-resource inventory outside `diagnostic` profile because that fan-out is expensive and can trigger client-side throttling every warmup interval.

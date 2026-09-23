@@ -36,6 +36,10 @@ func (s *Server) podLiveScope(w http.ResponseWriter, r *http.Request) (string, s
 	return name, ns, true
 }
 func (s *Server) handlePodLive(w http.ResponseWriter, r *http.Request) {
+	s.handleResourceLive(w, r, dataplane.ResourceKindPods)
+}
+
+func (s *Server) handleResourceLive(w http.ResponseWriter, r *http.Request, resource dataplane.ResourceKind) {
 	if r.URL.Query().Has("token") || len(r.Header.Values("Authorization")) != 1 || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") || strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ") != s.token || s.token == "" {
 		writeErrorResponse(w, http.StatusUnauthorized, "bearer authorization required")
 		return
@@ -46,7 +50,13 @@ func (s *Server) handlePodLive(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
-	sub, err := s.dp.SubscribePods(ctx, name, ns)
+	var sub dataplane.ResourceLiveSubscription
+	var err error
+	if resource == dataplane.ResourceKindPods {
+		sub, err = s.dp.SubscribePods(ctx, name, ns)
+	} else {
+		sub, err = s.dp.SubscribeResourceLive(ctx, name, ns, resource)
+	}
 	if err != nil {
 		status := http.StatusServiceUnavailable
 		if errors.Is(err, dataplane.ErrPodLiveCapacity) {
@@ -55,7 +65,7 @@ func (s *Server) handlePodLive(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, dataplane.ErrPodLiveScope) {
 			status = http.StatusBadRequest
 		}
-		writeErrorResponse(w, status, "live pods unavailable")
+		writeErrorResponse(w, status, "live "+string(resource)+" unavailable")
 		return
 	}
 	defer sub.Close()
@@ -87,11 +97,25 @@ func (s *Server) handlePodLive(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			data, err := json.Marshal(update)
+			event := "pods"
+			var payload any = update
+			if resource == dataplane.ResourceKindPods {
+				// Preserve the original Pod wire shape despite shared backend notifications.
+				update.Resource = ""
+				payload = update
+			} else {
+				event = "resource"
+				update.Resource = resource
+				payload = struct {
+					dataplane.PodLiveUpdate
+					Scope string `json:"scope"`
+				}{update, "Namespaced"}
+			}
+			data, err := json.Marshal(payload)
 			if err != nil {
 				return
 			}
-			if !write("event: pods\ndata: " + string(data) + "\n\n") {
+			if !write("event: " + event + "\ndata: " + string(data) + "\n\n") {
 				return
 			}
 		}
@@ -101,6 +125,7 @@ func (s *Server) handlePodLive(w http.ResponseWriter, r *http.Request) {
 // CloseStreams releases stream-owned upstream leases before HTTP shutdown.
 func (s *Server) CloseStreams() {
 	if s.dp != nil {
+		// The compatibility-named backend hook closes all allowlisted Live kinds.
 		s.dp.ClosePodsLive()
 	}
 }

@@ -84,9 +84,14 @@ CR condition health and restricted-RBAC discovery are implemented. Refresh, the
 fit-content Live chip, and improved startup/reload are user-accepted; full checks
 and build passed and commit permission was received (2026-09-16). First launch
 remains slower but acceptable; further tuning is deferred without claiming full
-latency attribution. The next queue is **generic CR Details → guarded Helm
-Recovery**. These separate verified tranches take priority over the longer-term
-tracks below. See
+latency attribution. Generic CR inspection and exact-kind browsing are now
+locally committed as `5b1913d`. The next queue is **finish workload Live acceptance
+→ guarded Helm Recovery**. Live is implemented for Deployments, StatefulSets,
+DaemonSets, ReplicaSets, Jobs, and CronJobs on the shared bounded Pods foundation;
+focused mounted/transport/query checks passed. Final integrated review/check/build
+and authenticated real-server acceptance are tracked in the plan, not implied by
+visible Live controls. Services, Nodes, and CR Live are not part of this tranche.
+These separate verified tranches take priority over the longer-term tracks below. See
 [Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
 
 3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local

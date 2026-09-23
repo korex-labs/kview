@@ -20,9 +20,13 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 		return nil, err
 	}
 
-	now := time.Now()
-	out := make([]dto.DeploymentListItemDTO, 0, len(deps.Items))
-	for _, d := range deps.Items {
+	return MapDeployments(deps.Items, time.Now()), nil
+}
+
+// MapDeployments projects resource status only; optional evidence is supplied explicitly.
+func MapDeployments(items []appsv1.Deployment, now time.Time) []dto.DeploymentListItemDTO {
+	out := make([]dto.DeploymentListItemDTO, 0, len(items))
+	for _, d := range items {
 		desired := int32(0)
 		if d.Spec.Replicas != nil {
 			desired = *d.Spec.Replicas
@@ -44,6 +48,7 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 
 		out = append(out, dto.DeploymentListItemDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(d.UID),
 			Name:                        d.Name,
 			Namespace:                   d.Namespace,
 			Labels:                      d.Labels,
@@ -57,7 +62,7 @@ func ListDeployments(ctx context.Context, c *cluster.Clients, namespace string) 
 			Status:                      status,
 		})
 	}
-	return out, nil
+	return out
 }
 
 func deploymentLastRolloutComplete(d appsv1.Deployment) int64 {

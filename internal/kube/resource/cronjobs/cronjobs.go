@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
@@ -21,9 +23,13 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 
 	latestEvents, _ := kubeevents.LatestEventsByObject(ctx, c, namespace, "CronJob")
 
-	now := time.Now()
-	out := make([]dto.CronJobDTO, 0, len(cronJobs.Items))
-	for _, cj := range cronJobs.Items {
+	return MapCronJobs(cronJobs.Items, time.Now(), latestEvents), nil
+}
+
+// MapCronJobs projects resource status only; optional evidence is supplied explicitly.
+func MapCronJobs(items []batchv1.CronJob, now time.Time, latestEvents map[string]dto.EventBriefDTO) []dto.CronJobDTO {
+	out := make([]dto.CronJobDTO, 0, len(items))
+	for _, cj := range items {
 		var lastEvent *dto.EventBriefDTO
 		if ev, ok := latestEvents[cj.Name]; ok {
 			evCopy := ev
@@ -44,6 +50,7 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 
 		out = append(out, dto.CronJobDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(cj.UID),
 			Name:                        cj.Name,
 			Namespace:                   cj.Namespace,
 			Labels:                      cj.Labels,
@@ -59,5 +66,5 @@ func ListCronJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]
 		})
 	}
 
-	return out, nil
+	return out
 }

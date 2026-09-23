@@ -113,6 +113,10 @@ type DataPlaneManager interface {
 	PodsCachedSnapshot(contextName, namespace string) (PodsSnapshot, bool)
 	SubscribePods(ctx context.Context, contextName, namespace string) (PodLiveSubscription, error)
 	ClosePodsLive()
+	SubscribeResourceLive(ctx context.Context, contextName, namespace string, resource ResourceKind) (ResourceLiveSubscription, error)
+	CachedResourceSnapshot(contextName, namespace string, resource ResourceKind) (ResourceLiveSnapshot, bool)
+	InvalidateReplicaSetsSnapshot(ctx context.Context, clusterName, namespace string) error
+	InvalidateCronJobsSnapshot(ctx context.Context, clusterName, namespace string) error
 	// CustomResourcesSnapshot returns aggregated namespaced custom resource instances.
 	CustomResourcesSnapshot(ctx context.Context, clusterName, namespace string) (CustomResourcesSnapshot, error)
 	// DeploymentsSnapshot returns a raw snapshot for deployments in the given namespace.
@@ -741,6 +745,8 @@ func shouldWarmClusterCustomResources(policy DataplanePolicy) bool {
 }
 
 type clusterPlane struct {
+	resourceLiveMu     sync.Mutex
+	resourceLive       map[ResourceKind]*resourceLiveOwnership
 	startupRefreshMu   sync.Mutex
 	startupRefreshes   map[workKey]bool
 	podEventsJobs      map[string]context.CancelFunc // protected by podPublishMu
@@ -1193,7 +1199,7 @@ func (p *clusterPlane) DeploymentsSnapshot(ctx context.Context, sched *workSched
 		extraRelationshipFamilies: []dto.ResourceRelationshipFamily{dto.ResourceRelationshipFamilyObjectReference},
 		kind:                      ResourceKindDeployments,
 		ttl:                       p.currentPolicy().SnapshotTTL(ResourceKindDeployments),
-		capGroup:                  "",
+		capGroup:                  "apps",
 		capResource:               "deployments",
 		capScope:                  CapabilityScopeNamespace,
 		fetch:                     deployments.ListDeployments,

@@ -19,9 +19,13 @@ func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		return nil, err
 	}
 
-	now := time.Now()
-	out := make([]dto.JobDTO, 0, len(jobs.Items))
-	for _, job := range jobs.Items {
+	return MapJobs(jobs.Items, time.Now()), nil
+}
+
+// MapJobs projects resource status only; optional evidence is supplied explicitly.
+func MapJobs(items []batchv1.Job, now time.Time) []dto.JobDTO {
+	out := make([]dto.JobDTO, 0, len(items))
+	for _, job := range items {
 		age := int64(0)
 		if !job.CreationTimestamp.IsZero() {
 			age = int64(now.Sub(job.CreationTimestamp.Time).Seconds())
@@ -31,6 +35,7 @@ func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 
 		out = append(out, dto.JobDTO{
 			ResourceRelationshipCarrier: carrier,
+			UID:                         string(job.UID),
 			Name:                        job.Name,
 			Namespace:                   job.Namespace,
 			Labels:                      job.Labels,
@@ -44,7 +49,7 @@ func ListJobs(ctx context.Context, c *cluster.Clients, namespace string) ([]dto.
 		})
 	}
 
-	return out, nil
+	return out
 }
 
 func JobStatus(job *batchv1.Job) string {
