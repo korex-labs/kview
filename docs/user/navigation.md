@@ -80,11 +80,20 @@ object. Use **Triage state** to record how operators should treat the object:
 Notes are keyed by context, resource kind, namespace, and name; they stay local
 to the browser and are not written back to Kubernetes annotations.
 
-The trailing tabs usually contain Events, Metadata, and YAML. Supported
-resources may expose guarded YAML editing from the YAML tab.
+The trailing tabs usually contain Events, Metadata, and YAML. In Pod drawers,
+**Object** groups metadata under **Details** and the existing **YAML** view.
+Supported resources may expose guarded YAML editing from the YAML view.
+
+When the tab row does not fit, use the scroll arrows or **More** to select a
+section directly. Menu entries reuse their tab icons. The menu follows the available drawer width, including
+**Resource Map** and **Notes**. Resizing does not change the selected section.
+Existing configured tab shortcuts also work when a tab is outside the visible
+part of the row. In Pod drawers, the Metadata and YAML shortcuts open the
+corresponding view inside **Object**.
 
 Resource drawers can be resized by dragging the left edge. The width is saved
-locally and reused for later drawers.
+locally and reused for later drawers. Use **Expand drawer to full screen** for
+more space and **Restore drawer size** to return to the saved width.
 
 ## Activity Panel
 

@@ -13,8 +13,11 @@ export default function ResourceLiveControl({ enabled, state, update, appliedRev
   onToggle: () => void;
 }) {
   const display = enabled ? resourceLiveDisplayState(state, update, appliedRevision) : "polling";
+  const guidance = enabled
+    ? "Updates this list when resource changes are reported. Click to switch to periodic polling."
+    : "Refreshes this list periodically. Click to receive updates when resource changes are reported.";
   return (
-    <Tooltip title={[update?.reason || `Live=${display}`, description].filter(Boolean).join(". ")} describeChild arrow>
+    <Tooltip title={[guidance, enabled ? update?.reason : undefined, description].filter(Boolean).join(". ")} describeChild arrow>
       <Chip
         size="small"
         variant="outlined"

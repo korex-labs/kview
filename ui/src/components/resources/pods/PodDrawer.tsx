@@ -4,6 +4,8 @@ import {
   Typography,
   Tabs,
   Tab,
+  ToggleButton,
+  ToggleButtonGroup,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -434,6 +436,10 @@ export default function PodDrawer(props: {
   const [details, setDetails] = useState<PodDetails | null>(null);
   const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
+  const objectTabActions = useMemo(() => !loading && !err ? [
+    { id: "drawer.tab.metadata", label: "Object details", run: () => setTab(6) },
+    { id: "drawer.tab.yaml", label: "Object YAML", run: () => setTab(7) },
+  ] : [], [loading, err]);
   const [expandedContainers, setExpandedContainers] = useState<Record<string, boolean>>({});
   const [envQueryByContainer, setEnvQueryByContainer] = useState<Record<string, string>>({});
   const [envShowRefsByContainer, setEnvShowRefsByContainer] = useState<Record<string, boolean>>({});
@@ -1370,6 +1376,7 @@ export default function PodDrawer(props: {
       <ResourceDrawerShell
         token={props.token}
         resourceIcon="pods"
+        tabActions={objectTabActions}
         title={
           <>
             Pod: {name || "-"}{" "}
@@ -1408,16 +1415,28 @@ export default function PodDrawer(props: {
           <ErrorState message={err} />
         ) : (
           <>
-            <Tabs value={tab} onChange={(_, v) => setTab(v)}>
+            <Tabs value={tab === 7 ? 6 : tab} onChange={(_, v) => setTab(v)}>
               <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
               <Tab data-keyboard-action-id="drawer.tab.containers" icon={<DetailTabIcon label="Containers" />} iconPosition="start" label="Containers" />
               <Tab data-keyboard-action-id="drawer.tab.resources" icon={<DetailTabIcon label="Resources" />} iconPosition="start" label="Resources" />
               <Tab data-keyboard-action-id="drawer.tab.networking" icon={<DetailTabIcon label="Networking" />} iconPosition="start" label="Networking" />
               <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
               <Tab data-keyboard-action-id="drawer.tab.logs" icon={<DetailTabIcon label="Logs" />} iconPosition="start" label="Logs" />
-              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Metadata" />
-              <Tab data-keyboard-action-id="drawer.tab.yaml" icon={<DetailTabIcon label="YAML" />} iconPosition="start" label="YAML" />
+              <Tab data-keyboard-action-id="drawer.tab.metadata" icon={<DetailTabIcon label="Metadata" />} iconPosition="start" label="Object" />
             </Tabs>
+            {(tab === 6 || tab === 7) && (
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={tab}
+                aria-label="Object view"
+                onChange={(_, value: number | null) => { if (value !== null) setTab(value); }}
+                sx={{ mt: 2, alignSelf: "flex-start" }}
+              >
+                <ToggleButton value={6} sx={{ textTransform: "none", gap: 0.75 }}><DetailTabIcon label="Metadata" />Details</ToggleButton>
+                <ToggleButton value={7} sx={{ textTransform: "none", gap: 0.75 }}><DetailTabIcon label="YAML" />YAML</ToggleButton>
+              </ToggleButtonGroup>
+            )}
             <Box sx={{ ...drawerBodySx, mt: 3 }}>
               {/* OVERVIEW */}
               {tab === 0 && (

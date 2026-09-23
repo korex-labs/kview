@@ -122,7 +122,10 @@ it.each(["reconnecting", "paused", "blocked", "stopped"])("keeps %s honest, comp
   });
   const stateChip = assertLiveChip(state, state === "blocked" ? "error" : "warning", true);
   expect(stateChip).toBe(chip);
-  expect(stateChip.getAttribute("title")).toBe(state === "paused" ? "Live=paused" : "watch unavailable");
+  expect(stateChip.getAttribute("title")).toContain("Updates this list when resource changes are reported");
+  expect(stateChip.getAttribute("title")).toContain("Click to switch to periodic polling");
+  expect(stateChip.getAttribute("title")).not.toContain("Live=");
+  if (state !== "paused") expect(stateChip.getAttribute("title")).toContain("watch unavailable");
   expect(document.activeElement).toBe(chip);
   expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
   fireEvent.keyDown(chip, { key: " ", code: "Space" });

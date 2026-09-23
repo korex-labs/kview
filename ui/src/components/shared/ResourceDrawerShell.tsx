@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Typography, Divider, Tab, Tabs, CircularProgress } from "@mui/material";
+import { Box, Typography, Divider, Tab, Tabs, CircularProgress, type TabsProps } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import FullscreenOutlinedIcon from "@mui/icons-material/FullscreenOutlined";
@@ -27,6 +27,7 @@ import { ResourceDrawerTags } from "./ResourceTags";
 import { ResourceDrawerMacros } from "./ResourceMacros";
 import { ResourceMemoryPanel, ResourceMemoryTabLabel } from "./ResourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
+import ResourceDrawerTabs from "./ResourceDrawerTabs";
 import {
   actionDefinitionById,
   drawerTabActionAttribute,
@@ -66,6 +67,8 @@ export type ResourceDrawerShellProps = {
   token?: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** Explicit destinations for grouped views not represented by mounted top-level tabs. */
+  tabActions?: ContextualKeyboardAction[];
   /**
    * Content width in px. Defaults to RESOURCE_DRAWER_WIDTH (820).
    * Use RESOURCE_DRAWER_WIDTH_NARROW (620) for simpler/narrow drawers.
@@ -107,6 +110,7 @@ export default function ResourceDrawerShell({
   token,
   onClose,
   children,
+  tabActions,
   contentWidth = RESOURCE_DRAWER_WIDTH,
 }: ResourceDrawerShellProps) {
   const { settings, setSettings } = useUserSettings();
@@ -207,7 +211,7 @@ export default function ResourceDrawerShell({
     const root = shellRef.current;
     if (!root) return false;
     const controls = Array.from(root.querySelectorAll<HTMLElement>("button,[role='tab']"));
-    const control = controls.find((el) => isUsableControl(el) && predicate(el));
+    const control = controls.find((el) => el.closest("[data-resource-drawer-shell]") === root && isUsableControl(el) && predicate(el));
     control?.click();
     return !!control;
   }, []);
@@ -230,15 +234,21 @@ export default function ResourceDrawerShell({
   const contextualActions = useMemo(() => {
     void actionRevision;
     const root = shellRef.current;
-    const actions: ContextualKeyboardAction[] = [];
+    const actions: ContextualKeyboardAction[] = (tabActions || []).map((action) => ({
+      ...action,
+      run: () => {
+        setAuxiliaryTab(null);
+        return action.run();
+      },
+    }));
 
     const tabs = Array.from(root?.querySelectorAll<HTMLElement>(`[role='tab'][${drawerTabActionAttribute}]`) || [])
-      .filter(isUsableControl)
+      .filter((el) => el.closest("[data-resource-drawer-shell]") === root && isUsableControl(el))
       .map((el) => el.getAttribute(drawerTabActionAttribute) as DrawerTabActionId | null)
       .filter((actionId): actionId is DrawerTabActionId => Boolean(actionId));
     for (const actionId of tabs) {
       const definition = actionDefinitionById.get(actionId);
-      if (!definition || !actionId.startsWith("drawer.tab.")) continue;
+      if (!definition || !actionId.startsWith("drawer.tab.") || actions.some((action) => action.id === actionId)) continue;
       actions.push({
         id: actionId,
         label: definition.label,
@@ -246,7 +256,7 @@ export default function ResourceDrawerShell({
       });
     }
 
-    if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => isUsableControl(el) && normalizedControlText(el) === "edit")) {
+    if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => el.closest("[data-resource-drawer-shell]") === root && isUsableControl(el) && normalizedControlText(el) === "edit")) {
       actions.push({
         id: "drawer.editYaml",
         label: "Edit YAML when available",
@@ -255,7 +265,7 @@ export default function ResourceDrawerShell({
       });
     }
 
-    if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => isUsableControl(el) && normalizedControlText(el) === "refresh")) {
+    if (Array.from(root?.querySelectorAll<HTMLElement>("button") || []).some((el) => el.closest("[data-resource-drawer-shell]") === root && isUsableControl(el) && normalizedControlText(el) === "refresh")) {
       actions.push({
         id: "drawer.refresh",
         label: "Refresh current resource when available",
@@ -265,7 +275,7 @@ export default function ResourceDrawerShell({
     }
 
     return actions;
-  }, [actionRevision, clickDrawerControl]);
+  }, [actionRevision, clickDrawerControl, tabActions]);
 
   useContextualKeyboardActions(contextualActions);
 
@@ -285,7 +295,7 @@ export default function ResourceDrawerShell({
   const nativeContentLoading = !hasInjectableNativeTabs && containsElementType(children, CircularProgress);
 
   const renderChildrenWithNotesTab = useCallback((node: React.ReactNode): React.ReactNode => {
-    if ((!showOperatorNotesTab && !mapIdentity) || !React.isValidElement(node)) return node;
+    if (!React.isValidElement(node)) return node;
     const element = node as React.ReactElement<{ children?: React.ReactNode }>;
     if (element.type !== React.Fragment) return node;
 
@@ -294,19 +304,17 @@ export default function ResourceDrawerShell({
     for (const child of React.Children.toArray(element.props.children)) {
       if (!injected && React.isValidElement(child) && child.type === Tabs) {
         injected = true;
-        const tabsElement = child as React.ReactElement<{
-          children?: React.ReactNode;
-          onChange?: (event: React.SyntheticEvent, value: unknown) => void;
-          value?: unknown;
-        }>;
+        const tabsElement = child as React.ReactElement<TabsProps>;
         const existingTabLabels = React.Children.toArray(tabsElement.props.children)
           .filter(React.isValidElement)
           .map((tabChild) => String((tabChild as React.ReactElement<{ label?: React.ReactNode }>).props.label || "").trim().toLowerCase());
         if (existingTabLabels.includes("notes")) {
-          nextChildren.push(child);
+          nextChildren.push(<ResourceDrawerTabs key={child.key} {...tabsElement.props} />);
           continue;
         }
-        nextChildren.push(React.cloneElement(tabsElement, {
+        nextChildren.push(React.createElement(ResourceDrawerTabs, {
+          ...tabsElement.props,
+          key: child.key,
           value: auxiliaryTab === "notes" ? resourceNotesTabValue : auxiliaryTab === "resource-map" ? resourceMapTabValue : tabsElement.props.value,
           onChange: (event: React.SyntheticEvent, value: unknown) => {
             if (value === resourceNotesTabValue) {
@@ -364,12 +372,15 @@ export default function ResourceDrawerShell({
   return (
     <Box
       ref={shellRef}
+      data-resource-drawer-shell
       data-testid={resourceIcon ? `drawer-${resourceIcon}` : "drawer-resource"}
       tabIndex={-1}
       sx={{
         outline: "none",
+        minWidth: 0,
+        maxWidth: "100vw",
         width: drawerExpanded ? "100%" : drawerWidth,
-        boxSizing: drawerExpanded ? "border-box" : undefined,
+        boxSizing: "border-box",
         p: RESOURCE_DRAWER_PADDING,
         display: "flex",
         flexDirection: "column",
@@ -489,10 +500,10 @@ export default function ResourceDrawerShell({
       {hasInjectableNativeTabs ? renderChildrenWithNotesTab(children) : (
         <>
           {!nativeContentLoading && (mapIdentity || (showOperatorNotesTab && notesPanel)) ? (
-            <Tabs value={auxiliaryTab === "resource-map" ? resourceMapTabValue : auxiliaryTab === "notes" ? resourceNotesTabValue : false} onChange={(_, value) => setAuxiliaryTab(value === resourceMapTabValue ? "resource-map" : value === resourceNotesTabValue ? "notes" : null)}>
+            <ResourceDrawerTabs value={auxiliaryTab === "resource-map" ? resourceMapTabValue : auxiliaryTab === "notes" ? resourceNotesTabValue : false} onChange={(_, value) => setAuxiliaryTab(value === resourceMapTabValue ? "resource-map" : value === resourceNotesTabValue ? "notes" : null)}>
               {mapIdentity ? <Tab {...drawerTabProps("drawer.tab.resourceMap")} icon={<AccountTreeOutlinedIcon fontSize="small" />} iconPosition="start" label="Resource Map" aria-label="Resource Map" value={resourceMapTabValue} /> : null}
               {showOperatorNotesTab && notesPanel ? <Tab {...drawerTabProps("drawer.tab.notes")} icon={<DetailTabIcon label="Notes" />} iconPosition="start" label="Notes" aria-label="Notes" value={resourceNotesTabValue} /> : null}
-            </Tabs>
+            </ResourceDrawerTabs>
           ) : null}
           {!nativeContentLoading && auxiliaryTab === "resource-map" && mapIdentity ? <ResourceMapPanel identity={mapIdentity} token={token || ""} onOpenResource={setLinkedResource} /> : null}
           {!nativeContentLoading && auxiliaryTab === "notes" && notesPanel ? notesPanel : null}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 type DrawerCase = {
   name: string;
@@ -41,7 +42,19 @@ function extractTabs(src: string, dynamicHelmTabs = false): string[] {
     // Keep first occurrence ordering and unique values.
     return Array.from(new Set(labels));
   }
-  return [...src.matchAll(/<Tab\b[^>]*\blabel="([^"]+)"/g)].map((m) => m[1]);
+  // Read the Tab's own label, not a nested DetailTabIcon label (Object uses Metadata's icon).
+  const source = ts.createSourceFile("drawer.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const labels: string[] = [];
+  const visit = (node: ts.Node) => {
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(source) === "Tab") {
+      for (const prop of node.attributes.properties) {
+        if (ts.isJsxAttribute(prop) && prop.name.getText(source) === "label" && prop.initializer && ts.isStringLiteral(prop.initializer)) labels.push(prop.initializer.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return labels;
 }
 
 function extractOverviewSlice(src: string, anchor: string): string {

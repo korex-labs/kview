@@ -24,6 +24,18 @@ Workload drawers focus on status first, then related resources. Pod drawers own
 direct log streaming. Workload drawers that do not stream logs navigate to pods
 for log inspection.
 
+The Pod drawer groups metadata and YAML in **Object**, with icon-labelled
+**Details** and **YAML** controls:
+
+- **Details** shows labels and annotations.
+- **YAML** uses the existing viewer and permission-dependent edit workflow.
+- Configured Metadata and YAML shortcuts open the matching Object view directly,
+  including when Object is outside the visible tab row.
+
+Use the tab-row arrows or **More** in a narrow drawer to reach other sections.
+This grouping currently applies to Pods; other workload drawers retain their
+separate Metadata and YAML tabs.
+
 Pod drawer **Logs** controls include:
 
 - **Container**: selects which container log stream to show.
@@ -38,6 +50,10 @@ Pod drawer **Logs** controls include:
 
 Logs depend on Pod log access for the selected container. kview streams current
 container logs; it does not expose previous-container logs as a separate toggle.
+
+The **Live** control tooltip explains event-driven updates versus periodic
+polling and what clicking will switch to. When Live reports a problem, the
+reason remains visible alongside this guidance.
 
 ## Pod Debug
 
