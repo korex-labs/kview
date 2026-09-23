@@ -98,7 +98,7 @@ func (s *Server) handleResourceLive(w http.ResponseWriter, r *http.Request, reso
 				return
 			}
 			event := "pods"
-			var payload any = update
+			var payload any
 			if resource == dataplane.ResourceKindPods {
 				// Preserve the original Pod wire shape despite shared backend notifications.
 				update.Resource = ""

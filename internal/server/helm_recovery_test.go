@@ -85,11 +85,12 @@ func TestHelmRecovery(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if tc.name == "missing-chart" {
+				switch tc.name {
+				case "missing-chart":
 					rel.Chart = nil
-				} else if tc.name == "long-description" {
+				case "long-description":
 					rel.Info.Description = strings.Repeat("x", (16<<10)+1)
-				} else {
+				default:
 					rel.Manifest = ""
 				}
 				data, _ := json.Marshal(rel)
@@ -116,7 +117,7 @@ func TestHelmRecovery(t *testing.T) {
 						http.Error(w, "unavailable", 500)
 						return
 					}
-					review.Status.Allowed = !(tc.name == "rbac-denied" && a.Verb == "delete") && !(tc.name == "list-denied" && a.Verb == "list") && !(tc.name == "get-denied" && a.Verb == "get")
+					review.Status.Allowed = (tc.name != "rbac-denied" || a.Verb != "delete") && (tc.name != "list-denied" || a.Verb != "list") && (tc.name != "get-denied" || a.Verb != "get")
 					_ = json.NewEncoder(w).Encode(review)
 					return
 				}

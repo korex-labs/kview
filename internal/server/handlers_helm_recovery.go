@@ -60,7 +60,7 @@ type helmRecoveryRequest struct {
 // Do not use Helm's storage History here: its decoder skips corrupt records and
 // its decompressor is unbounded. Recovery must account for every retained record.
 func decodeRecoverySecret(s *corev1.Secret, ns, name string) (*release.Release, error) {
-	invalid := fmt.Errorf("Helm history is corrupt, ambiguous, or unsupported")
+	invalid := fmt.Errorf("helm history is corrupt, ambiguous, or unsupported")
 	raw := s.Data["release"]
 	if len(raw) == 0 || len(raw) > recoveryPayloadLimit {
 		return nil, invalid

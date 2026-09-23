@@ -28,7 +28,9 @@ func TestConfigRepeatWithRealPersistenceKeepsReadyPodsAvailable(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/events"):
-			fmt.Fprint(w, `{"apiVersion":"v1","kind":"EventList","items":[]}`)
+			if _, err := fmt.Fprint(w, `{"apiVersion":"v1","kind":"EventList","items":[]}`); err != nil {
+				t.Errorf("write fixture response: %v", err)
+			}
 		case strings.HasSuffix(r.URL.Path, "/namespaces/slow/pods"):
 			once.Do(func() { close(started) })
 			select {
@@ -36,10 +38,14 @@ func TestConfigRepeatWithRealPersistenceKeepsReadyPodsAvailable(t *testing.T) {
 			case <-r.Context().Done():
 				return
 			}
-			fmt.Fprint(w, `{"apiVersion":"v1","kind":"PodList","items":[]}`)
+			if _, err := fmt.Fprint(w, `{"apiVersion":"v1","kind":"PodList","items":[]}`); err != nil {
+				t.Errorf("write fixture response: %v", err)
+			}
 		case strings.HasSuffix(r.URL.Path, "/namespaces/ready/pods"):
 			readyReads.Add(1)
-			fmt.Fprint(w, `{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"cached","namespace":"ready","uid":"cached-uid"},"status":{"phase":"Running"}}]}`)
+			if _, err := fmt.Fprint(w, `{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"cached","namespace":"ready","uid":"cached-uid"},"status":{"phase":"Running"}}]}`); err != nil {
+				t.Errorf("write fixture response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}

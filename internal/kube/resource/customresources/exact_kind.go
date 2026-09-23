@@ -73,7 +73,7 @@ func ListExactKind(ctx context.Context, cfg *rest.Config, o ExactKindOptions) (*
 		if err != nil {
 			return nil, 0, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, err := io.ReadAll(io.LimitReader(resp.Body, exactKindMaxBody+1))
 		if err != nil {
 			return nil, resp.StatusCode, err

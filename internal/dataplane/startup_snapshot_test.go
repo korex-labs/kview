@@ -26,7 +26,11 @@ func TestStartupHydratedSnapshotDoesNotWaitForSource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer persistence.Close()
+			defer func() {
+				if err := persistence.Close(); err != nil {
+					t.Errorf("close persistence: %v", err)
+				}
+			}()
 			kind, namespace := ResourceKindNodes, ""
 			if namespaced {
 				kind, namespace = ResourceKindPods, "app"

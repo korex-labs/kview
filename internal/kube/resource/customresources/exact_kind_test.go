@@ -42,7 +42,9 @@ func TestExactKind(t *testing.T) {
 				}
 				reject := func(code int) {
 					w.WriteHeader(code)
-					fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":"Forbidden","code":%d,"message":"denied"}`, code)
+					if _, err := fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":"Forbidden","code":%d,"message":"denied"}`, code); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 				}
 				if r.URL.Path == "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/widgets."+tc.group {
 					gets++
@@ -54,7 +56,9 @@ func TestExactKind(t *testing.T) {
 					if tc.mode == "scope" {
 						scope = "Namespaced"
 					}
-					fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.%s"},"spec":{"group":%q,"scope":%q,"names":{"plural":"widgets","kind":"Widget"},"versions":[{"name":"v1","served":%t,"storage":false},{"name":"v2","served":true,"storage":true}]}}`, tc.group, tc.group, scope, tc.mode != "unserved")
+					if _, err := fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.%s"},"spec":{"group":%q,"scope":%q,"names":{"plural":"widgets","kind":"Widget"},"versions":[{"name":"v1","served":%t,"storage":false},{"name":"v2","served":true,"storage":true}]}}`, tc.group, tc.group, scope, tc.mode != "unserved"); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 					return
 				}
 				path := "/apis/" + tc.group + "/v1/"
@@ -84,14 +88,18 @@ func TestExactKind(t *testing.T) {
 				}
 				obj := fmt.Sprintf(`{"apiVersion":%q,"kind":"Widget","metadata":{"name":"demo","namespace":%q,"uid":"uid-1"},"status":{"conditions":[{"type":"Ready","status":"True"}]}}`, tc.group+"/v1", tc.namespace)
 				if tc.mode == "fallback" || tc.mode == "list" {
-					fmt.Fprintf(w, `{"apiVersion":%q,"kind":"WidgetList","metadata":{},"items":[%s]}`, tc.group+"/v1", obj)
+					if _, err := fmt.Fprintf(w, `{"apiVersion":%q,"kind":"WidgetList","metadata":{},"items":[%s]}`, tc.group+"/v1", obj); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 					return
 				}
 				if !strings.Contains(r.Header.Get("Accept"), "as=Table") || r.URL.Query().Get("includeObject") != "Object" {
 					t.Error("missing Table negotiation")
 				}
 				if tc.mode == "malformed" {
-					fmt.Fprint(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","rows":"invalid"}`)
+					if _, err := fmt.Fprint(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","rows":"invalid"}`); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 					return
 				}
 				row := fmt.Sprintf(`{"cells":["demo","True"],"object":%s}`, obj)
@@ -105,7 +113,9 @@ func TestExactKind(t *testing.T) {
 				if tc.mode == "oversize" {
 					row += "," + row
 				}
-				fmt.Fprintf(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","metadata":{"continue":%q},"columnDefinitions":[{"name":"Name","type":"string"},{"name":"Ready","type":"string"}],"rows":[%s]}`, cont, row)
+				if _, err := fmt.Fprintf(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","metadata":{"continue":%q},"columnDefinitions":[{"name":"Name","type":"string"},{"name":"Ready","type":"string"}],"rows":[%s]}`, cont, row); err != nil {
+					t.Errorf("write fixture response: %v", err)
+				}
 			}))
 			defer upstream.Close()
 			result, err := ListExactKind(context.Background(), &rest.Config{Host: upstream.URL}, ExactKindOptions{Group: tc.group, Version: "v1", Resource: "widgets", Scope: tc.scope, Namespace: tc.namespace, Limit: 1})
@@ -177,7 +187,9 @@ func TestExactKindListKind(t *testing.T) {
 					switch r.URL.Path {
 					case "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/widgets.example.com":
 						gets++
-						fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":"Cluster","names":{"plural":"widgets","kind":"Widget"%s},"versions":[{"name":"v1","served":true}]}}`, tc.declaration)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":"Cluster","names":{"plural":"widgets","kind":"Widget"%s},"versions":[{"name":"v1","served":true}]}}`, tc.declaration); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 					case "/apis/example.com/v1/widgets":
 						lists++
 						if r.URL.Query().Get("continue") != "opaque+/=& token" || r.URL.Query().Get("limit") != "1" {
@@ -185,10 +197,14 @@ func TestExactKindListKind(t *testing.T) {
 						}
 						if code != 0 && lists == 1 {
 							w.WriteHeader(code)
-							fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","code":%d}`, code)
+							if _, err := fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","code":%d}`, code); err != nil {
+								t.Errorf("write fixture response: %v", err)
+							}
 							return
 						}
-						fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":%q,"metadata":{"continue":"next+/= token","resourceVersion":"42"},"items":[{"apiVersion":"example.com/v1","kind":"Widget","metadata":{"name":"demo","uid":"one"}}]}`, tc.responseKind)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":%q,"metadata":{"continue":"next+/= token","resourceVersion":"42"},"items":[{"apiVersion":"example.com/v1","kind":"Widget","metadata":{"name":"demo","uid":"one"}}]}`, tc.responseKind); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 					default:
 						t.Errorf("unexpected path %s", r.URL.Path)
 						http.NotFound(w, r)

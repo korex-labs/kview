@@ -81,7 +81,9 @@ func TestCustomResourceInspectionEventsHTTP(t *testing.T) {
 						reason = "NotFound"
 					}
 					w.WriteHeader(code)
-					fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":%q,"code":%d,"message":"fixture rejection"}`, reason, code)
+					if _, err := fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":%q,"code":%d,"message":"fixture rejection"}`, reason, code); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 				}
 				switch r.URL.Path {
 				case objectPath:
@@ -90,7 +92,9 @@ func TestCustomResourceInspectionEventsHTTP(t *testing.T) {
 						status(tc.objectCode)
 						return
 					}
-					fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":"Widget","metadata":{"name":"demo","namespace":%q,"uid":"uid-1","generation":2,"resourceVersion":"42"},"spec":null,"status":{"observedGeneration":1}}`, tc.namespace)
+					if _, err := fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":"Widget","metadata":{"name":"demo","namespace":%q,"uid":"uid-1","generation":2,"resourceVersion":"42"},"spec":null,"status":{"observedGeneration":1}}`, tc.namespace); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 				case eventPath:
 					lists++
 					if gets != 1 {
@@ -312,7 +316,7 @@ func TestCustomResourceInspectionDetailDoesNotReadEvents(t *testing.T) {
 	h := customResourceInspectionRouter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/apis/example.com/v1/namespaces/apps/widgets/demo" {
 			t.Errorf("detail performed optional read: %s", r.URL)
-			http.Error(w, "forbidden", 403)
+			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

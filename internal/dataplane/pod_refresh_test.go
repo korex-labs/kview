@@ -72,7 +72,9 @@ func TestPodRefreshIntentPolicyAndFailure(t *testing.T) {
 			run := func(ctx context.Context) (Snapshot[int], error) {
 				return executeNamespacedSnapshot(plane, ctx, sched, WorkPriorityCritical, snapshotExecClientsProvider{}, "app", &store, desc)
 			}
-			run(context.Background())
+			if _, err := run(context.Background()); err != nil {
+				t.Fatal(err)
+			}
 			if calls != 0 {
 				t.Fatal("ordinary/auto read bypassed TTL")
 			}

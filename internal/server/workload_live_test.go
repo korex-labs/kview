@@ -100,108 +100,112 @@ func readWorkloadFrame(t *testing.T, scanner *bufio.Scanner, accept func(workloa
 }
 
 func TestWorkloadLiveHTTPRevisionAndLifecycle(t *testing.T) {
- for _, termination := range []string{"disconnect", "shutdown"} {
-	for _, tc := range workloadLiveCases {
-		t.Run(tc.resource+"/"+termination, func(t *testing.T) {
-			var reads atomic.Int32
-			watchStarted, canceled, add := make(chan struct{}), make(chan struct{}), make(chan struct{})
-			var startedOnce, canceledOnce sync.Once
-			s, api := workloadLiveServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				reads.Add(1)
-				if r.URL.Path != "/apis/"+tc.group+"/v1/namespaces/apps/"+tc.resource {
-					t.Errorf("unexpected upstream read: %s", r.URL)
-					http.NotFound(w, r)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				if r.URL.Query().Get("watch") != "true" {
-					fmt.Fprintf(w, `{"kind":%q,"apiVersion":%q,"metadata":{"resourceVersion":"10"},"items":[]}`, tc.kind+"List", tc.group+"/v1")
-					return
-				}
-				w.WriteHeader(200)
-				w.(http.Flusher).Flush()
-				startedOnce.Do(func() { close(watchStarted) })
-				select {
-				case <-add:
-					fmt.Fprintf(w, `{"type":"ADDED","object":{"kind":%q,"apiVersion":%q,"metadata":{"name":"created-after-list","namespace":"apps","uid":"new-uid","resourceVersion":"11"}}}`+"\n", tc.kind, tc.group+"/v1")
+	for _, termination := range []string{"disconnect", "shutdown"} {
+		for _, tc := range workloadLiveCases {
+			t.Run(tc.resource+"/"+termination, func(t *testing.T) {
+				var reads atomic.Int32
+				watchStarted, canceled, add := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				var startedOnce, canceledOnce sync.Once
+				s, api := workloadLiveServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					reads.Add(1)
+					if r.URL.Path != "/apis/"+tc.group+"/v1/namespaces/apps/"+tc.resource {
+						t.Errorf("unexpected upstream read: %s", r.URL)
+						http.NotFound(w, r)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if r.URL.Query().Get("watch") != "true" {
+						if _, err := fmt.Fprintf(w, `{"kind":%q,"apiVersion":%q,"metadata":{"resourceVersion":"10"},"items":[]}`, tc.kind+"List", tc.group+"/v1"); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
+						return
+					}
+					w.WriteHeader(200)
 					w.(http.Flusher).Flush()
-				case <-r.Context().Done():
+					startedOnce.Do(func() { close(watchStarted) })
+					select {
+					case <-add:
+						if _, err := fmt.Fprintf(w, `{"type":"ADDED","object":{"kind":%q,"apiVersion":%q,"metadata":{"name":"created-after-list","namespace":"apps","uid":"new-uid","resourceVersion":"11"}}}`+"\n", tc.kind, tc.group+"/v1"); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
+						w.(http.Flusher).Flush()
+					case <-r.Context().Done():
+					}
+					<-r.Context().Done()
+					canceledOnce.Do(func() { close(canceled) })
+				}))
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				path := "/api/namespaces/apps/" + tc.resource
+				// Cold revision must be an immediate miss, with no upstream reads or observer work.
+				resp := workloadRequest(t, api, ctx, path+"?refresh=revision")
+				body, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				if resp.StatusCode != 503 || !strings.Contains(string(body), `"message"`) {
+					t.Fatalf("cold revision: %d %s", resp.StatusCode, body)
 				}
-				<-r.Context().Done()
-				canceledOnce.Do(func() { close(canceled) })
-			}))
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			path := "/api/namespaces/apps/" + tc.resource
-			// Cold revision must be an immediate miss, with no upstream reads or observer work.
-			resp := workloadRequest(t, api, ctx, path+"?refresh=revision")
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != 503 || !strings.Contains(string(body), `"message"`) {
-				t.Fatalf("cold revision: %d %s", resp.StatusCode, body)
-			}
-			if reads.Load() != 0 {
-				t.Fatal("cold revision admitted upstream work")
-			}
-			resp = workloadRequest(t, api, ctx, path+"/live")
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "text/event-stream" || resp.Header.Get("Cache-Control") != "no-store" {
-				t.Fatalf("SSE response: %d %v", resp.StatusCode, resp.Header)
-			}
-			scanner := bufio.NewScanner(resp.Body)
-			first := readWorkloadFrame(t, scanner, func(u workloadFrame) bool { return u.State == dataplane.PodLiveLive })
-			if first.Context != "test-context" || first.Namespace != "apps" || first.Resource != dataplane.ResourceKind(tc.resource) || first.Scope != "Namespaced" || first.Revision == 0 || first.Stale {
-				t.Fatalf("identity: %+v", first)
-			}
-			select {
-			case <-watchStarted:
-			case <-ctx.Done():
-				t.Fatal("watch not started")
-			}
-			close(add)
-			update := readWorkloadFrame(t, scanner, func(u workloadFrame) bool { return u.Revision > first.Revision && u.ResourceVersion == "11" })
-			before := reads.Load()
-			list := workloadRequest(t, api, ctx, path+"?refresh=revision")
-			var envelope struct {
-				Active   string `json:"active"`
-				Items    []struct{ Name, UID string }
-				Meta     struct{ Revision, Freshness, Coverage, Completeness string }
-				Observed time.Time
-			}
-			err := json.NewDecoder(list.Body).Decode(&envelope)
-			list.Body.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
-			cached, ok := s.dp.CachedResourceSnapshot("test-context", "apps", dataplane.ResourceKind(tc.resource))
-			if list.StatusCode != 200 || !ok || cached.Meta.Revision != update.Revision || envelope.Meta.Revision != strconv.FormatUint(update.Revision, 10) || envelope.Active != "test-context" || len(envelope.Items) != 1 || envelope.Items[0].UID != "new-uid" || envelope.Items[0].Name != "created-after-list" || envelope.Observed.IsZero() || envelope.Meta.Freshness != string(cached.Meta.Freshness) || envelope.Meta.Coverage != string(cached.Meta.Coverage) || envelope.Meta.Completeness != string(cached.Meta.Completeness) {
-				t.Fatalf("revision envelope: %+v cached=%+v", envelope, cached.Meta)
-			}
-			if reads.Load() != before {
-				t.Fatal("revision read admitted upstream work")
-			}
-			// Exercise both disconnect and process shutdown across every kind.
-			if termination == "disconnect" {
-				cancel()
-				resp.Body.Close()
-			} else {
-				s.CloseStreams()
-				_, _ = io.Copy(io.Discard, resp.Body)
-			}
-			select {
-			case <-canceled:
-			case <-time.After(3 * time.Second):
-				t.Fatal("upstream watch leaked")
-			}
-			s.CloseStreams() // idempotent, including after a disconnected subscription.
-			denied := workloadRequest(t, api, context.Background(), path+"/live")
-			denied.Body.Close()
-			if denied.StatusCode != 503 {
-				t.Fatalf("new subscription after shutdown: %d", denied.StatusCode)
-			}
-		})
+				if reads.Load() != 0 {
+					t.Fatal("cold revision admitted upstream work")
+				}
+				resp = workloadRequest(t, api, ctx, path+"/live")
+				defer func() { _ = resp.Body.Close() }()
+				if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "text/event-stream" || resp.Header.Get("Cache-Control") != "no-store" {
+					t.Fatalf("SSE response: %d %v", resp.StatusCode, resp.Header)
+				}
+				scanner := bufio.NewScanner(resp.Body)
+				first := readWorkloadFrame(t, scanner, func(u workloadFrame) bool { return u.State == dataplane.PodLiveLive })
+				if first.Context != "test-context" || first.Namespace != "apps" || first.Resource != dataplane.ResourceKind(tc.resource) || first.Scope != "Namespaced" || first.Revision == 0 || first.Stale {
+					t.Fatalf("identity: %+v", first)
+				}
+				select {
+				case <-watchStarted:
+				case <-ctx.Done():
+					t.Fatal("watch not started")
+				}
+				close(add)
+				update := readWorkloadFrame(t, scanner, func(u workloadFrame) bool { return u.Revision > first.Revision && u.ResourceVersion == "11" })
+				before := reads.Load()
+				list := workloadRequest(t, api, ctx, path+"?refresh=revision")
+				var envelope struct {
+					Active   string `json:"active"`
+					Items    []struct{ Name, UID string }
+					Meta     struct{ Revision, Freshness, Coverage, Completeness string }
+					Observed time.Time
+				}
+				err := json.NewDecoder(list.Body).Decode(&envelope)
+				_ = list.Body.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				cached, ok := s.dp.CachedResourceSnapshot("test-context", "apps", dataplane.ResourceKind(tc.resource))
+				if list.StatusCode != 200 || !ok || cached.Meta.Revision != update.Revision || envelope.Meta.Revision != strconv.FormatUint(update.Revision, 10) || envelope.Active != "test-context" || len(envelope.Items) != 1 || envelope.Items[0].UID != "new-uid" || envelope.Items[0].Name != "created-after-list" || envelope.Observed.IsZero() || envelope.Meta.Freshness != string(cached.Meta.Freshness) || envelope.Meta.Coverage != string(cached.Meta.Coverage) || envelope.Meta.Completeness != string(cached.Meta.Completeness) {
+					t.Fatalf("revision envelope: %+v cached=%+v", envelope, cached.Meta)
+				}
+				if reads.Load() != before {
+					t.Fatal("revision read admitted upstream work")
+				}
+				// Exercise both disconnect and process shutdown across every kind.
+				if termination == "disconnect" {
+					cancel()
+					_ = resp.Body.Close()
+				} else {
+					s.CloseStreams()
+					_, _ = io.Copy(io.Discard, resp.Body)
+				}
+				select {
+				case <-canceled:
+				case <-time.After(3 * time.Second):
+					t.Fatal("upstream watch leaked")
+				}
+				s.CloseStreams() // idempotent, including after a disconnected subscription.
+				denied := workloadRequest(t, api, context.Background(), path+"/live")
+				_ = denied.Body.Close()
+				if denied.StatusCode != 503 {
+					t.Fatalf("new subscription after shutdown: %d", denied.StatusCode)
+				}
+			})
+		}
 	}
-}
 
 }
 
@@ -264,7 +268,7 @@ func TestWorkloadLiveHTTPBlockedByAccess(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp := workloadRequest(t, api, ctx, "/api/namespaces/apps/"+tc.resource+"/live")
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			frame := readWorkloadFrame(t, bufio.NewScanner(resp.Body), func(u workloadFrame) bool { return u.State == dataplane.PodLiveBlocked })
 			if frame.Resource != dataplane.ResourceKind(tc.resource) || frame.Scope != "Namespaced" || !frame.Stale || reads.Load() != 1 {
 				t.Fatalf("blocked frame: %+v reads=%d", frame, reads.Load())

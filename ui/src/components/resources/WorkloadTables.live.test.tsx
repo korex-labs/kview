@@ -38,7 +38,9 @@ const fixtures = [
 const row = { namespace: "app", name: "work-a", uid: "one", listStatus: "Ready", status: "Ready", ready: 1, desired: 1, active: 0, succeeded: 1, failed: 0, ageSec: 1, schedule: "* * * * *", suspend: false };
 const snapshot = (revision: number, items = [row]) => ({ items, meta: { revision: String(revision) } });
 const controls = () => within(screen.getByLabelText(/^Live=/).parentElement!);
-const chip = () => controls().getByRole("button", { name: /^Live=/ });
+// The accessible label identifies the control directly; avoid repeating computed-style
+// traversal of the mounted grid for every transport-state assertion.
+const chip = () => screen.getByLabelText(/^Live=/);
 function assertState(state: string) { expect(chip().getAttribute("aria-label")).toMatch(new RegExp(`^Live=${state};`)); }
 function visibility(value: string) {
   Object.defineProperty(document, "visibilityState", { configurable: true, value });
@@ -111,6 +113,16 @@ describe.each(fixtures)("%s Live real list", (resource, Table) => {
     expect((filter as HTMLInputElement).value).toBe("work");
     expect(nameHeader.getAttribute("aria-sort")).toBe(sort);
     expect(screen.getByTestId("drawer")).toBeTruthy();
+  });
+
+  it("does not poll or refetch once the Live revision is applied", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    const live = transport();
+    await act(async () => { render(<Table token="secret" namespace="app" />); });
+    await act(async () => { fireEvent.click(chip()); });
+    api.get.mockResolvedValue(snapshot(2));
+    await live.notify(resource, 2);
+    assertState("live");
     const reads = api.get.mock.calls.length;
     const polls = api.revision.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(16000); });
@@ -146,21 +158,25 @@ describe.each(fixtures)("%s Live real list", (resource, Table) => {
   });
 
   it("queues an update before the initial read completes and retries a failed revision without a new frame", async () => {
+    vi.useFakeTimers();
     const live = transport();
     let initial!: (value: unknown) => void;
     api.get.mockImplementationOnce(() => new Promise((resolve) => { initial = resolve; }))
       .mockRejectedValueOnce(new Error("snapshot unavailable"))
       .mockResolvedValue(snapshot(2));
     await act(async () => { render(<Table token="secret" namespace="app" />); });
-    fireEvent.click(chip());
-    await waitFor(() => expect(live.fetcher).toHaveBeenCalledOnce());
+    await act(async () => { fireEvent.click(chip()); });
+    expect(live.fetcher).toHaveBeenCalledOnce();
     await live.notify(resource, 2);
     expect(api.get).toHaveBeenCalledOnce();
     assertState("starting");
     await act(async () => initial(snapshot(1)));
-    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    expect(api.get).toHaveBeenCalledTimes(2);
     assertState("starting");
-    await waitFor(() => assertState("live"), { timeout: 2500 });
+    // Advance the retry deadline explicitly: slow grid rendering must not race
+    // the intermediate two-call assertion against a real one-second timer.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    assertState("live");
     expect(api.get).toHaveBeenCalledTimes(3);
     expect(api.get.mock.calls.slice(1).every(([path]) => path.endsWith("?refresh=revision"))).toBe(true);
   });

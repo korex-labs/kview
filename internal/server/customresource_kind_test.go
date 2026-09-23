@@ -39,10 +39,14 @@ func TestCustomResourceKindHTTP(t *testing.T) {
 				case "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/widgets.example.com":
 					if tc.crdCode == 403 {
 						w.WriteHeader(403)
-						fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","reason":"Forbidden","code":403}`)
+						if _, err := fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","reason":"Forbidden","code":403}`); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 						return
 					}
-					fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":"Cluster","names":{"plural":"widgets","kind":"Widget"},"versions":[{"name":"v1","served":%t,"storage":false}]}}`, tc.crdCode != 201)
+					if _, err := fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":"Cluster","names":{"plural":"widgets","kind":"Widget"},"versions":[{"name":"v1","served":%t,"storage":false}]}}`, tc.crdCode != 201); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 				case "/apis/example.com/v1/widgets":
 					if tc.listCode != 0 {
 						w.WriteHeader(tc.listCode)
@@ -50,13 +54,17 @@ func TestCustomResourceKindHTTP(t *testing.T) {
 						if tc.listCode == 503 {
 							reason = "ServiceUnavailable"
 						}
-						fmt.Fprintf(w, `{"kind":"Status","apiVersion":"v1","reason":%q,"code":%d}`, reason, tc.listCode)
+						if _, err := fmt.Fprintf(w, `{"kind":"Status","apiVersion":"v1","reason":%q,"code":%d}`, reason, tc.listCode); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 						return
 					}
 					if r.URL.Query().Get("limit") != "200" {
 						t.Error("missing default limit")
 					}
-					fmt.Fprint(w, `{"apiVersion":"example.com/v1","kind":"WidgetList","items":[]}`)
+					if _, err := fmt.Fprint(w, `{"apiVersion":"example.com/v1","kind":"WidgetList","items":[]}`); err != nil {
+						t.Errorf("write fixture response: %v", err)
+					}
 				default:
 					t.Errorf("unexpected request %s", r.URL.Path)
 					http.Error(w, "unexpected", 500)
@@ -136,7 +144,9 @@ func TestCustomResourceKindContinuationHTTP(t *testing.T) {
 					}
 					if r.URL.Path == "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/widgets.example.com" {
 						gets++
-						fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":%q,"names":{"plural":"widgets","kind":"Widget"%s},"versions":[{"name":"v1","served":true,"storage":false},{"name":"v2","served":true,"storage":true}]}}`, scope, declaration)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"widgets.example.com"},"spec":{"group":"example.com","scope":%q,"names":{"plural":"widgets","kind":"Widget"%s},"versions":[{"name":"v1","served":true,"storage":false},{"name":"v2","served":true,"storage":true}]}}`, scope, declaration); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 						return
 					}
 					if r.URL.Path != path {
@@ -166,7 +176,9 @@ func TestCustomResourceKindContinuationHTTP(t *testing.T) {
 							code = http.StatusUnsupportedMediaType
 						}
 						w.WriteHeader(code)
-						fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","code":%d}`, code)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"v1","kind":"Status","code":%d}`, code); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 						return
 					}
 					cont := opaque
@@ -175,9 +187,13 @@ func TestCustomResourceKindContinuationHTTP(t *testing.T) {
 					}
 					obj := fmt.Sprintf(`{"apiVersion":"example.com/v1","kind":"Widget","metadata":{"name":"demo-%d","namespace":%q,"uid":"uid-%d","creationTimestamp":"2026-01-01T00:00:00Z"},"status":{"conditions":[{"type":"Ready","status":"True"}]}}`, page, namespace, page)
 					if mode == "table" {
-						fmt.Fprintf(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","metadata":{"continue":%q,"resourceVersion":"42"},"columnDefinitions":[{"name":"Name","type":"string"}],"rows":[{"cells":["demo-%d"],"object":%s}]}`, cont, page, obj)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"meta.k8s.io/v1","kind":"Table","metadata":{"continue":%q,"resourceVersion":"42"},"columnDefinitions":[{"name":"Name","type":"string"}],"rows":[{"cells":["demo-%d"],"object":%s}]}`, cont, page, obj); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 					} else {
-						fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":%q,"metadata":{"continue":%q,"resourceVersion":"42"},"items":[%s]}`, listKind, cont, obj)
+						if _, err := fmt.Fprintf(w, `{"apiVersion":"example.com/v1","kind":%q,"metadata":{"continue":%q,"resourceVersion":"42"},"items":[%s]}`, listKind, cont, obj); err != nil {
+							t.Errorf("write fixture response: %v", err)
+						}
 					}
 				}))
 				q := url.Values{"scope": {scope}, "limit": {"1"}}
