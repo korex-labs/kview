@@ -31,7 +31,7 @@
     "@mui/x-data-grid": "^9.13.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "@xyflow/react": "^12.11.5",
+    "@xyflow/react": "^12.11.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-syntax-highlighter": "^16.1.0"
