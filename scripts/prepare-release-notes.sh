@@ -15,7 +15,7 @@ notes_file="CHANGELOG.md"
 whats_new_file="docs/user/whats-new.md"
 whats_new_highlight_limit="10"
 codex_bin="${CODEX:-codex}"
-codex_model="${CODEX_MODEL:-gpt-5.4}"
+codex_model="${CODEX_MODEL:-}"
 
 case "$tag_name" in
 	v[0-9]*.[0-9]*.[0-9]*)
@@ -86,7 +86,13 @@ Commits in ${range}:
 $(cat "$log_file")
 EOF
 
-"$codex_bin" exec -m "$codex_model" -C "$repo_root" -s workspace-write - < "$prompt_file"
+# Honor Codex's configured/default model unless explicitly overridden. Model
+# availability depends on the account/provider; do not pin a global fallback.
+set -- exec -C "$repo_root" -s workspace-write
+if [ -n "$codex_model" ]; then
+	set -- "$@" -m "$codex_model"
+fi
+"$codex_bin" "$@" - < "$prompt_file"
 
 changed_files="$(git diff --name-only)"
 for changed_file in $changed_files; do

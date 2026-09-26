@@ -106,7 +106,7 @@ make release-tag TAG=v5.5.0
 
 Release notes live in [CHANGELOG.md](CHANGELOG.md). `make release-tag` validates the Go module path, asks Codex to summarize commits from the latest release tag into the changelog, updates curated `docs/user/whats-new.md` highlights and commits both documentation files, validates again, and only then creates the annotated tag. The target requires a clean worktree before it starts so the changelog commit does not include unrelated local edits.
 
-The release-note helper runs Codex with `gpt-5.4` by default so personal Codex model settings do not affect tagging. Override it with `CODEX_MODEL`, for example `CODEX_MODEL=gpt-5.3-codex make release-tag TAG=v5.5.0`.
+The release-note helper uses Codex's configured/default model. To select another model supported by your account/provider, set `CODEX_MODEL` (for example, `CODEX_MODEL=<supported-model> make release-tag TAG=vX.Y.Z`). An unset or empty override leaves model selection to Codex. If the provider rejects the selected model, choose an available model in Codex or supply the override; the helper stops before committing notes or creating the tag. Run `python3 scripts/test-release-notes.py` to check model forwarding and failure handling without calling Codex or tagging this repository.
 
 To prepare and commit release notes without tagging yet:
 
