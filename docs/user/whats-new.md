@@ -6,29 +6,31 @@ repository.
 
 ## Recent Highlights
 
-- Resource drawers now include cache-derived resource maps, making it easier to
-  inspect related objects and rollout shape without leaving the current browse
-  workflow.
-- Resource drawers can now open full-screen, giving dense resource details and
-  maps more room during investigation.
-- Dataplane signals now detect connectivity interruptions and suppress runtime
-  noise more cleanly when the cluster or API is temporarily unreachable.
-- Packaged desktop builds now ship with native application icons for a more
-  polished installed-app experience.
-- Pod drawers can now start native **Pod Debug** sessions for supported Linux
-  pods, attaching an ephemeral debug container directly into the Activity Panel
-  terminal workflow.
-- Job reruns and CronJob manual runs can now open a debug run view with live
-  timeline, logs, and events, making one-off batch troubleshooting easier to
-  follow from inside kview.
-- Keyboard shortcuts are now fully configurable with presets, per-action
-  bindings, collision checks, and Help integration that reflects the active
-  effective keymap.
-- Dataplane signal settings now support exclusion rules, so expected noise can
-  be suppressed by resource name, namespace, labels, or annotations without
-  muting unrelated signals.
-- Dashboard signal labels are now more compact, improving scanability when
-  reviewing busy signal sets.
+- Resource maps now offer interactive pan, zoom, and fit controls, with clearer
+  relationship details and rollout history for investigating connected resources.
+- Helm release maps show manifest resources alongside cached availability and
+  links to resource drawers, making missing or unknown evidence easier to spot.
+- Optional **Live** updates now follow Pods, Deployments, Stateful Sets, Daemon
+  Sets, Replica Sets, Jobs, and Cron Jobs in the selected namespace. Live is off
+  by default and shows when updates are paused, reconnecting, or blocked.
+- Pod and workload tables now offer **Refresh** when Live is off, keeping
+  filters, selection, scroll, and open drawers. Slow metrics no longer hold up
+  Pod status loading.
+- **Explain** dialogs on resource lists, the Dashboard's **Dataplane** tab, and
+  Kubernetes resource maps clarify cache freshness and coverage without reading
+  Kubernetes again.
+- Custom resources now offer read-only **Spec** and **Status**, generation
+  evidence, and independently loaded Events. Browse an exact kind and served
+  version using Kubernetes printer columns and manual pagination.
+- Helm's **Recovery** tab now previews guarded deletion of an eligible latest
+  pending-upgrade or pending-rollback history Secret. This confirmed action
+  removes one history record; it does not roll back or uninstall resources.
+- Narrow drawers now provide tab scroll arrows and a **More** menu. Pod metadata
+  and YAML are grouped under **Object**, with existing shortcuts preserved.
+- Pod terminals retain input focus during list updates, and **Terminal** opens
+  the only running container directly when no container choice is needed.
+- The main interface now opens while namespace inventory loads in the
+  background, with **Retry namespaces** available for failed or empty results.
 
 ## Full History
 

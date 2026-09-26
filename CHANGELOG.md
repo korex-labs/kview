@@ -3,6 +3,48 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.17.0 - 2026-09-26
+
+- Upgraded resource maps to interactive graphs with pan, zoom, fit controls,
+  keyboard-accessible relationship details, and clearer rollout history. Added
+  Helm release maps that connect manifest resources to cached availability and
+  resource drawers, with explicit unknown and partial coverage states.
+- Added optional, off-by-default **Live** updates for Pods, Deployments, Stateful
+  Sets, Daemon Sets, Replica Sets, Jobs, and Cron Jobs. Updates follow the active
+  kind and namespace, preserve browsing state for the same resource instance,
+  and show reconnecting, paused, or blocked states with clearer guidance.
+- Added **Refresh** controls for Pod and workload tables when Live is off,
+  preserving filters, selection, scroll, and open drawers. Pod status now loads
+  independently of metrics, and startup opens the interface while namespace
+  inventory loads in the background, with a retry action when needed.
+- Added shared **Explain** dialogs for resource lists, Dashboard dataplane data,
+  and Kubernetes resource maps to clarify cache freshness, coverage, and runtime
+  state without triggering Kubernetes reads.
+- Expanded custom-resource inspection with read-only **Spec** and **Status**,
+  generation evidence, and independently loaded, identity-checked Events. Added
+  browsing by exact served kind/version with Kubernetes printer columns and
+  manual pagination, plus clearer partial results and restricted-access discovery.
+  Corrected health summaries to distinguish current failures from stale or
+  unrecognized readiness evidence.
+- Added guarded Helm recovery previews and confirmed deletion of an eligible
+  latest pending-upgrade or pending-rollback revision Secret, with fresh history,
+  permission, and identity checks. Recovery removes one history record; it does
+  not roll back or uninstall resources. Integrated release drawer sections and
+  improved chart catalog loading with an explicitly marked cached fallback.
+- Improved narrow-drawer navigation with tab scroll arrows and a **More** menu.
+  Pod drawers group metadata and YAML under **Object**, preserving configured
+  shortcuts to each view.
+- Fixed Pod terminal focus being stolen by resource-list updates and made
+  **Terminal** open the only running container directly, keeping the chooser
+  for pods with multiple running containers.
+- Refreshed compatible Go and frontend dependencies, fixed Go lint findings,
+  and strengthened regression coverage for Live updates, custom resources,
+  Helm recovery, and startup behavior, including more stable workload Live tests.
+- Updated in-app Help and engineering documentation for the new workflows,
+  cache and permission limits, and release-readiness verification. Fixed the
+  release-note helper to honor the configured model or an explicit override,
+  with regression tests for model forwarding and failure handling.
+
 ## v5.16.0 - 2026-08-31
 
 - Added cache-derived resource maps in resource drawers, giving operators a
