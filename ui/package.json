@@ -28,7 +28,7 @@
     "@emotion/styled": "^11.11.5",
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.2.0",
-    "@mui/x-data-grid": "^9.13.0",
+    "@mui/x-data-grid": "^9.14.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "@xyflow/react": "^12.11.5",
