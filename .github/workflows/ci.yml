@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      extended:
+        description: "Run full non-browser tests and coverage"
+        type: boolean
+        default: false
   pull_request:
   push:
     branches:
@@ -28,7 +34,12 @@ jobs:
             ${{ runner.os }}-kview-
 
       - name: Run checks in Docker
-        run: make check
+        run: |
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.extended }}" = "true" ]; then
+            make check-full
+          else
+            make check
+          fi
 
       - name: Run Go lint in Docker
         run: make lint-go
@@ -37,9 +48,11 @@ jobs:
         run: make audit
 
       - name: Generate coverage in Docker
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         run: make coverage
 
       - name: Add coverage summary to job summary
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         run: |
           echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -58,6 +71,7 @@ jobs:
           echo "Frontend coverage artifacts are available in the uploaded coverage artifact." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifact
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage

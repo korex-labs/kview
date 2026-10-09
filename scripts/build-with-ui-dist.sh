@@ -30,7 +30,7 @@ if [ -d "$embed_dir" ]; then
 	cp -a "$embed_dir/." "$backup_dir/original/"
 fi
 
-(cd "$ui_dir" && npm ci && npm run build)
+(cd "$ui_dir" && npm ci --prefer-offline --no-audit --no-fund && npm run build)
 mkdir -p "$embed_dir"
 find "$embed_dir" -mindepth 1 ! -name placeholder.txt -exec rm -rf {} +
 cp -r "$ui_dir/dist/." "$embed_dir/"

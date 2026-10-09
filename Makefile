@@ -5,8 +5,16 @@ OUTPUT=$(BINARY_NAME)
 DIST_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
-DOCKER_IMAGE=kview-build:go1.26.6-node22.23.1
+DOCKER_IMAGE=kview-build:go1.26.9-node22.23.1
 DOCKER_BUILD?=1
+DOCKER_CPUS?=2
+DOCKER_MEMORY?=4g
+GO_PARALLELISM?=2
+export GOMAXPROCS?=2
+export GOFLAGS?=-p=$(GO_PARALLELISM)
+UI_TEST_SCRIPT?=test
+GO_TEST_FLAGS?=-short
+GO_CHECK_PACKAGES?=./internal/buildinfo ./internal/cluster ./internal/investigation ./internal/runtime ./internal/session ./internal/viewmeta ./internal/kube/dto ./internal/kube/resource/relationships
 GOVULNCHECK_VERSION=v1.6.0
 ACTIONLINT_VERSION=v1.7.12
 RSRC_VERSION=v0.10.2
@@ -32,7 +40,8 @@ VERSION?=$(shell sh -c 'tag=""; \
 		printf "dev"; \
 	fi')
 GO_LDFLAGS=-X github.com/korex-labs/kview/v5/internal/buildinfo.Version=$(VERSION)
-DOCKER_RUN=docker run --rm \
+DOCKER_RUN=docker run --rm --cpus=$(DOCKER_CPUS) --memory=$(DOCKER_MEMORY) \
+	-e GOMAXPROCS=$(GOMAXPROCS) -e GOFLAGS="$(GOFLAGS)" \
 	-u $(shell id -u):$(shell id -g) \
 	-e HOME=/tmp \
 	-e GOCACHE=/workspace/.cache/go-build \
@@ -50,10 +59,13 @@ DOCKER_RUN=docker run --rm \
 	$(DOCKER_IMAGE)
 
 .DEFAULT_GOAL := all
+# Never multiply capped containers through make -j.
+.NOTPARALLEL:
+.PHONY: check-full local-check-go
 
 .PHONY: all check audit security workflow-lint lint-go coverage test-visibility ui generate-app-icons e2e e2e-screenshots build build-webview build-release build-webview-release docker-image clean prepare-cache prepare-e2e-kubeconfig install-git-hooks release-notes release-tag local-check local-audit local-security local-workflow-lint local-lint-go local-coverage local-test-visibility local-ui local-e2e local-e2e-screenshots local-build local-build-webview local-build-release local-build-webview-release
 
-all: install-git-hooks check audit build
+all: install-git-hooks check build
 
 prepare-cache: install-git-hooks
 	mkdir -p .cache/go-build .cache/go-mod .cache/npm .cache/ms-playwright
@@ -106,7 +118,11 @@ release-tag: install-git-hooks
 	@echo "Created release tag $(TAG). Push with: git push origin $(TAG)"
 
 check: install-git-hooks docker-image prepare-cache
-	$(DOCKER_RUN) make local-check
+	$(DOCKER_RUN) make local-check GO_PARALLELISM=$(GO_PARALLELISM)
+
+# Explicit extended suite; no coverage or browser E2E.
+check-full: install-git-hooks docker-image prepare-cache
+	$(DOCKER_RUN) make local-check UI_TEST_SCRIPT=test:full GO_TEST_FLAGS= GO_CHECK_PACKAGES=./... GO_PARALLELISM=$(GO_PARALLELISM)
 
 audit: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-audit GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) ACTIONLINT_VERSION=$(ACTIONLINT_VERSION)
@@ -158,11 +174,15 @@ build-webview-release: install-git-hooks docker-image prepare-cache
 	$(DOCKER_RUN) make local-build-webview-release GOOS=$(GOOS) GOARCH=$(GOARCH) OUTPUT=$(OUTPUT) VERSION=$(VERSION)
 
 local-check: install-git-hooks
-	cd $(UI_DIR) && npm ci && npm run typecheck && npm run lint && npm run test
-	GO_PACKAGES=$$(go list ./... | grep -v '/$(UI_DIR)/node_modules/'); \
+	cd $(UI_DIR) && npm ci --prefer-offline --no-audit --no-fund && npm run typecheck && npm run lint && npm run $(UI_TEST_SCRIPT)
+	$(MAKE) local-check-go
+	scripts/test-visibility.sh
+
+local-check-go: install-git-hooks
+	set -e; GO_PACKAGES=$$(go list $(GO_CHECK_PACKAGES) | grep -v '/$(UI_DIR)/node_modules/'); \
 		go vet $$GO_PACKAGES; \
 		test_output=$$(mktemp); \
-		if go test $$GO_PACKAGES > "$$test_output" 2>&1; then \
+		if go test $(GO_TEST_FLAGS) -parallel $(GO_PARALLELISM) $$GO_PACKAGES > "$$test_output" 2>&1; then \
 			sed '/^[?][[:space:]].*\[no test files\]$$/d' "$$test_output"; \
 			rm -f "$$test_output"; \
 		else \
@@ -170,7 +190,6 @@ local-check: install-git-hooks
 			rm -f "$$test_output"; \
 			exit 1; \
 		fi
-	scripts/test-visibility.sh
 
 local-audit: local-security local-workflow-lint
 
@@ -206,7 +225,7 @@ local-coverage: install-git-hooks
 			exit 1; \
 		fi
 	go tool cover -func=$(COVERAGE_DIR)/go-coverage.out | tee $(COVERAGE_DIR)/go-coverage-summary.txt
-	cd $(UI_DIR) && npm ci && npm run test:coverage -- --coverage.reportsDirectory=../$(COVERAGE_DIR)/frontend
+	cd $(UI_DIR) && npm ci --prefer-offline --no-audit --no-fund && npm run test:coverage -- --coverage.reportsDirectory=../$(COVERAGE_DIR)/frontend
 	cp $(COVERAGE_DIR)/frontend/coverage-summary.json $(COVERAGE_DIR)/frontend-coverage-summary.json
 	scripts/test-visibility.sh | tee $(COVERAGE_DIR)/test-visibility.txt
 
@@ -214,17 +233,17 @@ local-test-visibility: install-git-hooks
 	scripts/test-visibility.sh
 
 local-ui: install-git-hooks
-	cd $(UI_DIR) && npm ci && npm run build
+	cd $(UI_DIR) && npm ci --prefer-offline --no-audit --no-fund && npm run build
 	mkdir -p $(EMBED_DIR)
 	find $(EMBED_DIR) -mindepth 1 ! -name placeholder.txt -exec rm -rf {} +
 	cp -r $(UI_DIR)/dist/* $(EMBED_DIR)/
 	@echo "UI built and copied into $(EMBED_DIR)"
 
 local-e2e: install-git-hooks
-	cd $(UI_DIR) && npm ci && npm run e2e
+	cd $(UI_DIR) && npm ci --prefer-offline --no-audit --no-fund && npm run e2e
 
 local-e2e-screenshots: install-git-hooks
-	cd $(UI_DIR) && npm ci && if [ -n "$(SCREENSHOT_GREP)" ]; then npm run e2e:screenshots -- -g "$(SCREENSHOT_GREP)"; else npm run e2e:screenshots; fi
+	cd $(UI_DIR) && npm ci --prefer-offline --no-audit --no-fund && if [ -n "$(SCREENSHOT_GREP)" ]; then npm run e2e:screenshots -- -g "$(SCREENSHOT_GREP)"; else npm run e2e:screenshots; fi
 
 local-build: install-git-hooks
 	sh scripts/build-with-ui-dist.sh go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT) ./cmd/kview

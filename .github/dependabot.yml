@@ -39,6 +39,7 @@ updates:
           - "vite"
           - "@vitejs/*"
           - "vitest"
+          - "@vitest/*"     # runner and coverage providers require matching versions
           - "eslint*"
           - "@eslint/*"     # scoped package: @eslint/js — @eslint* would not match the slash
           - "typescript*"   # covers typescript and typescript-eslint

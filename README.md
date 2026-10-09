@@ -222,6 +222,33 @@ remains installed side-by-side because `typescript-eslint` still depends on its
 programmatic API; `npm run typecheck:legacy` is available for temporary diagnostic
 parity checks during the TypeScript 7.0 transition.
 
+### Verification tiers and resource limits
+
+`make check` is the everyday baseline: clean npm install, TypeScript, ESLint,
+UI logic tests (`*.test.ts`), and Go vet/tests for eight contract/logic packages:
+`buildinfo`, `cluster`, `investigation`, `runtime`, `session`, `viewmeta`,
+`kube/dto`, and `kube/resource/relationships`. This is a basic regression set,
+not complete backend coverage; check changed Go packages separately.
+`make check-full` restores all Go packages (including dataplane/server).
+Mounted component scenarios
+(`*.test.tsx`) remain available through `make check-full` or a targeted
+`npm run test:full -- <file>` inside the pinned container. No tests are deleted.
+
+`make check-full` and `make coverage` are explicit diagnostics, not the default
+local/PR loop. PR/push CI runs the basic check, Go lint and security audit; full
+non-browser checks and coverage require manual CI dispatch with `extended=true`.
+Chrome/Playwright E2E are reserved for specific troubleshooting; normal browser
+acceptance is manual. Neither basic nor full checks launch a browser.
+
+Make-driven containers default to `DOCKER_CPUS=2`, `DOCKER_MEMORY=4g`,
+`GOMAXPROCS=2`, `GO_PARALLELISM=2` and one Vitest worker. Make targets are
+serialized even with `-j`. Limits can be explicitly overridden when needed.
+Bare `make` runs the basic check and build; `make audit` remains explicit.
+Installs prefer the npm cache and disable the implicit install-time audit/funding
+request (`--prefer-offline --no-audit --no-fund`); the dedicated audit still runs
+in CI and for dependency/security changes.
+Use `DOCKER_BUILD=0` to reuse the already-built toolchain.
+
 ### Go linting
 
 Run Go lint checks through the pinned Docker toolchain:

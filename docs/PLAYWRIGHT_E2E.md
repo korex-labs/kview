@@ -1,5 +1,11 @@
 # Playwright E2E and Screenshots
 
+These are opt-in troubleshooting tools, not baseline checks or release gates.
+Do not run Chrome/Playwright, screenshots or browser smoke by default: the
+maintainer verifies builds manually in the browser. Use only a relevant scenario
+when diagnosing a concrete problem. `make check`, `make check-full` and normal
+PR/push CI do not invoke this suite.
+
 The Playwright suite runs the real kview UI against a real local Kubernetes connection. The backend is always started with `--read-only`, so destructive Kubernetes operations are rejected server-side even though action buttons and dialogs remain visible.
 
 The UI toolchain expects Node.js `>=22.23.1`, matching `ui/package.json`.

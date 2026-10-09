@@ -136,8 +136,27 @@ release-candidate run.
 - **Coherent feature tranche / commit boundary:** run targeted tests first, then
   one `make check DOCKER_BUILD=0` and one `make build DOCKER_BUILD=0` after the
   tranche is complete.
-- **Release boundary or cross-cutting infrastructure change:** run the full clean
-  verification matrix and any release-specific audit.
+- **Release boundary or dependency/workflow changes:** run the basic check and
+  relevant security audit. Full suites and coverage require an explicit reason
+  and maintainer approval; they are not an automatic release ritual.
+
+### Lightweight default (maintainer policy)
+
+- `make check` runs typecheck, ESLint, logic tests (`*.test.ts`, not mounted
+  `*.test.tsx` scenarios), and Go vet/tests for the eight contract/logic packages
+  listed in `GO_CHECK_PACKAGES`. Check changed backend packages separately;
+  the baseline does not cover the entire backend. No coverage or browser startup.
+- `make check-full` retains the complete non-browser suite for explicit use.
+  For a specific UI regression, run only its file through `npm run test:full -- <file>`
+  inside the pinned container, not the whole suite.
+- `make coverage` is opt-in; do not follow every check with a second full run.
+- Chrome/Playwright/E2E are only for concrete troubleshooting, never baseline
+  acceptance. The maintainer checks builds manually in the browser.
+- Docker commands default to 2 CPUs / 4 GiB; Go package/test concurrency is 2
+  and Vitest has one worker. Do not raise limits or run competing suites without
+  approval. Stop the exact child container as well as the wrapper on cancellation.
+- Do not add browser smoke tests, screenshots or full-suite reruns merely because
+  dependencies or visual components changed.
 
 Do not repeat a passing expensive gate after a follow-up that cannot affect it.
 When a bounded build/test is started in the background, request completion
