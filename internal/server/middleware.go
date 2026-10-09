@@ -81,7 +81,7 @@ func (s *Server) dataplaneUserActivityMiddleware(next http.Handler) http.Handler
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Namespace enrichment idle gate: background polling routes must not count as "activity".
 		p := strings.TrimSuffix(r.URL.Path, "/")
-		if !isBackgroundPollingPath(p) {
+		if s.dp != nil && !isBackgroundPollingPath(p) {
 			s.dp.NoteUserActivity()
 		}
 		next.ServeHTTP(w, r)

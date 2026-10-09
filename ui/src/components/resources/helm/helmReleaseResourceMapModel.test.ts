@@ -100,6 +100,7 @@ describe("Helm release resource map projection", () => {
     expect(response.nodes).toHaveLength(100);
     expect(response.edges).toHaveLength(99);
     expect(response).toMatchObject({ truncated: true, truncationReasons: ["max-nodes"] });
+    expect(response.coverage.families.helmManifest).toMatchObject({ completeness: "partial", reasons: ["max-nodes"] });
     expect(response.cache).toMatchObject({ totalNodes: 106, returnedNodes: 100, totalEdges: 105, returnedEdges: 99 });
   });
 });

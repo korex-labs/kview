@@ -176,7 +176,7 @@ export async function apiGet<T>(
       });
     }
     if (isAbortError(err)) throw err;
-    notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
+    if ((err as Error | undefined)?.name !== "AbortError") notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
     throw err;
   }
   if (!res.ok) {
@@ -231,7 +231,7 @@ export async function apiGet<T>(
   }
 }
 
-export async function apiPost<T>(path: string, token: string, body: unknown, opts?: { headers?: Record<string, string> }): Promise<T> {
+export async function apiPost<T>(path: string, token: string, body: unknown, opts?: { headers?: Record<string, string>; signal?: AbortSignal }): Promise<T> {
   let res: Response;
   const startedAt = performanceDiagnosticsEnabled() ? window.performance.now() : 0;
   const mergedHeaders = {
@@ -242,6 +242,7 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
   try {
     res = await fetch(path, {
       method: "POST",
+      signal: opts?.signal,
       headers: mergedHeaders,
       body: JSON.stringify(body),
     });
@@ -256,7 +257,7 @@ export async function apiPost<T>(path: string, token: string, body: unknown, opt
         ok: false,
       });
     }
-    notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
+    if ((err as Error | undefined)?.name !== "AbortError") notifyApiFailure("backend", String((err as Error | undefined)?.message || err || "Network error"));
     throw err;
   }
   if (!res.ok) {
@@ -349,7 +350,7 @@ export async function apiGetWithContext<T>(
   return apiGet<T>(path, token, { headers: { "X-Kview-Context": contextName }, signal: opts?.signal });
 }
 
-export async function apiPostWithContext<T>(path: string, token: string, contextName: string, body: unknown): Promise<T> {
+export async function apiPostWithContext<T>(path: string, token: string, contextName: string, body: unknown, opts?: { signal?: AbortSignal }): Promise<T> {
   if (!contextName) throw new Error("Missing active context");
-  return apiPost<T>(path, token, body, { headers: { "X-Kview-Context": contextName } });
+  return apiPost<T>(path, token, body, { headers: { "X-Kview-Context": contextName }, signal: opts?.signal });
 }

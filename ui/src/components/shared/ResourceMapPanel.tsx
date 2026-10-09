@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from "@mui/material";
 import { apiGet } from "../../api";
 import { useActiveContext } from "../../activeContext";
-import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse } from "../../types/api";
+import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse, ResourceOwnershipPodGroup } from "../../types/api";
+import { ownershipPresentation } from "./resourceOwnershipPresentation";
 import DataplaneExplanationAction from "./DataplaneExplanationAction";
 import { buildResourceMapExplanationSurface } from "./dataplaneExplanationModel";
 
@@ -65,7 +66,7 @@ export function hiddenHistoryBranchNodeIDs(response: ResourceMapResponse, histor
     for (const edge of response.edges) {
       const from = byId.get(edge.from);
       const to = byId.get(edge.to);
-      if (!from || !to || !hidden.has(from.id) || hidden.has(to.id) || to.depth <= from.depth || to.direction !== "child") continue;
+      if (edge.type !== "owner" || !edge.resolved || !from || !to || !hidden.has(from.id) || hidden.has(to.id) || to.depth <= from.depth || to.direction !== "child") continue;
       hidden.add(to.id);
       changed = true;
     }
@@ -73,13 +74,16 @@ export function hiddenHistoryBranchNodeIDs(response: ResourceMapResponse, histor
   return Array.from(hidden);
 }
 
-export function ResourceMapView({ response, onOpenResource, canOpenResource, showCacheFreshness, layoutDirection }: { response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void; canOpenResource?: (identity: ApiResourceIdentity) => boolean; showCacheFreshness?: boolean; layoutDirection?: "TB" | "LR" }) {
+export function ResourceMapView({ response, onOpenResource, canOpenResource, showCacheFreshness, layoutDirection, podGroups = [], presentationMaxNodes }: { presentationMaxNodes?: number; podGroups?: ResourceOwnershipPodGroup[]; response: ResourceMapResponse; onOpenResource: (identity: ApiResourceIdentity) => void; canOpenResource?: (identity: ApiResourceIdentity) => boolean; showCacheFreshness?: boolean; layoutDirection?: "TB" | "LR" }) {
   const [showHistoricalReplicaSets, setShowHistoricalReplicaSets] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const historicalReplicaSetIds = useMemo(() => historicalReplicaSetNodeIDs(response), [response]);
   const hiddenHistoryBranchIds = useMemo(() => hiddenHistoryBranchNodeIDs(response, historicalReplicaSetIds), [historicalReplicaSetIds, response]);
   const hiddenNodeIds = useMemo(() => showHistoricalReplicaSets ? new Set<string>() : new Set(hiddenHistoryBranchIds), [hiddenHistoryBranchIds, showHistoricalReplicaSets]);
   const visibleNodes = useMemo(() => response.nodes.filter((node) => !hiddenNodeIds.has(node.id)), [hiddenNodeIds, response.nodes]);
   const visibleEdges = useMemo(() => response.edges.filter((edge) => !hiddenNodeIds.has(edge.from) && !hiddenNodeIds.has(edge.to)), [hiddenNodeIds, response.edges]);
+  const presentation = useMemo(() => ownershipPresentation(visibleNodes, visibleEdges, podGroups, expandedGroup, presentationMaxNodes), [visibleNodes, visibleEdges, podGroups, expandedGroup, presentationMaxNodes]);
+  useEffect(() => setExpandedGroup(null), [response.targetId, response.active]);
   const evidenceRows = useMemo(() => summarizeResourceMapEvidence(response.edges), [response.edges]);
   useEffect(() => setShowHistoricalReplicaSets(false), [response.targetId]);
 
@@ -95,8 +99,9 @@ export function ResourceMapView({ response, onOpenResource, canOpenResource, sho
           </Button>
         </Stack>
       ) : null}
+      {presentation.truncated ? <Alert severity="warning">Display truncated at {presentationMaxNodes} cards, including Pod groups and expanded members. This is a display limit, not a collapsed group or a full cluster total.</Alert> : null}
       <Suspense fallback={<Box aria-label="Loading resource map graph" sx={{ display: "flex", justifyContent: "center", p: 5 }}><CircularProgress size={28} /></Box>}>
-        <LazyResourceMapGraph response={response} nodes={visibleNodes} edges={visibleEdges} onOpenResource={onOpenResource} canOpenResource={canOpenResource} showCacheFreshness={showCacheFreshness} layoutDirection={layoutDirection} />
+        <LazyResourceMapGraph response={response} nodes={presentation.nodes} edges={presentation.edges} onToggleGroup={(id) => setExpandedGroup((current) => current === id ? null : id)} onOpenResource={onOpenResource} canOpenResource={canOpenResource} showCacheFreshness={showCacheFreshness} layoutDirection={layoutDirection} />
       </Suspense>
       {evidenceRows.length ? (
         <Box component="details" sx={{ borderTop: 1, borderColor: "divider" }}>

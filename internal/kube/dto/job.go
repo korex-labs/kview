@@ -1,6 +1,8 @@
 package dto
 
 type JobDTO struct {
+	// SuccessfulTerminal is observed JobComplete=True, not an inferred display status.
+	SuccessfulTerminal          bool   `json:"successfulTerminal,omitempty"`
 	UID                         string `json:"uid,omitempty"`
 	ResourceRelationshipCarrier `json:"-"`
 	Name                        string            `json:"name"`

@@ -580,35 +580,38 @@ func mustDecodeJSON(t *testing.T, data []byte) map[string]any {
 // others panic so any accidental call fails the test loudly.
 
 type stubDataplane struct {
-	mu                      sync.Mutex
-	policy                  dataplane.DataplanePolicy
-	bundle                  dataplane.DataplanePolicyBundle
-	effective               map[string]dataplane.DataplanePolicy
-	acks                    map[string]dataplane.SignalAcknowledgementRecord
-	suppressions            map[string]dataplane.SignalSuppressionRecord
-	history                 map[string]dataplane.SignalHistoryRecord
-	dashboardSignalsCalls   int
-	dashboardDataplaneCalls int
-	resourceSignalsResult   dataplane.ResourceSignalsResult
-	resourceMapCalls        []stubResourceMapCall
-	resourceMapResult       dataplane.ResourceMapResponse
-	resourceMapErr          error
-	resourcePresenceResult  dataplane.ResourcePresenceResponse
-	resourcePresenceErr     error
-	resourcePresenceCalls   []stubResourcePresenceCall
-	suppressCalls           []stubSuppressCall
-	unsuppressCalls         []stubUnsuppressCall
-	suppressionExportCalls  []string
-	suppressionImportCalls  []stubSuppressionImportCall
-	suppressionResetCalls   []stubSuppressionResetCall
-	suppressionImportResult *dataplane.SignalSuppressionImportResult
-	suppressErr             error
-	unsuppressErr           error
-	suppressionImportErr    error
-	suppressionResetErr     error
-	explanationCalls        []string
-	explanationResult       dataplane.DataplaneExplanationSnapshot
-	activityCalls           int
+	mu                       sync.Mutex
+	policy                   dataplane.DataplanePolicy
+	bundle                   dataplane.DataplanePolicyBundle
+	effective                map[string]dataplane.DataplanePolicy
+	acks                     map[string]dataplane.SignalAcknowledgementRecord
+	suppressions             map[string]dataplane.SignalSuppressionRecord
+	history                  map[string]dataplane.SignalHistoryRecord
+	dashboardSignalsCalls    int
+	dashboardDataplaneCalls  int
+	resourceSignalsResult    dataplane.ResourceSignalsResult
+	resourceMapCalls         []stubResourceMapCall
+	resourceMapResult        dataplane.ResourceMapResponse
+	resourceMapErr           error
+	resourceOwnershipCalls   []dataplane.ResourceOwnershipRequest
+	resourceOwnershipContext string
+	resourceOwnershipErr     error
+	resourcePresenceResult   dataplane.ResourcePresenceResponse
+	resourcePresenceErr      error
+	resourcePresenceCalls    []stubResourcePresenceCall
+	suppressCalls            []stubSuppressCall
+	unsuppressCalls          []stubUnsuppressCall
+	suppressionExportCalls   []string
+	suppressionImportCalls   []stubSuppressionImportCall
+	suppressionResetCalls    []stubSuppressionResetCall
+	suppressionImportResult  *dataplane.SignalSuppressionImportResult
+	suppressErr              error
+	unsuppressErr            error
+	suppressionImportErr     error
+	suppressionResetErr      error
+	explanationCalls         []string
+	explanationResult        dataplane.DataplaneExplanationSnapshot
+	activityCalls            int
 }
 
 type stubResourceMapCall struct {
@@ -898,6 +901,14 @@ func (s *stubDataplane) ResourceMap(contextName string, req dataplane.ResourceMa
 	result.Active = contextName
 	return result, nil
 }
+func (s *stubDataplane) ResourceOwnership(contextName string, req dataplane.ResourceOwnershipRequest) (dataplane.ResourceOwnershipResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resourceOwnershipCalls = append(s.resourceOwnershipCalls, req)
+	s.resourceOwnershipContext = contextName
+	return dataplane.ResourceOwnershipResponse{Active: contextName}, s.resourceOwnershipErr
+}
+
 func (s *stubDataplane) ResourcePresence(contextName string, req dataplane.ResourcePresenceRequest) (dataplane.ResourcePresenceResponse, error) {
 	s.resourcePresenceCalls = append(s.resourcePresenceCalls, stubResourcePresenceCall{contextName: contextName, request: req})
 	if s.resourcePresenceErr != nil {

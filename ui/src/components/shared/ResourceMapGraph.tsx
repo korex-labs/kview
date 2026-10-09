@@ -12,7 +12,8 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode, ResourceMapResponse } from "../../types/api";
+import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapResponse } from "../../types/api";
+import { isPodGroupNode, type ResourceMapPresentationNode } from "./resourceOwnershipPresentation";
 import ResourceMapGraphEdge from "./ResourceMapGraphEdge";
 import ResourceMapGraphNode from "./ResourceMapGraphNode";
 import { buildResourceMapGraph, RESOURCE_MAP_NODE_HEIGHT, RESOURCE_MAP_NODE_WIDTH, type ResourceMapFlowEdge, type ResourceMapFlowNode } from "./resourceMapGraphModel";
@@ -53,12 +54,14 @@ export default function ResourceMapGraph({
   nodes,
   edges,
   onOpenResource,
+  onToggleGroup,
   canOpenResource,
   showCacheFreshness = true,
   layoutDirection = "TB",
 }: {
   response: ResourceMapResponse;
-  nodes: ResourceMapNode[];
+  nodes: ResourceMapPresentationNode[];
+  onToggleGroup?: (id: string) => void;
   edges: ResourceMapEdge[];
   onOpenResource: (identity: ApiResourceIdentity) => void;
   canOpenResource?: (identity: ApiResourceIdentity) => boolean;
@@ -77,8 +80,9 @@ export default function ResourceMapGraph({
       cacheFreshness: showCacheFreshness ? response.cache.freshness : undefined,
       coveragePartial,
       onOpenResource,
+      onToggleGroup,
     },
-  })), [coveragePartial, graph.nodes, onOpenResource, response.cache.freshness, showCacheFreshness]);
+  })), [coveragePartial, graph.nodes, onOpenResource, onToggleGroup, response.cache.freshness, showCacheFreshness]);
   const layoutKey = useMemo(
     () => `${layoutDirection}|${response.targetId}|${flowNodes.map((node) => node.id).join("|")}|${graph.edges.map((edge) => edge.id).join("|")}`,
     [flowNodes, graph.edges, layoutDirection, response.targetId],
@@ -115,7 +119,7 @@ export default function ResourceMapGraph({
         edgesFocusable={false}
         elementsSelectable={false}
         onNodeClick={(_, node) => {
-          if (node.data.uiNavigable) onOpenResource(node.data.resourceNode.identity);
+          if (!isPodGroupNode(node.data.resourceNode) && node.data.uiNavigable) onOpenResource(node.data.resourceNode.identity);
         }}
         panOnDrag
         panOnScroll={false}

@@ -34,6 +34,15 @@ export type ResourcePresenceResponse = {
   items: ResourcePresenceItem[];
 };
 
+export type ResourceOwnershipNode = ResourceMapNode & { jobStatus?: string; podStatus?: string };
+export type ResourceOwnershipPodGroup = {
+  id: string; ownerId: string; observedCount: number; countComplete: boolean;
+  members: ResourceOwnershipNode[]; membersTruncated: boolean; states: Record<string, number>;
+};
+export type ResourceOwnershipResponse = Pick<ResourceMapResponse, "active" | "edges" | "coverage" | "cache" | "limits" | "truncated" | "truncationReasons"> & {
+  roots: ResourcePresenceItem[]; nodes: ResourceOwnershipNode[]; podGroups: ResourceOwnershipPodGroup[]; maxMembers: number;
+};
+
 export type ResourceMapNode = {
   id: string;
   identity: ApiResourceIdentity;

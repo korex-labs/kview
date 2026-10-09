@@ -4,6 +4,7 @@ import type {
   ResourceMapResponse,
   ResourcePresenceIdentity,
   ResourcePresenceItem,
+  ResourceOwnershipResponse,
 } from "../../../types/api";
 import { parseApiVersion, type ManifestResource } from "../../../utils/helmManifest";
 import { fixedResourceIdentityRegistry } from "../../shared/resourceMapIdentity";
@@ -42,6 +43,7 @@ function manifestIdentity(resource: ManifestResource, releaseNamespace: string):
   if (fixed) {
     return {
       ...fixed,
+      version: (resource.apiVersion && parseApiVersion(resource.apiVersion)?.version) || fixed.version,
       ...(fixed.scope === "namespaced" ? { namespace: resource.namespace || releaseNamespace } : {}),
       name: resource.name,
     };
@@ -86,11 +88,10 @@ export function helmManifestPresenceIdentities(
   releaseNamespace: string,
 ): ResourcePresenceIdentity[] {
   return orderedManifestResources(resources, releaseNamespace)
-    .slice(0, MAX_MANIFEST_RESOURCES)
     .map((resource) => manifestIdentity(resource, releaseNamespace))
     .filter((identity): identity is ResourcePresenceIdentity =>
       Boolean(identity.resource) && (identity.scope === "namespaced" || identity.scope === "cluster"),
-    );
+    ).slice(0, MAX_MANIFEST_RESOURCES);
 }
 
 export function canOpenHelmManifestIdentity(
@@ -100,6 +101,52 @@ export function canOpenHelmManifestIdentity(
 ): boolean {
   const resource = manifestResourceForIdentity(resources, releaseNamespace, identity);
   return Boolean(resource && isNavigableManifestResource(resource));
+}
+
+export function isObservedHelmIdentity(ownership: ResourceOwnershipResponse | undefined, identity: ApiResourceIdentity): boolean {
+  const matches = (node: ResourceMapNode) => node.availability === "present" && node.navigable
+    && helmManifestIdentityKey(node.identity) === helmManifestIdentityKey(identity)
+    && node.identity.uid === identity.uid;
+  return Boolean(ownership && (ownership.nodes.some(matches) || ownership.podGroups.some((group) => group.members.some(matches))));
+}
+
+export function mergeHelmOwnership(response: ResourceMapResponse, ownership?: ResourceOwnershipResponse): ResourceMapResponse {
+  if (!ownership) return response;
+  const observed = new Map(ownership.nodes.map((node) => [`${helmManifestIdentityKey(node.identity)}|${node.identity.uid || ""}`, node]));
+  const roots = new Map(ownership.roots.map((root) => [helmManifestIdentityKey(root.requested), root]));
+  const remap = new Map<string, string>();
+  const nodes = new Map<string, ResourceMapNode>();
+  for (const node of response.nodes) {
+    const root = roots.get(helmManifestIdentityKey(node.identity));
+    const canonical = root?.resolved ? observed.get(`${helmManifestIdentityKey(root.identity)}|${root.identity.uid || ""}`) : undefined;
+    const merged: ResourceMapNode = canonical ? { ...canonical, depth: 1, direction: "child", current: false } : { ...node, availability: root?.availability || node.availability };
+    remap.set(node.id, merged.id);
+    nodes.set(merged.id, merged);
+  }
+  // Never append disconnected seeds omitted by the manifest display bound.
+  const reachable = new Set(nodes.keys());
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of ownership.edges) {
+      if (edge.type === "owner" && edge.resolved && reachable.has(edge.from) && !reachable.has(edge.to)) {
+        reachable.add(edge.to); changed = true;
+      }
+    }
+  }
+  for (const node of ownership.nodes) if (reachable.has(node.id) && !nodes.has(node.id)) nodes.set(node.id, { ...node, depth: node.depth + 1 });
+  const edges = [
+    ...response.edges.map((edge) => ({ ...edge, to: remap.get(edge.to) || edge.to })),
+    ...ownership.edges.filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)),
+  ].sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    ...response, active: ownership.active, nodes: [...nodes.values()].sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id)), edges,
+    truncated: response.truncated || ownership.truncated,
+    truncationReasons: [...new Set([...(response.truncationReasons || []), ...(ownership.truncationReasons || [])])].sort(),
+    coverage: { ...ownership.coverage, completeness: response.truncated ? "partial" : ownership.coverage.completeness, families: { ...ownership.coverage.families, helmManifest: response.coverage.families.helmManifest } },
+    limits: { ...ownership.limits, depth: ownership.limits.depth + 1, maxNodes: response.limits.maxNodes + ownership.limits.maxNodes, maxEdges: response.limits.maxEdges + ownership.limits.maxEdges },
+    cache: { ...ownership.cache, totalNodes: nodes.size, returnedNodes: nodes.size, totalEdges: edges.length, returnedEdges: edges.length },
+  };
 }
 
 export function buildHelmReleaseResourceMap(
@@ -172,10 +219,10 @@ export function buildHelmReleaseResourceMap(
     edges,
     coverage: {
       coverage: "partial",
-      completeness: "complete",
+      completeness: truncated ? "partial" : "complete",
       reasons: ["manifest-inventory-only"],
       families: {
-        helmManifest: { coverage: "full", completeness: "complete" },
+        helmManifest: { coverage: "full", completeness: truncated ? "partial" : "complete", ...(truncated ? { reasons: ["max-nodes"] } : {}) },
         kubernetesRelationships: { coverage: "unknown", completeness: "unknown", reasons: ["not-evaluated"] },
       },
     },

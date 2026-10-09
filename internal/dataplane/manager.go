@@ -63,6 +63,7 @@ type ClusterPlane interface {
 	ResourceMap(req ResourceMapRequest) (ResourceMapResponse, error)
 	// ResourcePresence resolves a bounded identity set from cache cells only.
 	ResourcePresence(req ResourcePresenceRequest) (ResourcePresenceResponse, error)
+	ResourceOwnership(req ResourceOwnershipRequest) (ResourceOwnershipResponse, error)
 }
 
 // DataPlaneManager is the top-level entrypoint for read-side data planes.
@@ -228,6 +229,7 @@ type DataPlaneManager interface {
 	ResourceMap(clusterName string, req ResourceMapRequest) (ResourceMapResponse, error)
 	// ResourcePresence resolves a bounded identity set from cache cells only.
 	ResourcePresence(clusterName string, req ResourcePresenceRequest) (ResourcePresenceResponse, error)
+	ResourceOwnership(clusterName string, req ResourceOwnershipRequest) (ResourceOwnershipResponse, error)
 	// PreviewSignalExclusions evaluates draft rules against cached raw signal candidates without mutating policy or history.
 	PreviewSignalExclusions(ctx context.Context, clusterName, signalType string, exclusions SignalExclusionSet) (SignalExclusionPreviewResult, error)
 	// AcknowledgeSignal records local operator acknowledgement metadata for a stable signal history key.

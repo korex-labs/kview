@@ -17,6 +17,39 @@ All sections share one tab row. **Release Notes** contains chart-rendered Helm
 notes; **Notes** contains kview's local operator notes. **Recovery** is a separate
 tab, not a panel above the tab row, so it does not displace normal release details.
 
+## Resource Map
+
+Open **Resource Map** to connect rendered release declarations with cached
+workload ownership. The map follows up to two ownership hops from canonical
+manifest resources, for example Deployment → ReplicaSet → Pod or CronJob → Job
+→ Pod. The release itself is a product-level center, not a Kubernetes object.
+The ownership request runs only while this tab is open; expanding a group or
+showing history does not fetch additional resources.
+
+- Pods are grouped by their immediate owner, not by release labels or name
+  prefixes. **Expand Pods** shows at most ten cached sample members of one group
+  at a time. Select an observed resource or sample Pod to open its normal drawer.
+- **Show workload history** reveals older zero-desired ReplicaSets beneath each
+  Deployment and successfully completed Jobs beneath each CronJob. Latest
+  observed ReplicaSet revisions, active workloads, failed Jobs, unknown state,
+  and separately declared manifest resources remain visible. This control is
+  separate from the Helm release-revision **History** tab.
+- Group cards distinguish observed count, returned sample, and visible members.
+  **At least** means the observed count is a lower bound. **Sample limited**,
+  **Collapsed**, and a display-truncation warning mean different things.
+- The display is bounded to 200 cards including the release, declarations,
+  descendants, Pod groups, and expanded members. A warning identifies display
+  truncation; API depth, scan, and topology limits are reported separately.
+- **Cache coverage and limits** explains the cached projection. Pod state counts
+  describe observed Pods only; Running is not a readiness guarantee. Unknown
+  availability does not prove absence, and partial counts are not cluster totals.
+
+Custom descendants, object references, selectors, and other non-owner relations
+are not recursively evaluated. Unresolved declarations remain available without
+inventing a custom-resource plural or scope. If ownership is unavailable, the map
+falls back to declarations and shows a warning. Switching context, credentials,
+or release cancels the old request and resets map disclosure state.
+
 ## Recovery
 
 Open a release drawer's **Recovery** tab and choose **Preview recovery** to

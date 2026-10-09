@@ -125,6 +125,38 @@ Notable projection:
 
 - **`NamespaceSummaryProjection`** backs `GET /api/namespaces/{name}/summary`: counts, health-style rollups, RBAC counts (serviceaccounts/roles/rolebindings), Helm release count/list, `workloadByKind`, and **`NamespaceSummaryMetaDTO`** (`freshness`, `coverage`, `degradation`, `completeness`, `state`). If at least one contributing snapshot is usable, the endpoint returns a degraded/partial payload instead of hard-failing the whole summary.
 
+### Helm ownership projection
+
+The Helm release Resource Map lazily posts canonical manifest seeds to
+`POST /api/dataplane/resource-ownership` with an explicit context and depth two.
+This is one cache-only multi-root ownership projection, not an ordinary Resource
+Map request per declaration. The product-level Helm root stays in the frontend.
+Unknown/custom declarations retain manifest navigation without fabricated GVRs.
+
+The response separates canonical roots, ownership nodes/edges, owner-scoped Pod
+groups, cache evidence, coverage, and truncation. Canonical joins include UID;
+sample Pod navigation uses the returned full identity. Only resolved ownership
+edges connect descendants, and omitted manifest seeds are not appended as
+disconnected subgraphs. The UI preserves declared served versions and sorts the
+merged topology deterministically.
+
+Pod-group cards are a presentation union, not Kubernetes identities. Expansion
+shows at most ten returned members of one immediate-owner group and makes no
+requests. A separate 200-card display budget includes all topology, groups and
+expanded members, with explicit display truncation. Cached observed totals,
+bounded samples, collapsed groups and displayed counts remain distinct.
+
+History classification runs per owning Deployment/CronJob, independent of graph
+depth. It keeps latest/unknown ReplicaSets and failed/unknown Jobs visible and
+never hides separately declared roots or follows reference edges. `jobStatus:
+Complete` is consumed as the backend's verified successful-terminal signal, not
+inferred from inactive or failed counts. Ordinary Resource Map history defaults
+and API depth are unchanged.
+
+Request state is scoped to context, credentials, namespace, release and drawer
+lifetime. Tab changes abort the ownership request; late or mismatched-context
+responses cannot publish. The UI displays declarations if cached ownership fails.
+
 ### Derived projections
 
 Some useful operator views can be **derived** from resources the user is allowed to read even when the direct target resource is denied or unavailable. These are intentionally labeled as derived, **sparse**, and **inexact** rather than presented as authoritative list snapshots.

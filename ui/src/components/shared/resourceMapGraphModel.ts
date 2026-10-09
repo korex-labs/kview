@@ -1,13 +1,15 @@
 import dagre from "@dagrejs/dagre";
 import { MarkerType, Position, type Edge, type Node } from "@xyflow/react";
-import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode } from "../../types/api";
+import type { ApiResourceIdentity, ResourceMapEdge } from "../../types/api";
+import { isPodGroupNode, presentationIdentity, type ResourceMapPresentationNode } from "./resourceOwnershipPresentation";
 import { supportsResourceIdentityDrawer } from "./ResourceIdentityDrawer";
 
 export const RESOURCE_MAP_NODE_WIDTH = 280;
 export const RESOURCE_MAP_NODE_HEIGHT = 112;
 
 export type ResourceMapGraphNodeData = Record<string, unknown> & {
-  resourceNode: ResourceMapNode;
+  resourceNode: ResourceMapPresentationNode;
+  onToggleGroup?: (id: string) => void;
   uiNavigable: boolean;
   incoming: ResourceMapEdge[];
   outgoing: ResourceMapEdge[];
@@ -47,9 +49,10 @@ export function resourceMapEdgeLabel(type: ResourceMapEdge["type"]): string {
   }
 }
 
-function nodeSort(a: ResourceMapNode, b: ResourceMapNode) {
-  return [a.depth, a.identity.kind, a.identity.namespace, a.identity.name, a.id]
-    .join("|").localeCompare([b.depth, b.identity.kind, b.identity.namespace, b.identity.name, b.id].join("|"));
+function nodeSort(a: ResourceMapPresentationNode, b: ResourceMapPresentationNode) {
+  const ai = presentationIdentity(a), bi = presentationIdentity(b);
+  return [a.depth, ai.kind, ai.namespace, ai.name, a.id]
+    .join("|").localeCompare([b.depth, bi.kind, bi.namespace, bi.name, b.id].join("|"));
 }
 
 function edgeSort(a: ResourceMapEdge, b: ResourceMapEdge) {
@@ -86,7 +89,7 @@ function routeAnchor(node: LayoutNode, point: RoutePoint): { position: Position;
 }
 
 export function buildResourceMapGraph(
-  nodes: ResourceMapNode[],
+  nodes: ResourceMapPresentationNode[],
   edges: ResourceMapEdge[],
   canOpenResource: (identity: ApiResourceIdentity) => boolean = supportsResourceIdentityDrawer,
   layoutDirection: "TB" | "LR" = "TB",
@@ -202,7 +205,7 @@ export function buildResourceMapGraph(
       height: RESOURCE_MAP_NODE_HEIGHT,
       data: {
         resourceNode,
-        uiNavigable: !resourceNode.current && resourceNode.navigable && canOpenResource(resourceNode.identity),
+        uiNavigable: !isPodGroupNode(resourceNode) && !resourceNode.current && resourceNode.navigable && canOpenResource(resourceNode.identity),
         incoming: incoming.get(resourceNode.id) || [],
         outgoing: outgoing.get(resourceNode.id) || [],
         incomingHandlePositions: Object.fromEntries((incoming.get(resourceNode.id) || []).map((edge) => [edge.id, targetHandlePositions.get(edge.id) || Position.Top])),
@@ -236,8 +239,8 @@ export function buildResourceMapGraph(
       },
       data: {
         resourceEdge,
-        fromIdentity: from.identity,
-        toIdentity: to.identity,
+        fromIdentity: presentationIdentity(from),
+        toIdentity: presentationIdentity(to),
         stepPosition: stepPositions.get(resourceEdge.id) || 0.5,
         selfLoop: resourceEdge.from === resourceEdge.to,
         routePoints: edgeRoutePoints.get(resourceEdge.id) || [],

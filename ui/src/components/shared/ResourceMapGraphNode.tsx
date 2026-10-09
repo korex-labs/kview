@@ -1,17 +1,19 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Box, ButtonBase, Chip, Divider, Stack, Tooltip, Typography } from "@mui/material";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import type { ResourceMapNode } from "../../types/api";
+import { isPodGroupNode } from "./resourceOwnershipPresentation";
 import ResourceIcon from "../icons/resources/ResourceIcon";
 import { isResourceIconName } from "../../utils/k8sResources";
 import { resourceMapEdgeLabel, resourceMapIdentityLabel, type ResourceMapFlowNode } from "./resourceMapGraphModel";
 
-function availabilityColor(availability: ResourceMapFlowNode["data"]["resourceNode"]["availability"]): "success" | "warning" | "default" {
+function availabilityColor(availability: ResourceMapNode["availability"]): "success" | "warning" | "default" {
   if (availability === "present") return "success";
   if (availability === "missing") return "warning";
   return "default";
 }
 
-function roleLabel(direction: ResourceMapFlowNode["data"]["resourceNode"]["direction"]): string {
+function roleLabel(direction: ResourceMapNode["direction"]): string {
   switch (direction) {
     case "current": return "Current resource";
     case "parent": return "Parent or dependency";
@@ -43,11 +45,23 @@ function handleStyle(index: number, count: number, position: Position, routeOffs
 
 export default function ResourceMapGraphNode({ data }: NodeProps<ResourceMapFlowNode>) {
   const { resourceNode } = data;
+  if (isPodGroupNode(resourceNode)) {
+    const { group, expanded, owner } = resourceNode;
+    return <>
+      {data.incoming.map((edge, index) => <Handle key={edge.id} id={`target-${edge.id}`} type="target" position={data.incomingHandlePositions[edge.id] || Position.Left} isConnectable={false} style={handleStyle(index, data.incoming.length, data.incomingHandlePositions[edge.id] || Position.Left, data.incomingHandleOffsets[edge.id])} />)}
+      <ButtonBase className="nodrag" aria-label={`${expanded ? "Collapse" : "Expand"} Pods owned by ${owner.kind} ${owner.name}`} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); data.onToggleGroup?.(group.id); }} sx={{ width: "100%", height: "100%", p: 1, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.paper", textAlign: "left", display: "block", "&.Mui-focusVisible": { outline: "3px solid", outlineColor: "primary.main" } }}>
+        <Typography variant="subtitle2">Pods · {group.countComplete ? "" : "at least "}{group.observedCount} observed</Typography>
+        <Typography variant="caption" sx={{ display: "block" }}>{expanded ? `Collapse · ${resourceNode.visibleMembers} visible` : "Expand · Collapsed"} · {Math.min(10, group.members.length)} cached members{group.membersTruncated || group.members.length > 10 ? " (sample limited)" : ""}</Typography>
+        <Typography variant="caption" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={Object.entries(group.states).map(([state, count]) => `${state}: ${count}`).join(" · ")}>{Object.entries(group.states).sort(([a], [b]) => a.localeCompare(b)).map(([state, count]) => `${state}: ${count}`).join(" · ")}</Typography>
+      </ButtonBase>
+      {data.outgoing.map((edge, index) => <Handle key={edge.id} id={`source-${edge.id}`} type="source" position={data.outgoingHandlePositions[edge.id] || Position.Right} isConnectable={false} style={handleStyle(index, data.outgoing.length, data.outgoingHandlePositions[edge.id] || Position.Right, data.outgoingHandleOffsets[edge.id])} />)}
+    </>;
+  }
   const identity = resourceNode.identity;
   const iconName = isResourceIconName(identity.resource)
     ? identity.resource
     : identity.scope === "cluster" ? "clusterresources" : "customresources";
-  const relationships = useMemo(() => relationshipSummary(data), [data]);
+  const relationships = relationshipSummary(data);
   const accessibleLabel = resourceNode.replicaSet
     ? `${identity.kind}: ${identity.name}, revision ${resourceNode.replicaSet.revision}, desired ${resourceNode.replicaSet.desired}, ready ${resourceNode.replicaSet.ready}`
     : `${identity.kind}: ${identity.name}`;

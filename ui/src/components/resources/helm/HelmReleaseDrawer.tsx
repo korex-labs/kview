@@ -19,7 +19,8 @@ import { fmtTs, valueOrDash } from "../../../utils/format";
 import { helmStatusChipColor } from "../../../utils/k8sUi";
 import { parseManifestResources, groupResourcesByKind, canNavigateToKind, isCRManifestResource, parseApiVersion } from "../../../utils/helmManifest";
 import type { ManifestResource } from "../../../utils/helmManifest";
-import type { ResourcePresenceItem, ResourcePresenceResponse } from "../../../types/api";
+import { ResourceIdentityDrawer } from "../../shared/ResourceIdentityDrawer";
+import type { ApiResourceIdentity, ResourceOwnershipResponse } from "../../../types/api";
 import Section from "../../shared/Section";
 import DrawerActionStrip from "../../shared/DrawerActionStrip";
 import KeyValueTable from "../../shared/KeyValueTable";
@@ -32,6 +33,7 @@ import AutolinkText from "../../shared/AutolinkText";
 import StatusChip from "../../shared/StatusChip";
 import { HelmReleaseActions, HelmRollbackActionButton } from "./HelmActions";
 import HelmReleaseResourceMap from "./HelmReleaseResourceMap";
+import { acceptsHelmOwnershipResponse, helmReleaseSessionKey } from "./helmOwnershipRequest";
 import HelmRecovery from "./HelmRecovery";
 import {
   helmManifestPresenceIdentities,
@@ -129,7 +131,7 @@ type HelmReleaseDrawerProps = {
 export default function HelmReleaseDrawer(props: HelmReleaseDrawerProps) {
   const context = useActiveContext();
   const { health } = useConnectionState();
-  return <HelmReleaseDrawerSession key={JSON.stringify([context, props.token, props.namespace, props.releaseName, props.open, health])} {...props} />;
+  return <HelmReleaseDrawerSession key={helmReleaseSessionKey(context, props.token, props.namespace, props.releaseName, props.open, health)} {...props} />;
 }
 
 function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
@@ -140,7 +142,9 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<HelmReleaseDetails | null>(null);
   const [err, setErr] = useState("");
-  const [presenceItems, setPresenceItems] = useState<ResourcePresenceItem[]>([]);
+  const [ownership, setOwnership] = useState<ResourceOwnershipResponse>();
+  const [ownershipError, setOwnershipError] = useState("");
+  const [observedResource, setObservedResource] = useState<ApiResourceIdentity | null>(null);
 
   // Sub-drawer state for cross-links
   const [linkedResource, setLinkedResource] = useState<ManifestResource | null>(null);
@@ -234,26 +238,23 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
   const activeTabId = tabDefs.some((item) => item.id === tab) ? tab : "overview";
 
   useEffect(() => {
-    setPresenceItems([]);
-    if (activeTabId !== "resource-map" || !props.open || !name || !activeContext || presenceIdentities.length === 0) return;
-    let cancelled = false;
-    apiPostWithContext<ResourcePresenceResponse>(
-      "/api/dataplane/resource-presence",
-      props.token,
-      activeContext,
-      { identities: presenceIdentities },
-    )
-      .then((response) => {
-        if (!cancelled && response.active === activeContext) setPresenceItems(response.items || []);
-      })
-      .catch(() => {
-        // Cache enrichment is best-effort. Manifest membership remains useful,
-        // and unknown never means absent.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeContext, activeTabId, name, presenceIdentities, props.open, props.token]);
+    setOwnership(undefined);
+    setOwnershipError("");
+    if (activeTabId !== "resource-map" || !props.open || !name || !activeContext || !props.token || health === "unhealthy" || presenceIdentities.length === 0) return;
+    let current = true;
+    const controller = new AbortController();
+    apiPostWithContext<ResourceOwnershipResponse>(
+      "/api/dataplane/resource-ownership", props.token, activeContext,
+      { identities: presenceIdentities, depth: 2 }, { signal: controller.signal },
+    ).then((response) => {
+      if (!current) return;
+      if (!acceptsHelmOwnershipResponse(controller.signal, activeContext, response.active)) throw new Error("Ownership context mismatch");
+      setOwnership(response);
+    }).catch(() => {
+      if (current) setOwnershipError("Cached ownership unavailable. Showing manifest declarations only; unknown does not mean absent.");
+    });
+    return () => { current = false; controller.abort(); };
+  }, [activeContext, activeTabId, name, ns, presenceIdentities, props.open, props.token, refreshNonce, retryNonce, health]);
 
   const summaryItems = useMemo(
     () => [
@@ -435,7 +436,9 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
                   releaseName={name}
                   releaseNamespace={ns}
                   manifestResources={manifestResources}
-                  presenceItems={presenceItems}
+                  ownership={ownership?.active === activeContext ? ownership : undefined}
+                  ownershipError={ownershipError}
+                  onOpenIdentity={setObservedResource}
                   onOpenResource={openManifestResource}
                 />
               )}
@@ -601,6 +604,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
             </Box>
 
             {/* Sub-drawers for cross-linked resources */}
+            <ResourceIdentityDrawer token={props.token} identity={observedResource} onClose={() => setObservedResource(null)} />
             <DeploymentDrawer
               open={linkedKind === "Deployment"}
               onClose={() => setLinkedResource(null)}

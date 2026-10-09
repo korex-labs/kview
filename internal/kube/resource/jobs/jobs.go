@@ -46,6 +46,7 @@ func MapJobs(items []batchv1.Job, now time.Time) []dto.JobDTO {
 			DurationSec:                 JobDurationSec(&job),
 			AgeSec:                      age,
 			Status:                      JobStatus(&job),
+			SuccessfulTerminal:          jobHasCondition(&job, batchv1.JobComplete, corev1.ConditionTrue) && !jobHasCondition(&job, batchv1.JobFailed, corev1.ConditionTrue),
 		})
 	}
 
