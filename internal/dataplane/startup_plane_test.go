@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/korex-labs/kview/v5/internal/cluster"
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
 )
 
@@ -21,6 +20,7 @@ type startupGatedPersistence struct {
 	history    bool
 	fail       bool
 	panicFirst bool
+	namespace  string
 }
 
 func (s *startupGatedPersistence) gate(name string, history bool) {
@@ -34,12 +34,16 @@ func (s *startupGatedPersistence) gate(name string, history bool) {
 		panic("startup persistence panic")
 	}
 }
-func (s *startupGatedPersistence) PruneOlderThan(name string, age time.Duration) error {
-	s.gate(name, false)
-	if name == "slow" && s.fail {
-		return errors.New("unreadable cache")
+func (s *startupGatedPersistence) Load(name string, kind ResourceKind, namespace string, into any) (bool, error) {
+	// Capture disk bytes before the gate so tests exercise genuinely stale reads.
+	ok, err := s.snapshotPersistence.Load(name, kind, namespace, into)
+	if s.namespace == "" || namespace == s.namespace {
+		s.gate(name, false)
 	}
-	return s.snapshotPersistence.PruneOlderThan(name, age)
+	if s.fail {
+		return false, errors.New("unreadable cache")
+	}
+	return ok, err
 }
 func (s *startupGatedPersistence) LoadSignalHistory(name string) (map[string]SignalHistoryRecord, error) {
 	s.gate(name, true)
@@ -51,11 +55,11 @@ func startupPlaneManager(t *testing.T) (*manager, *startupGatedPersistence) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = sp.Close() })
 	gated := &startupGatedPersistence{snapshotPersistence: sp, started: make(chan struct{}), release: make(chan struct{})}
 	policy := DefaultDataplanePolicy()
 	policy.Persistence.Enabled = true
 	m := &manager{planes: map[string]*clusterPlane{}, persistence: gated, bundle: DataplanePolicyBundle{Global: policy}, policy: policy, signalHistory: map[string]map[string]SignalHistoryRecord{}}
+	t.Cleanup(func() { m.ClosePodsLive(); _ = sp.Close() })
 	return m, gated
 }
 func startupAwait[T any](t *testing.T, ch <-chan T) T {
@@ -74,237 +78,188 @@ func startupLookup(m *manager, ctx context.Context, name string) <-chan ClusterP
 	go func() { p, _ := m.PlaneForCluster(ctx, name); done <- p }()
 	return done
 }
-func TestStartupPlaneHydrationDoesNotLockOtherContexts(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	ready, err := m.PlaneForCluster(context.Background(), "ready")
+func demandRestore(p *clusterPlane, kind ResourceKind, ns string) <-chan error {
+	done := make(chan error, 1)
+	go func() { done <- p.restoreSnapshotCell(context.Background(), kind, ns, true) }()
+	return done
+}
+func seedDemandPods(t *testing.T, sp snapshotPersistence, cluster, ns string) {
+	t.Helper()
+	err := sp.Save(cluster, ResourceKindPods, ns, PodsSnapshot{Items: []dto.PodListItemDTO{{Name: "disk", Namespace: ns}}, Meta: SnapshotMetadata{ObservedAt: time.Now().UTC(), Coverage: CoverageClassFull, Completeness: CompletenessClassComplete}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	slowDone := startupLookup(m, context.Background(), "slow")
-	startupAwait(t, gated.started)
-	defer func() { close(gated.release); startupAwait(t, slowDone) }()
-	begin := time.Now()
-	select {
-	case got := <-startupLookup(m, context.Background(), "ready"):
-		if got != ready {
-			t.Fatal("plane identity changed")
-		}
-		t.Logf("existing context lookup %s while unrelated hydration gated", time.Since(begin))
-	case <-time.After(250 * time.Millisecond):
-		t.Fatal("existing foreground plane blocked by unrelated disk hydration")
+}
+func TestStartupPlaneDemandIndependentAndCoalesced(t *testing.T) {
+	m, gated := startupPlaneManager(t)
+	seedDemandPods(t, gated, "slow", "app")
+	seedDemandPods(t, gated, "ready", "app")
+	p := startupAwait(t, startupLookup(m, context.Background(), "slow")).(*clusterPlane)
+	if gated.calls.Load() != 0 {
+		t.Fatal("plane creation touched disk")
 	}
-	// Names are exact identities, not trimmed or case-folded aliases.
-	for _, name := range []string{"Slow", " slow"} {
-		p := startupAwait(t, startupLookup(m, context.Background(), name))
-		if p.ClusterName() != name || p.Scope().ClusterName != name {
-			t.Fatalf("context identity changed: %q", name)
+	leader := demandRestore(p, ResourceKindPods, "app")
+	startupAwait(t, gated.started)
+	var release sync.Once
+	defer release.Do(func() { close(gated.release) })
+	followers := make([]<-chan error, 24)
+	for i := range followers {
+		followers[i] = demandRestore(p, ResourceKindPods, "app")
+	}
+	if startupAwait(t, startupLookup(m, context.Background(), "slow")) != p {
+		t.Fatal("identity changed")
+	}
+	ready := startupAwait(t, startupLookup(m, context.Background(), "ready")).(*clusterPlane)
+	if err := startupAwait(t, demandRestore(ready, ResourceKindPods, "app")); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.PodsCachedSnapshot("slow", "app"); ok {
+		t.Fatal("unloaded cell claimed coverage")
+	}
+	if snap, ok := m.PodsCachedSnapshot("ready", "app"); !ok || snap.Items[0].Name != "disk" {
+		t.Fatal("other context blocked")
+	}
+	release.Do(func() { close(gated.release) })
+	if err := startupAwait(t, leader); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range followers {
+		if err := startupAwait(t, f); err != nil {
+			t.Fatal(err)
 		}
+	}
+	if gated.calls.Load() != 1 {
+		t.Fatalf("loads=%d", gated.calls.Load())
 	}
 }
-func TestStartupPlaneCoalescesUntilSnapshotsAndHistoryReady(t *testing.T) {
-	for _, history := range []bool{false, true} {
-		name := "snapshots"
-		if history {
-			name = "history"
-		}
-		t.Run(name, func(t *testing.T) {
+func TestStartupDemandCannotResurrectOrOverwrite(t *testing.T) {
+	for _, action := range []string{"publish", "clear", "disable", "shutdown"} {
+		t.Run(action, func(t *testing.T) {
 			m, gated := startupPlaneManager(t)
-			gated.history = history
-			snap := NamespaceSnapshot{Items: []dto.NamespaceListItemDTO{{Name: "persisted"}}, Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()}}
-			if err := gated.Save("slow", ResourceKindNamespaces, "", snap); err != nil {
-				t.Fatal(err)
-			}
-			rec := SignalHistoryRecord{FirstSeenAt: time.Now().Unix(), LastSeenAt: time.Now().Unix(), SeenCount: 7}
-			if err := gated.UpsertSignalHistory("slow", map[string]SignalHistoryRecord{"saved": rec}); err != nil {
-				t.Fatal(err)
-			}
-			leader := startupLookup(m, context.Background(), "slow")
+			seedDemandPods(t, gated, "slow", "app")
+			p := startupAwait(t, startupLookup(m, context.Background(), "slow")).(*clusterPlane)
+			done := demandRestore(p, ResourceKindPods, "app")
 			startupAwait(t, gated.started)
-			var release sync.Once
-			defer release.Do(func() { close(gated.release) })
-			const followers = 24
-			results := make([]<-chan ClusterPlane, 0, followers)
-			canceled, cancel := context.WithCancel(context.Background())
-			cancel()
-			for range followers {
-				results = append(results, startupLookup(m, canceled, "slow"))
-			}
-			m.mu.RLock()
-			unpublished := m.planes["slow"] == nil
-			reservation := m.planeInit["slow"]
-			m.mu.RUnlock()
-			if !unpublished || reservation == nil {
-				t.Fatal("partially initialized plane published")
-			}
-			if _, ok := m.PodsCachedSnapshot("slow", "default"); ok {
-				t.Fatal("cache-only reader saw private plane")
-			}
-			for _, result := range results {
-				select {
-				case <-result:
-					t.Fatal("caller returned before hydration/history completed")
-				default:
+			switch action {
+			case "publish":
+				setNamespacedSnapshot(&p.podsStore, "app", PodsSnapshot{Items: []dto.PodListItemDTO{{Name: "live"}}, Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()}})
+			case "clear":
+				clearNamespacedSnapshot(&p.podsStore, "app")
+			case "disable":
+				policy := m.Policy()
+				policy.Persistence.Enabled = false
+				if err := m.configurePersistence(policy); err != nil {
+					t.Fatal(err)
 				}
+			case "shutdown":
+				m.ClosePodsLive()
 			}
-			release.Do(func() { close(gated.release) })
-			want := startupAwait(t, leader)
-			for _, result := range results {
-				if got := startupAwait(t, result); got != want {
-					t.Fatal("duplicate plane initialized")
+			close(gated.release)
+			startupAwait(t, done)
+			snap, ok := m.PodsCachedSnapshot("slow", "app")
+			if action == "publish" {
+				if !ok || snap.Items[0].Name != "live" || snap.Meta.Revision != 1 {
+					t.Fatalf("overwritten: %+v", snap)
 				}
-			}
-			startupAwait(t, reservation)
-			if gated.calls.Load() != 1 {
-				t.Fatalf("initializations = %d", gated.calls.Load())
-			}
-			p := want.(*clusterPlane)
-			got, ok := peekClusterSnapshot(&p.nsStore)
-			if !ok || len(got.Items) != 1 || got.Items[0].Name != "persisted" {
-				t.Fatalf("snapshot not hydrated: %+v", got)
-			}
-			m.signalHistoryMu.RLock()
-			loaded := m.signalHistory["slow"]["saved"]
-			m.signalHistoryMu.RUnlock()
-			if loaded.SeenCount != rec.SeenCount {
-				t.Fatalf("history not ready: %+v", loaded)
-			}
-			m.mu.RLock()
-			remaining := len(m.planeInit)
-			m.mu.RUnlock()
-			if remaining != 0 {
-				t.Fatal("initialization reservation leaked")
+			} else if ok {
+				t.Fatal("late disk data published")
 			}
 		})
 	}
 }
-func TestStartupPlanePersistenceFailureReleasesWaiters(t *testing.T) {
+func TestStartupDemandErrorsRetry(t *testing.T) {
 	m, gated := startupPlaneManager(t)
+	seedDemandPods(t, gated, "slow", "app")
 	gated.fail = true
-	leader := startupLookup(m, context.Background(), "slow")
-	startupAwait(t, gated.started)
-	follower := startupLookup(m, context.Background(), "slow")
 	close(gated.release)
-	p := startupAwait(t, leader)
-	if p == nil || startupAwait(t, follower) != p {
-		t.Fatal("best-effort persistence failure lost plane")
+	p := startupAwait(t, startupLookup(m, context.Background(), "slow")).(*clusterPlane)
+	if err := p.restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true); err == nil {
+		t.Fatal("expected error")
 	}
-	if gated.calls.Load() != 1 {
-		t.Fatal("persistence failure duplicated initialization")
-	}
-}
-func TestStartupPlanePanicReleasesReservationWithoutPublication(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	gated.panicFirst = true
-	recovered := make(chan any, 1)
-	go func() {
-		defer func() { recovered <- recover() }()
-		_, _ = m.PlaneForCluster(context.Background(), "slow")
-	}()
-	startupAwait(t, gated.started)
-	m.mu.RLock()
-	reservation := m.planeInit["slow"]
-	m.mu.RUnlock()
-	close(gated.release)
-	if startupAwait(t, recovered) != "startup persistence panic" {
-		t.Fatal("panic was swallowed or changed")
-	}
-	startupAwait(t, reservation)
-	m.mu.RLock()
-	unpublished := m.planes["slow"] == nil && m.planeInit["slow"] == nil
-	m.mu.RUnlock()
-	if !unpublished {
-		t.Fatal("panic published plane or leaked reservation")
-	}
-	if startupAwait(t, startupLookup(m, context.Background(), "slow")) == nil {
-		t.Fatal("retry failed")
-	}
-	if gated.calls.Load() != 2 {
-		t.Fatal("retry did not initialize exactly once")
-	}
-}
-func TestStartupPlaneClosePodsLiveDoesNotWaitForHydration(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	leader := startupLookup(m, context.Background(), "slow")
-	startupAwait(t, gated.started)
-	defer func() { close(gated.release); startupAwait(t, leader) }()
-	closed := make(chan struct{})
-	go func() { m.ClosePodsLive(); close(closed) }()
-	startupAwait(t, closed)
-	m.liveMu.Lock()
-	stopped := m.liveClosed && m.liveCells == 0 && m.liveSubscribers == 0
-	m.liveMu.Unlock()
-	if !stopped {
-		t.Fatal("Live shutdown failed during plane initialization")
-	}
-}
-func TestStartupPlaneCloseRejectsLateLiveSubscription(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	// No Kubernetes client: reaching a worker would be a test failure, not a live call.
-	m.clients = liveTestClients{c: &cluster.Clients{}}
-	result := make(chan error, 1)
-	go func() {
-		sub, err := m.SubscribePods(context.Background(), "slow", "default")
-		if sub != nil {
-			sub.Close()
-		}
-		result <- err
-	}()
-	startupAwait(t, gated.started)
-	var release sync.Once
-	defer release.Do(func() { close(gated.release) })
-	closed := make(chan struct{})
-	go func() { m.ClosePodsLive(); close(closed) }()
-	startupAwait(t, closed)
-	release.Do(func() { close(gated.release) })
-	if err := startupAwait(t, result); !errors.Is(err, ErrPodLiveUnavailable) {
-		t.Fatalf("late subscription error = %v", err)
-	}
-	m.liveMu.Lock()
-	cells, subscribers := m.liveCells, m.liveSubscribers
-	m.liveMu.Unlock()
-	if cells != 0 || subscribers != 0 {
-		t.Fatal("Live worker admitted after shutdown")
-	}
-}
-
-func TestStartupPlanePolicyHydrationIncludesPrivateInitializations(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	leader := startupLookup(m, context.Background(), "slow")
-	startupAwait(t, gated.started)
-	var release sync.Once
-	defer release.Do(func() { close(gated.release) })
-	done := make(chan struct{})
-	go func() { m.hydratePersistedPlanes(m.Policy()); close(done) }()
-	select {
-	case <-done:
-		t.Fatal("policy hydration skipped initializing plane")
-	case <-time.After(50 * time.Millisecond):
-	}
-	// The policy waiter must not prevent unrelated foreground publication.
-	if startupAwait(t, startupLookup(m, context.Background(), "ready")) == nil {
-		t.Fatal("policy hydration locked foreground lookup")
-	}
-	release.Do(func() { close(gated.release) })
-	startupAwait(t, leader)
-	startupAwait(t, done)
-	if gated.calls.Load() != 2 {
-		t.Fatalf("policy hydration missed newly published plane: passes = %d", gated.calls.Load())
-	}
-}
-
-func TestStartupPlanePersistenceDisableDuringHydration(t *testing.T) {
-	m, gated := startupPlaneManager(t)
-	leader := startupLookup(m, context.Background(), "slow")
-	startupAwait(t, gated.started)
-	defer func() { close(gated.release); startupAwait(t, leader) }()
-	done := make(chan error, 1)
-	policy := DefaultDataplanePolicy()
-	policy.Persistence.Enabled = false
-	go func() { done <- m.configurePersistence(policy) }()
-	if err := startupAwait(t, done); err != nil {
+	gated.fail = false
+	if err := p.restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true); err != nil {
 		t.Fatal(err)
 	}
-	if m.currentPersistence() != nil {
-		t.Fatal("persistence not disabled")
+	if gated.calls.Load() != 2 {
+		t.Fatal("failed load memoized")
+	}
+}
+func TestStartupDemandPanicReleasesWaiters(t *testing.T) {
+	m, gated := startupPlaneManager(t)
+	gated.panicFirst = true
+	close(gated.release)
+	p := startupAwait(t, startupLookup(m, context.Background(), "slow")).(*clusterPlane)
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expected panic")
+			}
+		}()
+		_ = p.restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true)
+	}()
+	if err := p.restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true); err != nil {
+		t.Fatal(err)
+	}
+	if gated.calls.Load() != 2 {
+		t.Fatal("panic retained in-flight reservation")
+	}
+}
+
+func TestSnapshotKeyPagingAndBackground(t *testing.T) {
+	m, gated := startupPlaneManager(t)
+	sp := gated.snapshotPersistence
+	for _, ns := range []string{"a", "b", "c"} {
+		seedDemandPods(t, sp, "ctx", ns)
+	}
+	seedDemandPods(t, sp, "ctx-other", "outside")
+	pager := sp.(snapshotKeyPager)
+	var after []byte
+	count := 0
+	for {
+		cells, next, err := pager.SnapshotKeysPage("ctx", after, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cells) > 1 {
+			t.Fatal("unbounded page")
+		}
+		for _, cell := range cells {
+			if len(cell.Payload) != 0 {
+				t.Fatal("page copied payload")
+			}
+			count++
+		}
+		if next == nil {
+			break
+		}
+		after = next
+	}
+	if count != 3 {
+		t.Fatalf("keys=%d", count)
+	}
+	m.persistenceMu.Lock()
+	m.persistence = sp
+	m.persistenceMu.Unlock()
+	m.hydrationDemand.Add(1)
+	p := startupAwait(t, startupLookup(m, context.Background(), "ctx")).(*clusterPlane)
+	if !p.persistHydrating.Load() {
+		t.Fatal("pending coverage missing")
+	}
+	time.Sleep(30 * time.Millisecond)
+	if _, ok := m.PodsCachedSnapshot("ctx", "a"); ok {
+		t.Fatal("background did not yield")
+	}
+	m.hydrationDemand.Add(-1)
+	deadline := time.Now().Add(time.Second)
+	for p.persistHydrating.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if p.persistHydrating.Load() {
+		t.Fatal("background incomplete")
+	}
+	for _, ns := range []string{"a", "b", "c"} {
+		if _, ok := m.PodsCachedSnapshot("ctx", ns); !ok {
+			t.Fatalf("missing %s", ns)
+		}
 	}
 }

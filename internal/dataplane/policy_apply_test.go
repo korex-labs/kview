@@ -81,6 +81,9 @@ func TestPolicyBundleOwnershipAndPersistenceTransition(t *testing.T) {
 				returned = m.SetPolicyBundle(returned)
 			}
 			prunes := counting.prunes.Load()
+			m.snapshotHydration.mu.Lock()
+			epoch := m.snapshotHydration.epoch
+			m.snapshotHydration.mu.Unlock()
 			ov := returned.ContextOverrides["ready"]
 			*ov.Snapshots.TTLSeconds["pods"] = 90
 			nodeTTL := 180
@@ -99,39 +102,41 @@ func TestPolicyBundleOwnershipAndPersistenceTransition(t *testing.T) {
 			if after.Snapshots.TTLSeconds["pods"] != 90 || after.Snapshots.TTLSeconds["nodes"] != 180 || after.Persistence.MaxAgeHours != 48 || after.Persistence.Enabled {
 				t.Error("explicit reapply did not publish edited policy")
 			}
-			if counting.prunes.Load() <= prunes {
+			m.snapshotHydration.mu.Lock()
+			transitioned := m.snapshotHydration.epoch > epoch
+			m.snapshotHydration.mu.Unlock()
+			if !transitioned {
 				t.Error("explicit persistence transition was skipped as an equal policy")
+			}
+			if counting.prunes.Load() != prunes {
+				t.Error("policy apply synchronously pruned persistence")
 			}
 		})
 	}
 }
 
-type policyPruneGate struct {
-	snapshotPersistence
-	started, release chan struct{}
-	once             sync.Once
-}
-
-func (s *policyPruneGate) PruneOlderThan(name string, age time.Duration) error {
-	if name == "" {
-		s.once.Do(func() { close(s.started) })
-		<-s.release
-	}
-	return s.snapshotPersistence.PruneOlderThan(name, age)
-}
 func TestPolicyMeaningfulTransitionsAreSerialized(t *testing.T) {
-	m, base := startupPlaneManager(t)
-	gate := &policyPruneGate{snapshotPersistence: base, started: make(chan struct{}), release: make(chan struct{})}
-	m.persistence = gate
+	m, _ := startupPlaneManager(t)
+	if _, err := m.PlaneForCluster(context.Background(), "ready"); err != nil {
+		t.Fatal(err)
+	}
+	// Gate configuration itself, not the removed synchronous full prune.
+	m.persistenceMu.Lock()
 	m.scheduler = newWorkScheduler(1)
 	var release sync.Once
-	defer release.Do(func() { close(gate.release) })
+	defer release.Do(m.persistenceMu.Unlock)
 	retention := m.PolicyBundle()
 	retention.Global.Persistence.MaxAgeHours++
 	retention.Global.BackgroundBudget.MaxConcurrentPerCluster = 2
 	first := make(chan DataplanePolicyBundle, 1)
 	go func() { first <- m.SetPolicyBundle(retention) }()
-	startupAwait(t, gate.started)
+	deadline := time.Now().Add(3 * time.Second)
+	for m.Policy().Persistence.MaxAgeHours != retention.Global.Persistence.MaxAgeHours {
+		if time.Now().After(deadline) {
+			t.Fatal("first policy was not published")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	disable := CloneDataplanePolicyBundle(retention)
 	disable.Global.Persistence.Enabled = false
 	disable.Global.BackgroundBudget.MaxConcurrentPerCluster = 3
@@ -148,7 +153,7 @@ func TestPolicyMeaningfulTransitionsAreSerialized(t *testing.T) {
 	if startupAwait(t, startupLookup(m, context.Background(), "ready")) == nil {
 		t.Fatal("apply blocked manager lookups")
 	}
-	release.Do(func() { close(gate.release) })
+	release.Do(m.persistenceMu.Unlock)
 	startupAwait(t, first)
 	final := startupAwait(t, second)
 	if final.Global.Persistence.Enabled || m.currentPersistence() != nil || m.scheduler.maxPerCluster != 3 {
@@ -239,14 +244,15 @@ func TestPolicyHydrationDoesNotOverwriteConcurrentLivePublication(t *testing.T) 
 	}
 }
 
-func TestPolicyRepeatDoesNotWaitForPrivateInitialization(t *testing.T) {
+func TestPolicyRepeatDoesNotWaitForDemandHydration(t *testing.T) {
 	m, gated := startupPlaneManager(t)
 	counting := &policyCountingPersistence{snapshotPersistence: gated}
 	m.persistence = counting
 	ready, _ := m.PlaneForCluster(context.Background(), "ready")
 	p := ready.(*clusterPlane)
 	setNamespacedSnapshot(&p.podsStore, "default", PodsSnapshot{Items: []dto.PodListItemDTO{{Name: "cached"}}, Meta: SnapshotMetadata{ObservedAt: time.Now().UTC()}})
-	slow := startupLookup(m, context.Background(), "slow")
+	slowPlane := startupAwait(t, startupLookup(m, context.Background(), "slow")).(*clusterPlane)
+	slow := demandRestore(slowPlane, ResourceKindPods, "default")
 	startupAwait(t, gated.started)
 	bundle := m.PolicyBundle()
 	// Same normalized input, not just the same Go value.
@@ -267,9 +273,9 @@ func TestPolicyRepeatDoesNotWaitForPrivateInitialization(t *testing.T) {
 	}
 	select {
 	case <-done:
-		t.Logf("normalized repeat applied in %s with private initialization gated", time.Since(begin))
+		t.Logf("normalized repeat applied in %s with demand hydration gated", time.Since(begin))
 	case <-time.After(250 * time.Millisecond):
-		t.Errorf("repeat policy blocked on unrelated private initialization for %s", time.Since(begin))
+		t.Errorf("repeat policy blocked on unrelated demand hydration for %s", time.Since(begin))
 	}
 	if counting.prunes.Load() != prunes || counting.lists.Load() != lists {
 		t.Errorf("repeat performed persistence IO: prunes %d -> %d, lists %d -> %d", prunes, counting.prunes.Load(), lists, counting.lists.Load())

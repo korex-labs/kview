@@ -29,7 +29,26 @@ Snapshots are the unit of cached list data. **`kube.List*`** runs **inside** dat
 
 Typical TTLs are on the order of **~15s** for namespaced workload lists and namespaces, **~30s** for nodes (see code for exact values). The metrics kinds (`podmetrics`, `nodemetrics`) default to a **~30s** TTL controlled by `policy.Metrics.PodMetricsTTLSeconds` / `NodeMetricsTTLSeconds`. Metrics snapshots set the per-descriptor `skipPersistence` flag and are therefore **never written to the bbolt cache**: the data is high-churn, short-lived, and meaningless across process restarts.
 
-Snapshot persistence is optional and enabled by default unless the user has explicitly disabled it in Settings. kview stores dataplane list snapshots in a local bbolt file under the user cache directory, together with a compact name index for cached quick-access search. Persisted snapshots hydrate a plane's empty in-memory snapshot stores when the plane is created or persistence is enabled, and they remain available as stale fallback data when a live refresh cannot replace them. Hydrated snapshots keep stale/degraded metadata rather than appearing fresh, and they do not overwrite already-loaded in-memory snapshots. Secret list snapshots contain list metadata such as name/type/key count, not secret values; detail drawers still perform targeted live reads.
+Snapshot persistence is optional and enabled by default unless the user has explicitly disabled it in Settings. kview stores dataplane list snapshots in a local bbolt file under the user cache directory, together with a compact name index for cached quick-access search. Persisted snapshots are restored on demand for the exact context/kind/namespace before the normal startup-cache decision; creating a plane no longer decodes every saved snapshot or eagerly loads all signal history. They remain available as stale fallback data when a live refresh cannot replace them. Hydrated snapshots keep stale/degraded metadata rather than appearing fresh, and they do not overwrite already-loaded in-memory snapshots. Secret list snapshots contain list metadata such as name/type/key count, not secret values; detail drawers still perform targeted live reads.
+
+A single background worker enumerates persisted keys one cell at a time and
+yields between turns to foreground restoration. Background payload decoding is
+limited to 4 MiB per cell; larger cells remain demand-loadable. Failed cells get
+bounded retries and leave coverage partial, rather than converting missing data
+into authoritative emptiness. Successful foreground repair may leave the
+conservative partial marker until a later hydration pass. Concurrent requests
+coalesce by exact cell and persistence epoch. Publication checks the cell
+revision and policy epoch, so a late disk read cannot overwrite a LIST/Live
+publication or resurrect a cleared cell.
+
+Retention cleanup is deferred and record-wise, including unopened contexts and
+persisted search rows. Subsequent maintenance passes are scheduled after a
+one-minute interval; expiry is checked on restoration independently of physical
+cleanup. Maintenance does not imply immediate disappearance from the persisted
+search index at the expiry boundary. Shutdown prevents further publication and
+wakes the worker; an already-running synchronous persistence operation finishes
+before that worker exits. Cache-only map and revision reads remain cache-only,
+not implicit restoration or Kubernetes reads.
 
 `GET /api/dataplane/search?q=…` provides cached quick-access search over indexed dataplane snapshots for the active context. Search is **not** realtime cluster-wide discovery: it only returns dataplane resources already observed and indexed from in-memory or persisted snapshots. Matching includes resource name, namespace, kind, cluster, and cached list health/signal fields when available. Results are ordered for quick access: Helm releases first, then deployments, then ReplicaSets/DaemonSets/StatefulSets, then the remaining kinds. The endpoint supports capped paging with `limit`/`offset` and `hasMore`, and returns additive health/signal fields (`healthBucket`, `signalSeverity`, `signalCount`, `needsAttention`, `matchReason`) for result presentation. Clicking a result opens the normal resource detail drawer, which performs the targeted live detail read for that resource.
 

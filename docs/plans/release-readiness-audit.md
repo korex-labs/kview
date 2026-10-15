@@ -1,5 +1,18 @@
 # Release Readiness Documentation Audit
 
+## Historical status
+
+This audit describes the pre-v5.17 baseline below, not current release readiness.
+The `v5.17.0` release notes include these features. The later dependency tranche
+was completed in `c6ebd05`; the deferred Helm/Kubernetes/Vitest upgrades listed
+below are no longer pending. Do not resume historical full-suite/coverage gates:
+current verification policy is defined in `AGENTS.md`.
+
+Current follow-ups and retained acceptance limitations are tracked in
+[maintenance-backlog.md](maintenance-backlog.md). Release publication does not
+retroactively establish missing real-cluster acceptance evidence. The remaining
+sections preserve the original audit and its evidence boundary.
+
 ## Boundary and verdict
 
 Audit baseline: local `master` at `4ff92e6` (2026-09-23), after Helm Recovery

@@ -27,7 +27,16 @@ func TestPodEventsShutdownDuringPlaneInitialization(t *testing.T) {
 			m, gated := startupPlaneManager(t)
 			m.clients, m.scheduler = source.clients, source.scheduler
 			gated.history = history
-			pending := startupLookup(m, context.Background(), "slow")
+			initialized := startupAwait(t, startupLookup(m, context.Background(), "slow"))
+			pending := make(chan struct{})
+			go func() {
+				defer close(pending)
+				if history {
+					m.ensureSignalHistory("slow")
+				} else {
+					_ = initialized.(*clusterPlane).restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true)
+				}
+			}()
 			startupAwait(t, gated.started)
 			var release sync.Once
 			defer release.Do(func() { close(gated.release) })
@@ -35,7 +44,7 @@ func TestPodEventsShutdownDuringPlaneInitialization(t *testing.T) {
 			go func() { m.ClosePodsLive(); close(closed) }()
 			startupAwait(t, closed)
 			release.Do(func() { close(gated.release) })
-			initialized := startupAwait(t, pending)
+			startupAwait(t, pending)
 			for _, contextName := range []string{"slow", "new-after-shutdown"} {
 				plane, err := m.PlaneForCluster(context.Background(), contextName)
 				if err != nil || plane == nil {

@@ -79,6 +79,18 @@ per-cycle, per-hour, and pause controls.
 failures before kview surfaces the error. It does not retry user-confirmed
 mutating actions such as deleting a resource or running a Job.
 
+### Restoring Saved Snapshots
+
+When Persistence is enabled, opening a resource list restores its saved snapshot
+first instead of waiting for every saved list in that context. Other saved
+snapshots load incrementally in the background. This restores local data; it
+does not itself issue Kubernetes reads or enable Live.
+
+Restored rows remain marked stale until refreshed. During background loading,
+Dashboard totals and relationship maps may have partial coverage. Missing cached
+evidence does not mean the cluster has no resources. Expired snapshots are not
+used as restored rows; local cleanup happens separately in the background.
+
 ### List Live Mode
 
 List **Live** is a separate, explicit, off-by-default control for **Pods**,

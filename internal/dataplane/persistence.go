@@ -226,6 +226,12 @@ func (p *boltSnapshotPersistence) Close() error {
 }
 
 func (p *boltSnapshotPersistence) Load(cluster string, kind ResourceKind, namespace string, into any) (bool, error) {
+	return p.LoadBounded(cluster, kind, namespace, into, 0)
+}
+
+// LoadBounded checks the encoded size in the same transaction that copies it.
+// A large atomic cell remains available to explicit demand, not background work.
+func (p *boltSnapshotPersistence) LoadBounded(cluster string, kind ResourceKind, namespace string, into any, maxBytes int) (bool, error) {
 	if p == nil || p.db == nil {
 		return false, nil
 	}
@@ -239,6 +245,9 @@ func (p *boltSnapshotPersistence) Load(cluster string, kind ResourceKind, namesp
 		raw := b.Get(key)
 		if raw == nil {
 			return nil
+		}
+		if maxBytes > 0 && len(raw) > maxBytes {
+			return errSnapshotHydrationBudget
 		}
 		payload = append([]byte(nil), raw...)
 		return nil
@@ -367,6 +376,47 @@ type persistedSnapshotCell struct {
 	Kind      ResourceKind
 	Namespace string
 	Payload   []byte
+}
+
+// SnapshotKeysPage bounds cursor work as well as result count, including malformed
+// keys. Cursor bytes are owned copies and no JSON payload leaves the transaction.
+func (p *boltSnapshotPersistence) SnapshotKeysPage(cluster string, after []byte, limit int) ([]persistedSnapshotCell, []byte, error) {
+	if p == nil || p.db == nil {
+		return nil, nil, nil
+	}
+	if limit < 1 || limit > 64 {
+		limit = 64
+	}
+	prefix := []byte(keyPart(cluster) + "/")
+	var cells []persistedSnapshotCell
+	var next []byte
+	err := p.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(dataplaneSnapshotBucket)
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		k, _ := c.Seek(prefix)
+		if len(after) > 0 {
+			k, _ = c.Seek(after)
+			if bytes.Equal(k, after) {
+				k, _ = c.Next()
+			}
+		}
+		for n := 0; k != nil && bytes.HasPrefix(k, prefix) && n < limit; n++ {
+			next = append(next[:0], k...)
+			owner, kind, ns, ok := decodeSnapshotKey(k)
+			if ok && owner == cluster {
+				cells = append(cells, persistedSnapshotCell{Kind: ResourceKind(kind), Namespace: ns})
+			}
+			k, _ = c.Next()
+		}
+		if k == nil || !bytes.HasPrefix(k, prefix) {
+			next = nil
+		}
+		return nil
+	})
+	return cells, next, err
 }
 
 func (p *boltSnapshotPersistence) ListSnapshots(cluster string) ([]persistedSnapshotCell, error) {

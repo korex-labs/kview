@@ -53,7 +53,8 @@ Recently completed foundation work:
 - **Resource Map Visual UX v2 and Helm release maps**: the deterministic React
   Flow/Dagre viewport and manifest-derived Helm release map with bounded,
   cache-only availability enrichment are implemented, verified, and locally
-  accepted after v5.16; they have not yet been pushed or released.
+  accepted and included in v5.17.0. Recursive ownership and observed-Pod
+  grouping followed locally in `d0f4465` and `96a6ae6`.
 
 ## Product Direction
 
@@ -65,10 +66,13 @@ staying local-first, read-honest, and safe by default.
 The main rule: local operator knowledge belongs in kview's local store/export
 model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 
-## Active Post-v5.16 Sequence
+## Completed v5.17 Sequence And Next Product Tracks
 
 kview ships broad, coherent product releases rather than publishing every
-packaging or maintenance improvement separately. The current sequence is:
+packaging or maintenance improvement separately. Items 1–2 and the operator
+feedback block below shipped in v5.17.0; items 3–5 remain future product tracks.
+Current maintenance status and acceptance limitations live in
+[Maintenance backlog](plans/maintenance-backlog.md).
 
 1. **Resource Map Visual UX v2 — implemented and locally accepted**: replace the hand-positioned SVG with
    a lazy-loaded, deterministic layered graph viewport; add readable resource
@@ -83,8 +87,11 @@ packaging or maintenance improvement separately. The current sequence is:
 CR condition health and restricted-RBAC discovery are implemented. Refresh, the
 fit-content Live chip, and improved startup/reload are user-accepted; full checks
 and build passed and commit permission was received (2026-09-16). First launch
-remains slower but acceptable; further tuning is deferred without claiming full
-latency attribution. Generic CR inspection and exact-kind browsing are now
+was subsequently optimized with demand-first snapshot hydration and deferred
+retention maintenance. Focused race checks/build passed, and the maintainer
+confirmed substantially faster operation. Synthetic timings and measurement
+limitations are recorded in the maintenance backlog.
+Generic CR inspection and exact-kind browsing are
 locally committed as `5b1913d`. Workload Live is locally committed as `8fb3a9c`:
 Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs, and CronJobs share the
 bounded Pods foundation. Review, tests/race/vet, build, and six-kind API/browser
@@ -98,7 +105,7 @@ accepted **Pod terminal** focus and single-container selection fixes are locally
 committed as `4ff92e6`. These are completed implementation blocks, not the next
 feature queue. Release preparation must preserve the outstanding workload
 final-binary acceptance limits rather than treating commits as cluster evidence.
-These separate verified tranches take priority over the longer-term tracks below. See
+These are historical shipped tranches, not an unfinished feature queue. See
 [Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
 
 3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local

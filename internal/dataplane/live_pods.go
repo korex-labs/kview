@@ -279,6 +279,7 @@ func (m *manager) SubscribeResourceLive(ctx context.Context, name, ns string, ki
 
 // ClosePodsLive cancels upstream workers and closes all subscriptions at shutdown.
 func (m *manager) ClosePodsLive() {
+	m.closeSnapshotHydration()
 	// Do not hold the lifecycle lock while acquiring liveMu or podPublishMu.
 	// Cancellation reaches private and future planes, not just this map snapshot.
 	m.podEventsLifecycle.close()

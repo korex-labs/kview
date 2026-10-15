@@ -41,15 +41,30 @@ func (m *manager) ensureSignalHistory(clusterName string) {
 	if clusterName == "" {
 		return
 	}
-	m.signalHistoryMu.RLock()
-	_, ok := m.signalHistory[clusterName]
-	m.signalHistoryMu.RUnlock()
+	now := time.Now().UTC()
+	maxAge := time.Duration(0)
+	if m.currentPersistence() != nil {
+		maxAge = m.EffectivePolicy(clusterName).PersistenceMaxAge()
+	}
+	m.signalHistoryMu.Lock()
+	records, ok := m.signalHistory[clusterName]
+	for key, rec := range records {
+		if signalHistoryExpired(rec, now, maxAge) {
+			delete(records, key)
+		}
+	}
+	m.signalHistoryMu.Unlock()
 	if ok {
 		return
 	}
 	loaded := map[string]SignalHistoryRecord{}
 	if sp := m.currentPersistence(); sp != nil {
 		if hist, err := sp.LoadSignalHistory(clusterName); err == nil && hist != nil {
+			for key, rec := range hist {
+				if signalHistoryExpired(rec, now, maxAge) {
+					delete(hist, key)
+				}
+			}
 			loaded = hist
 		}
 	}
@@ -64,15 +79,30 @@ func (m *manager) ensureSignalAcknowledgements(clusterName string) {
 	if clusterName == "" {
 		return
 	}
-	m.signalAckMu.RLock()
-	_, ok := m.signalAck[clusterName]
-	m.signalAckMu.RUnlock()
+	now := time.Now().UTC()
+	maxAge := time.Duration(0)
+	if m.currentPersistence() != nil {
+		maxAge = m.EffectivePolicy(clusterName).PersistenceMaxAge()
+	}
+	m.signalAckMu.Lock()
+	records, ok := m.signalAck[clusterName]
+	for key, rec := range records {
+		if signalAcknowledgementExpired(rec, now, maxAge) {
+			delete(records, key)
+		}
+	}
+	m.signalAckMu.Unlock()
 	if ok {
 		return
 	}
 	loaded := map[string]SignalAcknowledgementRecord{}
 	if sp := m.currentPersistence(); sp != nil {
 		if ack, err := sp.LoadSignalAcknowledgements(clusterName); err == nil && ack != nil {
+			for key, rec := range ack {
+				if signalAcknowledgementExpired(rec, now, maxAge) {
+					delete(ack, key)
+				}
+			}
 			loaded = ack
 		}
 	}

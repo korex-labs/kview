@@ -53,6 +53,9 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 	cov.NamespacesInResourceTotals = len(knownNS)
 	cov.PersistenceHydrating = plane.persistHydrating.Load()
 	cov.ResourceTotalsCompleteness = resourceTotalsCompletenessLabel(nsTotal, len(knownNS))
+	if (cov.PersistenceHydrating || plane.persistHydrationPartial.Load()) && cov.ResourceTotalsCompleteness == "complete" {
+		cov.ResourceTotalsCompleteness = "partial"
+	}
 	var derived ClusterDashboardDerivedPanel
 	if includeSignals {
 		derived = buildDerivedDashboardProjections(plane, knownNS, thresholds.PodRestartCount, nodesSnap, nodeState)
@@ -70,6 +73,9 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 	if nsTotal == 0 || len(knownNS) == 0 || plane == nil {
 		if nsTotal > 0 && len(knownNS) == 0 {
 			res.Note = "No cached dataplane list snapshots yet for visible namespaces; totals stay at zero until namespaces are opened or row enrichment fills caches."
+			if cov.PersistenceHydrating {
+				res.Note = "Persisted snapshots are still loading; zero totals are not evidence of an empty cluster."
+			}
 			signalPanel.Note = res.Note
 			cov.ResourceTotalsNote = res.Note
 		} else if nsTotal == 0 {

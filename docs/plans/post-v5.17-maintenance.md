@@ -1,6 +1,8 @@
 # Post-v5.17 maintenance
 
-Status: verified locally. Resource Map feature work is deliberately separate.
+Status: completed and locally committed as `c6ebd05`. This is a historical
+verification record, not an active implementation queue. Current follow-ups live
+in [maintenance-backlog.md](maintenance-backlog.md).
 
 ## Scope
 
@@ -28,8 +30,13 @@ The maintainer explicitly changed the verification contract: basic checks by def
 
 Local evidence is under `.cache/post-release-maintenance/` (ignored).
 
-## Next: recursive Resource Map (not implemented here)
+## Completed follow-up: recursive Resource Map
 
-After maintenance acceptance, assess recursive Helm release topology from manifest roots plus confirmed cached ownership chains. Keep reference/selector links distinct from ownership and prevent traversal through shared dependencies from absorbing unrelated resources.
+Implemented separately in `d0f4465` and accepted by the maintainer. Deployment
+layout and observed-Pod grouping followed in `96a6ae6`, also manually accepted.
+The following were the scope constraints, not remaining implementation tasks:
+recursive Helm topology starts from manifest roots plus confirmed cached ownership
+chains; reference/selector links remain distinct from ownership, and traversal
+through shared dependencies must not absorb unrelated resources.
 
 Group homogeneous children by their actual owner, expose problem-state summaries and bounded member lists, preserve rollout-history controls and stable identities, and distinguish collapsed known members from incomplete/truncated cache coverage. Bound traversal, edges and visible nodes; no per-node live Kubernetes reads. Validate high replica counts, multiple revisions, cycles, shared dependencies and incomplete cache before selecting limits or expanding the scope to other map surfaces.

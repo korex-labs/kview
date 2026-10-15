@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -140,8 +139,10 @@ func TestResourceLiveFollowers(t *testing.T) {
 func TestResourceLiveLatePlaneShutdown(t *testing.T) {
 	for _, tc := range workloadCases {
 		t.Run(tc.resource, func(t *testing.T) {
-			m, gated := startupPlaneManager(t)
-			// No Kubernetes client: reaching a worker would be a test failure, not a live call.
+			m, _ := startupPlaneManager(t)
+			// Plane creation no longer blocks on disk. A plane created after
+			// shutdown must still reject admission before touching clients.
+			m.ClosePodsLive()
 			m.clients = liveTestClients{c: &cluster.Clients{}}
 			result := make(chan error, 1)
 			go func() {
@@ -151,13 +152,6 @@ func TestResourceLiveLatePlaneShutdown(t *testing.T) {
 				}
 				result <- err
 			}()
-			startupAwait(t, gated.started)
-			var release sync.Once
-			defer release.Do(func() { close(gated.release) })
-			closed := make(chan struct{})
-			go func() { m.ClosePodsLive(); close(closed) }()
-			startupAwait(t, closed)
-			release.Do(func() { close(gated.release) })
 			if err := startupAwait(t, result); !errors.Is(err, ErrPodLiveUnavailable) {
 				t.Fatalf("late subscription error = %v", err)
 			}

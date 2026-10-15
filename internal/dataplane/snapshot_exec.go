@@ -84,6 +84,9 @@ func executeClusterSnapshot[I any](
 	store *snapshotStore[Snapshot[I]],
 	desc clusterSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
+	if !desc.skipPersistence {
+		_ = p.restoreSnapshotCellWith(ctx, desc.kind, "", true, func(sp snapshotPersistence) error { return restoreClusterCell(p, sp, desc.kind, store) })
+	}
 	source := workSourceOrAPI(ctx)
 	ttl := desc.ttl
 	if sched != nil {
@@ -113,15 +116,10 @@ func executeClusterSnapshot[I any](
 	if desc.skipPersistence {
 		staleCached, haveStaleCached = peekClusterSnapshot(store)
 	}
-	var persisted Snapshot[I]
-	var havePersisted bool
-	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
-		var loaded Snapshot[I]
-		if ok, err := sp.Load(p.name, desc.kind, "", &loaded); err == nil && ok && markPersistedSnapshot(&loaded, p.currentPolicy().PersistenceMaxAge()) {
-			persisted = loaded
-			havePersisted = true
-		}
-	}
+	persisted, havePersisted := peekClusterSnapshot(store)
+	// A successful LIST is retained too, not only a startup-restored cell.
+	// Keep the former disk fallback's persistence and retention boundaries.
+	havePersisted = havePersisted && !desc.skipPersistence && p.currentPersistence() != nil && p.currentPolicy().Persistence.Enabled && markPersistedSnapshot(&persisted, p.currentPolicy().PersistenceMaxAge())
 
 	key := workKey{
 		Cluster:   p.name,
@@ -222,6 +220,9 @@ func executeNamespacedSnapshot[I any](
 	store *namespacedSnapshotStore[Snapshot[I]],
 	desc namespacedSnapshotDescriptor[I],
 ) (Snapshot[I], error) {
+	if !desc.skipPersistence {
+		_ = p.restoreSnapshotCellWith(ctx, desc.kind, namespace, true, func(sp snapshotPersistence) error { return restoreNamespacedCell(p, sp, desc.kind, namespace, store) })
+	}
 	var podEpoch uint64
 	mu, epochs, cells := p.resourceOwnership(desc.kind)
 	if liveEnabled(desc.kind) {
@@ -288,15 +289,10 @@ func executeNamespacedSnapshot[I any](
 	if desc.skipPersistence || liveEnabled(desc.kind) {
 		staleCached, haveStaleCached = peekNamespacedSnapshot(store, namespace)
 	}
-	var persisted Snapshot[I]
-	var havePersisted bool
-	if sp := p.currentPersistence(); sp != nil && !desc.skipPersistence {
-		var loaded Snapshot[I]
-		if ok, err := sp.Load(p.name, desc.kind, namespace, &loaded); err == nil && ok && markPersistedSnapshot(&loaded, p.currentPolicy().PersistenceMaxAge()) {
-			persisted = loaded
-			havePersisted = true
-		}
-	}
+	persisted, havePersisted := peekNamespacedSnapshot(store, namespace)
+	// A successful LIST is retained too, not only a startup-restored cell.
+	// Keep the former disk fallback's persistence and retention boundaries.
+	havePersisted = havePersisted && !desc.skipPersistence && p.currentPersistence() != nil && p.currentPolicy().Persistence.Enabled && markPersistedSnapshot(&persisted, p.currentPolicy().PersistenceMaxAge())
 
 	key := workKey{
 		Cluster:   p.name,

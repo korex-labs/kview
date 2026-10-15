@@ -380,7 +380,9 @@ type manager struct {
 	nsSweepHourCount map[string]int
 
 	// Last HTTP activity (Unix nano) for namespace enrichment idle gating.
-	uiActivityUnix atomic.Int64
+	uiActivityUnix    atomic.Int64
+	snapshotHydration snapshotHydrationQueue
+	hydrationDemand   atomic.Int64
 }
 
 // NewManager creates a new DataPlaneManager with default configuration.
@@ -478,10 +480,17 @@ func (m *manager) setPolicyBundle(bundle DataplanePolicyBundle) DataplanePolicyB
 		return previous
 	}
 	next := nextBundle.Global
+	// Serialize policy epochs with disk publication, including disable/re-enable
+	// of one context while the underlying persistence instance stays open.
+	m.snapshotHydration.mu.Lock()
+	if !persistencePoliciesEqual(previous, nextBundle) {
+		m.snapshotHydration.epoch++
+	}
 	m.policyMu.Lock()
 	m.bundle = nextBundle
 	m.policy = next
 	m.policyMu.Unlock()
+	m.snapshotHydration.mu.Unlock()
 	if m.scheduler != nil {
 		// Scheduler lane limits/retry policy are process-global by design:
 		// slots are shared across all clusters in one manager instance, so
@@ -531,6 +540,7 @@ func (m *manager) configurePersistence(policy DataplanePolicy) error {
 		}
 		m.migration = PersistenceMigrationStatus{Phase: PersistenceMigrationPhaseIdle}
 		m.persistenceMu.Unlock()
+		m.queuePersistenceRetention(nil, 0)
 		return nil
 	}
 	if m.persistence != nil {
@@ -576,37 +586,18 @@ func (m *manager) PersistenceMigrationStatus() PersistenceMigrationStatus {
 	return m.migration
 }
 
+// hydratePersistedPlanes schedules local restoration; policy application never
+// scans snapshot payloads or prunes the entire database on its caller's path.
 func (m *manager) hydratePersistedPlanes(policy DataplanePolicy) {
-	sp := m.currentPersistence()
-	if sp == nil {
-		return
-	}
-	maxAge := policy.PersistenceMaxAge()
-	_ = sp.PruneOlderThan("", maxAge)
-	_ = sp.PruneSignalHistoryOlderThan("", maxAge)
-	_ = sp.PruneSignalAcknowledgementsOlderThan("", maxAge)
-	_ = m.pruneSignalSuppressions(sp, time.Now().UTC(), maxAge)
-	// A concurrent policy enable/reconfiguration must also hydrate planes
-	// whose private initialization started under the previous policy. Wait
-	// outside m.mu so normal lookups and initialization publication can proceed.
-	m.mu.RLock()
-	pending := make([]<-chan struct{}, 0, len(m.planeInit))
-	for _, ready := range m.planeInit {
-		pending = append(pending, ready)
-	}
-	m.mu.RUnlock()
-	for _, ready := range pending {
-		<-ready
-	}
+	m.queuePersistenceRetention(m.currentPersistence(), policy.PersistenceMaxAge())
 	m.mu.RLock()
 	planes := make([]*clusterPlane, 0, len(m.planes))
-	for _, plane := range m.planes {
-		planes = append(planes, plane)
+	for _, p := range m.planes {
+		planes = append(planes, p)
 	}
 	m.mu.RUnlock()
-	for _, plane := range planes {
-		_ = plane.hydratePersistedSnapshots(maxAge)
-		m.ensureSignalHistory(plane.name)
+	for _, p := range planes {
+		m.queueSnapshotHydration(p)
 	}
 }
 
@@ -641,13 +632,9 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 	}
 	m.mu.RUnlock()
 
-	// Preserve the existing non-cancelable, best-effort local initialization
-	// contract (snapshot wrappers rely on a non-nil plane even for canceled
-	// requests). Cancellation is handled by the subsequent live read.
-	// Coalesce initialization per exact context. Disk hydration and history
-	// loading must not hold the manager-wide lock: unrelated foreground planes
-	// remain usable even when another context's startup is slow. Publish only
-	// after hydration, preserving cache-only readers' visibility boundary.
+	// Plane identity is coalesced, but publication is independent of disk I/O.
+	// Snapshot execution restores only its requested cell. Cache-only callers
+	// see missing coverage until the bounded background pass supplies evidence.
 	for {
 		m.mu.Lock()
 		if p, ok := m.planes[clusterName]; ok {
@@ -667,7 +654,7 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 		break
 	}
 	// Always release the reservation, including when persistence panics. A
-	// recovered caller can retry; no partially hydrated plane is published.
+	// recovered caller can retry; no partially constructed plane is published.
 	defer func() {
 		m.mu.Lock()
 		close(m.planeInit[clusterName])
@@ -684,16 +671,11 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 		return m.EffectivePolicy(clusterName)
 	}, m.currentPersistence, m.stats)
 	p.podEventsLifecycle = &m.podEventsLifecycle
-	policy := m.EffectivePolicy(clusterName)
-	if policy.Persistence.Enabled {
-		// Persistence is best-effort, as before: unreadable cells must not
-		// prevent a cold plane from serving live reads.
-		_ = p.hydratePersistedSnapshots(policy.PersistenceMaxAge())
-		m.ensureSignalHistory(clusterName)
-	}
+	p.hydrationManager = m
 	m.mu.Lock()
 	m.planes[clusterName] = p
 	m.mu.Unlock()
+	m.queueSnapshotHydration(p)
 	return p, nil
 }
 
@@ -809,8 +791,12 @@ type clusterPlane struct {
 	obsMu     sync.Mutex
 	observers *clusterObservers
 
-	persistHydrateMu sync.Mutex
-	persistHydrating atomic.Bool
+	hydrationManager        *manager
+	hydrationMu             sync.Mutex
+	hydrationCells          map[workKey]*snapshotHydrationCell
+	persistHydrateMu        sync.Mutex
+	persistHydrating        atomic.Bool
+	persistHydrationPartial atomic.Bool
 
 	policy      func() DataplanePolicy
 	persistence func() snapshotPersistence

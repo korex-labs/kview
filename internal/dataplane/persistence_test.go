@@ -475,7 +475,7 @@ func TestExecuteNamespacedSnapshotRelationshipPersistedFallbackOnLiveFailure(t *
 	}
 }
 
-func TestManagerHydratesPersistedSnapshotsWhenPlaneIsCreated(t *testing.T) {
+func TestManagerHydratesPersistedSnapshotsOnDemand(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	store, err := openBoltSnapshotPersistence("")
@@ -521,6 +521,13 @@ func TestManagerHydratesPersistedSnapshotsWhenPlaneIsCreated(t *testing.T) {
 		t.Fatalf("plane for cluster: %v", err)
 	}
 	plane := planeAny.(*clusterPlane)
+	defer m.ClosePodsLive()
+	if err := plane.restoreSnapshotCell(context.Background(), ResourceKindNamespaces, "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := plane.restoreSnapshotCell(context.Background(), ResourceKindPods, "app", true); err != nil {
+		t.Fatal(err)
+	}
 
 	nsSnap, ok := peekClusterSnapshot(&plane.nsStore)
 	if !ok || len(nsSnap.Items) != 1 || nsSnap.Items[0].Name != "app" {
