@@ -20,7 +20,7 @@ import { AppIconButton } from "../shared/AppActions";
 import KeyValueChip from "../shared/KeyValueChip";
 import StatusChip from "../shared/StatusChip";
 import { apiGet, toApiError } from "../../api";
-import TerminalSessionView from "./TerminalSessionView";
+import TerminalSessionView from "./DeferredTerminalSessionView";
 import { apiDelete } from "../../sessionsApi";
 import { emitFocusLogsTab, emitOpenTerminalSession } from "../../activityEvents";
 import { useConnectionState } from "../../connectionState";
@@ -1013,7 +1013,7 @@ export default function ActivityTabs({
                   id={id}
                   token={token}
                   session={sessionsById.get(id) || terminalInfoCacheRef.current.get(id)}
-                  active={id === activeTerminalId}
+                  active={panelOpen && tab === 2 && id === activeTerminalId}
                   focusNonce={focusNonce}
                   onClose={() => {
                     void terminateSession(id);

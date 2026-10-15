@@ -36,12 +36,15 @@ export default function TerminalSessionView({
 }: Props) {
   const { requestKeyboardFocus } = useKeyboardControls();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const activeRef = useRef(active);
+  useEffect(() => { activeRef.current = active; }, [active]);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const focusTerminal = useCallback(() => {
+    if (!activeRef.current) return false;
     fitRef.current?.fit();
     termRef.current?.focus();
     const input = containerRef.current?.querySelector(
@@ -80,11 +83,12 @@ export default function TerminalSessionView({
       sendResize();
     };
 
+    let initialFrame: number | undefined;
     if (containerRef.current) {
       term.open(containerRef.current);
-      window.requestAnimationFrame(() => {
+      initialFrame = window.requestAnimationFrame(() => {
         tryFit();
-        requestKeyboardFocus({ id: "terminal.session", focus: focusTerminal });
+        if (activeRef.current) requestKeyboardFocus({ id: "terminal.session", focus: focusTerminal });
       });
     }
 
@@ -147,6 +151,7 @@ export default function TerminalSessionView({
     }
 
     return () => {
+      if (initialFrame !== undefined) window.cancelAnimationFrame(initialFrame);
       disposable.dispose();
       resizeDisposable.dispose();
       window.removeEventListener("resize", onResize);

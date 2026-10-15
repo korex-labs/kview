@@ -14,11 +14,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import { AppButton, DialogActionButton } from "./AppActions";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import SyntaxHighlighter from "./SyntaxHighlight";
 import { apiPostWithContext, toApiError } from "../../api";
 import { useActiveContext } from "../../activeContext";
 
@@ -422,10 +420,8 @@ function YamlEditor({
   onChange: (value: string) => void;
   placeholder: string;
 }) {
-  const theme = useTheme();
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
-  const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
   const code = value || " ";
   const lineCount = Math.max(1, value.split(/\r?\n/).length);
   const lineNumbers = useMemo(
@@ -508,7 +504,6 @@ function YamlEditor({
       >
         <SyntaxHighlighter
           language="yaml"
-          style={prismTheme}
           customStyle={{
             margin: 0,
             minHeight: "100%",

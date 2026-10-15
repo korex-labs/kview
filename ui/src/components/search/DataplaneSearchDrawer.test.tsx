@@ -14,16 +14,21 @@ const item = (kind: string, namespace = "prod", name = "api") => ({ kind, namesp
 afterEach(cleanup);
 
 describe("DataplaneSearchDrawer", () => {
-  it("preserves Namespace onNavigate behavior", () => {
+  it("renders no drawer for an empty selection", () => {
+    const view = render(<DataplaneSearchDrawer token="token" item={null} onClose={vi.fn()} />);
+    expect(view.container.textContent).toBe("");
+  });
+
+  it("preserves Namespace onNavigate behavior", async () => {
     const onNavigate = vi.fn();
     render(<DataplaneSearchDrawer token="token" item={item("namespaces", "", "prod")} onClose={vi.fn()} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("button", { name: "namespace:prod" }));
+    fireEvent.click(await screen.findByRole("button", { name: "namespace:prod" }));
     expect(onNavigate).toHaveBeenCalledWith("pods", "prod");
   });
 
-  it("preserves virtual Helm search drawers without fabricating a map identity", () => {
+  it("preserves virtual Helm search drawers without fabricating a map identity", async () => {
     render(<DataplaneSearchDrawer token="token" item={item("helmreleases", "prod", "api")} onClose={vi.fn()} />);
-    expect(screen.getByText("helm:prod/api")).toBeTruthy();
+    expect(await screen.findByText("helm:prod/api")).toBeTruthy();
     expect(screen.queryByText(/fixed:/)).toBeNull();
   });
 

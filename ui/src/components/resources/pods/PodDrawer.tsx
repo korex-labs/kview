@@ -36,7 +36,7 @@ import TerminalIcon from "@mui/icons-material/Terminal";
 import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import SyntaxHighlighter from "../../shared/SyntaxHighlight";
 import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
@@ -2065,6 +2065,7 @@ export default function PodDrawer(props: {
                     <SyntaxHighlighter
                       key={`${pretty}-${wrapLines}`}
                       language={pretty ? "json" : "text"}
+                      appearance="prism"
                       wrapLongLines={wrapLines}
                       customStyle={{
                         margin: 0,

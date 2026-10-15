@@ -1,7 +1,9 @@
 import type { ApiDataplaneSearchItem } from "../../types/api";
-import HelmReleaseDrawer from "../resources/helm/HelmReleaseDrawer";
-import NamespaceDrawer from "../resources/namespaces/NamespaceDrawer";
+import React, { lazy, Suspense } from "react";
 import ResourceIdentityDrawer from "../shared/ResourceIdentityDrawer";
+
+const HelmReleaseDrawer = lazy(() => import("../resources/helm/HelmReleaseDrawer"));
+const NamespaceDrawer = lazy(() => import("../resources/namespaces/NamespaceDrawer"));
 
 type Props = {
   token: string;
@@ -19,10 +21,10 @@ export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate
   // Preserve search-specific navigation and virtual Helm behavior. Helm rows are
   // intentionally not passed to the Kubernetes Resource Map identity registry.
   if (item?.kind === "namespaces") {
-    return <NamespaceDrawer open={open} onClose={onClose} token={token} namespaceName={name} onNavigate={onNavigate} />;
+    return <Suspense fallback={null}><NamespaceDrawer open={open} onClose={onClose} token={token} namespaceName={name} onNavigate={onNavigate} /></Suspense>;
   }
   if (item?.kind === "helmreleases") {
-    return <HelmReleaseDrawer open={open} onClose={onClose} token={token} namespace={namespace} releaseName={name} />;
+    return <Suspense fallback={null}><HelmReleaseDrawer open={open} onClose={onClose} token={token} namespace={namespace} releaseName={name} /></Suspense>;
   }
 
   return (

@@ -29,15 +29,14 @@ import {
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
-import { useTheme, type Theme } from "@mui/material/styles";
+import type { Theme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import SyntaxHighlighter from "../shared/SyntaxHighlight";
 import {
   addOperatorProfile,
   applyDataplaneProfile,
@@ -817,9 +816,7 @@ function HighlightedJsonTextArea({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const theme = useTheme();
   const highlightRef = useRef<HTMLDivElement | null>(null);
-  const prismTheme = theme.palette.mode === "dark" ? oneDark : oneLight;
   const code = value || " ";
 
   return (
@@ -860,7 +857,6 @@ function HighlightedJsonTextArea({
         >
           <SyntaxHighlighter
             language="json"
-            style={prismTheme}
             customStyle={{
               margin: 0,
               minHeight: "100%",

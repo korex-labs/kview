@@ -4,9 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CustomResourceDrawer, { resolvedCustomResourceNamespace, type CRRef } from "./CustomResourceDrawer";
 
-// Exercise the real read-only CodeBlock and clipboard path; stub only Prism's DOM.
-vi.mock("react-syntax-highlighter", () => ({
-  Prism: ({ language, children }: { language: string; children: string }) => <pre><code data-language={language}>{children}</code></pre>,
+// Exercise the real read-only CodeBlock and clipboard path; stub only highlighting.
+vi.mock("../../shared/SyntaxHighlight", () => ({
+  default: ({ language, children }: { language: string; children: string }) => <pre><code data-language={language}>{children}</code></pre>,
 }));
 const apiGetMock = vi.hoisted(() => vi.fn());
 const current = vi.hoisted(() => ({ context: "alpha", retryNonce: 0 }));

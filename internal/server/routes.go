@@ -43,6 +43,7 @@ func (s *Server) Router() http.Handler {
 
 	// Public UI (SPA)
 	r.Get("/*", s.serveUI)
+	r.Head("/*", s.serveUI)
 
 	return r
 }
