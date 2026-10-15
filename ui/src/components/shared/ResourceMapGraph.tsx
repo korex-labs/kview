@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import CenterFocusStrongOutlinedIcon from "@mui/icons-material/CenterFocusStrongOutlined";
-import { Box, Tooltip } from "@mui/material";
+import { Alert, Box, Tooltip } from "@mui/material";
 import {
   Background,
   BackgroundVariant,
@@ -23,12 +23,14 @@ const edgeTypes: EdgeTypes = { resourceMap: ResourceMapGraphEdge };
 
 function ViewportControls({ targetId, layoutKey }: { targetId: string; layoutKey: string }) {
   const flow = useReactFlow<ResourceMapFlowNode, ResourceMapFlowEdge>();
+  const { fitView, viewportInitialized } = flow;
   useEffect(() => {
+    if (!viewportInitialized) return;
     const frame = window.requestAnimationFrame(() => {
-      void flow.fitView({ padding: 0.18, minZoom: 0.35, maxZoom: 1.15, duration: 220 });
+      void fitView({ padding: 0.18, minZoom: 0.35, maxZoom: 1.15, duration: 220 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [flow, layoutKey]);
+  }, [fitView, viewportInitialized, layoutKey]);
 
   const centerCurrent = () => {
     const target = flow.getNode(targetId);
@@ -93,6 +95,7 @@ export default function ResourceMapGraph({
       role="region"
       aria-label="Resource relationship map"
       sx={{
+        position: "relative",
         width: "100%",
         height: "clamp(420px, calc(100dvh - 300px), 780px)",
         minHeight: 420,
@@ -104,6 +107,11 @@ export default function ResourceMapGraph({
         "& .react-flow__controls-button:hover": { bgcolor: "action.hover" },
       }}
     >
+      {graph.layoutFallback && (
+        <Alert severity="warning" sx={{ position: "absolute", top: 8, left: 8, right: 8, zIndex: 5 }}>
+          Automatic layout failed. Showing a simplified layout with all resources and relationships retained.
+        </Alert>
+      )}
       <ReactFlow<ResourceMapFlowNode, ResourceMapFlowEdge>
         nodes={flowNodes}
         edges={graph.edges}

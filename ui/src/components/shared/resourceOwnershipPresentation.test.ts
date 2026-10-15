@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResourceMapEdge, ResourceOwnershipNode, ResourceOwnershipPodGroup } from "../../types/api";
-import { isPodGroupNode, ownershipHistoryIDs, ownershipPresentation } from "./resourceOwnershipPresentation";
+import { isPodGroupNode, ownershipHistoryIDs, ownershipPresentation, visibleOwnerPodGroups } from "./resourceOwnershipPresentation";
 
 function node(id: string, resource = "replicasets", group = "apps"): ResourceOwnershipNode {
   return { id, identity: { group, version: "v1", resource, kind: resource, scope: "namespaced", namespace: "apps", name: id, uid: id }, depth: 1, direction: "child", availability: "present", navigable: true };
@@ -11,6 +11,41 @@ function edge(from: string, to: string, type: ResourceMapEdge["type"] = "owner")
 function group(ownerId: string): ResourceOwnershipPodGroup {
   return { id: `pods:${ownerId}`, ownerId, observedCount: 30, countComplete: false, membersTruncated: true, states: { Running: 29, Failed: 1 }, members: Array.from({ length: 15 }, (_, i) => node(`${ownerId}-pod-${String(i).padStart(2, "0")}`, "pods", "")) };
 }
+
+describe("visible owner Pod grouping", () => {
+  const pod = (id: string) => ({ ...node(id, "pods", ""), identity: { ...node(id, "pods", "").identity, kind: "Pod" } });
+
+  it("groups only exact visible-owner leaves with honest subset counts and stable samples", () => {
+    const pods = Array.from({ length: 20 }, (_, i) => pod(`pod-${String(i).padStart(2, "0")}`));
+    const nodes = [node("owner"), ...pods];
+    const edges = pods.map((p) => ({ ...edge("owner", p.id), evidence: { description: `owner evidence ${p.id}` } }));
+    const groups = visibleOwnerPodGroups(nodes, edges, "owner");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ observedCount: 20, countComplete: false, states: { Unknown: 20 } });
+    expect(visibleOwnerPodGroups([...nodes].reverse(), [...edges].reverse(), "owner")).toEqual(groups);
+    const collapsed = ownershipPresentation([nodes[0]], edges, groups, null);
+    expect(collapsed.nodes).toHaveLength(2);
+    const expanded = ownershipPresentation([nodes[0]], edges, groups, groups[0].id);
+    expect(expanded.nodes).toHaveLength(12);
+    expect(expanded.nodes.filter(isPodGroupNode)[0].visibleMembers).toBe(10);
+    expect(expanded.edges).toEqual(expect.arrayContaining(edges.slice(0, 10)));
+  });
+
+  it("preserves targets, referenced Pods, ambiguous/unresolved owners, missing owners and singletons", () => {
+    const ids = ["good-a", "good-b", "target", "reference", "ambiguous", "unresolved", "inexact", "orphan", "singleton"];
+    const nodes = [node("owner"), node("other"), ...ids.map(pod)];
+    const edges = ids.map((id) => edge(id === "orphan" ? "absent" : id === "singleton" ? "other" : "owner", id));
+    edges.push(edge("reference", "owner", "objectReference"), edge("other", "ambiguous"));
+    edges.find((e) => e.to === "unresolved")!.resolved = false;
+    edges.find((e) => e.to === "inexact")!.confidence = "high";
+    const groups = visibleOwnerPodGroups(nodes, edges, "target");
+    expect(groups.map((g) => g.members.map((m) => m.id))).toEqual([["good-a", "good-b"]]);
+    const grouped = new Set(groups.flatMap((g) => g.members.map((m) => m.id)));
+    const projection = ownershipPresentation(nodes.filter((n) => !grouped.has(n.id)), edges, groups, null);
+    expect(projection.nodes.some((n) => n.id === "target")).toBe(true);
+    expect(projection.edges).toContainEqual(edges.find((e) => e.type === "objectReference"));
+  });
+});
 
 describe("ownership presentation", () => {
   it("keeps owner-scoped groups distinct and expands only a deterministic ten-member sample", () => {

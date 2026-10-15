@@ -61,6 +61,38 @@ export function ownershipHistoryIDs(nodes: ResourceOwnershipNode[], edges: Resou
   return hidden;
 }
 
+// Only collapse leaf Pods whose sole relationship is an exact, resolved owner
+// edge to a visible resource. References, ambiguous owners, and the target stay
+// explicit. Counts describe this returned map, never a complete cluster census.
+export function visibleOwnerPodGroups(nodes: ResourceMapNode[], edges: ResourceMapEdge[], targetId: string): ResourceOwnershipPodGroup[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const incident = new Map<string, ResourceMapEdge[]>();
+  for (const edge of edges) {
+    for (const id of new Set([edge.from, edge.to])) {
+      const list = incident.get(id) || [];
+      list.push(edge);
+      incident.set(id, list);
+    }
+  }
+  const members = new Map<string, ResourceMapNode[]>();
+  for (const node of nodes) {
+    if (node.id === targetId || node.current || node.availability !== "present" || node.identity.group !== "" || node.identity.resource !== "pods" || node.identity.kind !== "Pod") continue;
+    const relationships = incident.get(node.id) || [];
+    if (relationships.length !== 1) continue;
+    const edge = relationships[0];
+    const owner = byId.get(edge.from);
+    if (edge.to !== node.id || edge.type !== "owner" || !edge.resolved || edge.confidence !== "exact" || !owner || owner.id === node.id || owner.availability !== "present") continue;
+    const list = members.get(owner.id) || [];
+    list.push(node);
+    members.set(owner.id, list);
+  }
+  return [...members.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([ownerId, pods]) => {
+    const id = `visible-pod-group:${ownerId}`;
+    if (pods.length < 2 || byId.has(id)) return [];
+    return [{ id, ownerId, observedCount: pods.length, countComplete: false, membersTruncated: false, states: { Unknown: pods.length }, members: pods.sort((a, b) => a.id.localeCompare(b.id)) }];
+  });
+}
+
 export function ownershipPresentation(nodes: ResourceMapNode[], edges: ResourceMapEdge[], groups: ResourceOwnershipPodGroup[], expandedGroup: string | null, maxNodes = Infinity): { nodes: ResourceMapPresentationNode[]; edges: ResourceMapEdge[]; truncated: boolean } {
   // Ordinary Resource Map callers retain their existing membership and ordering.
   const ordered = Number.isFinite(maxNodes) ? [...nodes].sort((a, b) => Number(Boolean(b.current)) - Number(Boolean(a.current)) || a.depth - b.depth || a.id.localeCompare(b.id)) : nodes;

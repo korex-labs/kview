@@ -147,6 +147,17 @@ relationship evidence is shown as degraded/truncated rather than presented as
 a complete graph. Its hard limits are depth 2, 100 nodes, 200 edges, and 50,000
 examined relationship records.
 
+Leaf Pods with one exact, resolved owner relationship are collapsed into a
+**Pods** group when at least two share the same visible owner. Expand the group
+to inspect up to ten members. Counts describe Pods observed in the returned map,
+not a complete cluster count. The current resource, ambiguous ownership, and
+Pods with additional relationships remain individual cards.
+
+If automatic graph layout fails, the map shows a warning and uses a simplified
+card grid instead. Resources, relationships, evidence, and navigation from the
+visible graph are retained; edge routes may overlap. This fallback changes only
+presentation, not cache coverage or relationship confidence.
+
 ## Related Settings
 
 - **Smart YAML collapse**

@@ -93,7 +93,7 @@ export function buildResourceMapGraph(
   edges: ResourceMapEdge[],
   canOpenResource: (identity: ApiResourceIdentity) => boolean = supportsResourceIdentityDrawer,
   layoutDirection: "TB" | "LR" = "TB",
-): { nodes: ResourceMapFlowNode[]; edges: ResourceMapFlowEdge[] } {
+): { nodes: ResourceMapFlowNode[]; edges: ResourceMapFlowEdge[]; layoutFallback: boolean } {
   const orderedNodes = [...nodes].sort(nodeSort);
   const orderedEdges = [...edges].sort(edgeSort);
   const byId = new Map(orderedNodes.map((node) => [node.id, node]));
@@ -112,7 +112,7 @@ export function buildResourceMapGraph(
     acyclicer: "greedy",
     nodesep: 56,
     edgesep: 24,
-    ranksep: 92,
+    ranksep: 46, // Two layout segments per semantic edge.
     marginx: 32,
     marginy: 32,
   });
@@ -121,10 +121,48 @@ export function buildResourceMapGraph(
   for (const node of orderedNodes) {
     graph.setNode(node.id, { width: RESOURCE_MAP_NODE_WIDTH, height: RESOURCE_MAP_NODE_HEIGHT });
   }
-  for (const edge of orderedEdges) {
-    if (byId.has(edge.from) && byId.has(edge.to)) graph.setEdge(edge.from, edge.to, {}, edge.id);
+  // Dagre can generate a zero-length intersection for parallel edges in a
+  // simple fan-in (Secret -> Deployment plus ServiceAccount -> Deployment).
+  // Give every relationship its own routing waypoint. These are layout-only
+  // nodes, never resources: semantic identities/evidence remain unchanged.
+  const routeSegments = new Map<string, { waypoint: string; first: string; last: string }>();
+  orderedEdges.forEach((edge, index) => {
+    if (!byId.has(edge.from) || !byId.has(edge.to) || edge.from === edge.to) return;
+    let waypoint = `__resource_map_route_${index}`;
+    while (graph.hasNode(waypoint)) waypoint += "_";
+    const first = `route-start-${index}`, last = `route-end-${index}`;
+    graph.setNode(waypoint, { width: 1, height: 1 });
+    graph.setEdge(edge.from, waypoint, {}, first);
+    graph.setEdge(waypoint, edge.to, {}, last);
+    routeSegments.set(edge.id, { waypoint, first, last });
+  });
+  let layoutFallback = false;
+  try {
+    dagre.layout(graph);
+    if (orderedNodes.some(({ id }) => {
+      const position = graph.node(id);
+      return !Number.isFinite(position?.x) || !Number.isFinite(position?.y);
+    }) || graph.edges().some((edge) => graph.edge(edge)?.points?.some(
+      (point: RoutePoint) => !Number.isFinite(point.x) || !Number.isFinite(point.y),
+    ))) throw new Error("Invalid graph layout coordinates");
+  } catch {
+    // Layout is presentation only. A library failure must not lose resources,
+    // relationships or navigation. Never reuse partially mutated coordinates.
+    layoutFallback = true;
+    const columns = Math.max(1, Math.ceil(Math.sqrt(orderedNodes.length)));
+    orderedNodes.forEach((node, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      graph.setNode(node.id, {
+        width: RESOURCE_MAP_NODE_WIDTH,
+        height: RESOURCE_MAP_NODE_HEIGHT,
+        x: 32 + RESOURCE_MAP_NODE_WIDTH / 2 + (layoutDirection === "LR" ? row : column) * (RESOURCE_MAP_NODE_WIDTH + 92),
+        y: 32 + RESOURCE_MAP_NODE_HEIGHT / 2 + (layoutDirection === "LR" ? column : row) * (RESOURCE_MAP_NODE_HEIGHT + 92),
+      });
+    });
+    // Existing renderer supplies smooth-step routes and external self-loops.
+    for (const edge of graph.edges()) graph.setEdge(edge, {});
   }
-  dagre.layout(graph);
 
   const sourceHandlePositions = new Map<string, Position>();
   const targetHandlePositions = new Map<string, Position>();
@@ -143,7 +181,11 @@ export function buildResourceMapGraph(
     }
     const source = graph.node(resourceEdge.from) as LayoutNode;
     const target = graph.node(resourceEdge.to) as LayoutNode;
-    const route = (graph.edge({ v: resourceEdge.from, w: resourceEdge.to, name: resourceEdge.id })?.points || []) as RoutePoint[];
+    const segments = routeSegments.get(resourceEdge.id);
+    const route: RoutePoint[] = !layoutFallback && segments ? [
+      ...(graph.edge({ v: resourceEdge.from, w: segments.waypoint, name: segments.first })?.points || []),
+      ...(graph.edge({ v: segments.waypoint, w: resourceEdge.to, name: segments.last })?.points || []),
+    ] : [];
     edgeRoutePoints.set(resourceEdge.id, route);
     if (route.length >= 2) {
       const sourceAnchor = routeAnchor(source, route[0]);
@@ -248,5 +290,5 @@ export function buildResourceMapGraph(
     }];
   });
 
-  return { nodes: flowNodes, edges: flowEdges };
+  return { nodes: flowNodes, edges: flowEdges, layoutFallback };
 }

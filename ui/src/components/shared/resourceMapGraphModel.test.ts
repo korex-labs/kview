@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import dagre from "@dagrejs/dagre";
+
 import { Position } from "@xyflow/react";
 import type { ApiResourceIdentity, ResourceMapEdge, ResourceMapNode } from "../../types/api";
 import { buildResourceMapGraph, RESOURCE_MAP_NODE_HEIGHT, RESOURCE_MAP_NODE_WIDTH } from "./resourceMapGraphModel";
+
+afterEach(() => vi.restoreAllMocks());
 
 const identity: ApiResourceIdentity = {
   group: "apps",
@@ -144,7 +148,91 @@ describe("buildResourceMapGraph", () => {
     expect(result.nodes.find((item) => item.id === "target")?.data.outgoing.map((item) => item.id)).toEqual(["target-peer"]);
     expect(result.nodes.find((item) => item.id === "target")?.data.incoming.map((item) => item.id)).toEqual(["peer-target"]);
     expect(result.nodes.find((item) => item.id === "target")?.data.incomingHandlePositions["peer-target"]).toBe(Position.Bottom);
-    expect(result.nodes.find((item) => item.id === "peer")?.data.outgoingHandlePositions["peer-target"]).toBe(Position.Top);
+    const peer = result.nodes.find((item) => item.id === "peer")!;
+    const returnRoute = result.edges.find((item) => item.id === "peer-target")!.data!.routePoints;
+    const sourceSide = peer.data.outgoingHandlePositions["peer-target"];
+    expect([Position.Top, Position.Bottom]).toContain(sourceSide);
+    // A cycle may wrap below the peer; the handle must follow the real route,
+    // not the relative position of its destination.
+    expect(returnRoute[0].y).toBe(peer.position.y + (sourceSide === Position.Top ? 0 : RESOURCE_MAP_NODE_HEIGHT));
+  });
+
+  it.each(["TB", "LR"] as const)("lays out parallel edges in a cycle (%s) without invalid intersections", (direction) => {
+    const nodes = Array.from({ length: 11 }, (_, i) => node(String(i), "child", 1));
+    const pairs = [[7,7],[10,4],[1,2],[4,1],[8,4],[3,9],[9,6],[8,4],[2,7],[4,1],[4,0],[0,9],[1,4],[3,5],[9,10]];
+    const edges = pairs.map(([from, to], i) => edge(String(i), String(from), String(to)));
+    const result = buildResourceMapGraph(nodes, edges, undefined, direction);
+    expect(result.edges).toHaveLength(edges.length);
+    expect(result.nodes.every(({ position }) => Number.isFinite(position.x) && Number.isFinite(position.y))).toBe(true);
+    for (const item of result.edges) {
+      if (item.data?.selfLoop) continue;
+      expect(item.data?.routePoints.length).toBeGreaterThanOrEqual(2);
+      expect(item.data?.routePoints.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y))).toBe(true);
+    }
+    expect(buildResourceMapGraph([...nodes].reverse(), [...edges].reverse(), undefined, direction)).toEqual(result);
+  });
+
+  it.each(["TB", "LR"] as const)("preserves the complete graph when Dagre fails (%s)", (direction) => {
+    const nodes = [node("a", "current", 0), node("b", "child", 1), node("c", "child", 1)];
+    const edges = [edge("ab", "a", "b"), edge("ab-ref", "a", "b", "objectReference"), edge("ba", "b", "a"), edge("loop", "c", "c")];
+    vi.spyOn(dagre, "layout").mockImplementation((graph) => {
+      // A failed library call may have partially mutated its input.
+      graph.setNode("a", { x: NaN, y: NaN, width: 280, height: 112 });
+      graph.setEdge("a", "b", { points: [{ x: NaN, y: NaN }] }, "ab");
+      throw new Error("Not possible to find intersection inside of the rectangle");
+    });
+    const result = buildResourceMapGraph(nodes, edges, undefined, direction);
+    expect(result.layoutFallback).toBe(true);
+    expect(result.nodes).toHaveLength(nodes.length);
+    expect(result.edges.map((item) => item.data?.resourceEdge)).toEqual(expect.arrayContaining(edges));
+    expect(result.nodes.every(({ position }) => Number.isFinite(position.x) && Number.isFinite(position.y))).toBe(true);
+    expect(new Set(result.nodes.map(({ position }) => JSON.stringify(position))).size).toBe(nodes.length);
+    expect(result.edges.every((item) => item.data?.routePoints.length === 0)).toBe(true);
+    expect(result.edges.find((item) => item.id === "loop")?.data?.selfLoop).toBe(true);
+    expect(buildResourceMapGraph([...nodes].reverse(), [...edges].reverse(), undefined, direction)).toEqual(result);
+  });
+
+  it("keeps finite geometry across deterministic cyclic multigraph fixtures", () => {
+    let seed = 42;
+    const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+    for (let fixture = 0; fixture < 20; fixture += 1) {
+      const count = 3 + Math.floor(random() * 12);
+      const nodes = Array.from({ length: count }, (_, i) => node(`n${i}`, "child", 1));
+      const edges = Array.from({ length: count * 3 }, (_, i) => edge(`e${i}`, `n${Math.floor(random() * count)}`, `n${Math.floor(random() * count)}`));
+      const result = buildResourceMapGraph(nodes, edges, undefined, fixture % 2 ? "TB" : "LR");
+      expect(result.nodes).toHaveLength(count);
+      expect(result.edges).toHaveLength(edges.length);
+      expect(result.nodes.every(({ position }) => Number.isFinite(position.x) && Number.isFinite(position.y))).toBe(true);
+      expect(result.edges.every((item) => item.data?.routePoints.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y)))).toBe(true);
+    }
+  });
+
+  it("recovers when Dagre returns non-finite coordinates without throwing", () => {
+    vi.spyOn(dagre, "layout").mockImplementation((graph) => {
+      graph.setNode("a", { x: NaN, y: Infinity, width: 280, height: 112 });
+      return graph;
+    });
+    const result = buildResourceMapGraph([node("a", "current", 0)], []);
+    expect(result.layoutFallback).toBe(true);
+    expect(Number.isFinite(result.nodes[0].position.x)).toBe(true);
+    expect(Number.isFinite(result.nodes[0].position.y)).toBe(true);
+  });
+
+  it.each(["TB", "LR"] as const)("lays out the captured Secret/ServiceAccount fan-in without recovery (%s)", (direction) => {
+    // Anonymized topology reduced from the failing Deployment map: no cycle.
+    const nodes = [node("b-deployment", "current", 0), node("a-secret", "parent", 1, "Secret"), node("c-account", "parent", 1, "ServiceAccount")];
+    const edges = [
+      edge("env", "a-secret", "b-deployment", "objectReference"),
+      edge("envFrom", "a-secret", "b-deployment", "objectReference"),
+      edge("volume", "a-secret", "b-deployment", "objectReference"),
+      edge("serviceAccount", "c-account", "b-deployment", "objectReference"),
+    ];
+    const result = buildResourceMapGraph(nodes, edges, undefined, direction);
+    expect(result.layoutFallback).toBe(false);
+    expect(result.nodes).toHaveLength(3);
+    expect(result.edges).toHaveLength(4);
+    expect(new Set(result.edges.filter((item) => item.source === "a-secret").map((item) => JSON.stringify(item.data?.routePoints))).size).toBe(3);
+    expect(buildResourceMapGraph([...nodes].reverse(), [...edges].reverse(), undefined, direction)).toEqual(result);
   });
 
   it("routes self-loops through distinct right-side anchors", () => {
