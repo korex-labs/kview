@@ -141,6 +141,52 @@ health, status, or signal chips so failing resources stand out before you open
 the drawer. Press <kbd>Ctrl+K</kbd> to focus it. Type <kbd>:</kbd> to show
 command suggestions.
 
+### Cached Resource Filters
+
+Combine plain text with filters, for example `kind:pod ns:prod signal:high`.
+Every term must match; keys and values are case-insensitive.
+
+- `kind:pod`: exact resource kind; singular/plural names and `pvc`, `pv`, `hpa`,
+  and `crd` aliases are supported.
+- `ns:prod` or `namespace:prod`: exact namespace.
+- `context:my-cluster` or `cluster:my-cluster`: narrows the active-context
+  results; it does not switch context or search another cluster.
+- `name:api`: resource-name substring.
+- `health:problem`, `status:Running`, `signal:high`: exact cached field values.
+  Use double quotes for spaces, such as `status:"Not Ready"`.
+- `attention:true` or `attention:false`: the cached attention flag, not proof
+  of cluster-wide health or complete signal coverage.
+
+Recognized filters become removable chips inside the input after a space or
+leaving the field. The text is replaced, not duplicated; the header keeps its
+height. While typing the final token, it stays editable (for example extending
+`kind:pod` to `kind:pods`). Unknown keys, invalid values and
+unfinished filters remain literal search text. Escapes, OR and negation are not
+supported. Queries over 4,096 UTF-8 bytes or 64 terms are treated as literal text.
+These filters apply to cached resource results, not saved investigation notes
+or command suggestions. Search does not scan Kubernetes or warm unloaded data.
+
+In a namespaced view, search requests the current namespace separately and
+shows those results first without waiting for the rest of the active context.
+Other namespaces and cluster-scoped results follow. An explicit `ns:` or
+`namespace:` filter overrides this preference. **Load more cached resources**
+continues the namespace page before the remaining context. If a request fails,
+the popup keeps successful results and shows the error. **Retry failed search**
+retries failed pages separately; **Load more cached resources** continues the
+successful partition even if the other one keeps failing.
+
+### Open A Focused Map
+
+Select the **Map** entry immediately after a supported resource in the search
+dropdown to open its **Resource Map** directly. Keyboard users can select that
+entry with the arrow keys and press <kbd>Enter</kbd>.
+Ordinary result selection and <kbd>Enter</kbd> keep opening resource details.
+The map uses the result's exact context, namespace and resource identity; changing
+the app context closes this map. It shows bounded cached relationships, not a
+complete impact assessment. Missing or partial evidence remains visible.
+Virtual or unsupported identities, including Helm search results, do not expose
+this shortcut. Opening a related resource from the map uses nested drawers.
+
 Use <kbd>/</kbd> to focus the current table filter. Table filters narrow the
 visible list and are separate from cached dataplane search.
 

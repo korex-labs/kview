@@ -72,6 +72,17 @@ afterEach(() => {
 });
 
 describe("ResourceDrawerShell", () => {
+  it("opens directly on Resource Map and keeps linked drawer ownership local", () => {
+    render(<UserSettingsProvider><ResourceDrawerShell title="Pod: api" token="token" resourceIdentity={{ resource: "pods", namespace: "prod", name: "api" }} initialAuxiliaryTab="resource-map" onClose={vi.fn()}>{null}</ResourceDrawerShell></UserSettingsProvider>);
+    expect(screen.getByRole("tab", { name: "Resource Map" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("resource-map-panel")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open related Pod" }));
+    expect(screen.getByTestId("linked-resource-drawer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close related drawer" }));
+    expect(screen.queryByTestId("linked-resource-drawer")).toBeNull();
+    expect(screen.getByTestId("resource-map-panel")).toBeTruthy();
+  });
+
   it("injects Resource Map before Notes and mounts it lazily with linked drawer navigation", () => {
     render(<DrawerHarness />);
     const labels = screen.getAllByRole("tab").map((tab) => tab.getAttribute("aria-label") || tab.textContent);

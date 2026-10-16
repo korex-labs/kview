@@ -1,22 +1,33 @@
 import type { ApiDataplaneSearchItem } from "../../types/api";
 import React, { lazy, Suspense } from "react";
 import ResourceIdentityDrawer from "../shared/ResourceIdentityDrawer";
+import { ActiveContextProvider } from "../../activeContext";
+import { searchResultMapIdentity, type ResourceDrawerDestination } from "./searchNavigation";
 
 const HelmReleaseDrawer = lazy(() => import("../resources/helm/HelmReleaseDrawer"));
 const NamespaceDrawer = lazy(() => import("../resources/namespaces/NamespaceDrawer"));
 
 type Props = {
   token: string;
+  destination?: ResourceDrawerDestination;
   item: ApiDataplaneSearchItem | null;
   onClose: () => void;
   onNavigate?: (section: string, namespace: string) => void;
 };
 
 /** Search adapter around the shared canonical-resource drawer dispatcher. */
-export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate }: Props) {
+export default function DataplaneSearchDrawer({ token, item, onClose, onNavigate, destination = "details" }: Props) {
   const open = Boolean(item);
   const namespace = item?.namespace || "";
   const name = item?.name || null;
+
+  if (destination === "resource-map" && item) {
+    const identity = searchResultMapIdentity(item);
+    if (!identity) return null;
+    return <ActiveContextProvider value={item.cluster}>
+      <ResourceIdentityDrawer key={`${item.cluster}|${item.kind}|${namespace}|${name}`} token={token} identity={identity} open={open} onClose={onClose} destination="resource-map" />
+    </ActiveContextProvider>;
+  }
 
   // Preserve search-specific navigation and virtual Helm behavior. Helm rows are
   // intentionally not passed to the Kubernetes Resource Map identity registry.

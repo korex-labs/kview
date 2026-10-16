@@ -2,6 +2,8 @@ import type { ApiResourceIdentity } from "../../types/api";
 import type { ListResourceKey } from "../../utils/k8sResources";
 import type { ResourceDrawerIdentity } from "./ResourceDrawerShell";
 
+export type ResourceDrawerDestination = "details" | "resource-map";
+
 export type CanonicalResourceDescriptor = Pick<ApiResourceIdentity, "group" | "version" | "resource" | "kind" | "scope">;
 
 const fixed = (group: string, version: string, resource: string, kind: string, scope: ApiResourceIdentity["scope"]): CanonicalResourceDescriptor => ({

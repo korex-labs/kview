@@ -50,9 +50,30 @@ wakes the worker; an already-running synchronous persistence operation finishes
 before that worker exits. Cache-only map and revision reads remain cache-only,
 not implicit restoration or Kubernetes reads.
 
-`GET /api/dataplane/search?q=…` provides cached quick-access search over indexed dataplane snapshots for the active context. Search is **not** realtime cluster-wide discovery: it only returns dataplane resources already observed and indexed from in-memory or persisted snapshots. Matching includes resource name, namespace, kind, cluster, and cached list health/signal fields when available. Results are ordered for quick access: Helm releases first, then deployments, then ReplicaSets/DaemonSets/StatefulSets, then the remaining kinds. The endpoint supports capped paging with `limit`/`offset` and `hasMore`, and returns additive health/signal fields (`healthBucket`, `signalSeverity`, `signalCount`, `needsAttention`, `matchReason`) for result presentation. Clicking a result opens the normal resource detail drawer, which performs the targeted live detail read for that resource.
+`GET /api/dataplane/search?q=…` provides cached quick-access search over indexed dataplane snapshots for the active context. Search is **not** realtime cluster-wide discovery: it only returns dataplane resources already observed and indexed from in-memory or persisted snapshots. Matching includes resource name, namespace, kind, cluster, and cached list health/signal fields when available. Search accepts AND-combined `kind:`, `ns:`/`namespace:`, `name:`, `cluster:`/`context:`, `health:`, `status:`, `signal:` and `attention:true|false` filters, including double-quoted values. Name is substring matching; other fields are exact, case-insensitive matches with explicit kind aliases. Invalid or unsupported filters remain literal text. Context filters only narrow the active scope. RAM identities shadow persisted rows before filtering, and matching precedes pagination. Parsing is bounded to 4,096 UTF-8 bytes and 64 terms; larger queries remain literal. Results are ordered for quick access: Helm releases first, then deployments, then ReplicaSets/DaemonSets/StatefulSets, then the remaining kinds. The endpoint supports capped paging with `limit`/`offset` and `hasMore`, and returns additive health/signal fields (`healthBucket`, `signalSeverity`, `signalCount`, `needsAttention`, `matchReason`) for result presentation. Clicking a result opens the normal resource detail drawer, which performs the targeted live detail read for that resource.
 
 ---
+
+## Namespace-first cached search
+
+Search accepts optional exact `namespace` and `excludeNamespace` parameters.
+The latter includes cluster-scoped resources. Each partition has independent
+`offset`/`hasMore`; explicit `ns:`/`namespace:` query filters override these
+preference parameters. Active-context isolation is unchanged.
+
+The header searches both partitions after one debounce in namespaced views,
+publishing local results without waiting for the rest and holding early broad
+results until the local request completes. Query, token, context and namespace
+changes invalidate previous responses. Inline filter chips replace their draft
+text after a delimiter or blur; Map entries live inside the results dropdown.
+
+RAM collection peeks the selected namespace directly and skips unrelated kind
+stores for explicit kind filters. Persistence still traverses the existing
+name-ordered index, but rejects unrelated identity keys before JSON decoding
+and retains bounded top-K candidates rather than sorting every matching row.
+This is not a new namespace index or a frozen multi-request snapshot; deep
+offsets and RAM-shadowing overfetch still increase candidate retention. No
+migration, implicit hydration or Kubernetes request is involved.
 
 ## Live list subscriptions
 

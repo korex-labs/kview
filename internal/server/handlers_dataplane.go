@@ -105,7 +105,7 @@ func (s *Server) registerActivityAndDataplaneRoutes(api chi.Router) {
 		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-		res, err := s.dp.SearchCachedResources(r.Context(), s.readContextName(r), r.URL.Query().Get("q"), limit, offset)
+		res, err := s.dp.SearchCachedResources(r.Context(), s.readContextName(r), r.URL.Query().Get("q"), limit, offset, dataplane.SearchScope{Namespace: r.URL.Query().Get("namespace"), ExcludeNamespace: r.URL.Query().Get("excludeNamespace")})
 		if err != nil {
 			writeErrorResponse(w, http.StatusInternalServerError, "failed to search dataplane cache")
 			return

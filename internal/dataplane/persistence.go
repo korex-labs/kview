@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"bytes"
+	"container/heap"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -50,7 +50,7 @@ type snapshotPersistence interface {
 	Delete(cluster string, kind ResourceKind, namespace string) error
 	PruneOlderThan(cluster string, maxAge time.Duration) error
 	ListSnapshots(cluster string) ([]persistedSnapshotCell, error)
-	SearchName(cluster string, query string, limit int, offset int) ([]dataplaneSearchRow, error)
+	SearchName(cluster string, query string, limit int, offset int, scopes ...SearchScope) ([]dataplaneSearchRow, error)
 	LoadSignalHistory(cluster string) (map[string]SignalHistoryRecord, error)
 	UpsertSignalHistory(cluster string, updates map[string]SignalHistoryRecord) error
 	DeleteSignalHistory(cluster, key string) error
@@ -905,18 +905,25 @@ func (p *boltSnapshotPersistence) SearchNamePrefix(prefix string, limit int) ([]
 	return rows, err
 }
 
-func (p *boltSnapshotPersistence) SearchName(cluster string, query string, limit int, offset int) ([]dataplaneSearchRow, error) {
+func (p *boltSnapshotPersistence) SearchName(cluster string, query string, limit int, offset int, scopes ...SearchScope) ([]dataplaneSearchRow, error) {
 	if p == nil || p.db == nil || limit <= 0 {
 		return nil, nil
 	}
 	if offset < 0 {
 		offset = 0
 	}
-	needle := strings.ToLower(strings.TrimSpace(query))
-	if needle == "" {
+	terms := searchQueryTerms(query)
+	if len(terms) == 0 {
 		return nil, nil
 	}
-	rows := make([]dataplaneSearchRow, 0, limit+offset)
+	scope := effectiveSearchScope(query, scopes)
+	matchesKey := scope.indexKeyMatcher(cluster)
+	// Do not preallocate from an untrusted offset.
+	var selected searchRowHeap
+	bound := limit + offset
+	if bound < limit {
+		return nil, nil
+	}
 	err := p.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(dataplaneSearchBucket)
 		if b == nil {
@@ -924,40 +931,35 @@ func (p *boltSnapshotPersistence) SearchName(cluster string, query string, limit
 		}
 		c := b.Cursor()
 		for key, value := c.First(); key != nil; key, value = c.Next() {
+			if !matchesKey(key) {
+				continue
+			}
 			var row dataplaneSearchRow
 			if err := json.Unmarshal(value, &row); err != nil {
 				return err
 			}
-			if cluster != "" && row.Cluster != cluster {
+			if (cluster != "" && row.Cluster != cluster) || !scope.matchesNamespace(row.Namespace) {
 				continue
 			}
-			matchReason, ok := searchRowMatchReason(row, searchQueryTerms(needle))
+			matchReason, ok := searchRowMatchReason(row, terms)
 			if !ok {
 				continue
 			}
 			row.MatchReason = matchReason
-			rows = append(rows, row)
+			if len(selected) < bound {
+				heap.Push(&selected, row)
+			} else if searchRowLess(row, selected[0]) {
+				selected[0] = row
+				heap.Fix(&selected, 0)
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		if pi, pj := searchKindPriority(rows[i].Kind), searchKindPriority(rows[j].Kind); pi != pj {
-			return pi < pj
-		}
-		if ni, nj := strings.ToLower(rows[i].Name), strings.ToLower(rows[j].Name); ni != nj {
-			return ni < nj
-		}
-		if rows[i].Namespace != rows[j].Namespace {
-			return rows[i].Namespace < rows[j].Namespace
-		}
-		if rows[i].Kind != rows[j].Kind {
-			return rows[i].Kind < rows[j].Kind
-		}
-		return rows[i].Cluster < rows[j].Cluster
-	})
+	rows := []dataplaneSearchRow(selected)
+	sortSearchRows(rows)
 	if offset >= len(rows) {
 		return nil, nil
 	}

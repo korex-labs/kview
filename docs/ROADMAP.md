@@ -70,7 +70,8 @@ model, not in Kubernetes annotations and not in noisy automatic AI-style memory.
 
 kview ships broad, coherent product releases rather than publishing every
 packaging or maintenance improvement separately. Items 1–2 and the operator
-feedback block below shipped in v5.17.0; items 3–5 remain future product tracks.
+feedback block below shipped in v5.17.0; item 3 is now locally implemented and accepted, and items 4–5 remain future
+product tracks.
 Current maintenance status and acceptance limitations live in
 [Maintenance backlog](plans/maintenance-backlog.md).
 
@@ -108,9 +109,12 @@ final-binary acceptance limits rather than treating commits as cluster evidence.
 These are historical shipped tranches, not an unfinished feature queue. See
 [Operator Feedback plan](plans/operator-feedback-correctness-and-live-ux.md).
 
-3. **Search Query Mini-Language And Focused Impact Paths**: add cached/local
-   `key:value` search with plain-text fallback and an explicit entry from search
-   results into a focused Resource Map path.
+3. **Search Query Mini-Language And Focused Map Entry — implemented and locally accepted**:
+   cached/local `key:value` filters, removable chips and an explicit entry from
+   results into the existing centered Resource Map are locally verified and
+   maintainer-accepted, including inline chips and namespace-first search.
+   See [implementation and acceptance](plans/search-filters-and-map-entry.md).
+   Dedicated impact-path computation remains future work.
 4. **Runbook Bindings And Investigation Workspaces**: bind local template-based
    runbooks first, then persist intentional incident workspaces containing
    filters, focused identities, compact impact paths, notes, snapshots, and
@@ -192,11 +196,14 @@ must not create or hydrate a plane, start observers, schedule work, or read
 Kubernetes. See
 [plans/2026-09-01-shared-dataplane-explanation.md](plans/2026-09-01-shared-dataplane-explanation.md).
 
-### 5. Search Query Mini-Language
+### 5. Search Query Mini-Language (Implemented And Locally Accepted)
 
-Parse simple cached/local `key:value` filters with plain-text fallback and visible
-chips, for example `kind:pod ns:prod signal:high`, `note:watch`, `stale:true`, or
-`service:no-endpoints`. Preserve both keyboard and mouse selection behavior.
+Cached/local AND-combined filters, inline removable chips, namespace-first
+results and explicit focused-map entries are implemented and accepted. Examples:
+`kind:pod ns:prod signal:high`, `name:api`, `attention:true`. Keyboard and mouse
+paths are verified. `note:watch`, `stale:true` and `service:no-endpoints` remain
+deferred until the index has the evidence to support them; they are not active
+predicates. Dedicated compact impact-path computation also remains future work.
 
 ### 6. Runbook Integration And Investigation Workspaces
 

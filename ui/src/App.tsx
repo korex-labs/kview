@@ -34,6 +34,7 @@ import { ThemeProvider, useThemeMode } from "./theme/ThemeProvider";
 import { UserSettingsProvider, useUserSettings } from "./settingsContext";
 import GlobalSearchInput, { type GlobalSearchFocusRequest } from "./components/search/GlobalSearchInput";
 import DataplaneSearchDrawer from "./components/search/DataplaneSearchDrawer";
+import type { ResourceDrawerDestination } from "./components/shared/resourceMapIdentity";
 import type { ApiDataplaneSearchItem } from "./types/api";
 import StartupDialog, { type StartupKubeconfigInfo, type StartupStep, type StartupStepStatus } from "./components/StartupDialog";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
@@ -46,7 +47,7 @@ import {
   type FocusedResourceViewIntent,
 } from "./focusedResourceViews";
 import usePageVisible from "./utils/usePageVisible";
-import { applyViewResourceDescriptors } from "./utils/k8sResources";
+import { applyViewResourceDescriptors, isClusterScopedSection } from "./utils/k8sResources";
 import {
   setPerformanceDiagnosticsContext,
   setPerformanceDiagnosticsEnabled,
@@ -191,7 +192,12 @@ function AppInner() {
   const [customResourcesFilterIntent, setCustomResourcesFilterIntent] = useState<{ value: string; nonce: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [searchMapContext, setSearchMapContext] = useState("");
+  const [searchDrawerDestination, setSearchDrawerDestination] = useState<ResourceDrawerDestination>("details");
   const [searchDrawerItem, setSearchDrawerItem] = useState<ApiDataplaneSearchItem | null>(null);
+  useEffect(() => {
+    if (searchDrawerDestination === "resource-map" && searchMapContext !== activeContext) setSearchDrawerItem(null);
+  }, [activeContext, searchDrawerDestination, searchMapContext]);
   const [searchFocusRequest, setSearchFocusRequest] = useState<GlobalSearchFocusRequest>({ nonce: 0, query: "" });
   const [viewDescriptorRevision, setViewDescriptorRevision] = useState(0);
 
@@ -568,6 +574,7 @@ function AppInner() {
   }
 
   function onOpenSearchResult(item: ApiDataplaneSearchItem) {
+    setSearchDrawerDestination("details");
     const targetSection = dataplaneSearchSectionByKind[item.kind];
     if (targetSection) {
       dispatchApplyFocusedResourceView({
@@ -674,6 +681,8 @@ function AppInner() {
                   <GlobalSearchInput
                     token={token}
                     activeContext={activeContext}
+                    activeNamespace={namespace}
+                    activeScope={isClusterScopedSection(section) ? "cluster" : "namespaced"}
                     disabled={health === "unhealthy" || !activeContext}
                     focusRequest={searchFocusRequest}
                     namespaces={namespaces}
@@ -684,6 +693,12 @@ function AppInner() {
                       void onSelectContext(name);
                     }}
                     onOpenResource={onOpenSearchResult}
+                    onOpenResourceMap={(item) => {
+                      setSettingsOpen(false);
+                      setSearchMapContext(activeContext);
+                      setSearchDrawerDestination("resource-map");
+                      setSearchDrawerItem(item);
+                    }}
                     onOpenSettings={() => {
                       setHelpOpen(false);
                       setSettingsOpen(true);
@@ -908,7 +923,8 @@ function AppInner() {
           />
           <DataplaneSearchDrawer
             token={token}
-            item={searchDrawerItem}
+            item={searchDrawerDestination === "resource-map" && searchMapContext !== activeContext ? null : searchDrawerItem}
+            destination={searchDrawerDestination}
             onClose={() => setSearchDrawerItem(null)}
             onNavigate={(sec, ns) => {
               onSelectNamespace(ns);

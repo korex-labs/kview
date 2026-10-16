@@ -887,7 +887,7 @@ func (s *stubDataplane) NodeMetricsCachedSnapshot(_ string) (dataplane.NodeMetri
 func (s *stubDataplane) PodMetricsCachedSnapshot(_, _ string) (dataplane.PodMetricsSnapshot, bool) {
 	return dataplane.PodMetricsSnapshot{}, false
 }
-func (s *stubDataplane) SearchCachedResources(_ context.Context, _ string, _ string, _, _ int) (dataplane.CachedResourceSearch, error) {
+func (s *stubDataplane) SearchCachedResources(_ context.Context, _ string, _ string, _, _ int, _ ...dataplane.SearchScope) (dataplane.CachedResourceSearch, error) {
 	return dataplane.CachedResourceSearch{}, nil
 }
 func (s *stubDataplane) ResourceMap(contextName string, req dataplane.ResourceMapRequest) (dataplane.ResourceMapResponse, error) {

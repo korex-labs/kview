@@ -272,7 +272,7 @@ type DataPlaneManager interface {
 	DataplaneExplanation(contextName string) DataplaneExplanationSnapshot
 
 	// SearchCachedResources returns persisted dataplane name-index matches without live Kubernetes reads.
-	SearchCachedResources(ctx context.Context, clusterName string, query string, limit int, offset int) (CachedResourceSearch, error)
+	SearchCachedResources(ctx context.Context, clusterName string, query string, limit int, offset int, scopes ...SearchScope) (CachedResourceSearch, error)
 	// PersistenceMigrationStatus reports latest local cache migration lifecycle details.
 	PersistenceMigrationStatus() PersistenceMigrationStatus
 }
@@ -1542,7 +1542,7 @@ func (m *manager) SchedulerLiveWork() SchedulerLiveWork {
 	return out
 }
 
-func (m *manager) SearchCachedResources(_ context.Context, clusterName string, query string, limit int, offset int) (CachedResourceSearch, error) {
+func (m *manager) SearchCachedResources(_ context.Context, clusterName string, query string, limit int, offset int, scopes ...SearchScope) (CachedResourceSearch, error) {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		return CachedResourceSearch{Active: clusterName, Query: q, Limit: limit, Offset: offset, Items: nil}, nil
@@ -1553,7 +1553,7 @@ func (m *manager) SearchCachedResources(_ context.Context, clusterName string, q
 	if offset < 0 {
 		offset = 0
 	}
-	rows, err := m.cachedResourceSearchRows(clusterName, q, limit+1, offset)
+	rows, err := m.cachedResourceSearchRows(clusterName, q, limit+1, offset, scopes...)
 	if err != nil {
 		return CachedResourceSearch{}, err
 	}

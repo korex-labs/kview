@@ -67,8 +67,10 @@ not historical full/coverage/browser commands.
 
 ## Outside this maintenance block
 
-Search query syntax/focused impact paths, runbook bindings, investigation
-workspaces, incident export, broader Live kinds and optional multi-user/OIDC
+Cached search filters, namespace-first results and focused Resource Map entry
+are implemented and maintainer-accepted; see the
+[search plan](search-filters-and-map-entry.md). Dedicated impact paths, runbook
+bindings, investigation workspaces, incident export, broader Live kinds and optional multi-user/OIDC
 remain product tracks in [Roadmap](../ROADMAP.md). They are not unfinished
 maintenance tasks. Broad decomposition without a demonstrated problem is not
 part of the cold-start investigation.

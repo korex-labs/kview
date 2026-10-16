@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Autocomplete,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Paper,
@@ -22,6 +23,9 @@ import {
   type InvestigationSnapshotSearchItem,
 } from "../../investigationSnapshots";
 
+import { parseSearchFilters, tokenizeSearchDraft } from "./searchQuery";
+import { searchResultMapIdentity } from "./searchNavigation";
+
 const searchLimit = 10;
 const searchDebounceMs = 350;
 
@@ -32,12 +36,15 @@ export type GlobalSearchFocusRequest = {
 
 type PaletteSuggestion =
   | { kind: "cached-resource"; key: string; item: ApiDataplaneSearchItem }
+  | { kind: "resource-map"; key: string; item: ApiDataplaneSearchItem }
   | { kind: "investigation-snapshot"; key: string; item: InvestigationSnapshotSearchItem }
   | { kind: "command"; key: string; suggestion: CommandSuggestion };
 
 type Props = {
   token: string;
   activeContext: string;
+  activeNamespace?: string;
+  activeScope?: "namespaced" | "cluster";
   disabled?: boolean;
   focusRequest?: GlobalSearchFocusRequest;
   namespaces: string[];
@@ -46,6 +53,7 @@ type Props = {
   onSelectNamespace: (namespace: string) => void;
   onSelectContext: (context: string) => void;
   onOpenResource: (item: ApiDataplaneSearchItem) => void;
+  onOpenResourceMap?: (item: ApiDataplaneSearchItem) => void;
   onOpenSettings: () => void;
 };
 
@@ -93,13 +101,13 @@ function resourceSuggestionDescription(item: ApiDataplaneSearchItem): string {
 }
 
 function paletteSuggestionCategory(option: PaletteSuggestion): string {
-  if (option.kind === "cached-resource") return "Cached Resources";
+  if (option.kind === "cached-resource" || option.kind === "resource-map") return "Cached Resources";
   if (option.kind === "investigation-snapshot") return "Investigation Snapshots";
   return option.suggestion.category;
 }
 
 function optionToAction(option: PaletteSuggestion): KeyboardCommandAction {
-  if (option.kind === "cached-resource") return { type: "resource", item: option.item };
+  if (option.kind === "cached-resource" || option.kind === "resource-map") return { type: "resource", item: option.item };
   if (option.kind === "investigation-snapshot") return { type: "resource", item: snapshotResourceItem(option.item) };
   return option.suggestion.action;
 }
@@ -107,6 +115,8 @@ function optionToAction(option: PaletteSuggestion): KeyboardCommandAction {
 export default function GlobalSearchInput({
   token,
   activeContext,
+  activeNamespace = "",
+  activeScope = "cluster",
   disabled = false,
   focusRequest,
   namespaces,
@@ -115,11 +125,24 @@ export default function GlobalSearchInput({
   onSelectNamespace,
   onSelectContext,
   onOpenResource,
+  onOpenResourceMap,
   onOpenSettings,
 }: Props) {
   const { requestKeyboardFocus } = useKeyboardControls();
-  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState("");
+  const [chips, setChips] = useState<string[]>([]);
+  const query = [...chips, draft].join(" ");
+  const setQuery = useCallback((value: string) => { setChips([]); setDraft(value); }, []);
+  const commitDraft = (value: string, complete = false) => {
+    const next = tokenizeSearchDraft(value, complete);
+    setChips((previous) => [...previous, ...next.tokens]);
+    setDraft(next.draft);
+  };
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (disabled || !activeContext) setOpen(false);
+  }, [disabled, activeContext]);
+
   const rootRef = useRef<HTMLDivElement | null>(null);
   const commandSuggestions = useMemo(
     () => buildCommandSuggestions({ query, namespaces, contexts }),
@@ -131,11 +154,14 @@ export default function GlobalSearchInput({
     error,
     hasMore,
     loadMore,
+    retryFailed,
   } = useDataplaneSearch({
     open,
     query,
     token,
     activeContext,
+    activeNamespace,
+    activeScope,
     disabled: disabled || isCommandQuery(query),
   });
   const snapshotItems = useInvestigationSnapshotSearch({
@@ -143,6 +169,8 @@ export default function GlobalSearchInput({
     query,
     token,
     activeContext,
+    activeNamespace,
+    activeScope,
     disabled: disabled || isCommandQuery(query),
   });
 
@@ -159,14 +187,15 @@ export default function GlobalSearchInput({
         return document.activeElement === input;
       },
     });
-  }, [activeContext, disabled, focusRequest, requestKeyboardFocus]);
+  }, [activeContext, disabled, focusRequest, requestKeyboardFocus, setQuery]);
 
   const suggestions = useMemo<PaletteSuggestion[]>(() => {
-    const resourceSuggestions = resourceItems.map((item) => ({
-      kind: "cached-resource" as const,
-      key: resourceSuggestionKey(item),
-      item,
-    }));
+    const resourceSuggestions: PaletteSuggestion[] = resourceItems.flatMap((item) => {
+      const detail: PaletteSuggestion = { kind: "cached-resource", key: resourceSuggestionKey(item), item };
+      return onOpenResourceMap && searchResultMapIdentity(item)
+        ? [detail, { kind: "resource-map" as const, key: `map:${detail.key}`, item }]
+        : [detail];
+    });
     const snapshotSuggestions = snapshotItems.map((item) => ({
       kind: "investigation-snapshot" as const,
       key: snapshotSuggestionKey(item),
@@ -179,7 +208,16 @@ export default function GlobalSearchInput({
     }));
     if (isCommandQuery(query)) return commandOptions;
     return [...resourceSuggestions, ...snapshotSuggestions, ...commandOptions];
-  }, [commandSuggestions, query, resourceItems, snapshotItems]);
+  }, [commandSuggestions, onOpenResourceMap, query, resourceItems, snapshotItems]);
+
+  const openMap = (item: ApiDataplaneSearchItem) => {
+    // Resolve against this render's identity-bound results, not a retained item.
+    const current = resourceItems.find((candidate) => candidate === item);
+    if (disabled || !activeContext || !current || !searchResultMapIdentity(current)) return;
+    onOpenResourceMap?.(current);
+    setQuery("");
+    setOpen(false);
+  };
 
   const groupedSuggestions = useMemo(() => {
     const groups: Array<{ category: string; options: PaletteSuggestion[] }> = [];
@@ -203,7 +241,7 @@ export default function GlobalSearchInput({
     else onOpenSettings();
     setQuery("");
     setOpen(false);
-  }, [onOpenResource, onOpenSettings, onSelectContext, onSelectNamespace, onSelectSection]);
+  }, [onOpenResource, onOpenSettings, onSelectContext, onSelectNamespace, onSelectSection, setQuery]);
 
   const runQuery = useCallback((value: string) => {
     const action = parseKeyboardCommand(value, namespaces, contexts);
@@ -213,51 +251,60 @@ export default function GlobalSearchInput({
   const PalettePaper = useCallback(({ children, ...paperProps }: PaperProps) => (
     <Paper {...paperProps}>
       {children}
+      {error && suggestions.length > 0 ? <Typography role="alert" color="error" sx={{ px: 2, py: 0.75 }}>{error}</Typography> : null}
+      {error ? <Button size="small" fullWidth disabled={loading}
+        onMouseDown={(event) => event.preventDefault()} onClick={retryFailed}>Retry failed search</Button> : null}
       {hasMore && !isCommandQuery(query) ? (
         <Box sx={{ p: 0.75, borderTop: "1px solid", borderColor: "divider" }}>
-          <Chip
-            data-load-more
-            size="small"
-            variant="outlined"
-            label="Load more cached resources"
-            sx={{ width: "100%" }}
-          />
+          <Button size="small" fullWidth disabled={loading}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={loadMore}>Load more cached resources</Button>
         </Box>
       ) : null}
     </Paper>
-  ), [hasMore, query]);
+  ), [error, hasMore, loadMore, loading, query, retryFailed, suggestions.length]);
 
   return (
+    <Box sx={{ width: { xs: 220, sm: 320, md: 420 }, mx: 1.25 }}>
     <Autocomplete<PaletteSuggestion, false, false, true>
       freeSolo
+      loading={loading || !!error}
+      loadingText={<Typography role={error ? "alert" : "status"} color={error ? "error" : "text.secondary"}>{error || "Searching cached resources…"}</Typography>}
       autoHighlight
       openOnFocus
-      open={open}
+      open={open && !disabled && !!activeContext}
       onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
+      onClose={(event) => {
+        // MUI calls handleBlur without an event during its disabled render.
+        // That transition is closed by our effect, not a parent render update.
+        if (event) setOpen(false);
+      }}
       disabled={disabled || !activeContext}
       options={suggestions}
       groupBy={paletteSuggestionCategory}
-      inputValue={query}
+      inputValue={draft}
       getOptionLabel={(option) => {
         if (typeof option === "string") return option;
-        if (option.kind === "cached-resource") return option.item.name;
+        if (option.kind === "cached-resource" || option.kind === "resource-map") return option.item.name;
         if (option.kind === "investigation-snapshot") return option.item.snapshot.title;
         if (option.kind === "command") return option.suggestion.value;
         return "";
       }}
       filterOptions={(options) => options}
-      onInputChange={(_, value) => {
-        setQuery(value);
+      onInputChange={(_, value, reason) => {
+        if (reason !== "input" && reason !== "clear") return;
+        if (reason === "clear") setQuery("");
+        else commitDraft(value);
         setOpen(true);
       }}
       onChange={(_, value) => {
         if (!value) return;
-        if (typeof value === "string") runQuery(value);
+        if (typeof value === "string") runQuery(query);
+        else if (value.kind === "resource-map") openMap(value.item);
         else runAction(optionToAction(value));
       }}
       ref={rootRef}
-      sx={{ width: { xs: 220, sm: 320, md: 420 }, mx: 1.25 }}
+      sx={{ width: "100%" }}
       renderInput={(params) => {
         return (
           <TextField
@@ -266,12 +313,13 @@ export default function GlobalSearchInput({
             fullWidth={params.fullWidth}
             size="small"
             placeholder="Search or command"
+            onBlur={() => commitDraft(draft, true)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
+                rootRef.current?.querySelector<HTMLInputElement>("input")?.blur();
                 setQuery("");
                 setOpen(false);
-                rootRef.current?.querySelector<HTMLInputElement>("input")?.blur();
               }
             }}
             slotProps={{
@@ -282,6 +330,16 @@ export default function GlobalSearchInput({
                 startAdornment: (
                   <>
                     <SearchIcon fontSize="small" sx={{ mr: 0.75, color: "text.secondary" }} />
+                    {chips.length ? <Box aria-label="Search filters" data-inline-search-chips
+                      sx={{ display: "flex", flexWrap: "nowrap", gap: 0.5, maxWidth: "65%", overflowX: "auto", overflowY: "hidden", flexShrink: 1 }}>
+                      {chips.map((raw, index) => <Chip key={`${index}:${raw}`} size="small" label={raw}
+                        aria-label={`Remove filter ${raw}`} sx={{ flexShrink: 0, maxWidth: 180 }}
+                        onDelete={() => {
+                          setChips((previous) => previous.filter((_, i) => i !== index));
+                          setOpen(true);
+                          rootRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+                        }} />)}
+                    </Box> : null}
                     {params.slotProps.input.startAdornment}
                   </>
                 ),
@@ -295,6 +353,9 @@ export default function GlobalSearchInput({
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
+                height: 40,
+                flexWrap: "nowrap",
+                overflow: "hidden",
                 backgroundColor: "var(--bg-primary)",
                 color: "var(--text-primary)",
                 borderRadius: 1,
@@ -303,6 +364,7 @@ export default function GlobalSearchInput({
                 "&:hover fieldset": { borderColor: "var(--border-subtle)" },
                 "&.Mui-focused fieldset": { borderColor: "var(--border-subtle)" },
               },
+              "& .MuiInputBase-input": { minWidth: 40, flexGrow: 1 },
               "& .MuiInputBase-input::placeholder": {
                 color: "text.secondary",
                 opacity: 1,
@@ -318,14 +380,22 @@ export default function GlobalSearchInput({
           onMouseDown={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            runAction(optionToAction(option));
+            if (option.kind === "resource-map") openMap(option.item);
+            else runAction(optionToAction(option));
           }}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            // Assistive technology may dispatch click without a pointer down.
+            if (event.detail === 0) {
+              if (option.kind === "resource-map") openMap(option.item);
+              else runAction(optionToAction(option));
+            }
           }}
         >
-          {option.kind === "cached-resource" ? (
+          {option.kind === "resource-map" ? (
+            <Typography>Map {option.item.name} · {resourceSuggestionDescription(option.item)}</Typography>
+          ) : option.kind === "cached-resource" ? (
             <ResourceOption item={option.item} />
           ) : option.kind === "investigation-snapshot" ? (
             <SnapshotOption item={option.item} />
@@ -339,7 +409,7 @@ export default function GlobalSearchInput({
         return (
           <Box component="li" key={params.key}>
             <Typography variant="overline" color="text.secondary" sx={{ display: "block", px: 2, pt: 1, lineHeight: 1.4 }}>
-              {params.group}{group ? ` (${group.options.length})` : ""}
+              {params.group}{group ? ` (${group.options.filter((option) => option.kind !== "resource-map").length})` : ""}
             </Typography>
             <Box component="ul" sx={{ p: 0 }}>{params.children}</Box>
           </Box>
@@ -350,130 +420,102 @@ export default function GlobalSearchInput({
       slotProps={{
         listbox: {
           sx: { maxHeight: 380 },
-          onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
-            const target = event.target as HTMLElement;
-            if (!target.closest("[data-load-more]")) return;
-            event.preventDefault();
-            event.stopPropagation();
-            loadMore();
-          },
         },
       }}
     />
+    </Box>
   );
 }
 
 function useDataplaneSearch({
-  open,
-  query,
-  token,
-  activeContext,
-  disabled,
+  open, query, token, activeContext, activeNamespace, activeScope, disabled,
 }: {
-  open: boolean;
-  query: string;
-  token: string;
-  activeContext: string;
-  disabled: boolean;
+  open: boolean; query: string; token: string; activeContext: string;
+  activeNamespace: string; activeScope: "namespaced" | "cluster"; disabled: boolean;
 }) {
-  const [items, setItems] = useState<ApiDataplaneSearchItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
-  const [hasMore, setHasMore] = useState(false);
-  const searchAbortRef = useRef<AbortController | null>(null);
-  const loadMoreAbortRef = useRef<AbortController | null>(null);
-  const seqRef = useRef(0);
+  const identity = useMemo(() => ({ token, activeContext, query, activeNamespace, activeScope, disabled }),
+    [token, activeContext, query, activeNamespace, activeScope, disabled]);
+  type Page = { items: ApiDataplaneSearchItem[]; offset: number; more: boolean; ready: boolean; error: string };
+  type SearchState = { identity: typeof identity; pages: Page[]; pending: number };
+  const [state, setState] = useState<SearchState | null>(null);
+  const session = useRef<{ identity: typeof identity; controller: AbortController; busy: Set<number> } | null>(null);
   const trimmed = query.trim();
   const canSearch = open && !disabled && !!activeContext && trimmed.length >= 2;
+  const preferred = activeScope === "namespaced" && activeNamespace &&
+    !parseSearchFilters(query).some(({ key }) => key === "ns" || key === "namespace") ? activeNamespace : "";
 
-  const fetchResults = useCallback((searchQuery: string, offset: number, signal: AbortSignal) => {
-    const path = `/api/dataplane/search?q=${encodeURIComponent(searchQuery)}&limit=${searchLimit}&offset=${offset}`;
-    return apiGetWithContext<ApiDataplaneSearchResponse>(path, token, activeContext, { signal });
-  }, [activeContext, token]);
-
-  useEffect(() => {
-    searchAbortRef.current?.abort();
-    loadMoreAbortRef.current?.abort();
-
-    if (!canSearch) {
-      setItems([]);
-      setLoading(false);
-      setLoadingMore(false);
-      setError("");
-      setHasMore(false);
-      return;
-    }
-
-    const searchQuery = trimmed;
-    const seq = seqRef.current + 1;
-    seqRef.current = seq;
-    const controller = new AbortController();
-    searchAbortRef.current = controller;
-
-    setItems([]);
-    setHasMore(false);
-    setError("");
-    setLoading(true);
-    setLoadingMore(false);
-
-    const timer = window.setTimeout(() => {
-      fetchResults(searchQuery, 0, controller.signal)
-        .then((res) => {
-          if (controller.signal.aborted || seq !== seqRef.current) return;
-          setItems(res.items || []);
-          setHasMore(!!res.hasMore);
-        })
-        .catch((err) => {
-          if (controller.signal.aborted || seq !== seqRef.current || isAbortError(err)) return;
-          setItems([]);
-          setHasMore(false);
-          setError(String((err as Error | undefined)?.message || err || "Search failed"));
-        })
-        .finally(() => {
-          if (!controller.signal.aborted && seq === seqRef.current) setLoading(false);
+  const fetchPage = useCallback((index: number, offset: number, owner: NonNullable<typeof session.current>) => {
+    if (owner.busy.has(index) || owner.controller.signal.aborted) return;
+    owner.busy.add(index);
+    const restriction = preferred ? `&${index === 0 ? "namespace" : "excludeNamespace"}=${encodeURIComponent(preferred)}` : "";
+    const path = `/api/dataplane/search?q=${encodeURIComponent(trimmed)}&limit=${searchLimit}&offset=${offset}${restriction}`;
+    const current = () => session.current === owner && !owner.controller.signal.aborted;
+    setState((previous) => previous?.identity === owner.identity ? { ...previous, pending: previous.pending + 1 } : previous);
+    apiGetWithContext<ApiDataplaneSearchResponse>(path, token, activeContext, { signal: owner.controller.signal })
+      .then((response) => {
+        if (!current()) return;
+        setState((previous) => {
+          if (previous?.identity !== owner.identity) return previous;
+          const pages = [...previous.pages];
+          const page = pages[index];
+          pages[index] = { items: [...page.items, ...(response.items || [])],
+            offset: offset + (response.items || []).length, more: !!response.hasMore, ready: true, error: "" };
+          return { ...previous, pages };
         });
-    }, searchDebounceMs);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [canSearch, fetchResults, trimmed]);
-
-  useEffect(() => {
-    return () => {
-      searchAbortRef.current?.abort();
-      loadMoreAbortRef.current?.abort();
-    };
-  }, []);
-
-  const loadMore = useCallback(() => {
-    if (!canSearch || loading || loadingMore) return;
-    const searchQuery = trimmed;
-    const seq = seqRef.current;
-    const controller = new AbortController();
-    loadMoreAbortRef.current?.abort();
-    loadMoreAbortRef.current = controller;
-
-    setLoadingMore(true);
-    fetchResults(searchQuery, items.length, controller.signal)
-      .then((res) => {
-        if (controller.signal.aborted || seq !== seqRef.current) return;
-        setItems((prev) => [...prev, ...(res.items || [])]);
-        setHasMore(!!res.hasMore);
-        setError("");
       })
-      .catch((err) => {
-        if (controller.signal.aborted || seq !== seqRef.current || isAbortError(err)) return;
-        setError(String((err as Error | undefined)?.message || err || "Search failed"));
+      .catch((error) => {
+        if (!current() || isAbortError(error)) return;
+        setState((previous) => {
+          if (previous?.identity !== owner.identity) return previous;
+          const pages = [...previous.pages];
+          pages[index] = { ...pages[index], ready: true, more: false, error: String(error?.message || error || "Search failed") };
+          return { ...previous, pages };
+        });
       })
       .finally(() => {
-        if (!controller.signal.aborted && seq === seqRef.current) setLoadingMore(false);
+        owner.busy.delete(index);
+        if (current()) setState((previous) => previous?.identity === owner.identity ? { ...previous, pending: previous.pending - 1 } : previous);
       });
-  }, [canSearch, fetchResults, items.length, loading, loadingMore, trimmed]);
+  }, [activeContext, preferred, token, trimmed]);
 
-  return { items, loading: loading || loadingMore, error, hasMore, loadMore };
+  useEffect(() => {
+    session.current?.controller.abort();
+    if (!canSearch) { setState(null); return; }
+    const owner = { identity, controller: new AbortController(), busy: new Set<number>() };
+    session.current = owner;
+    const pages = Array.from({ length: preferred ? 2 : 1 }, () => ({ items: [], offset: 0, more: false, ready: false, error: "" }));
+    setState({ identity, pages, pending: 0 });
+    const timer = window.setTimeout(() => {
+      // Start both cache-only partitions in the same debounce tick. Publish the
+      // local response independently; hold broad results until local is ready.
+      pages.forEach((_, index) => fetchPage(index, 0, owner));
+    }, searchDebounceMs);
+    return () => { window.clearTimeout(timer); owner.controller.abort(); };
+  }, [canSearch, fetchPage, identity, preferred]);
+
+  const current = canSearch && state?.identity === identity ? state : null;
+  const seen = new Set<string>();
+  const items = current?.pages[0].ready ? current.pages.flatMap((page) => page.items).filter((item) => {
+    const key = resourceSuggestionKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }) : [];
+  const loadMore = useCallback(() => {
+    const owner = session.current;
+    if (!current || !owner || owner.identity !== identity || current.pending) return;
+    const index = current.pages.findIndex((page) => page.more);
+    if (index >= 0) fetchPage(index, current.pages[index].offset, owner);
+  }, [current, fetchPage, identity]);
+  const retryFailed = useCallback(() => {
+    const owner = session.current;
+    if (!current || !owner || owner.identity !== identity) return;
+    current.pages.forEach((page, index) => {
+      if (page.error) fetchPage(index, page.offset, owner);
+    });
+  }, [current, fetchPage, identity]);
+  return { items, loading: !!current && (current.pending > 0 || current.pages.some((page) => !page.ready)),
+    error: current?.pages.map((page) => page.error).filter(Boolean).join("; ") || "", hasMore: !!current?.pages.some((page) => page.more), loadMore, retryFailed };
 }
 
 function useInvestigationSnapshotSearch({
@@ -481,15 +523,21 @@ function useInvestigationSnapshotSearch({
   query,
   token,
   activeContext,
+  activeNamespace,
+  activeScope,
   disabled,
 }: {
   open: boolean;
   query: string;
   token: string;
   activeContext: string;
+  activeNamespace: string;
+  activeScope: "namespaced" | "cluster";
   disabled: boolean;
 }) {
-  const [items, setItems] = useState<InvestigationSnapshotSearchItem[]>([]);
+  const identity = useMemo(() => ({ token, activeContext, activeNamespace, activeScope, query, disabled }),
+    [token, activeContext, activeNamespace, activeScope, query, disabled]);
+  const [result, setResult] = useState<{ identity: typeof identity; items: InvestigationSnapshotSearchItem[] } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
   const trimmed = query.trim();
@@ -498,7 +546,7 @@ function useInvestigationSnapshotSearch({
   useEffect(() => {
     abortRef.current?.abort();
     if (!canSearch) {
-      setItems([]);
+      setResult(null);
       return;
     }
     const seq = seqRef.current + 1;
@@ -509,22 +557,22 @@ function useInvestigationSnapshotSearch({
       listInvestigationSnapshots(token, activeContext, { signal: controller.signal })
         .then((snapshots) => {
           if (controller.signal.aborted || seq !== seqRef.current) return;
-          setItems(searchInvestigationSnapshots(snapshots, trimmed));
+          setResult({ identity, items: searchInvestigationSnapshots(snapshots, trimmed) });
         })
         .catch((err) => {
           if (controller.signal.aborted || seq !== seqRef.current || isAbortError(err)) return;
-          setItems([]);
+          setResult(null);
         });
     }, searchDebounceMs);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeContext, canSearch, token, trimmed]);
+  }, [activeContext, canSearch, identity, token, trimmed]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return items;
+  return canSearch && result?.identity === identity ? result.items : [];
 }
 
 function severityChipColor(severity?: string): "default" | "error" | "warning" | "info" | "success" {

@@ -28,17 +28,23 @@ type CachedResourceSearchItem struct {
 	MatchReason    string `json:"matchReason,omitempty"`
 }
 
-func (m *manager) cachedResourceSearchRows(clusterName, query string, limit, offset int) ([]dataplaneSearchRow, error) {
-	rows := searchRowsMatching(m.inMemorySearchRows(clusterName), clusterName, query)
+func (m *manager) cachedResourceSearchRows(clusterName, query string, limit, offset int, scopes ...SearchScope) ([]dataplaneSearchRow, error) {
+	scope := effectiveSearchScope(query, scopes)
+	// Keep every RAM identity until after deduplication: a newer nonmatching
+	// row must still shadow a stale matching persisted row.
+	rows := m.inMemorySearchRows(clusterName, scope)
 
 	if sp := m.currentPersistence(); sp != nil {
-		persistedRows, err := sp.SearchName(clusterName, query, limit+offset+1, 0)
+		// At most len(rows) persisted matches can be shadowed by RAM;
+		// overfetch those slots so filtering cannot leave a short page.
+		persistedRows, err := sp.SearchName(clusterName, query, limit+offset+1+len(rows), 0, scope)
 		if err != nil {
 			return nil, err
 		}
 		rows = appendUniqueSearchRows(rows, persistedRows)
 	}
 
+	rows = searchRowsMatching(rows, clusterName, query)
 	sortSearchRows(rows)
 	if offset >= len(rows) {
 		return nil, nil
@@ -50,7 +56,11 @@ func (m *manager) cachedResourceSearchRows(clusterName, query string, limit, off
 	return rows[offset:end], nil
 }
 
-func (m *manager) inMemorySearchRows(clusterName string) []dataplaneSearchRow {
+func (m *manager) inMemorySearchRows(clusterName string, scopes ...SearchScope) []dataplaneSearchRow {
+	var scope SearchScope
+	if len(scopes) > 0 {
+		scope = scopes[0]
+	}
 	if m == nil {
 		return nil
 	}
@@ -69,45 +79,52 @@ func (m *manager) inMemorySearchRows(clusterName string) []dataplaneSearchRow {
 
 	var rows []dataplaneSearchRow
 	for _, plane := range planes {
-		rows = append(rows, plane.inMemorySearchRows()...)
+		rows = append(rows, plane.inMemorySearchRows(scope)...)
 	}
 	return rows
 }
 
-func (p *clusterPlane) inMemorySearchRows() []dataplaneSearchRow {
+func (p *clusterPlane) inMemorySearchRows(scopes ...SearchScope) []dataplaneSearchRow {
+	var scope SearchScope
+	if len(scopes) > 0 {
+		scope = scopes[0]
+	}
 	if p == nil {
 		return nil
 	}
 	var rows []dataplaneSearchRow
-	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindNamespaces, &p.nsStore)
-	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindNodes, &p.nodesStore)
-	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindClusterCustomResources, &p.clusterCustomResourcesStore)
+	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindNamespaces, &p.nsStore, scope)
+	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindNodes, &p.nodesStore, scope)
+	appendClusterSnapshotSearchRows(&rows, p.name, ResourceKindClusterCustomResources, &p.clusterCustomResourcesStore, scope)
 
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindPods, &p.podsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindCustomResources, &p.customResourcesStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindDeployments, &p.depsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindServices, &p.svcsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindIngresses, &p.ingStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindNetworkPolicies, &p.networkPoliciesStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindPVCs, &p.pvcsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindConfigMaps, &p.cmsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindSecrets, &p.secsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindServiceAccounts, &p.saStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindRoles, &p.rolesStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindRoleBindings, &p.roleBindingsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindHelmReleases, &p.helmReleasesStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindDaemonSets, &p.dsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindStatefulSets, &p.stsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindReplicaSets, &p.rsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindJobs, &p.jobsStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindCronJobs, &p.cjStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindHPAs, &p.hpaStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindResourceQuotas, &p.rqStore)
-	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindLimitRanges, &p.lrStore)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindPods, &p.podsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindCustomResources, &p.customResourcesStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindDeployments, &p.depsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindServices, &p.svcsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindIngresses, &p.ingStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindNetworkPolicies, &p.networkPoliciesStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindPVCs, &p.pvcsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindConfigMaps, &p.cmsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindSecrets, &p.secsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindServiceAccounts, &p.saStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindRoles, &p.rolesStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindRoleBindings, &p.roleBindingsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindHelmReleases, &p.helmReleasesStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindDaemonSets, &p.dsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindStatefulSets, &p.stsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindReplicaSets, &p.rsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindJobs, &p.jobsStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindCronJobs, &p.cjStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindHPAs, &p.hpaStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindResourceQuotas, &p.rqStore, scope)
+	appendNamespacedSnapshotSearchRows(&rows, p.name, ResourceKindLimitRanges, &p.lrStore, scope)
 	return rows
 }
 
-func appendClusterSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, cluster string, kind ResourceKind, store *snapshotStore[Snapshot[I]]) {
+func appendClusterSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, cluster string, kind ResourceKind, store *snapshotStore[Snapshot[I]], scope SearchScope) {
+	if scope.Namespace != "" || !scope.matchesKind(kind) {
+		return
+	}
 	snap, ok := peekClusterSnapshot(store)
 	if !ok {
 		return
@@ -115,9 +132,29 @@ func appendClusterSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, cluster 
 	*rows = append(*rows, searchRowsFromSnapshot(cluster, kind, "", snap)...)
 }
 
-func appendNamespacedSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, cluster string, kind ResourceKind, store *namespacedSnapshotStore[Snapshot[I]]) {
+func appendNamespacedSnapshotSearchRows[I any](rows *[]dataplaneSearchRow, cluster string, kind ResourceKind, store *namespacedSnapshotStore[Snapshot[I]], scope SearchScope) {
+	if !scope.matchesKind(kind) {
+		return
+	}
+	appendSnapshot := func(namespace string, snap Snapshot[I]) {
+		for _, row := range searchRowsFromSnapshot(cluster, kind, namespace, snap) {
+			if scope.matchesNamespace(row.Namespace) {
+				*rows = append(*rows, row)
+			}
+		}
+	}
+	if scope.Namespace != "" {
+		if scope.matchesNamespace(scope.Namespace) {
+			if snap, ok := peekNamespacedSnapshot(store, scope.Namespace); ok {
+				appendSnapshot(scope.Namespace, snap)
+			}
+		}
+		return
+	}
 	for namespace, snap := range peekAllNamespacedSnapshots(store) {
-		*rows = append(*rows, searchRowsFromSnapshot(cluster, kind, namespace, snap)...)
+		if scope.matchesNamespace(namespace) {
+			appendSnapshot(namespace, snap)
+		}
 	}
 }
 
@@ -141,15 +178,7 @@ func searchRowsMatching(rows []dataplaneSearchRow, clusterName, query string) []
 	return out
 }
 
-func searchQueryTerms(query string) []string {
-	parts := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
-	if len(parts) == 0 {
-		return nil
-	}
-	return parts
-}
-
-func searchRowMatchReason(row dataplaneSearchRow, terms []string) (string, bool) {
+func searchRowMatchReason(row dataplaneSearchRow, terms []searchTerm) (string, bool) {
 	fields := []struct {
 		label string
 		value string
@@ -164,9 +193,29 @@ func searchRowMatchReason(row dataplaneSearchRow, terms []string) (string, bool)
 	}
 	firstReason := ""
 	for _, term := range terms {
+		if term.key == "attention" {
+			if row.NeedsAttention != (term.value == "true") {
+				return "", false
+			}
+			if firstReason == "" {
+				firstReason = "attention"
+			}
+			continue
+		}
 		matched := false
 		for _, field := range fields {
-			if field.value == "" || !strings.Contains(strings.ToLower(field.value), term) {
+			if term.key != "" && term.key != field.label {
+				continue
+			}
+			value := strings.ToLower(field.value)
+			if value == "" {
+				continue
+			}
+			if term.key == "" || term.key == "name" {
+				if !strings.Contains(value, term.value) {
+					continue
+				}
+			} else if value != term.value {
 				continue
 			}
 			if firstReason == "" {
@@ -205,20 +254,22 @@ func searchRowDedupeKey(row dataplaneSearchRow) string {
 	return strings.Join([]string{row.Cluster, row.Kind, row.Namespace, row.Name}, "\x00")
 }
 
+func searchRowLess(a, b dataplaneSearchRow) bool {
+	if pi, pj := searchKindPriority(a.Kind), searchKindPriority(b.Kind); pi != pj {
+		return pi < pj
+	}
+	if ni, nj := strings.ToLower(a.Name), strings.ToLower(b.Name); ni != nj {
+		return ni < nj
+	}
+	if a.Namespace != b.Namespace {
+		return a.Namespace < b.Namespace
+	}
+	if a.Kind != b.Kind {
+		return a.Kind < b.Kind
+	}
+	return a.Cluster < b.Cluster
+}
+
 func sortSearchRows(rows []dataplaneSearchRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		if pi, pj := searchKindPriority(rows[i].Kind), searchKindPriority(rows[j].Kind); pi != pj {
-			return pi < pj
-		}
-		if ni, nj := strings.ToLower(rows[i].Name), strings.ToLower(rows[j].Name); ni != nj {
-			return ni < nj
-		}
-		if rows[i].Namespace != rows[j].Namespace {
-			return rows[i].Namespace < rows[j].Namespace
-		}
-		if rows[i].Kind != rows[j].Kind {
-			return rows[i].Kind < rows[j].Kind
-		}
-		return rows[i].Cluster < rows[j].Cluster
-	})
+	sort.SliceStable(rows, func(i, j int) bool { return searchRowLess(rows[i], rows[j]) })
 }

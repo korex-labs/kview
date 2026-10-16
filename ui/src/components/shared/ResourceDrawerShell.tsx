@@ -69,6 +69,7 @@ export type ResourceDrawerShellProps = {
   children: React.ReactNode;
   /** Explicit destinations for grouped views not represented by mounted top-level tabs. */
   tabActions?: ContextualKeyboardAction[];
+  initialAuxiliaryTab?: "resource-map" | "notes";
   /**
    * Content width in px. Defaults to RESOURCE_DRAWER_WIDTH (820).
    * Use RESOURCE_DRAWER_WIDTH_NARROW (620) for simpler/narrow drawers.
@@ -111,6 +112,7 @@ export default function ResourceDrawerShell({
   onClose,
   children,
   tabActions,
+  initialAuxiliaryTab,
   contentWidth = RESOURCE_DRAWER_WIDTH,
 }: ResourceDrawerShellProps) {
   const { settings, setSettings } = useUserSettings();
@@ -120,7 +122,7 @@ export default function ResourceDrawerShell({
   const drawerExpanded = Boolean(drawerLayout?.expanded);
   const [isResizing, setIsResizing] = useState(false);
   const [actionRevision, setActionRevision] = useState(0);
-  const [auxiliaryTab, setAuxiliaryTab] = useState<"resource-map" | "notes" | null>(null);
+  const [auxiliaryTab, setAuxiliaryTab] = useState<"resource-map" | "notes" | null>(initialAuxiliaryTab || null);
   const [linkedResource, setLinkedResource] = useState<ApiResourceIdentity | null>(null);
   const dragStartXRef = useRef(0);
   const dragStartWidthRef = useRef(contentWidth);
@@ -158,9 +160,9 @@ export default function ResourceDrawerShell({
   }, [clampWidth, contentWidth, isResizing, settings.appearance.resourceDrawerWidthPx]);
 
   useEffect(() => {
-    setAuxiliaryTab(null);
+    setAuxiliaryTab(initialAuxiliaryTab || null);
     setLinkedResource(null);
-  }, [mapIdentityStableKey, drawerIdentity?.resource, drawerIdentity?.namespace, drawerIdentity?.name]);
+  }, [initialAuxiliaryTab, mapIdentityStableKey, drawerIdentity?.resource, drawerIdentity?.namespace, drawerIdentity?.name]);
 
   useEffect(() => {
     if (!isResizing) return;

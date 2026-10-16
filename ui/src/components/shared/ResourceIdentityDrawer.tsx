@@ -2,6 +2,9 @@ import React, { lazy, Suspense } from "react";
 import { Box, CircularProgress } from "@mui/material";
 import type { ApiResourceIdentity } from "../../types/api";
 import { fixedResourceIdentityRegistry } from "./resourceMapIdentity";
+import type { ResourceDrawerDestination } from "./resourceMapIdentity";
+
+const FocusedResourceMapDrawer = lazy(() => import("./FocusedResourceMapDrawer"));
 
 const NamespaceDrawer = lazy(() => import("../resources/namespaces/NamespaceDrawer"));
 const NodeDrawer = lazy(() => import("../resources/nodes/NodeDrawer"));
@@ -52,13 +55,21 @@ export function supportsResourceIdentityDrawer(identity: DrawerResourceIdentity)
   return identity.scope === "namespaced" ? Boolean(identity.namespace) : identity.scope === "cluster" && !identity.namespace;
 }
 
-export function ResourceIdentityDrawer({ token, identity, open = true, onClose }: {
+export function ResourceIdentityDrawer({ token, identity, open = true, onClose, destination = "details" }: {
   token: string;
   identity: DrawerResourceIdentity | null;
   open?: boolean;
+  destination?: ResourceDrawerDestination;
   onClose: () => void;
 }) {
   if (!identity || !supportsResourceIdentityDrawer(identity)) return null;
+  if (destination === "resource-map") {
+    const descriptor = fixedResourceIdentityRegistry[identity.resource as keyof typeof fixedResourceIdentityRegistry];
+    const canonical = { ...descriptor, ...identity } as ApiResourceIdentity;
+    if (!canonical.version || !canonical.kind || !canonical.scope || canonical.scope === "unknown") return null;
+    if (canonical.scope === "namespaced" ? !canonical.namespace : Boolean(canonical.namespace)) return null;
+    return <Suspense fallback={null}><FocusedResourceMapDrawer token={token} identity={canonical} open={open} onClose={onClose} /></Suspense>;
+  }
   const common = { open, onClose, token };
   const namespace = identity.namespace || "";
   const name = identity.name || null;
