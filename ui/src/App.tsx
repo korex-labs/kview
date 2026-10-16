@@ -1,3 +1,5 @@
+import { useInstallationStatistics } from "./installationStatistics";
+import OutreachDialog from "./components/OutreachDialog";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, CssBaseline, AppBar, Toolbar, Typography, Snackbar, Alert } from "@mui/material";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -176,6 +178,8 @@ function AppInner() {
   const [kubeconfigInfo, setKubeconfigInfo] = useState<StartupKubeconfigInfo | null>(null);
   const [bootstrapNonce, setBootstrapNonce] = useState(0);
   const [contextSwitching, setContextSwitching] = useState(false);
+  const outreachReady = Boolean(token) && bootstrapPhase === "ready" && !contextSwitching;
+  useInstallationStatistics(outreachReady ? token : "");
   const [namespaceLoading, setNamespaceLoading] = useState(false);
   const [namespaceError, setNamespaceError] = useState("");
   const [namespaceNonce, setNamespaceNonce] = useState(0);
@@ -648,6 +652,7 @@ function AppInner() {
           }}
         >
           <CssBaseline />
+          <OutreachDialog ready={outreachReady && resourcesOpen} />
           <StartupDialog
             open={resourcesOpen && bootstrapPhase !== "ready"}
             mode={startupMode}
@@ -747,6 +752,7 @@ function AppInner() {
               onToggleGroup={onToggleSidebarGroup}
               section={section}
               onSelectSection={onSelectSection}
+              token={token}
               buildVersion={backendVersion}
               releaseChecksEnabled={settings.appearance.releaseChecksEnabled}
             />

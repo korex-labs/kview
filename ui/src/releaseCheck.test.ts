@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { isComparableReleaseVersion, isUpdateAvailable } from "./releaseCheck";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getLatestReleaseWithCache, isComparableReleaseVersion, isUpdateAvailable } from "./releaseCheck";
 
+afterEach(() => vi.unstubAllGlobals());
 describe("release version checks", () => {
+  it("fetches through the authenticated local API, without statistics or cluster context", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+      tag_name: "v5.2.1", html_url: "https://github.com/korex-labs/kview/releases/tag/v5.2.1",
+    }) });
+    vi.stubGlobal("fetch", fetchMock);
+    await getLatestReleaseWithCache(undefined, "local-secret");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/releases/latest", expect.objectContaining({
+      headers: { Accept: "application/json", Authorization: "Bearer local-secret" },
+    }));
+  });
   it("detects a newer patch release", () => {
     expect(isUpdateAvailable("v1.2.3", "v1.2.4")).toBe(true);
   });

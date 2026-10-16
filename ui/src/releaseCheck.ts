@@ -16,7 +16,7 @@ type ParsedVersion = {
   prerelease: string;
 };
 
-const LATEST_RELEASE_URL = "https://api.github.com/repos/korex-labs/kview/releases/latest";
+const LATEST_RELEASE_URL = "/api/releases/latest";
 const CACHE_KEY = "kview:latestRelease:v1";
 
 export const RELEASE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -94,11 +94,11 @@ function writeCachedLatestRelease(release: LatestRelease) {
   }
 }
 
-async function fetchLatestRelease(signal?: AbortSignal): Promise<LatestRelease | null> {
+async function fetchLatestRelease(signal?: AbortSignal, token = ""): Promise<LatestRelease | null> {
   if (typeof fetch === "undefined") return null;
   const res = await fetch(LATEST_RELEASE_URL, {
-    headers: { Accept: "application/vnd.github+json" },
-    signal,
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
   });
   if (!res.ok) return null;
 
@@ -111,11 +111,11 @@ async function fetchLatestRelease(signal?: AbortSignal): Promise<LatestRelease |
   };
 }
 
-export async function getLatestReleaseWithCache(signal?: AbortSignal): Promise<LatestRelease | null> {
+export async function getLatestReleaseWithCache(signal?: AbortSignal, token = ""): Promise<LatestRelease | null> {
   const cached = readCachedLatestRelease(Date.now());
   if (cached) return cached;
 
-  const release = await fetchLatestRelease(signal);
+  const release = await fetchLatestRelease(signal, token);
   if (release) writeCachedLatestRelease(release);
   return release;
 }

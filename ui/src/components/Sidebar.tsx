@@ -26,7 +26,6 @@ import ResourceIcon from "./icons/resources/ResourceIcon";
 import { getResourceIcon, getResourceLabel, isClusterScopedSection, sidebarGroups } from "../utils/k8sResources";
 import {
   getLatestReleaseWithCache,
-  isComparableReleaseVersion,
   isUpdateAvailable,
   RELEASE_CHECK_INTERVAL_MS,
   type LatestRelease,
@@ -58,6 +57,7 @@ type Props = {
 
   section: Section;
   onSelectSection: (s: Section) => void;
+  token?: string;
   buildVersion?: string;
   releaseChecksEnabled?: boolean;
 };
@@ -84,17 +84,14 @@ export default function Sidebar(props: Props) {
       setLatestRelease(null);
       return;
     }
-    if (!isComparableReleaseVersion(currentVersion)) {
-      setLatestRelease(null);
-      return;
-    }
+    // Dev/hash builds also check; only the update notice requires comparable versions.
 
     let cancelled = false;
     const controller = new AbortController();
 
     const checkLatestRelease = async () => {
       try {
-        const release = await getLatestReleaseWithCache(controller.signal);
+        const release = await getLatestReleaseWithCache(controller.signal, props.token || "");
         if (!cancelled) setLatestRelease(release);
       } catch {
         if (!cancelled) setLatestRelease(null);
@@ -108,7 +105,7 @@ export default function Sidebar(props: Props) {
       controller.abort();
       window.clearInterval(id);
     };
-  }, [currentVersion, props.releaseChecksEnabled]);
+  }, [props.releaseChecksEnabled, props.token]);
 
   const updateAvailable = latestRelease
     ? isUpdateAvailable(currentVersion, latestRelease.latestTag)

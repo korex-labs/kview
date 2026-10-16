@@ -29,6 +29,7 @@ func (s *Server) Router() http.Handler {
 		// Keep docs/API_READ_OWNERSHIP.md in sync when adding GET routes.
 		// Projections must not perform hidden live kube reads; use snapshots only.
 
+		s.registerOutreachRoutes(api)
 		s.registerActivityAndDataplaneRoutes(api)
 		s.registerInvestigationRoutes(api)
 		s.registerSessionRoutes(api)

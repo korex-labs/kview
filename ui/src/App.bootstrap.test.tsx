@@ -110,6 +110,7 @@ beforeEach(() => {
   sidebarMode.real = false;
   sidebarMode.snapshots = [];
   localStorage.clear();
+  localStorage.setItem("kview:outreachInvitationDecision:v1", "done");
   window.history.replaceState({}, "", "/?token=bootstrap-test-token");
   apiMocks.get.mockReset();
   apiMocks.getWithContext.mockReset();
@@ -137,6 +138,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   localStorage.clear();
+});
+
+describe("App outreach readiness", () => {
+  it("waits for authenticated context selection, not namespace inventory", async () => {
+    localStorage.removeItem("kview:outreachInvitationDecision:v1");
+    let select!: () => void;
+    apiMocks.post.mockImplementation((path: string) => path === "/api/context/select"
+      ? new Promise<void>((resolve) => { select = resolve; }) : Promise.resolve({}));
+    apiMocks.getWithContext.mockImplementation(() => new Promise(() => {}));
+    render(<App />);
+    await flushBootstrap();
+    expect(screen.queryByRole("dialog", { name: "Optional updates and statistics" })).toBeNull();
+    expect(localStorage.getItem("kview:outreachInvitationDecision:v1")).toBeNull();
+    await act(async () => { select(); });
+    expect(await screen.findByRole("dialog", { name: "Optional updates and statistics" })).toBeTruthy();
+    expect(namespaceCalls().length).toBeGreaterThan(0);
+    expect(vi.mocked(fetch).mock.calls.some(([path]) => path === "/api/statistics")).toBe(false);
+  });
+
+  it.each(["error", "no-context", "no-token"])("never invites during %s startup", async (state) => {
+    localStorage.removeItem("kview:outreachInvitationDecision:v1");
+    if (state === "no-token") window.history.replaceState({}, "", "/");
+    if (state === "error") apiMocks.get.mockRejectedValue(new Error("unauthorized"));
+    if (state === "no-context") apiMocks.get.mockResolvedValue(contextResponse({ active: "", contexts: [] }));
+    render(<App />);
+    await flushBootstrap();
+    expect(screen.queryByRole("dialog", { name: "Optional updates and statistics" })).toBeNull();
+    expect(localStorage.getItem("kview:outreachInvitationDecision:v1")).toBeNull();
+    expect(vi.mocked(fetch).mock.calls.some(([path]) => path === "/api/statistics")).toBe(false);
+  });
 });
 
 describe("App bootstrap", () => {

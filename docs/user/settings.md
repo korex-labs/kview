@@ -15,8 +15,17 @@ unless exported and imported elsewhere.
 Appearance settings currently include:
 
 - **Check for kview updates**: optional and off by default. When enabled, kview
-  checks the latest GitHub release while the app is open and shows an update
-  notice in the sidebar when the running version is older.
+  asks the local backend for the latest release while the app is open and shows
+  an update notice in the sidebar when the running version is older. Metadata
+  comes from `korex-labs.com`, with a direct GitHub fallback if unavailable, and
+  is cached for six hours, including across browser reloads. Development and
+  commit-hash builds also fetch release metadata, but do not show an update
+  notice because their version cannot be compared with a release tag. Update
+  checks do not create an installation ID or send statistics.
+- **Share anonymous installation statistics**: optional and off by default.
+  Independent of update checks. Consent stays in this browser; profiles,
+  imports, exports, and transfer bundles cannot enable it. See the privacy and
+  retention details below.
 - **Smart YAML collapse**: on by default. When enabled, YAML panels collapse
   noisy sections such as managed fields and expose fold controls in code blocks.
   Turning it off renders YAML without those automatic folds.
@@ -51,6 +60,66 @@ and height are saved from direct interaction with those UI elements.
 
 Saved resource views are also stored locally. They are created from resource
 list toolbars and are included in full settings export/import.
+
+## One-Time Optional Invitation
+
+After authenticated startup selects a context, **Optional updates and statistics**
+may appear once in this browser. It does not cover startup loading, errors, or
+missing-context diagnostics, and does not wait for namespace inventory to load.
+Both switches start off and are independent: **Apply selected** enables only the
+options you chose. Nothing is sent and no installation UUID is created merely
+by opening the invitation or changing its switches.
+
+**No thanks**, the close button, <kbd>Escape</kbd>, or clicking outside the dialog
+discard the draft choices without changing existing preferences. The invitation
+will not return after reloads or release upgrades. Browsers with either option
+already enabled also permanently skip it. The decision is stored separately from
+settings, profiles, imports, and exports; resetting settings does not reset it.
+Clearing this site's browser storage can make the invitation appear again. If
+storage is unavailable, the invitation fails closed and does not enable outreach.
+
+You can change either option later in **Settings → Appearance**. Declining does
+not restrict Kubernetes functionality. Expand **Privacy and retention details**
+in the invitation, or read the details below before enabling statistics.
+
+## Installation Statistics And Privacy
+
+When **Share anonymous installation statistics** is enabled, an authenticated,
+visible kview tab asks the local backend to report its version and a random
+installation UUID to `korex-labs.com`. No cluster, context, namespace, resource,
+kubeconfig, hostname, or user data is included. Development builds report
+`development`, not a commit hash. Cloudflare derives country from the backend
+connection, which may be a server or VPN exit rather than your browser location.
+As with any HTTPS service, the provider sees the source IP; the Worker does not
+store IPs or user agents in the statistics database.
+
+The backend generates the UUID only after consent, in
+`kview/installation-statistics.json` under the operating system's user config
+directory. The identity and retry state survive restarts. Use only one backend
+process per config directory; tab requests within that process are serialized.
+Shared config directories across concurrent backend processes are not supported.
+
+Successful reports are deduplicated for the current UTC day and last reported
+version. A version change (including rollback) can send another report. Each
+version has at most three attempts per day, with failed attempts retried no
+sooner than 15 minutes later, only while a consenting tab is visible. There are
+no backend timers or sends after the UI closes. Unchecking the option aborts
+pending requests and stops future sends; it cannot retract an already received
+report. Storage failures skip reporting rather than generating temporary IDs.
+
+The service keeps one raw activity row per installation per UTC day for 90 days
+(hourly, bounded cleanup may take longer to clear a backlog). Same-day version
+changes move that day's count to the last reported version/country bucket.
+Non-identifying daily aggregate counts are retained indefinitely. A compact
+pseudonymous registry containing the UUID, first/last report timestamps, and
+latest reported version/country is also retained indefinitely so a returning
+installation is not counted as new. The random identifier is therefore not a
+claim of irreversible anonymity. Turning consent off does not delete previously
+reported data or the local ID.
+
+Failures are silent and do not block Kubernetes work or update checks. If the
+collection endpoint is unavailable, leaving this option off keeps all ordinary
+kview functionality available.
 
 ## Profiles
 

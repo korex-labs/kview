@@ -4,6 +4,34 @@ This document maps how **GET** and read-shaped **`/api`** routes source data. It
 
 ---
 
+## Optional external communication
+
+`internal/outreach` owns fixed-destination, non-cluster requests. Authenticated
+`GET /api/releases/latest` returns only `tag_name` and `html_url`, cached for six
+hours. It first reads `https://korex-labs.com/api/kview/releases/latest` and falls
+back to the fixed GitHub latest-release endpoint. It creates no identity and
+forwards no browser credentials or context headers externally.
+
+Authenticated `POST /api/statistics` accepts only `{"consent":true}` (bounded
+body, unknown fields/trailing JSON rejected). It returns 204 for sent or deduped
+reports, 400 for invalid consent, and 503 on storage/network failure. The backend
+build supplies version; the browser cannot supply an ID, destination, or cluster
+data. Outgoing JSON is exactly `installation_id` and normalized `version`.
+There is no backend scheduler. Browser consent is independent of UserSettings,
+profiles, exports, and release checks; only a visible authenticated UI invokes
+reporting. Both routes are excluded from dataplane user-activity tracking and
+remain usable in cluster read-only mode.
+
+Identity/retry state is atomically saved under the user config directory before
+sending; no temp-directory identity fallback exists. In-process serialization
+protects tabs, not multiple backend processes sharing a config directory.
+Successful last-version/day reports are suppressed; a rollback can report again,
+subject to the three-attempt/day/version bound and failed-attempt 15-minute backoff.
+See [user privacy details](user/settings.md#installation-statistics-and-privacy)
+and [manual Worker deployment](../packaging/cloudflare/README.md) for retention
+and D1 reporting semantics. Cancellation prevents queued sends and cancels
+in-flight HTTP work, but cannot undo a request already accepted by the service.
+
 ## Principles
 
 1. **Dataplane snapshots** are the default substrate for the main list surfaces the UI uses as anchors.

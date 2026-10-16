@@ -1,3 +1,4 @@
+import { useStatisticsConsent, setStatisticsConsent } from "../../installationStatistics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -927,6 +928,7 @@ export default function SettingsView({
   onClose,
 }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
+  const statisticsEnabled = useStatisticsConsent();
   const dynamicKeyboardActions = useMemo(
     () => dynamicKeyboardActionDefinitions(
       settings.customCommands.commands,
@@ -1480,6 +1482,12 @@ export default function SettingsView({
           label="Check for kview updates"
           checked={settings.appearance.releaseChecksEnabled}
           onChange={(v) => setSettings((prev) => updateAppearance(prev, { releaseChecksEnabled: v }))}
+        />
+        <SettingRow
+          label="Share anonymous installation statistics"
+          hint="Optional, off by default. While this tab is visible, sends the kview version and a random installation ID; Cloudflare infers country from the backend connection. No cluster data. Raw daily activity expires after 90 days; the pseudonymous ID registry and aggregate counts are retained indefinitely. Independent of update checks; consent stays in this browser and is not imported or exported. See Help → Settings for details."
+          checked={statisticsEnabled}
+          onChange={setStatisticsConsent}
         />
         <SettingRow
           label="Smart YAML collapse"

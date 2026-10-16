@@ -115,6 +115,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("SettingsView statistics consent", () => {
+  it("keeps its opt-in independent of release checking", () => {
+    renderSettings();
+    const statistics = screen.getByRole("switch", { name: /Share anonymous installation statistics/ }) as HTMLInputElement;
+    const releases = screen.getByRole("switch", { name: /Check for kview updates/ }) as HTMLInputElement;
+    expect(statistics.checked).toBe(false);
+    expect(releases.checked).toBe(false);
+    fireEvent.click(releases);
+    expect(statistics.checked).toBe(false);
+    fireEvent.click(statistics);
+    expect(statistics.checked).toBe(true);
+    fireEvent.click(releases);
+    expect(statistics.checked).toBe(true);
+    expect(releases.checked).toBe(false);
+  });
+});
+
 describe("SettingsView keyboard handling", () => {
   it("closes settings on Escape", () => {
     const onClose = renderSettings();

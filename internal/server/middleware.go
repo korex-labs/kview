@@ -91,6 +91,8 @@ func (s *Server) dataplaneUserActivityMiddleware(next http.Handler) http.Handler
 func isBackgroundPollingPath(p string) bool {
 	switch p {
 	case "/api/namespaces/enrichment",
+		"/api/statistics",
+		"/api/releases/latest",
 		"/api/status",
 		"/api/activity",
 		"/api/activity/runtime/logs",
