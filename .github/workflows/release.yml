@@ -84,7 +84,7 @@ jobs:
           python3 scripts/verify-windows-resources.py "$binary"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: kview-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/kview-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
@@ -127,7 +127,7 @@ jobs:
             "dist/kview-${TAG_NAME}-linux-amd64-desktop.tar.gz"
 
       - name: Upload webview binary artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: kview-linux-amd64-webview
           path: |
@@ -161,7 +161,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.23.1"
           cache: npm
@@ -188,7 +188,7 @@ jobs:
             "dist/kview-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}-app.zip"
 
       - name: Upload webview binary artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: kview-${{ matrix.goos }}-${{ matrix.goarch }}-webview
           path: |
@@ -209,7 +209,7 @@ jobs:
 
     steps:
       - name: Download binary artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: dist
           merge-multiple: true
