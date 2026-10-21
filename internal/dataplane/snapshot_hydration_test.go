@@ -44,7 +44,9 @@ func TestStartupDemandClusterClear(t *testing.T) {
 	startupAwait(t, gated.started)
 	clearClusterSnapshot(&p.nsStore)
 	close(gated.release)
-	startupAwait(t, done)
+	if err := startupAwait(t, done); err != nil {
+		t.Fatal(err)
+	}
 	if snap, ok := peekClusterSnapshot(&p.nsStore); ok || snap.Meta.Revision != 0 {
 		t.Fatalf("resurrected: %+v", snap)
 	}
@@ -197,7 +199,8 @@ func TestStartupDemandDisableReenableEpoch(t *testing.T) {
 	bundle.ContextOverrides = nil
 	m.SetPolicyBundle(bundle)
 	close(gated.release)
-	startupAwait(t, old)
+	// The retired restore may complete or be canceled; only publication matters.
+	_ = startupAwait(t, old)
 	if _, ok := m.PodsCachedSnapshot("slow", "app"); ok {
 		t.Fatal("old epoch published after re-enable")
 	}
