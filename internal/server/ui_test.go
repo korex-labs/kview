@@ -98,7 +98,11 @@ func TestUIEncodingNegotiation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer zr.Close()
+				defer func() {
+					if err := zr.Close(); err != nil {
+						t.Errorf("close gzip reader: %v", err)
+					}
+				}()
 				body, err = io.ReadAll(zr)
 				if err != nil {
 					t.Fatal(err)

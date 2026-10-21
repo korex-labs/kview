@@ -87,7 +87,7 @@ func (c *Client) Latest(ctx context.Context) (Release, error) {
 		}
 		var release Release
 		raw, readErr := io.ReadAll(io.LimitReader(res.Body, 65537))
-		res.Body.Close()
+		_ = res.Body.Close() // Response validation, not cleanup, determines the result.
 		if res.StatusCode != 200 || readErr != nil || len(raw) > 65536 || json.Unmarshal(raw, &release) != nil {
 			continue
 		}
@@ -116,13 +116,16 @@ func (c *Client) save(s state) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() {
+		// Best-effort cleanup: a successful rename already removed this path.
+		_ = os.Remove(f.Name())
+	}()
 	if _, err = f.Write(raw); err != nil {
-		f.Close()
+		_ = f.Close() // Preserve the original write/sync error.
 		return err
 	}
 	if err = f.Sync(); err != nil {
-		f.Close()
+		_ = f.Close() // Preserve the original write/sync error.
 		return err
 	}
 	if err = f.Close(); err != nil {
@@ -195,7 +198,7 @@ func (c *Client) Send(ctx context.Context, version string) error {
 	if err != nil {
 		return err
 	}
-	res.Body.Close()
+	_ = res.Body.Close() // Response validation, not cleanup, determines the result.
 	if res.StatusCode != http.StatusNoContent {
 		return errors.New("statistics unavailable")
 	}

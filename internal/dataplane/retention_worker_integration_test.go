@@ -22,7 +22,11 @@ func TestRetentionWorkerWithoutPlanesCoalescesAndRestarts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close persistence: %v", err)
+		}
+	}()
 	policy := DefaultDataplanePolicy()
 	policy.Persistence.Enabled = true
 	policy.Persistence.MaxAgeHours = 24
@@ -103,7 +107,11 @@ func TestRetentionMirrorReleasesPersistenceLease(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer store.Close()
+			defer func() {
+				if err := store.Close(); err != nil {
+					t.Errorf("close persistence: %v", err)
+				}
+			}()
 			old := time.Now().Add(-48 * time.Hour).Unix()
 			if bucket == 2 {
 				err = store.UpsertSignalHistory("ctx", map[string]SignalHistoryRecord{"old": {LastSeenAt: old}})
@@ -142,7 +150,11 @@ func TestRetentionMirrorReleasesPersistenceLease(t *testing.T) {
 				return len(rows) == 0
 			})
 			writer := make(chan struct{})
-			go func() { m.persistenceMu.Lock(); m.persistenceMu.Unlock(); close(writer) }()
+			go func() {
+				m.persistenceMu.Lock()
+				defer m.persistenceMu.Unlock()
+				close(writer)
+			}()
 			// The disk writer must acquire its lock even while mirror cleanup is blocked.
 			startupAwait(t, writer)
 			release.Do(mirror.Unlock)

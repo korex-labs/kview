@@ -155,7 +155,8 @@ func TestStartupDemandCannotResurrectOrOverwrite(t *testing.T) {
 				m.ClosePodsLive()
 			}
 			close(gated.release)
-			startupAwait(t, done)
+			// Invalidated restores may complete or be canceled; assert publication below.
+			_ = startupAwait(t, done)
 			snap, ok := m.PodsCachedSnapshot("slow", "app")
 			if action == "publish" {
 				if !ok || snap.Items[0].Name != "live" || snap.Meta.Revision != 1 {
