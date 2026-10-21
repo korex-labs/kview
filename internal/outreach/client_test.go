@@ -43,7 +43,10 @@ func TestSendStableIdentityConcurrentDedupRestartVersionDay(t *testing.T) {
 			t.Error("wrong destination")
 		}
 		var payload map[string]string
-		json.NewDecoder(r.Body).Decode(&payload)
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode statistics payload: %v", err)
+			return nil, err
+		}
 		if len(payload) != 2 || !uuidPattern.MatchString(payload["installation_id"]) {
 			t.Fatal(payload)
 		}

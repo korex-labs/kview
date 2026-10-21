@@ -260,7 +260,13 @@ func TestPolicyRepeatDoesNotWaitForDemandHydration(t *testing.T) {
 	bundle.ContextOverrides = map[string]DataplanePolicyOverride{}
 	prunes, lists := counting.prunes.Load(), counting.lists.Load()
 	done := make(chan struct{})
-	defer func() { close(gated.release); startupAwait(t, slow); startupAwait(t, done) }()
+	defer func() {
+		close(gated.release)
+		if err := startupAwait(t, slow); err != nil {
+			t.Errorf("demand hydration: %v", err)
+		}
+		startupAwait(t, done)
+	}()
 	begin := time.Now()
 	go func() { m.SetPolicyBundle(bundle); close(done) }()
 	cached := make(chan bool, 1)
