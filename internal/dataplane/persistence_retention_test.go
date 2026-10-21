@@ -14,7 +14,11 @@ func TestPersistenceRetentionExpiresDurableRowsAndLoadedMirrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close persistence: %v", err)
+		}
+	}()
 	now := time.Now().UTC().Truncate(time.Second)
 	old := now.Add(-48 * time.Hour).Unix()
 	fresh := now.Add(-time.Minute).Unix()
@@ -103,7 +107,11 @@ func TestPersistenceRetentionOneRecordPerTurnAndLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close persistence: %v", err)
+		}
+	}()
 	now := time.Now().UTC()
 	old := now.Add(-48 * time.Hour).Unix()
 	if err := store.UpsertSignalHistory("ctx", map[string]SignalHistoryRecord{"a": {LastSeenAt: old}, "b": {LastSeenAt: old}}); err != nil {
@@ -175,7 +183,11 @@ func TestSignalRetentionFiltersLazyAndAlreadyLoadedMaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close persistence: %v", err)
+		}
+	}()
 	policy := DefaultDataplanePolicy()
 	now := time.Now().UTC().Unix()
 	old := time.Now().UTC().Add(-policy.PersistenceMaxAge() - time.Hour).Unix()
