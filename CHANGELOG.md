@@ -3,6 +3,42 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.18.0 - 2026-10-22
+
+- Expanded Helm release maps to follow up to two cached ownership hops from
+  manifest resources, connecting workloads to ReplicaSets, Jobs, and Pods.
+  Added expandable Pod samples, workload history controls, and clearer coverage
+  and truncation warnings for bounded maps.
+- Added cached resource search filters for kind, namespace, context, name,
+  health, status, signals, and attention, with removable inline filter chips.
+  Search now shows the current namespace first, preserves successful results
+  when another page fails, and supports separate retries and pagination.
+- Added keyboard-accessible **Map** entries for supported search results to
+  open a resource's map directly while preserving its context and identity.
+- Stabilized resource-map layouts and parallel relationships, grouped observed
+  leaf Pods by exact owner, and retained resource navigation and relationship
+  evidence in a simplified layout fallback when automatic layout fails.
+- Improved startup and browsing with persisted cache data by restoring the
+  requested list before loading other saved snapshots in the background.
+  Restored rows remain stale until refreshed, and maps and Dashboard totals
+  may show partial coverage while background loading continues.
+- Reduced initial UI loading work by deferring syntax highlighting, search
+  drawers, and terminal views, and improved static asset delivery with gzip,
+  cache validation, and bounded browser caching.
+- Added optional installation statistics and a one-time invitation with
+  independent, off-by-default controls for statistics and update checks.
+  Statistics consent stays in the browser and reports a random installation
+  identifier and version without cluster or resource data. Release checks now
+  use cached proxy metadata with a GitHub fallback; development builds can
+  fetch metadata without misleading update notices.
+- Refreshed Go, Helm, frontend, tooling, and GitHub Actions dependencies, updated
+  Go and build-image CA trust for the eMudhra mitigation, and added Cloudflare
+  Worker/D1 infrastructure for release metadata and installation statistics.
+- Expanded regression coverage for maps, search, cache restoration, asset
+  delivery, and statistics consent; fixed test cleanup error handling while
+  preserving synchronization assertions. Bounded routine verification resource
+  use and updated in-app Help, privacy, deployment, and performance documentation.
+
 ## v5.17.0 - 2026-09-26
 
 - Upgraded resource maps to interactive graphs with pan, zoom, fit controls,
