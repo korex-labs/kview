@@ -209,7 +209,7 @@ function AppInner() {
 
   // load from localStorage once
   const [appState, setAppState] = useState(() => loadState());
-  const namespaceRequest = useRef({ state: appState, preferred: "" });
+  const namespaceRequest = useRef({ state: appState, preferred: "", preserveSelection: false });
   useEffect(() => () => { ++contextGeneration.current; }, []);
 
   useEffect(() => {
@@ -381,7 +381,7 @@ function AppInner() {
 
       // Context selection is the shell gate. Namespace inventory/cache warmup is
       // independent and must not keep navigation behind the startup modal.
-      namespaceRequest.current = { state: appState, preferred: optimisticNamespace };
+      namespaceRequest.current = { state: appState, preferred: optimisticNamespace, preserveSelection: false };
       setAppState((s) => ({ ...s, activeContext: chosenCtx, activeNamespace: optimisticNamespace }));
       setBootstrapPhase("ready");
     })().catch((err) => {
@@ -448,15 +448,18 @@ function AppInner() {
     namespaceAbort.current = controller;
     const selection = namespaceSelection.current;
     const current = () => !cancelled && generation === namespaceGeneration.current;
-    const { state, preferred } = namespaceRequest.current;
+    const { state, preferred, preserveSelection } = namespaceRequest.current;
     setNamespaceLoading(true);
     setNamespaceError("");
     const path = namespacesListApiPath(state, activeContext, preferred);
-    void fetchNamespacesWithWarmup(token, path, activeContext, current, controller.signal).then(({ limited, items }) => {
+    const request = preserveSelection
+      ? fetchNamespaces(token, path, activeContext, controller.signal)
+      : fetchNamespacesWithWarmup(token, path, activeContext, current, controller.signal);
+    void request.then(({ limited, items }) => {
       if (!current()) return;
       setNsLimited(limited);
       setNamespaces(items);
-      if (selection === namespaceSelection.current) {
+      if (!preserveSelection && selection === namespaceSelection.current) {
         const chosen = pickNamespace({ limited, items, preferred });
         setNamespace(chosen);
         setAppState((s) => {
@@ -486,7 +489,7 @@ function AppInner() {
     try {
       await apiPost("/api/context/select", token, { name });
       if (generation !== contextGeneration.current) return;
-      namespaceRequest.current = { state: appState, preferred };
+      namespaceRequest.current = { state: appState, preferred, preserveSelection: false };
       setNamespaces([]);
       setNsLimited(false);
       setNamespaceError("");
@@ -503,6 +506,14 @@ function AppInner() {
     } finally {
       if (generation === contextGeneration.current) setContextSwitching(false);
     }
+  }
+
+  function onOpenNamespaceSelector() {
+    if (!activeContext || bootstrapPhase !== "ready" || contextSwitching || namespaceLoading) return;
+    // The table refreshes independently; a successful bootstrap inventory is
+    // not a lifetime cache. Re-read on use without resetting operator scope.
+    namespaceRequest.current = { state: appState, preferred: namespace, preserveSelection: true };
+    setNamespaceNonce((n) => n + 1);
   }
 
   function onSelectNamespace(ns: string) {
@@ -739,8 +750,9 @@ function AppInner() {
               namespaces={namespaces}
               namespace={namespace}
               onSelectNamespace={onSelectNamespace}
+              onOpenNamespaceSelector={onOpenNamespaceSelector}
               nsLimited={nsLimited}
-              namespaceInventoryUnavailable={namespaceLoading || !!namespaceError}
+              namespaceInventoryUnavailable={namespaces.length === 0 && (namespaceLoading || !!namespaceError)}
               favourites={favourites}
               recentNamespaces={recentNamespaces}
               recentSections={appState.recentSections || []}

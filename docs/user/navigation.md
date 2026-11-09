@@ -26,6 +26,12 @@ app start when they are still available. If the saved namespace no longer
 exists in the selected context, kview falls back to the context default
 namespace or `default`.
 
+Opening the **Namespace** dropdown refreshes its inventory for the selected
+context, so newly discovered namespaces appear without reloading the app.
+Existing options remain usable while the request is pending or if it fails.
+Refreshing the inventory does not change the selected namespace or resource
+view. Discovery still follows the dataplane's cache and refresh policy.
+
 Resource groups in the sidebar can be collapsed or expanded. kview remembers
 collapsed group state locally, so the sidebar keeps the same shape after a
 restart.

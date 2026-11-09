@@ -36,6 +36,7 @@ vi.mock("./components/Sidebar", async (importOriginal) => {
           {activeContext}|{namespace}|{section}
           <button onClick={() => onSelectContext("saved-context")}>Switch context</button>
           <button onClick={() => onSelectNamespace("operator-choice")}>Choose namespace</button>
+          <button onClick={props.onOpenNamespaceSelector}>Open namespaces</button>
           <button onClick={() => onSelectSection("deployments")}>Browse deployments</button>
         </div>
       );
@@ -171,6 +172,86 @@ describe("App outreach readiness", () => {
 });
 
 describe("App bootstrap", () => {
+  it("refreshes the real namespace dropdown in test-context without changing the selected namespace", async () => {
+    sidebarMode.real = true;
+    apiMocks.get.mockImplementation(async (path: string) => path === "/api/contexts"
+      ? contextResponse({ active: "test-context", contexts: [{ name: "test-context" }] }) : {});
+    apiMocks.getWithContext.mockResolvedValue(namespaceResponse(["default", "deleted-namespace"]));
+    render(<App />);
+    await waitForStartupClose();
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("test-context|default,deleted-namespace");
+
+    apiMocks.getWithContext.mockResolvedValue(namespaceResponse(["default", "new-team-namespace"]));
+    const input = screen.getByRole("combobox", { name: "Namespace" });
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() => expect(namespaceCalls()).toHaveLength(2));
+    expect(namespaceCalls()[1][2]).toBe("test-context");
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("test-context|default,new-team-namespace");
+    expect(screen.getByTestId("pods-screen").textContent).toBe("Pods in default");
+    fireEvent.change(input, { target: { value: "new-team-namespace" } });
+    const option = await screen.findByRole("option", { name: /new-team-namespace/ });
+    fireEvent.click(option);
+    expect(screen.getByTestId("pods-screen").textContent).toBe("Pods in new-team-namespace");
+    expect(contextSelectCalls()).toHaveLength(1);
+  });
+
+  it("keeps options and navigation usable during a refresh and accepts an empty refreshed inventory", async () => {
+    render(<App />);
+    await waitForStartupClose();
+    let resolve!: (value: ReturnType<typeof namespaceResponse>) => void;
+    apiMocks.getWithContext.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    fireEvent.click(screen.getByRole("button", { name: "Open namespaces" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open namespaces" }));
+    expect(namespaceCalls()).toHaveLength(2);
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("backend-context|default");
+    fireEvent.click(screen.getByRole("button", { name: "Choose namespace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Browse deployments" }));
+    await act(async () => { resolve(namespaceResponse([])); });
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("backend-context|");
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|operator-choice|deployments");
+    expect(namespaceCalls()).toHaveLength(2);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("retains usable inventory on refresh failure and retries without resetting a missing selected namespace", async () => {
+    render(<App />);
+    await waitForStartupClose();
+    fireEvent.click(screen.getByRole("button", { name: "Choose namespace" }));
+    apiMocks.getWithContext.mockRejectedValue(new Error("refresh failed"));
+    fireEvent.click(screen.getByRole("button", { name: "Open namespaces" }));
+    expect(await screen.findByText("refresh failed")).toBeTruthy();
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("backend-context|default");
+    expect(screen.getByTestId("bootstrap-sidebar").getAttribute("data-limited")).toBe("false");
+    apiMocks.getWithContext.mockResolvedValue(namespaceResponse(["new-namespace"]));
+    fireEvent.click(screen.getByRole("button", { name: "Retry namespaces" }));
+    await waitFor(() => expect(screen.getByTestId("bootstrap-header").textContent).toBe("backend-context|new-namespace"));
+    expect(screen.getByTestId("pods-screen").textContent).toBe("Pods in operator-choice");
+    expect(screen.queryByText("refresh failed")).toBeNull();
+  });
+
+  it.each([false, true])("ignores a stale dropdown refresh %s completion after context switch", async (rejectOld) => {
+    render(<App />);
+    await waitForStartupClose();
+    let resolve!: (value: ReturnType<typeof namespaceResponse>) => void;
+    let reject!: (error: Error) => void;
+    apiMocks.getWithContext.mockImplementation((_path: string, _token: string, context: string) => context === "saved-context"
+      ? Promise.resolve(namespaceResponse(["new-context-namespace"]))
+      : new Promise((done, fail) => { resolve = done; reject = fail; }));
+    fireEvent.click(screen.getByRole("button", { name: "Open namespaces" }));
+    const oldSignal = namespaceCalls()[1][3].signal as AbortSignal;
+    fireEvent.click(screen.getByRole("button", { name: "Switch context" }));
+    expect(oldSignal.aborted).toBe(true);
+    await waitFor(() => expect(screen.getByTestId("bootstrap-header").textContent).toBe("saved-context|new-context-namespace"));
+    await act(async () => {
+      if (rejectOld) reject(new Error("old-refresh failure"));
+      else resolve(namespaceResponse(["old-refresh-namespace"]));
+    });
+    expect(screen.getByTestId("bootstrap-header").textContent).toBe("saved-context|new-context-namespace");
+    expect(screen.queryByText("old-refresh failure")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it.each(["inventory", "restricted", "error"])("clears previous %s on bootstrap retry into a different context", async (initial) => {
     let rejectNew!: (error: Error) => void;
     apiMocks.getWithContext.mockImplementation((_path: string, _token: string, context: string) => {

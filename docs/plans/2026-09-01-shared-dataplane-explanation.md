@@ -33,7 +33,7 @@ omitted so the architecture contract stays readable.
 
 ```json
 {
-  "active": "dex-context-lux",
+  "active": "example-context",
   "item": {
     "loaded": true,
     "profile": "balanced",

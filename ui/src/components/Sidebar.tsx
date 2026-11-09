@@ -41,6 +41,7 @@ type Props = {
   namespaces: string[];
   namespace: string;
   onSelectNamespace: (ns: string) => void;
+  onOpenNamespaceSelector?: () => void;
   nsLimited: boolean;
   // Loading/failure is not an RBAC restriction, but still permits known namespace entry.
   namespaceInventoryUnavailable?: boolean;
@@ -171,6 +172,7 @@ export default function Sidebar(props: Props) {
           ) : !props.nsLimited ? (
             <Autocomplete
               freeSolo={props.namespaceInventoryUnavailable}
+              onOpen={props.onOpenNamespaceSelector}
               size="small"
               options={sortedNamespaces}
               value={props.namespace || null}
