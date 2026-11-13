@@ -28,6 +28,7 @@ import { ResourceDrawerMacros } from "./ResourceMacros";
 import { ResourceMemoryPanel, ResourceMemoryTabLabel } from "./ResourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 import ResourceDrawerTabs from "./ResourceDrawerTabs";
+import { ResourceDrawerTabContext } from "./ResourceDrawerTabContext";
 import {
   actionDefinitionById,
   drawerTabActionAttribute,
@@ -302,11 +303,18 @@ export default function ResourceDrawerShell({
     if (element.type !== React.Fragment) return node;
 
     let injected = false;
+    let activeTabAction: DrawerTabActionId | null = null;
     const nextChildren: React.ReactNode[] = [];
     for (const child of React.Children.toArray(element.props.children)) {
       if (!injected && React.isValidElement(child) && child.type === Tabs) {
         injected = true;
         const tabsElement = child as React.ReactElement<TabsProps>;
+        const nativeTabs = React.Children.toArray(tabsElement.props.children).filter(React.isValidElement);
+        const selectedTab = nativeTabs.find((tab, index) => {
+          const props = (tab as React.ReactElement<{ value?: unknown }>).props;
+          return (props.value ?? index) === tabsElement.props.value;
+        }) as React.ReactElement<{ [drawerTabActionAttribute]?: DrawerTabActionId }> | undefined;
+        activeTabAction = auxiliaryTab ? null : selectedTab?.props[drawerTabActionAttribute] ?? null;
         const existingTabLabels = React.Children.toArray(tabsElement.props.children)
           .filter(React.isValidElement)
           .map((tabChild) => String((tabChild as React.ReactElement<{ label?: React.ReactNode }>).props.label || "").trim().toLowerCase());
@@ -368,7 +376,7 @@ export default function ResourceDrawerShell({
     }
 
     if (!injected) return node;
-    return React.cloneElement(element, undefined, nextChildren);
+    return <ResourceDrawerTabContext.Provider value={activeTabAction}>{React.cloneElement(element, undefined, nextChildren)}</ResourceDrawerTabContext.Provider>;
   }, [auxiliaryTab, drawerIdentity, mapIdentity, notesPanel, showOperatorNotesTab, token]);
 
   return (

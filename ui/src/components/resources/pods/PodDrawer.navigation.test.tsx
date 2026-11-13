@@ -61,6 +61,52 @@ describe("PodDrawer terminal launch", () => {
 });
 
 describe("PodDrawer Object navigation", () => {
+  it("keeps the shared tab boundary and insets floating Events/Logs labels inside the clipped body", async () => {
+    vi.mocked(apiGet).mockImplementation(async (path) => path.endsWith("/events?limit=50&offset=0")
+      ? { items: [], total: 0 } : { item: { ...details, summary: { ...details.summary, uid: "" },
+        containers: [{ name: "fixture-container", state: "Running", ready: true }] } });
+    await act(async () => { render(<Harness />); });
+    const shell = screen.getByTestId("drawer-pods");
+    const tabRow = shell.querySelector<HTMLElement>("[data-resource-drawer-tabs]")!;
+    const width = getComputedStyle(shell).width;
+    for (const label of ["Events", "Logs", "Object", "Notes"]) {
+      await act(async () => { fireEvent.click(within(shell).getByRole("tab", { name: label })); });
+      expect(getComputedStyle(tabRow).marginBottom).toBe("16px");
+      const firstContent = tabRow.nextElementSibling!;
+      expect(getComputedStyle(firstContent).marginTop).not.toMatch(/[1-9]/);
+      if (label === "Events" || label === "Logs") {
+        const controls = within(firstContent as HTMLElement).getByRole("group", { name: label === "Events" ? "Event controls" : "Log controls" });
+        expect(getComputedStyle(firstContent).overflow).toBe("hidden");
+        const inset = parseFloat(getComputedStyle(controls).paddingTop) || 0;
+        for (const name of label === "Events" ? ["Container"] : ["Container", "Lines"]) {
+          const select = within(controls).getByRole("combobox", { name });
+          const floatingLabel = document.getElementById(select.getAttribute("aria-labelledby")!.split(" ")[0])!;
+          expect(floatingLabel.getAttribute("data-shrink")).toBe("true");
+          const style = getComputedStyle(floatingLabel);
+          expect(style.position).toBe("absolute");
+          expect(style.transformOrigin).toBe("top left");
+          const translate = style.transform.match(/translate\([^,]+,\s*(-?[\d.]+)px\)/);
+          expect(translate).not.toBeNull();
+          const labelTop = parseFloat(style.top) + Number(translate![1]);
+          expect(labelTop).toBeLessThan(0);
+          // jsdom has no layout: verify the actual CSS inset contains the label's
+          // transformed top, not fabricated getBoundingClientRect geometry.
+          expect(inset + labelTop).toBeGreaterThanOrEqual(0);
+        }
+        let element: Element | null = controls;
+        while (element && element !== shell) {
+          if (element !== controls) expect(getComputedStyle(element).paddingTop).not.toMatch(/[1-9]/);
+          expect(getComputedStyle(element).marginTop).not.toMatch(/[1-9]/);
+          element = element.parentElement;
+        }
+      }
+      if (label === "Events") expect(within(shell).getAllByText("Events")).toHaveLength(1);
+      if (label === "Object") expect(firstContent.getAttribute("aria-label")).toBe("Object view");
+      if (label === "Notes") expect(firstContent.contains(screen.getByText("Operator notes"))).toBe(true);
+      expect(getComputedStyle(shell).width).toBe(width);
+    }
+  });
+
   it("groups only Metadata/YAML, keeps direct shortcuts from other and auxiliary sections, and preserves YAML permission gating", async () => {
     vi.mocked(apiGet).mockResolvedValue({ item: details });
     await act(async () => { render(<Harness />); });

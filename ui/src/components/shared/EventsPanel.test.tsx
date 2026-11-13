@@ -3,12 +3,38 @@ import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EventsPanel from "./EventsPanel";
+import { ResourceDrawerTabContext } from "./ResourceDrawerTabContext";
 const api = vi.hoisted(() => ({ legacy: vi.fn(), exact: vi.fn() }));
 vi.mock("../../api", () => ({ apiGet: api.legacy, apiGetWithContext: api.exact, toApiError: (e: Error) => ({ message: e.message }) }));
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const event = (message: string) => ({ message, type: "Normal", reason: "Synced" });
 const response = (message: string) => ({ items: [event(message)], total: 100, limit: 2, hasMore: true });
 describe("EventsPanel", () => {
+  it("keeps standalone and distinct section titles, omitting only a duplicate Events tab title", () => {
+    const panel = (tab: "drawer.tab.events" | "drawer.tab.overview" | null, title?: string) => (
+      <ResourceDrawerTabContext.Provider value={tab}>
+        <EventsPanel title={title} events={[event("fixture event")]} subResourceLabel="Container"
+          subResourceOptions={[{ label: "fixture-container", value: "fixture-container" }]}
+          getEventSubResource={() => "fixture-container"} />
+      </ResourceDrawerTabContext.Provider>
+    );
+    const view = render(panel(null));
+    expect(screen.getByText("Events")).toBeTruthy();
+    view.rerender(panel("drawer.tab.overview"));
+    expect(screen.getByText("Events")).toBeTruthy();
+    view.rerender(panel("drawer.tab.events", "Related events"));
+    expect(screen.getByText("Related events")).toBeTruthy();
+    view.rerender(panel("drawer.tab.events"));
+    expect(screen.queryByText("Events")).toBeNull();
+    const controls = screen.getByRole("group", { name: "Event controls" });
+    expect(getComputedStyle(controls).justifyContent).toBe("flex-start");
+    expect(getComputedStyle(controls).flexWrap).toBe("wrap");
+    expect(controls.parentElement?.firstElementChild).toBe(controls);
+    expect(controls.children).toHaveLength(2); // No auto-margin spacer before the controls.
+    expect(controls.firstElementChild?.contains(screen.getByRole("combobox", { name: "Container" }))).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Filter events" }), { target: { value: "unmatched" } });
+    expect(screen.queryByText("fixture event")).toBeNull();
+  });
   it("merges identity and severity filters with pagination and query without duplicate parameters", async () => {
     api.exact.mockResolvedValue(response("visible event"));
     render(<EventsPanel endpoint="/api/cr/events?namespace=a%2Fb&uid=u%26v&severity=warning&limit=9&offset=17" token="token" contextName="alpha" pageSize={2} />);

@@ -13,6 +13,8 @@ import {
 } from "../../resourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 import ResourceDrawerShell from "./ResourceDrawerShell";
+import EventsPanel from "./EventsPanel";
+import { drawerBodySx } from "../../theme/sxTokens";
 import KeyboardProvider, { useKeyboardScope, type KeyboardFocusScope } from "../../keyboard/KeyboardProvider";
 import { defaultKeyboardSettings, type KeyboardSettings } from "../../settings";
 import type { Section } from "../../state";
@@ -72,10 +74,42 @@ afterEach(() => {
 });
 
 describe("ResourceDrawerShell", () => {
+  it.each([0, "events"])("shares one tab gap with native Events, Object, and injected Notes (%s)", (eventsValue) => {
+    function LayoutHarness() {
+      const [tab, setTab] = useState<string | number>(eventsValue);
+      return <ResourceDrawerShell title="Pod: fixture-pod" resourceIdentity={{ resource: "pods", namespace: "fixture-ns", name: "fixture-pod" }} onClose={vi.fn()}>
+        <>
+          <Tabs value={tab} onChange={(_, value: string | number) => setTab(value)}>
+            <Tab {...drawerTabProps("drawer.tab.events")} label="Events" value={eventsValue} />
+            <Tab {...drawerTabProps("drawer.tab.metadata")} label="Object" value="object" />
+          </Tabs>
+          <Box data-testid="native-body" sx={drawerBodySx}>
+            {tab === eventsValue ? <EventsPanel events={[]} /> : <div>Fixture object</div>}
+          </Box>
+        </>
+      </ResourceDrawerShell>;
+    }
+    const { container } = render(<ActiveContextProvider value="fixture-context"><UserSettingsProvider><LayoutHarness /></UserSettingsProvider></ActiveContextProvider>);
+    const tabs = container.querySelector<HTMLElement>("[data-resource-drawer-tabs]")!;
+    expect(getComputedStyle(tabs).marginBottom).toBe("16px");
+    expect(screen.getAllByText("Events")).toHaveLength(1);
+    expect(tabs.nextElementSibling).toBe(screen.getByTestId("native-body"));
+    expect(getComputedStyle(screen.getByTestId("native-body")).marginTop).not.toMatch(/[1-9]/);
+    fireEvent.click(screen.getByRole("tab", { name: "Object" }));
+    expect(screen.getByText("Fixture object")).toBeTruthy();
+    expect(getComputedStyle(tabs).marginBottom).toBe("16px");
+    fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    expect(screen.queryByTestId("native-body")).toBeNull();
+    expect(tabs.nextElementSibling?.contains(screen.getByText("Operator notes"))).toBe(true);
+    expect(getComputedStyle(tabs.nextElementSibling!).marginTop).not.toMatch(/[1-9]/);
+    expect(getComputedStyle(tabs).marginBottom).toBe("16px");
+  });
+
   it("opens directly on Resource Map and keeps linked drawer ownership local", () => {
     render(<UserSettingsProvider><ResourceDrawerShell title="Pod: api" token="token" resourceIdentity={{ resource: "pods", namespace: "prod", name: "api" }} initialAuxiliaryTab="resource-map" onClose={vi.fn()}>{null}</ResourceDrawerShell></UserSettingsProvider>);
     expect(screen.getByRole("tab", { name: "Resource Map" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("resource-map-panel")).toBeTruthy();
+    expect(getComputedStyle(screen.getByTestId("resource-map-panel").previousElementSibling!).marginBottom).toBe("16px");
     fireEvent.click(screen.getByRole("button", { name: "Open related Pod" }));
     expect(screen.getByTestId("linked-resource-drawer")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Close related drawer" }));

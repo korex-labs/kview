@@ -81,8 +81,9 @@ export default function ResourceDrawerTabs(props: TabsProps) {
   useLayoutEffect(() => { measure(true); }, [measure, props.value]);
   useLayoutEffect(() => { measure(); }, [measure, props.children, overflow]);
 
+  // Own the standard two-unit gap for native panels and injected Notes/Resource Map alike.
   return (
-    <Box ref={rootRef} data-resource-drawer-tabs sx={{ display: "flex", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 0 }}>
+    <Box ref={rootRef} data-resource-drawer-tabs sx={{ display: "flex", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 0, mb: 2 }}>
       <Tabs
         {...props}
         variant="scrollable"

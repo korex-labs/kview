@@ -27,12 +27,18 @@ export const panelBoxCompactSx: SxProps<Theme> = {
 };
 
 // ---- Drawer layout ----
-/** Main content area below drawer header/tabs: fills space and scrolls. */
+/** Main content area below drawer tabs: fills space and scrolls.
+ * ResourceDrawerTabs owns the gap above all native and auxiliary panels. */
 export const drawerBodySx: SxProps<Theme> = {
-  mt: 2,
   flexGrow: 1,
   minHeight: 0,
   overflow: "hidden",
+};
+
+/** Keep outlined labels (translated 9px upward) inside clipped drawer bodies.
+ * This is toolbar-internal clearance, not another tabs-to-panel margin. */
+export const drawerToolbarInsetSx: SxProps<Theme> = {
+  pt: "10px",
 };
 
 /** Tab content column: scrollable flex column with standard gap. */

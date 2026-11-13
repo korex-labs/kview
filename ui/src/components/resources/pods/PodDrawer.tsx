@@ -78,6 +78,7 @@ import useResourceSignals from "../../../utils/useResourceSignals";
 import {
   panelBoxSx,
   drawerBodySx,
+  drawerToolbarInsetSx,
   drawerTabContentSx,
   drawerTabContentCompactSx,
   loadingCenterSx,
@@ -1462,13 +1463,13 @@ function PodDrawerContent(props: PodDrawerProps) {
                 value={tab}
                 aria-label="Object view"
                 onChange={(_, value: number | null) => { if (value !== null) setTab(value); }}
-                sx={{ mt: 2, alignSelf: "flex-start" }}
+                sx={{ mb: 2, alignSelf: "flex-start" }}
               >
                 <ToggleButton value={6} sx={{ textTransform: "none", gap: 0.75 }}><DetailTabIcon label="Metadata" />Details</ToggleButton>
                 <ToggleButton value={7} sx={{ textTransform: "none", gap: 0.75 }}><DetailTabIcon label="YAML" />YAML</ToggleButton>
               </ToggleButtonGroup>
             )}
-            <Box sx={{ ...drawerBodySx, mt: 3 }}>
+            <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
@@ -1984,7 +1985,7 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* EVENTS */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto", pt: 1 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel
                     endpoint={`/api/namespaces/${encodeURIComponent(ns)}/pods/${encodeURIComponent(name || "")}/events`}
                     token={props.token}
@@ -2000,8 +2001,8 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* LOGS */}
               {tab === 5 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", pt: 1 }}>
-                  <Box role="group" aria-label="Log controls" sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%" }}>
+                  <Box role="group" aria-label="Log controls" sx={{ ...drawerToolbarInsetSx, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                     <Box sx={{ display: "flex", gap: 1, flex: "1 1 340px", minWidth: 0 }}>
                     <FormControl size="small" sx={{ flex: "1 1 120px", minWidth: 90, maxWidth: 240 }}>
                       <InputLabel id="container-label">Container</InputLabel>

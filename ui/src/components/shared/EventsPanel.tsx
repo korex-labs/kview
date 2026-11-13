@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   CircularProgress,
@@ -16,7 +16,9 @@ import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import EventCard, { type EventCardEvent } from "./EventCard";
 import Section from "./Section";
+import { ResourceDrawerTabContext } from "./ResourceDrawerTabContext";
 import { AppButton } from "./AppActions";
+import { drawerToolbarInsetSx } from "../../theme/sxTokens";
 
 type EventSubResourceOption = {
   label: string;
@@ -172,14 +174,13 @@ function EventsPanelContent<T extends EventCardEvent>({
   };
 
   const panelTitle = title ?? "Events";
+  const activeTabAction = useContext(ResourceDrawerTabContext);
+  const duplicateTitle = activeTabAction === "drawer.tab.events" && panelTitle === "Events";
 
-  return (
-    <Section title={panelTitle}>
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, minHeight: 0 }}>
-      <Box ref={topRef} sx={{ height: 0, minHeight: 0 }} />
+  const content = (
+    <Box ref={topRef} sx={{ display: "flex", flexDirection: "column", gap: 1.25, minHeight: 0 }}>
       {(hasSubResourceFilter || visibleEvents.length > 0 || remoteMode) ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Box sx={{ mr: "auto" }} />
+        <Box role="group" aria-label="Event controls" sx={{ ...drawerToolbarInsetSx, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, flexWrap: "wrap" }}>
           {hasSubResourceFilter ? (
             <FormControl size="small" sx={{ minWidth: 220 }}>
               <InputLabel id="events-sub-resource-label" shrink>
@@ -210,6 +211,7 @@ function EventsPanelContent<T extends EventCardEvent>({
                 setRemoteOffset(0);
               }}
               placeholder={filterPlaceholder}
+              slotProps={{ htmlInput: { "aria-label": filterPlaceholder } }}
               sx={{ minWidth: 220 }}
             />
           ) : null}
@@ -276,6 +278,6 @@ function EventsPanelContent<T extends EventCardEvent>({
         </>
       )}
     </Box>
-    </Section>
   );
+  return duplicateTitle ? content : <Section title={panelTitle}>{content}</Section>;
 }
