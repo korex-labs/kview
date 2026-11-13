@@ -13,6 +13,9 @@ import {
 } from "@mui/material";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
+import { useActiveContext } from "../../../activeContext";
+import { AppIconButton } from "../../shared/AppActions";
+import SubjectIcon from "@mui/icons-material/Subject";
 import CronJobDrawer from "../cronjobs/CronJobDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
 import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
@@ -155,13 +158,20 @@ function formatDuration(seconds?: number) {
   return fmtAge(seconds, "detail");
 }
 
-export default function JobDrawer(props: {
+type JobDrawerProps = {
   open: boolean;
   onClose: () => void;
   token: string;
   namespace: string;
   jobName: string | null;
-}) {
+};
+
+export default function JobDrawer(props: JobDrawerProps) {
+  const context = useActiveContext();
+  return <JobDrawerContent key={JSON.stringify([context, props.token, props.namespace, props.jobName, props.open])} {...props} />;
+}
+
+function JobDrawerContent(props: JobDrawerProps) {
   const { health, retryNonce } = useConnectionState();
   const offline = health === "unhealthy";
   const [tab, setTab] = useState(0);
@@ -171,6 +181,7 @@ export default function JobDrawer(props: {
   const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
+  const [podInitialTab, setPodInitialTab] = useState<"overview" | "logs">("overview");
   const [drawerCronJob, setDrawerCronJob] = useState<string | null>(null);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
   const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
@@ -360,10 +371,19 @@ export default function JobDrawer(props: {
                           <TableRow
                             key={p.name || String(idx)}
                             hover
-                            onClick={() => p.name && setDrawerPod(p.name)}
+                            onClick={() => { setPodInitialTab("overview"); if (p.name) setDrawerPod(p.name); }}
                             sx={{ cursor: p.name ? "pointer" : "default" }}
                           >
-                            <TableCell>{valueOrDash(p.name)}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {valueOrDash(p.name)}
+                                <AppIconButton label="Logs" tooltip="Open Pod logs" sx={{ width: 24, height: 24, p: 0.25 }} disabled={!p.name} onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPodInitialTab("logs");
+                                  setDrawerPod(p.name);
+                                }}><SubjectIcon sx={{ fontSize: 18 }} /></AppIconButton>
+                              </Box>
+                            </TableCell>
                             <TableCell>
                               <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
                             </TableCell>
@@ -431,6 +451,7 @@ export default function JobDrawer(props: {
               )}
             </Box>
             <PodDrawer
+              initialTab={podInitialTab}
               open={!!drawerPod}
               onClose={() => setDrawerPod(null)}
               token={props.token}

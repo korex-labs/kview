@@ -29,6 +29,11 @@ import {
   Alert,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import HistoryIcon from "@mui/icons-material/History";
+import VerticalAlignBottomIcon from "@mui/icons-material/VerticalAlignBottom";
+import DataObjectIcon from "@mui/icons-material/DataObject";
+import WrapTextIcon from "@mui/icons-material/WrapText";
 import CableIcon from "@mui/icons-material/Cable";
 import DownloadIcon from "@mui/icons-material/Download";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
@@ -37,6 +42,8 @@ import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
 import { apiGet, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import SyntaxHighlighter from "../../shared/SyntaxHighlight";
+import { TextViewerFrame, TEXT_VIEWER_TAIL_PADDING } from "../../shared/TextViewerFontControls";
+import { useTextViewerFontSize } from "../../shared/useTextViewerFontSize";
 import { fmtAge, fmtTimeAgo, valueOrDash } from "../../../utils/format";
 import { phaseChipColor } from "../../../utils/k8sUi";
 import HealthConditionsPanel from "../../shared/HealthConditionsPanel";
@@ -97,6 +104,7 @@ import { createTerminalSession, createPortForwardSession, runContainerCommand, t
 import { emitFocusPortForwardsTab, emitOpenTerminalSession } from "../../../activityEvents";
 import { useActiveContext } from "../../../activeContext";
 import { useUserSettings } from "../../../settingsContext";
+import { logLineOptions, type LogPreferences } from "../../../logPreferences";
 import { useContextualKeyboardActions } from "../../../keyboard/KeyboardProvider";
 import { customCommandsForContainer, type CustomCommandDefinition } from "../../../settings";
 import { useMutationDialog } from "../../mutations/useMutationDialog";
@@ -415,16 +423,26 @@ function downloadCommandOutput(result: RunContainerCommandResult, fallbackName: 
   URL.revokeObjectURL(url);
 }
 
-export default function PodDrawer(props: {
+type PodDrawerProps = {
   open: boolean;
   onClose: () => void;
   token: string;
   namespace: string;
   podName: string | null;
-}) {
+  initialTab?: "overview" | "logs";
+};
+
+export default function PodDrawer(props: PodDrawerProps) {
+  const context = useActiveContext();
+  // A new identity must never inherit another cluster/namespace's details or socket.
+  return <PodDrawerContent key={JSON.stringify([context, props.token, props.namespace, props.podName, props.open])} {...props} />;
+}
+
+function PodDrawerContent(props: PodDrawerProps) {
   const { health, retryNonce } = useConnectionState();
   const activeContext = useActiveContext();
-  const { settings } = useUserSettings();
+  const { settings, setSettings } = useUserSettings();
+  const logZoom = useTextViewerFontSize();
   const { open: openMutationDialog } = useMutationDialog();
   const offline = health === "unhealthy";
   const offlineReason = "Cluster connection is unavailable";
@@ -466,11 +484,15 @@ export default function PodDrawer(props: {
 
   // Logs UI state
   const [container, setContainer] = useState<string>("");
+  const [previousLogs, setPreviousLogs] = useState(false);
   const [logsFilter, setLogsFilter] = useState<string>("");
-  const [pretty, setPretty] = useState<boolean>(false);
-  const [following, setFollowing] = useState<boolean>(false);
-  const [lineLimit, setLineLimit] = useState<number>(500);
-  const [wrapLines, setWrapLines] = useState<boolean>(false);
+  const { pretty, lines: lineLimit, wrap: wrapLines } = settings.logs;
+  const updateLogPreferences = (patch: Partial<LogPreferences>) => {
+    setSettings((current) => ({ ...current, logs: { ...current.logs, ...patch } }));
+  };
+  const [following, setFollowing] = useState(true);
+  const followPreferenceRef = useRef(true);
+
   const [logStreamNotice, setLogStreamNotice] = useState<LogStreamNotice | null>(null);
 
   // Store log entries as array for filtering + pretty formatting
@@ -554,11 +576,12 @@ export default function PodDrawer(props: {
   }, [activeContext, name, ns]);
 
   const stopLogs = useCallback(() => {
-    setFollowing(false);
     logStopRequestedRef.current = true;
-    if (wsRef.current) {
+    const socket = wsRef.current;
+    wsRef.current = null;
+    if (socket) {
       try {
-        wsRef.current.close();
+        socket.close();
       } catch {
         // ignore
       }
@@ -567,7 +590,7 @@ export default function PodDrawer(props: {
   }, []);
 
   const startLogsFollow = useCallback(() => {
-    if (!name) return;
+    if (!props.open || tab !== 5 || !name || !activeContext || !details?.summary.uid || !container || offline) return;
 
     stopLogs();
     setLogLines([]);
@@ -578,14 +601,15 @@ export default function PodDrawer(props: {
     const qs = new URLSearchParams();
     if (activeContext) qs.set("context", activeContext);
     if (container) qs.set("container", container);
-    qs.set("follow", "1");
+    qs.set("follow", !previousLogs && followPreferenceRef.current ? "1" : "0");
+    qs.set("previous", previousLogs ? "1" : "0");
+    qs.set("uid", details.summary.uid);
     if (lineLimit > 0) {
       qs.set("tail", String(Math.min(lineLimit, 5000)));
     }
 
     const ws = new WebSocket(wsURL(`${logWsBase}?${qs.toString()}`, props.token));
     wsRef.current = ws;
-    setFollowing(true);
 
     ws.onmessage = (ev) => {
       if (wsRef.current !== ws) return;
@@ -599,7 +623,7 @@ export default function PodDrawer(props: {
             severity: "error",
             message: `Log stream failed: ${message}`,
           });
-          setFollowing(false);
+          stopLogs();
         }
         return;
       }
@@ -623,13 +647,12 @@ export default function PodDrawer(props: {
         severity: "error",
         message: "Log stream connection failed. The browser could not keep the WebSocket open.",
       });
-      setFollowing(false);
+      stopLogs();
     };
 
     ws.onclose = (ev) => {
       if (wsRef.current !== ws) return;
       wsRef.current = null;
-      setFollowing(false);
       if (logStopRequestedRef.current) {
         logStopRequestedRef.current = false;
         return;
@@ -638,25 +661,28 @@ export default function PodDrawer(props: {
       if (!ev.wasClean) {
         setLogStreamNotice({
           severity: "warning",
-          message: "Log stream closed unexpectedly. Start follow again to reconnect.",
+          message: "Log stream closed unexpectedly. Retry to reconnect.",
         });
         return;
       }
       setLogStreamNotice({
         severity: "info",
-        message: "Log stream ended.",
+        message: previousLogs ? "Previous container logs loaded." : "Log stream ended.",
       });
     };
-  }, [activeContext, container, lineLimit, logWsBase, name, props.token, stopLogs]);
+  }, [activeContext, container, details?.summary.uid, lineLimit, logWsBase, name, offline, previousLogs, props.open, props.token, stopLogs, tab]);
 
-  // Cleanup on close / pod switch
+  const resetLogFollow = (previous: boolean) => {
+    followPreferenceRef.current = !previous;
+    setFollowing(!previous);
+  };
+
+  // Only request identity/options or visibility start a read. Formatting, filtering,
+  // EOF and errors never reconnect. Cleanup invalidates even late socket callbacks.
   useEffect(() => {
-    if (!props.open) {
-      stopLogs();
-      return;
-    }
-    return () => stopLogs();
-  }, [props.open, name, stopLogs]);
+    startLogsFollow();
+    return stopLogs;
+  }, [startLogsFollow, stopLogs]);
 
   const openTerminalForContainer = async (containerName: string) => {
     const target = (details?.containers || []).find((ctn) => ctn.name === containerName);
@@ -799,14 +825,18 @@ export default function PodDrawer(props: {
   useEffect(() => {
     if (!props.open || !name || offline) return;
 
-    setTab(0);
+    setTab(props.initialTab === "logs" ? 5 : 0);
+    setPreviousLogs(false);
+    setLogStreamNotice(null);
+    const controller = new AbortController();
+    let cancelled = false;
     setErr("");
     setDetails(null);
     setDetailSignals([]);
     setLogLines([]);
     setLogsFilter("");
-    setPretty(false);
-    setWrapLines(false);
+    setFollowing(true);
+    followPreferenceRef.current = true;
     setExpandedContainers({});
     setEnvQueryByContainer({});
     setEnvShowRefsByContainer({});
@@ -837,8 +867,10 @@ export default function PodDrawer(props: {
     (async () => {
       const det = await apiGet<PodDetailsResponse>(
         `/api/namespaces/${encodeURIComponent(ns)}/pods/${encodeURIComponent(name)}`,
-        props.token
+        props.token,
+        { signal: controller.signal, headers: activeContext ? { "X-Kview-Context": activeContext } : undefined }
       );
+      if (cancelled) return;
       const item: PodDetails | null = det?.item ?? null;
       setDetails(item);
       setDetailSignals(Array.isArray(det?.detailSignals) ? det.detailSignals : []);
@@ -871,9 +903,10 @@ export default function PodDrawer(props: {
       setEnvShowRefsByContainer({});
       setEnvPrettyByContainer({});
     })()
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce, detailRefreshNonce, offline, stopLogs]);
+      .catch((e) => { if (!cancelled) setErr(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; controller.abort(); };
+  }, [activeContext, props.initialTab, props.open, name, ns, props.token, retryNonce, detailRefreshNonce, offline, stopLogs]);
 
   // Snapshot-level per-resource signals from the dataplane cache
   // (pod_restarts, pod_oomkilled, etc.). Detail-level signals
@@ -1084,7 +1117,6 @@ export default function PodDrawer(props: {
       portForwardDisabled: offline || creatingPortForward || actionableContainers.length === 0,
       openLogsAndFollow: () => {
         setTab(5);
-        window.setTimeout(() => startLogsFollow(), 0);
       },
       openPortForward: handleOpenPortForwardDialog,
     }),
@@ -1096,7 +1128,6 @@ export default function PodDrawer(props: {
     handleOpenPortForwardDialog,
     name,
     offline,
-    startLogsFollow,
   ]);
   useContextualKeyboardActions(podKeyboardActions);
 
@@ -1970,14 +2001,15 @@ export default function PodDrawer(props: {
               {/* LOGS */}
               {tab === 5 && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", pt: 1 }}>
-                  <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                  <Box role="group" aria-label="Log controls" sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                    <Box sx={{ display: "flex", gap: 1, flex: "1 1 340px", minWidth: 0 }}>
+                    <FormControl size="small" sx={{ flex: "1 1 120px", minWidth: 90, maxWidth: 240 }}>
                       <InputLabel id="container-label">Container</InputLabel>
                       <Select
                         labelId="container-label"
                         label="Container"
                         value={container}
-                        onChange={(e) => setContainer(String(e.target.value))}
+                        onChange={(e) => { resetLogFollow(previousLogs); setContainer(String(e.target.value)); }}
                       >
                         {(details?.containers || [])
                           .map((c) => c.name)
@@ -1993,15 +2025,15 @@ export default function PodDrawer(props: {
                       </Select>
                     </FormControl>
 
-                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <FormControl size="small" sx={{ flex: "0 0 86px" }}>
                       <InputLabel id="lines-label">Lines</InputLabel>
                       <Select
                         labelId="lines-label"
                         label="Lines"
                         value={lineLimit}
-                        onChange={(e) => setLineLimit(Number(e.target.value))}
+                        onChange={(e) => updateLogPreferences({ lines: Number(e.target.value) })}
                       >
-                        {[100, 500, 1000, 5000].map((n) => (
+                        {logLineOptions.map((n) => (
                           <MenuItem key={n} value={n}>
                             {n}
                           </MenuItem>
@@ -2011,49 +2043,58 @@ export default function PodDrawer(props: {
 
                     <TextField
                       size="small"
-                      label="Filter pattern"
+                      label="Filter"
                       value={logsFilter}
                       onChange={(e) => setLogsFilter(e.target.value)}
-                      sx={{ minWidth: 240 }}
+                      sx={{ flex: "2 1 130px", minWidth: 80 }}
                     />
-
-                    <FormControlLabel
-                      control={<Switch checked={pretty} onChange={(e) => setPretty(e.target.checked)} />}
-                      label="Pretty"
-                    />
-
-                    <FormControlLabel
-                      control={<Switch checked={wrapLines} onChange={(e) => setWrapLines(e.target.checked)} />}
-                      label="Wrap lines"
-                    />
-
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={following}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              startLogsFollow();
-                            } else {
-                              stopLogs();
-                            }
-                          }}
-                          disabled={!name}
-                        />
-                      }
-                      label="Follow"
-                    />
+                    </Box>
+                    <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, alignItems: "center",
+                      "& .MuiIconButton-root": { width: 34, height: 34, borderRadius: 1 },
+                      '& [aria-pressed="true"]': { bgcolor: "action.selected", color: "primary.main" },
+                      "& .Mui-focusVisible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
+                    }}>
+                      <Box role="group" aria-label="Log source" sx={{ display: "flex", border: 1, borderColor: "divider", borderRadius: 1 }}>
+                        <AppIconButton label="Current" tooltip="Current container logs" aria-pressed={!previousLogs}
+                          onClick={() => { if (previousLogs) { resetLogFollow(false); setPreviousLogs(false); } }}>
+                          <PlayArrowIcon fontSize="small" />
+                        </AppIconButton>
+                        <AppIconButton label="History" tooltip="Previous container logs" aria-pressed={previousLogs}
+                          onClick={() => { if (!previousLogs) { resetLogFollow(true); setPreviousLogs(true); } }}>
+                          <HistoryIcon fontSize="small" />
+                        </AppIconButton>
+                      </Box>
+                      <AppIconButton label="Follow" tooltip={previousLogs ? "Follow is unavailable for previous logs" : "Follow current logs"}
+                        aria-pressed={following} disabled={previousLogs || !container || !details?.summary.uid || !activeContext || offline}
+                        onClick={() => {
+                          followPreferenceRef.current = !following;
+                          setFollowing(!following);
+                          if (following) stopLogs(); else startLogsFollow();
+                        }}>
+                        <VerticalAlignBottomIcon fontSize="small" />
+                      </AppIconButton>
+                      <AppIconButton label="Pretty JSON" tooltip="Pretty-print JSON" aria-pressed={pretty} onClick={() => updateLogPreferences({ pretty: !pretty })}>
+                        <DataObjectIcon fontSize="small" />
+                      </AppIconButton>
+                      <AppIconButton label="Wrap" tooltip="Wrap lines" aria-pressed={wrapLines} onClick={() => updateLogPreferences({ wrap: !wrapLines })}>
+                        <WrapTextIcon fontSize="small" />
+                      </AppIconButton>
+                    </Box>
                   </Box>
 
                   {logStreamNotice && (
-                    <Alert severity={logStreamNotice.severity} variant="outlined" sx={{ alignItems: "center" }}>
+                    <Alert severity={logStreamNotice.severity} variant="outlined" sx={{ alignItems: "center" }}
+                      action={<AppButton onClick={startLogsFollow} disabled={offline}>Retry</AppButton>}>
                       {logStreamNotice.message}
                     </Alert>
                   )}
 
+                  <TextViewerFrame zoom={logZoom}>
                   <Box
                     ref={logScrollRef}
                     sx={{
+                      minHeight: 0,
+                      pb: TEXT_VIEWER_TAIL_PADDING,
                       border: "1px solid var(--code-border)",
                       borderRadius: 2,
                       overflow: "auto",
@@ -2069,6 +2110,7 @@ export default function PodDrawer(props: {
                       wrapLongLines={wrapLines}
                       customStyle={{
                         margin: 0,
+                        fontSize: logZoom.fontSize,
                         background: "transparent",
                         whiteSpace: wrapLines ? "pre-wrap" : "pre",
                         color: "var(--code-text)",
@@ -2083,6 +2125,7 @@ export default function PodDrawer(props: {
                       {renderedLogs || ""}
                     </SyntaxHighlighter>
                   </Box>
+                  </TextViewerFrame>
                 </Box>
         )}
 

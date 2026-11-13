@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from "react";
 import { normalizeSyntaxLanguage } from "./syntaxLanguages";
+import { useTextViewerFontSize } from "./useTextViewerFontSize";
 
 export type SyntaxHighlightProps = {
   children: string;
@@ -31,7 +32,14 @@ function PlainSyntax({ children, showLineNumbers, wrapLongLines, customStyle, co
 const highlighters = new Map<string, React.LazyExoticComponent<React.ComponentType<SyntaxHighlightProps>>>();
 
 /** Plain/YAML-folded viewers never request Prism. Supported grammars load on use. */
-export default function SyntaxHighlight(props: SyntaxHighlightProps) {
+export default function SyntaxHighlight(input: SyntaxHighlightProps) {
+  const { fontSize } = useTextViewerFontSize();
+  const props = {
+    ...input,
+    // Explicit editor overlay sizes win so textarea/gutter alignment is unchanged.
+    customStyle: { fontSize, ...input.customStyle },
+    codeTagProps: { ...input.codeTagProps, style: { fontSize: "inherit", ...input.codeTagProps?.style } },
+  };
   const language = normalizeSyntaxLanguage(props.language);
   if (!language) return <PlainSyntax {...props} />;
   let Highlighter = highlighters.get(language);

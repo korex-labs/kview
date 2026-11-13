@@ -1,5 +1,7 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
 import { isSection, type AppStateV1 } from "./state";
+import { normalizeLogPreferences, type LogPreferences } from "./logPreferences";
+import { DEFAULT_TEXT_VIEWER_FONT_SIZE_PX, normalizeTextViewerFontSize } from "./textViewerPreferences";
 import type { InvestigationSnapshot } from "./types/api";
 import type { KeyboardActionId, KeyboardPresetId, KeySequence } from "./keyboard/actions";
 import { compileKeymap, isKeyboardPresetId, type KeyboardBindingOverrides } from "./keyboard/keymaps";
@@ -25,6 +27,7 @@ export type SettingsTransferSection =
   | "customCommands"
   | "keyboard"
   | "podDebug"
+  | "logs"
   | "customActions"
   | "favourites"
   | "savedViews"
@@ -137,6 +140,7 @@ export type SavedResourceViewDefinition = {
 };
 
 export type OperatorProfileSnapshot = {
+  logs: LogPreferences;
   appearance: KviewUserSettingsV1["appearance"];
   smartFilters: KviewUserSettingsV1["smartFilters"];
   resourceTags: ResourceTagsSettings;
@@ -254,6 +258,7 @@ export type KviewUserSettingsV1 = {
     releaseChecksEnabled: boolean;
     resourceDrawerWidthPx: number;
     yamlSmartCollapse: boolean;
+    textViewerFontSizePx: number;
     smartNamespaceSorting: boolean;
     dashboardCombinedSignalFilters: boolean;
     dashboardFavouriteNamespaceFilters: boolean;
@@ -305,6 +310,7 @@ export type DataplaneSettingsV2 = {
 };
 
 export type KviewUserSettingsV2 = {
+  logs: LogPreferences;
   v: 2;
   appearance: KviewUserSettingsV1["appearance"];
   smartFilters: KviewUserSettingsV1["smartFilters"];
@@ -363,6 +369,7 @@ export type SettingsTransferBundleV1 = {
     customCommands: KviewUserSettingsV2["customCommands"];
     keyboard: KviewUserSettingsV2["keyboard"];
     podDebug: KviewUserSettingsV2["podDebug"];
+    logs: LogPreferences;
     customActions: KviewUserSettingsV2["customActions"];
     favourites: Pick<AppStateV1, "favouriteNamespacesByContext">;
     savedViews: KviewUserSettingsV2["savedViews"];
@@ -590,6 +597,7 @@ function defaultUserSettingsV1(): KviewUserSettingsV1 {
       releaseChecksEnabled: false,
       resourceDrawerWidthPx: 820,
       yamlSmartCollapse: true,
+      textViewerFontSizePx: DEFAULT_TEXT_VIEWER_FONT_SIZE_PX,
       smartNamespaceSorting: false,
       dashboardCombinedSignalFilters: false,
       dashboardFavouriteNamespaceFilters: false,
@@ -760,6 +768,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     customActions: v1.customActions,
     keyboard: v1.keyboard,
     podDebug: defaultPodDebugSettings(),
+    logs: normalizeLogPreferences(),
     dataplane: {
       global,
       contextOverrides: dataplaneContextOverridesFromLegacy(v1.dataplane.signals.contextOverrides),
@@ -795,6 +804,7 @@ export function operatorProfileSnapshotFromSettings(settings: KviewUserSettingsV
     customActions: settings.customActions,
     keyboard: settings.keyboard,
     podDebug: settings.podDebug,
+    logs: settings.logs,
     dataplane: settings.dataplane,
   });
 }
@@ -2316,6 +2326,7 @@ function validateUserSettingsV1(input: unknown): KviewUserSettingsV1 | null {
         1400,
         defaults.appearance.resourceDrawerWidthPx,
       ),
+      textViewerFontSizePx: normalizeTextViewerFontSize(rawAppearance.textViewerFontSizePx),
       yamlSmartCollapse:
         typeof rawAppearance.yamlSmartCollapse === "boolean"
           ? rawAppearance.yamlSmartCollapse
@@ -2542,6 +2553,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
   return {
     v: 2,
     appearance: fallbackAsV1.appearance,
+    logs: normalizeLogPreferences(root.logs),
     smartFilters: fallbackAsV1.smartFilters,
     resourceTags: normalizeResourceTagsSettings(root.resourceTags),
     resourceMacros: normalizeResourceMacrosSettings(root.resourceMacros),
@@ -2663,6 +2675,7 @@ export const settingsTransferSections: Array<{ id: SettingsTransferSection; labe
   { id: "smartFilters", label: "Smart filters" },
   { id: "customCommands", label: "Custom commands" },
   { id: "keyboard", label: "Keyboard shortcuts" },
+  { id: "logs", label: "Log preferences" },
   { id: "podDebug", label: "Pod Debug defaults" },
   { id: "customActions", label: "Custom actions" },
   { id: "signalSettings", label: "Signal settings" },
@@ -2702,6 +2715,7 @@ export function exportSettingsTransferJSON(input: {
   if (selected.has("customCommands")) bundle.sections.customCommands = serialized.customCommands;
   if (selected.has("keyboard")) bundle.sections.keyboard = serialized.keyboard;
   if (selected.has("podDebug")) bundle.sections.podDebug = serialized.podDebug;
+  if (selected.has("logs")) bundle.sections.logs = serialized.logs;
   if (selected.has("customActions")) bundle.sections.customActions = serialized.customActions;
   if (selected.has("savedViews")) bundle.sections.savedViews = serialized.savedViews;
   if (selected.has("favourites")) {
@@ -2780,6 +2794,9 @@ export function validateSettingsTransferBundle(input: unknown): SettingsTransfer
   if ("keyboard" in sections) {
     out.sections.keyboard = normalizeKeyboardSettings(sections.keyboard);
   }
+  if ("logs" in sections) {
+    out.sections.logs = normalizeLogPreferences(sections.logs);
+  }
   if ("podDebug" in sections) {
     out.sections.podDebug = validateUserSettings({ ...defaults, podDebug: sections.podDebug })?.podDebug;
   }
@@ -2848,6 +2865,9 @@ export function applySettingsTransferBundle(input: {
   }
   if (selected.has("keyboard") && input.bundle.sections.keyboard && input.strategy !== "keepMine") {
     nextSettings = { ...nextSettings, keyboard: input.bundle.sections.keyboard };
+  }
+  if (selected.has("logs") && input.bundle.sections.logs && input.strategy !== "keepMine") {
+    nextSettings = { ...nextSettings, logs: input.bundle.sections.logs };
   }
   if (selected.has("podDebug") && input.bundle.sections.podDebug && input.strategy !== "keepMine") {
     nextSettings = { ...nextSettings, podDebug: input.bundle.sections.podDebug };

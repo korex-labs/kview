@@ -61,6 +61,20 @@ and height are saved from direct interaction with those UI elements.
 Saved resource views are also stored locally. They are created from resource
 list toolbars and are included in full settings export/import.
 
+## Text Viewer Size
+
+Use **Decrease text size**, **Increase text size**, and **Reset text size** in the
+bottom-right overlay inside read-only code/YAML, Pod logs, runtime logs, and YAML
+diff previews. These icon-only controls stay visible while scrolling, without a
+size label or an extra footer. The size changes in 1 px steps from 10 to 24 px; the default and reset
+size is 13 px. One preference updates mounted viewers together and survives
+reloads, operator profiles, and full settings export/import. Help code fences
+use the same size without repeated controls.
+
+Sizing does not change copied text, YAML folds, log filters, or stream options,
+and does not reconnect Pod logs. Ordinary fields and metadata, editable YAML
+and JSON inputs, and terminal sessions keep their own typography.
+
 ## One-Time Optional Invitation
 
 After authenticated startup selects a context, **Optional updates and statistics**

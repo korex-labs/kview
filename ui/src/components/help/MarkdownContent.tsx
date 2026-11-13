@@ -178,7 +178,7 @@ export default function MarkdownContent({ markdown }: { markdown: string }) {
           );
         }
         if (block.type === "code") {
-          return <CodeBlock key={`code-${index}`} code={block.code} language={block.language} showCopy={false} />;
+          return <CodeBlock key={`code-${index}`} code={block.code} language={block.language} showCopy={false} showFontControls={false} />;
         }
         return (
           <Typography key={`paragraph-${index}`} variant="body2" color="text.primary">

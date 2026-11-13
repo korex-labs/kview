@@ -3,6 +3,8 @@ import { Box } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SyntaxHighlighter from "./SyntaxHighlight";
 import { AppButton } from "./AppActions";
+import { TextViewerFrame, TEXT_VIEWER_TAIL_PADDING } from "./TextViewerFontControls";
+import { useTextViewerFontSize } from "./useTextViewerFontSize";
 
 type CodeBlockProps = {
   code: string;
@@ -10,6 +12,8 @@ type CodeBlockProps = {
   language?: string;
   /** Show copy button. Default true. */
   showCopy?: boolean;
+  /** Suppress repeated controls in embedded documentation fences. */
+  showFontControls?: boolean;
   /**
    * When true and language is YAML, auto-collapses noisy K8s blocks (e.g. managedFields)
    * on load and exposes per-block fold toggles. Has no effect for non-YAML languages.
@@ -293,7 +297,7 @@ function PlainCodeContent({
           m: 0,
           p: 0,
           fontFamily: "monospace",
-          fontSize: "0.8rem",
+          fontSize: "inherit",
           lineHeight: 1.5,
           backgroundColor: "transparent",
           color: "var(--code-text)",
@@ -325,7 +329,9 @@ function PlainCodeContent({
                   sx={{
                     flex: "0 0 auto",
                     width: "2.4ch",
-                    minHeight: "1.6em",
+                    display: "inline-flex",
+                    justifyContent: "center",
+                    alignItems: "baseline",
                     textAlign: "center",
                     cursor: isBlockHeader ? "pointer" : "default",
                     color: isCollapsed ? "var(--chip-info-fg)" : "var(--code-text)",
@@ -340,7 +346,7 @@ function PlainCodeContent({
                         }
                       : {},
                     borderRadius: 0.5,
-                    fontSize: "1rem",
+                    fontSize: "inherit",
                     fontWeight: 800,
                     lineHeight: "inherit",
                   }}
@@ -355,7 +361,6 @@ function PlainCodeContent({
                     flex: "0 0 auto",
                     width: `${guideGutterWidth}ch`,
                     position: "relative",
-                    minHeight: "1.5em",
                     userSelect: "none",
                   }}
                 >
@@ -469,7 +474,7 @@ function PlainCodeContent({
     <Box
       sx={{
         fontFamily: "monospace",
-        fontSize: "0.8rem",
+        fontSize: "inherit",
         whiteSpace: "pre-wrap",
         wordBreak: "break-all",
       }}
@@ -484,74 +489,85 @@ export default function CodeBlock({
   language,
   showCopy = true,
   smartCollapse = false,
+  showFontControls = true,
 }: CodeBlockProps) {
+  const zoom = useTextViewerFontSize();
   if (language && !isYamlLanguage(language)) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0, overflow: "hidden" }}>
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, minWidth: 0, overflow: "hidden" }}>
         {showCopy && <CopyButton text={code} />}
-        <Box
-          sx={{
-            flexGrow: 1,
-            minWidth: 0,
-            overflow: "auto",
-            borderRadius: 2,
-            border: "1px solid var(--code-border)",
-            backgroundColor: "var(--code-bg)",
-            "& pre, & code, & .token": {
-              textShadow: "none !important",
-            },
-          }}
-        >
-          <SyntaxHighlighter
-            language={language}
-            showLineNumbers
-            wrapLongLines
-            customStyle={{
-              margin: 0,
-              background: "transparent",
-              color: "var(--code-text)",
-              textShadow: "none",
-            }}
-            codeTagProps={{
-              style: { color: "var(--code-text)", textShadow: "none" },
-            }}
-            lineNumberStyle={{
-              color: "var(--code-line-number)",
-              opacity: 0.9,
+        <TextViewerFrame zoom={zoom} enabled={showFontControls}>
+          <Box
+            sx={{
+              flexGrow: 1,
+              minHeight: 0,
+              minWidth: 0,
+              overflow: "auto",
+              pb: showFontControls ? TEXT_VIEWER_TAIL_PADDING : undefined,
+              borderRadius: 2,
+              border: "1px solid var(--code-border)",
+              backgroundColor: "var(--code-bg)",
+              "& pre, & code, & .token": {
+                textShadow: "none !important",
+              },
             }}
           >
-            {code}
-          </SyntaxHighlighter>
-        </Box>
+            <SyntaxHighlighter
+              language={language}
+              showLineNumbers
+              wrapLongLines
+              customStyle={{
+                margin: 0,
+                fontSize: zoom.fontSize,
+                background: "transparent",
+                color: "var(--code-text)",
+                textShadow: "none",
+              }}
+              codeTagProps={{
+                style: { color: "var(--code-text)", textShadow: "none" },
+              }}
+              lineNumberStyle={{
+                color: "var(--code-line-number)",
+                opacity: 0.9,
+              }}
+            >
+              {code}
+            </SyntaxHighlighter>
+          </Box>
+        </TextViewerFrame>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0, overflow: "hidden" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, minWidth: 0, overflow: "hidden" }}>
       {showCopy && <CopyButton text={code} />}
-      <Box
-        sx={{
-          flexGrow: 1,
-          minWidth: 0,
-          overflow: "auto",
-          fontFamily: "monospace",
-          fontSize: "0.8rem",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-          backgroundColor: "var(--code-bg)",
-          color: "var(--code-text)",
-          p: 1.5,
-          borderRadius: 1,
-          border: "1px solid var(--code-border)",
-        }}
-      >
-        <PlainCodeContent
-          code={code}
-          showLineNumbers={isYamlLanguage(language)}
-          smartCollapse={smartCollapse}
-        />
-      </Box>
+      <TextViewerFrame zoom={zoom} enabled={showFontControls}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            minHeight: 0,
+            minWidth: 0,
+            overflow: "auto",
+            fontFamily: "monospace",
+            fontSize: zoom.fontSize,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+            backgroundColor: "var(--code-bg)",
+            color: "var(--code-text)",
+            p: 1.5,
+            pb: showFontControls ? TEXT_VIEWER_TAIL_PADDING : undefined,
+            borderRadius: 1,
+            border: "1px solid var(--code-border)",
+          }}
+        >
+          <PlainCodeContent
+            code={code}
+            showLineNumbers={isYamlLanguage(language)}
+            smartCollapse={smartCollapse}
+          />
+        </Box>
+      </TextViewerFrame>
     </Box>
   );
 }

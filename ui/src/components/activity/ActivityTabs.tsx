@@ -15,6 +15,8 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ActivityList from "./ActivityList";
+import { TextViewerFrame, TEXT_VIEWER_TAIL_PADDING } from "../shared/TextViewerFontControls";
+import { useTextViewerFontSize } from "../shared/useTextViewerFontSize";
 import EmptyState from "../shared/EmptyState";
 import { AppIconButton } from "../shared/AppActions";
 import KeyValueChip from "../shared/KeyValueChip";
@@ -363,6 +365,7 @@ export default function ActivityTabs({
   requestedTerminalRequestKey,
   onCountsChange,
 }: Props) {
+  const logZoom = useTextViewerFontSize();
   const { health } = useConnectionState();
   const offline = health === "unhealthy";
   const pageVisible = usePageVisible();
@@ -1120,62 +1123,70 @@ export default function ActivityTabs({
         </Box>
       </Box>
       <Box sx={{ display: tab === 4 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
-        {logsErr && logs.length === 0 && !logsLoading ? (
-          <EmptyState message="Unable to load runtime logs." sx={panelEmptyStateSx} />
-        ) : (
-          <TableContainer
-            ref={logsScrollRef}
-            sx={compactTableContainerSx}
-            onScroll={(e) => {
-              const node = e.currentTarget;
-              const distanceToBottom = node.scrollHeight - node.clientHeight - node.scrollTop;
-              logsStickToBottomRef.current = distanceToBottom <= 24;
-            }}
-          >
-            <Table size="small" stickyHeader sx={compactTableSx}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={compactHeaderCellSx}>Time</TableCell>
-                  <TableCell sx={compactHeaderCellSx}>Level</TableCell>
-                  <TableCell sx={compactHeaderCellSx}>Source</TableCell>
-                  <TableCell sx={compactHeaderCellSx}>Message</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {logs.length === 0 ? (
+        <TextViewerFrame zoom={logZoom}>
+          {logsErr && logs.length === 0 && !logsLoading ? (
+            <EmptyState message="Unable to load runtime logs." sx={panelEmptyStateSx} />
+          ) : (
+            <TableContainer
+              ref={logsScrollRef}
+              sx={{
+                ...compactTableContainerSx,
+                pb: TEXT_VIEWER_TAIL_PADDING,
+                boxSizing: "border-box",
+                "& tbody .MuiTypography-root, & tbody .MuiChip-root": { fontSize: logZoom.fontSize },
+                "& tbody .MuiChip-root": { height: "auto", minHeight: 22, lineHeight: 1.5 },
+              }}
+              onScroll={(e) => {
+                const node = e.currentTarget;
+                const distanceToBottom = node.scrollHeight - node.clientHeight - node.scrollTop;
+                logsStickToBottomRef.current = distanceToBottom <= 24;
+              }}
+            >
+              <Table size="small" stickyHeader sx={compactTableSx}>
+                <TableHead>
                   <TableRow>
-                    <TableCell sx={compactCellSx} colSpan={4}>
-                      <EmptyState message={logsLoading ? "Loading runtime logs..." : "No runtime logs yet."} sx={panelEmptyStateSx} />
-                    </TableCell>
+                    <TableCell sx={compactHeaderCellSx}>Time</TableCell>
+                    <TableCell sx={compactHeaderCellSx}>Level</TableCell>
+                    <TableCell sx={compactHeaderCellSx}>Source</TableCell>
+                    <TableCell sx={compactHeaderCellSx}>Message</TableCell>
                   </TableRow>
-                ) : (
-                  logs.map((log) => (
-                    <TableRow key={log.id} hover>
-                      <TableCell sx={compactCellSx}>
-                        <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={compactCellSx}>
-                        <StatusChip label={log.level} size="small" color={chipColorForValue(log.level, "level")} sx={activityChipSx} />
-                      </TableCell>
-                      <TableCell sx={compactCellSx}>
-                        <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
-                          {log.source}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={compactCellSx}>
-                        <Typography variant="caption" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          {log.message}
-                        </Typography>
+                </TableHead>
+                <TableBody>
+                  {logs.length === 0 ? (
+                    <TableRow>
+                      <TableCell sx={compactCellSx} colSpan={4}>
+                        <EmptyState message={logsLoading ? "Loading runtime logs..." : "No runtime logs yet."} sx={panelEmptyStateSx} />
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+                  ) : (
+                    logs.map((log) => (
+                      <TableRow key={log.id} hover>
+                        <TableCell sx={compactCellSx}>
+                          <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={compactCellSx}>
+                          <StatusChip label={log.level} size="small" color={chipColorForValue(log.level, "level")} sx={activityChipSx} />
+                        </TableCell>
+                        <TableCell sx={compactCellSx}>
+                          <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
+                            {log.source}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={compactCellSx}>
+                          <Typography variant="caption" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {log.message}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </TextViewerFrame>
       </Box>
     </Box>
   );

@@ -17,6 +17,8 @@ import {
 import { AppButton, DialogActionButton } from "./AppActions";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import SyntaxHighlighter from "./SyntaxHighlight";
+import { TextViewerFrame, TEXT_VIEWER_TAIL_PADDING } from "./TextViewerFontControls";
+import { useTextViewerFontSize } from "./useTextViewerFontSize";
 import { apiPostWithContext, toApiError } from "../../api";
 import { useActiveContext } from "../../activeContext";
 
@@ -597,6 +599,7 @@ function buildYamlDiff(before: string, after: string): DiffLine[] {
 }
 
 function YamlDiffPreview({ lines, emptyLabel }: { lines: DiffLine[]; emptyLabel: string }) {
+  const zoom = useTextViewerFontSize();
   if (lines.length === 0 || lines.every((line) => line.kind === "same")) {
     return <Typography variant="body2" color="text.secondary">{emptyLabel}</Typography>;
   }
@@ -607,37 +610,39 @@ function YamlDiffPreview({ lines, emptyLabel }: { lines: DiffLine[]; emptyLabel:
         border: "1px solid var(--code-border)",
         borderRadius: 1,
         backgroundColor: "var(--code-bg)",
-        overflow: "auto",
+        overflow: "hidden",
       }}
     >
-      <Box component="pre" sx={{ m: 0, p: 1.5, fontFamily: "monospace", fontSize: "0.8rem", lineHeight: 1.5 }}>
-        {lines.map((line, idx) => {
-          const prefix = line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " ";
-          const bg =
-            line.kind === "add"
-              ? "rgba(46, 160, 67, 0.18)"
-              : line.kind === "remove"
-                ? "rgba(248, 81, 73, 0.18)"
-                : "transparent";
-          return (
-            <Box
-              key={`${prefix}-${idx}-${line.text}`}
-              component="div"
-              sx={{
-                px: 1,
-                backgroundColor: bg,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "anywhere",
-              }}
-            >
-              <Box component="span" sx={{ color: "var(--code-line-number)", pr: 1 }}>
-                {prefix}
+      <TextViewerFrame zoom={zoom}>
+        <Box component="pre" sx={{ m: 0, p: 1.5, pb: TEXT_VIEWER_TAIL_PADDING, maxHeight: "50vh", overflow: "auto", fontFamily: "monospace", fontSize: zoom.fontSize, lineHeight: 1.5 }}>
+          {lines.map((line, idx) => {
+            const prefix = line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " ";
+            const bg =
+              line.kind === "add"
+                ? "rgba(46, 160, 67, 0.18)"
+                : line.kind === "remove"
+                  ? "rgba(248, 81, 73, 0.18)"
+                  : "transparent";
+            return (
+              <Box
+                key={`${prefix}-${idx}-${line.text}`}
+                component="div"
+                sx={{
+                  px: 1,
+                  backgroundColor: bg,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                <Box component="span" sx={{ color: "var(--code-line-number)", pr: 1 }}>
+                  {prefix}
+                </Box>
+                <Box component="span">{line.text || " "}</Box>
               </Box>
-              <Box component="span">{line.text || " "}</Box>
-            </Box>
-          );
-        })}
-      </Box>
+            );
+          })}
+        </Box>
+      </TextViewerFrame>
     </Box>
   );
 }

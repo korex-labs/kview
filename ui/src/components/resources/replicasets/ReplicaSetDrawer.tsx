@@ -14,6 +14,9 @@ import {
 } from "@mui/material";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
+import { useActiveContext } from "../../../activeContext";
+import { AppIconButton } from "../../shared/AppActions";
+import SubjectIcon from "@mui/icons-material/Subject";
 import DeploymentDrawer from "../deployments/DeploymentDrawer";
 import SecretDrawer from "../secrets/SecretDrawer";
 import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
@@ -144,13 +147,20 @@ function isConditionHealthy(cond: ReplicaSetCondition) {
   return cond.status === "True";
 }
 
-export default function ReplicaSetDrawer(props: {
+type ReplicaSetDrawerProps = {
   open: boolean;
   onClose: () => void;
   token: string;
   namespace: string;
   replicaSetName: string | null;
-}) {
+};
+
+export default function ReplicaSetDrawer(props: ReplicaSetDrawerProps) {
+  const context = useActiveContext();
+  return <ReplicaSetDrawerContent key={JSON.stringify([context, props.token, props.namespace, props.replicaSetName, props.open])} {...props} />;
+}
+
+function ReplicaSetDrawerContent(props: ReplicaSetDrawerProps) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -159,6 +169,7 @@ export default function ReplicaSetDrawer(props: {
   const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
+  const [podInitialTab, setPodInitialTab] = useState<"overview" | "logs">("overview");
   const [drawerDeployment, setDrawerDeployment] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
@@ -361,10 +372,19 @@ export default function ReplicaSetDrawer(props: {
                           <TableRow
                             key={p.name || String(idx)}
                             hover
-                            onClick={() => p.name && setDrawerPod(p.name)}
+                            onClick={() => { setPodInitialTab("overview"); if (p.name) setDrawerPod(p.name); }}
                             sx={{ cursor: p.name ? "pointer" : "default" }}
                           >
-                            <TableCell>{valueOrDash(p.name)}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {valueOrDash(p.name)}
+                                <AppIconButton label="Logs" tooltip="Open Pod logs" sx={{ width: 24, height: 24, p: 0.25 }} disabled={!p.name} onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPodInitialTab("logs");
+                                  setDrawerPod(p.name);
+                                }}><SubjectIcon sx={{ fontSize: 18 }} /></AppIconButton>
+                              </Box>
+                            </TableCell>
                             <TableCell>
                               <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
                             </TableCell>
@@ -435,6 +455,7 @@ export default function ReplicaSetDrawer(props: {
               )}
             </Box>
             <PodDrawer
+              initialTab={podInitialTab}
               open={!!drawerPod}
               onClose={() => setDrawerPod(null)}
               token={props.token}

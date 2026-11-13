@@ -21,8 +21,11 @@ conditions, related pods, events, logs where available, and YAML.
 ## Drawer Tabs
 
 Workload drawers focus on status first, then related resources. Pod drawers own
-direct log streaming. Workload drawers that do not stream logs navigate to pods
-for log inspection.
+direct log streaming. In the **Pods** tab of Deployment, Stateful Set, Daemon
+Set, Replica Set, and Job drawers, use a related Pod's **Logs** button to open
+its Logs tab and automatically follow current logs once the Pod UID and container
+are known. Clicking the Pod row instead opens its Overview without a log stream.
+These are individual Pod logs, not an aggregated workload stream.
 
 The Pod drawer groups metadata and YAML in **Object**, with icon-labelled
 **Details** and **YAML** controls:
@@ -36,20 +39,46 @@ Use the tab-row arrows or **More** in a narrow drawer to reach other sections.
 This grouping currently applies to Pods; other workload drawers retain their
 separate Metadata and YAML tabs.
 
-Pod drawer **Logs** controls include:
+Pod drawer **Logs** opens with **Current**, **100** lines, **Follow**, **Pretty JSON**,
+and **Wrap** enabled. The compact toolbar fits one row when space permits and
+wraps to two rows in narrow drawers. Icon controls have tooltips and selected states.
 
-- **Container**: selects which container log stream to show.
-- **Lines**: chooses the requested tail size. Available values are `100`,
-  `500`, `1000`, and `5000`.
-- **Filter pattern**: filters currently buffered log lines by text.
-- **Pretty**: attempts to pretty-print JSON log lines. Lines that are not JSON
-  stay as text.
-- **Wrap lines**: wraps long log lines inside the log panel.
-- **Follow**: opens or closes the live log stream. <kbd>L</kbd> opens the Logs
-  tab and starts following when a Pod drawer is focused.
+- **Container** selects the container and automatically loads its logs.
+- **Lines** chooses the requested tail: `100` (default), `500`, `1000`, or `5000`.
+- **Filter** applies a plain, case-insensitive substring filter to buffered lines.
+- **Current** (play icon) selects the current container instance; it is not a pause button.
+- **History** selects the last terminated instance of that container, stops the
+  old stream, clears its buffer, and automatically reads previous logs once.
+  Kubernetes may no longer have these logs.
+- **Follow** is separate from source selection. Turn it off to stop the stream
+  and retain buffered lines, or on to start a fresh current-log read. It is disabled
+  for History. Its selected state is your preference, not a connection indicator.
+- **Pretty JSON** formats JSON lines; non-JSON lines stay as text.
+- **Wrap** wraps long lines. Filter, Pretty JSON, and Wrap are local display
+  controls and never open a connection.
+- <kbd>L</kbd> opens Logs when a Pod drawer is focused; pressing it again does
+  not open a duplicate stream.
 
-Logs depend on Pod log access for the selected container. kview streams current
-container logs; it does not expose previous-container logs as a separate toggle.
+Lines, Pretty JSON, and Wrap are saved globally in your browser settings and reused
+across Pods, drawers, and page reloads. With no saved preferences, they default to
+100 lines, Pretty JSON on, and Wrap on. They are included in settings exports and
+operator profiles, including the **Log preferences** transfer section. Changing Container or source preserves these preferences and
+Filter; it enables Follow for Current. Follow and source selection remain scoped
+to the drawer. Changing Lines automatically refetches
+without resetting your formatting or Follow choice; with Follow off this is a finite read.
+Leaving Logs, closing the drawer, switching Pod/namespace/context, or losing cluster
+connectivity stops the stream. Returning to Logs loads the selected source again.
+Errors and end-of-stream status remain visible without an automatic reconnect loop;
+use **Retry** beside the status to read again.
+
+Reads require Pod details and Pod log access. The server checks the loaded Pod UID
+before opening logs and rejects a known replacement with the same name; reopen the
+drawer to inspect that replacement.
+
+Previous logs are not a historical archive and do not include deleted Pods.
+Workload Pod rows resolve the named Pod when opened, so a replacement since the
+workload snapshot may be the Pod whose details you see. UID checking occurs
+before opening the stream, not atomically with the Kubernetes log request.
 
 The **Live** control tooltip explains event-driven updates versus periodic
 polling and what clicking will switch to. When Live reports a problem, the

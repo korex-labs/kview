@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/korex-labs/kview/v5/internal/cluster"
 )
@@ -57,7 +59,8 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	follow := r.URL.Query().Get("follow") == "1" || r.URL.Query().Get("follow") == "true"
+	previous := r.URL.Query().Get("previous") == "1" || r.URL.Query().Get("previous") == "true"
+	follow := !previous && (r.URL.Query().Get("follow") == "1" || r.URL.Query().Get("follow") == "true")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -67,6 +70,16 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	// Observe browser disconnects even while Kubernetes is idle or opening the stream.
+	conn.SetReadLimit(1024)
+	go func() {
+		defer cancel()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
 
 	contextName := r.URL.Query().Get("context")
 	var clients *cluster.Clients
@@ -80,9 +93,23 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bind a drawer to the Pod instance it loaded, not a replacement with the same name.
+	if expectedUID := r.URL.Query().Get("uid"); expectedUID != "" {
+		current, getErr := clients.Clientset.CoreV1().Pods(ns).Get(ctx, pod, metav1.GetOptions{})
+		if getErr != nil {
+			writeLogStreamError(conn, getErr)
+			return
+		}
+		if string(current.UID) != expectedUID {
+			writeLogStreamError(conn, fmt.Errorf("Pod identity changed; reopen the Pod drawer"))
+			return
+		}
+	}
+
 	opts := &v1.PodLogOptions{
 		Container: container,
 		Follow:    follow,
+		Previous:  previous,
 	}
 	if tail > 0 {
 		opts.TailLines = &tail
@@ -105,7 +132,10 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				_ = conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(2*time.Second))
+				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(2*time.Second)); err != nil {
+					cancel()
+					return
+				}
 			}
 		}
 	}()
@@ -114,10 +144,14 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
-			_ = conn.WriteMessage(websocket.TextMessage, line)
+			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
+				return
+			}
 		}
 		if err != nil {
 			if err == io.EOF {
+				_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(2*time.Second))
 				return
 			}
 			writeLogStreamError(conn, err)

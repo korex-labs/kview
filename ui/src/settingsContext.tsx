@@ -38,6 +38,11 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
+/** Optional access for reusable viewers rendered outside the application shell. */
+export function useOptionalUserSettings(): SettingsContextValue | undefined {
+  return useContext(SettingsContext);
+}
+
 export function useUserSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext);
   if (!ctx) {

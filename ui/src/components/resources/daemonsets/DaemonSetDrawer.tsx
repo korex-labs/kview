@@ -13,6 +13,9 @@ import {
 } from "@mui/material";
 import { useConnectionState } from "../../../connectionState";
 import PodDrawer from "../pods/PodDrawer";
+import { useActiveContext } from "../../../activeContext";
+import { AppIconButton } from "../../shared/AppActions";
+import SubjectIcon from "@mui/icons-material/Subject";
 import SecretDrawer from "../secrets/SecretDrawer";
 import ConfigMapDrawer from "../configmaps/ConfigMapDrawer";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
@@ -141,13 +144,20 @@ function isConditionHealthy(cond: DaemonSetCondition) {
   return cond.status === "True";
 }
 
-export default function DaemonSetDrawer(props: {
+type DaemonSetDrawerProps = {
   open: boolean;
   onClose: () => void;
   token: string;
   namespace: string;
   daemonSetName: string | null;
-}) {
+};
+
+export default function DaemonSetDrawer(props: DaemonSetDrawerProps) {
+  const context = useActiveContext();
+  return <DaemonSetDrawerContent key={JSON.stringify([context, props.token, props.namespace, props.daemonSetName, props.open])} {...props} />;
+}
+
+function DaemonSetDrawerContent(props: DaemonSetDrawerProps) {
   const { retryNonce } = useConnectionState();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -156,6 +166,7 @@ export default function DaemonSetDrawer(props: {
   const [detailSignals, setDetailSignals] = useState<DashboardSignalItem[]>([]);
   const [err, setErr] = useState("");
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
+  const [podInitialTab, setPodInitialTab] = useState<"overview" | "logs">("overview");
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
   const [drawerConfigMap, setDrawerConfigMap] = useState<string | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
@@ -323,10 +334,19 @@ export default function DaemonSetDrawer(props: {
                           <TableRow
                             key={p.name || String(idx)}
                             hover
-                            onClick={() => p.name && setDrawerPod(p.name)}
+                            onClick={() => { setPodInitialTab("overview"); if (p.name) setDrawerPod(p.name); }}
                             sx={{ cursor: p.name ? "pointer" : "default" }}
                           >
-                            <TableCell>{valueOrDash(p.name)}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {valueOrDash(p.name)}
+                                <AppIconButton label="Logs" tooltip="Open Pod logs" sx={{ width: 24, height: 24, p: 0.25 }} disabled={!p.name} onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPodInitialTab("logs");
+                                  setDrawerPod(p.name);
+                                }}><SubjectIcon sx={{ fontSize: 18 }} /></AppIconButton>
+                              </Box>
+                            </TableCell>
                             <TableCell>
                               <Chip size="small" label={valueOrDash(p.phase)} color={phaseChipColor(p.phase)} />
                             </TableCell>
@@ -395,6 +415,7 @@ export default function DaemonSetDrawer(props: {
               )}
             </Box>
             <PodDrawer
+              initialTab={podInitialTab}
               open={!!drawerPod}
               onClose={() => setDrawerPod(null)}
               token={props.token}
