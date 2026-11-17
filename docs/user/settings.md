@@ -2,7 +2,13 @@
 
 kview settings are stored in the browser profile through localStorage. Settings
 are auto-saved as soon as a control changes. There is no separate **Save**
-button. Settings can be exported and imported as JSON.
+button. Settings can be exported and imported as JSON. Imports are the exception
+to autosave: uploading or pasting opens a section-by-section preview with
+expandable differences and **Apply** / **Cancel**, not a native confirmation.
+Only selected sections are applied. Preview may read remote records, but writes
+start only on Apply; cancellation cannot undo remote writes already completed.
+See [Import / Export](import-export.md) for formats, normalization warnings, and
+server-side validation limits.
 
 ## What This Is For
 

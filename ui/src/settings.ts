@@ -2890,7 +2890,14 @@ export function applySettingsTransferBundle(input: {
   if (selected.has("signalSettings") && input.bundle.sections.signalSettings) {
     nextSettings = mergeSignalSettings(nextSettings, input.bundle.sections.signalSettings, input.strategy);
   }
-  return { settings: validateUserSettings(nextSettings) ?? nextSettings, appState: nextAppState };
+  const normalized = validateUserSettings(nextSettings) ?? nextSettings;
+  // Normalize only changed sections. A selective import must not migrate or
+  // recreate unrelated settings as a side effect (including remote-only imports).
+  const settings = { ...input.settings };
+  for (const key of Object.keys(nextSettings) as Array<keyof KviewUserSettingsV2>) {
+    if (nextSettings[key] !== input.settings[key]) Object.assign(settings, { [key]: normalized[key] });
+  }
+  return { settings: nextSettings === input.settings ? input.settings : settings, appState: nextAppState };
 }
 
 function mergeSettingsSection<K extends "smartFilters" | "resourceTags" | "resourceMacros" | "dynamicLinks" | "customCommands" | "customActions" | "savedViews">(

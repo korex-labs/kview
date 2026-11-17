@@ -27,7 +27,7 @@ type Options = {
   setTransferDialogMessage: (message: Message) => void;
 };
 
-function snapshotTransferKey(snapshot: InvestigationSnapshot): string {
+export function snapshotTransferKey(snapshot: InvestigationSnapshot): string {
   const ref = snapshot.primaryResource;
   return [
     snapshot.context || "",
@@ -39,7 +39,7 @@ function snapshotTransferKey(snapshot: InvestigationSnapshot): string {
   ].join("\x00");
 }
 
-function uniqueSnapshots(snapshots: InvestigationSnapshot[]): InvestigationSnapshot[] {
+export function uniqueSnapshots(snapshots: InvestigationSnapshot[]): InvestigationSnapshot[] {
   const seen = new Set<string>();
   const out: InvestigationSnapshot[] = [];
   for (const snapshot of snapshots) {
@@ -298,7 +298,7 @@ export function useSettingsTransfer(options: Options) {
       latest.current.setImportMessage({ severity: "success", text: "Transfer bundle imported." });
     } catch (err) {
       if (request.signal.aborted) return;
-      const message = (err as Error).message || "Import failed.";
+      const message = `${(err as Error).message || "Import failed."} Local settings were not applied. Earlier remote writes may already have completed; they are not rolled back.`;
       latest.current.setTransferDialogMessage({ severity: "error", text: message });
       latest.current.setImportMessage({ severity: "error", text: message });
     } finally {

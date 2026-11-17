@@ -12,7 +12,7 @@ import { SIGNAL_SUPPRESSIONS_CHANGED_EVENT } from "../../signalSuppressions";
 
 vi.mock("../../api", () => ({
   apiGet: vi.fn(async () => ({})),
-  apiGetWithContext: vi.fn(async (path: string) => path.includes("/api/dataplane/signals/catalog")
+  apiGetWithContext: vi.fn(async (path: string, _token: string, context: string) => path.endsWith("/export") ? { active: context, items: {} } : path.includes("/api/dataplane/signals/catalog")
     ? {
         items: [{
           type: "pod_restarts",
@@ -80,10 +80,14 @@ function openImportExport() {
   fireEvent.click(screen.getByText("Import / Export"));
 }
 
-function reviewTransferBundle(text: string) {
+async function reviewTransferBundle(text: string) {
   fireEvent.change(screen.getByLabelText("Paste JSON"), { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
-  return screen.getByRole("dialog", { name: "Import Transfer Bundle" });
+  const dialog = screen.getByRole("dialog", { name: "Import Transfer Bundle" });
+  const normalization = within(dialog).queryByRole("checkbox", { name: "I understand the normalization changes" });
+  if (normalization) fireEvent.click(normalization);
+  await waitFor(() => expect((within(dialog).getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false));
+  return dialog;
 }
 
 function readBlob(blob: Blob): Promise<string> {
@@ -364,9 +368,9 @@ describe("SettingsView transfer lifecycle", () => {
     vi.mocked(apiPost).mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("second step failed"));
     const { setAppState } = renderTransferSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(mixedTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
-    await within(dialog).findByText("second step failed");
+    const dialog = await reviewTransferBundle(mixedTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    await within(dialog).findByText(/second step failed/);
     expect(vi.mocked(apiPost).mock.calls.map(([path]) => path)).toEqual([
       "/api/dataplane/signals/ack/import", "/api/dataplane/signals/suppressions/import",
     ]);
@@ -377,7 +381,8 @@ describe("SettingsView transfer lifecycle", () => {
     expect(setAppState).not.toHaveBeenCalled();
     // A retry remains deliberate; completed remote writes are not rolled back.
     vi.mocked(apiPost).mockResolvedValue({});
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    await waitFor(() => expect((within(dialog).getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     await within(dialog).findByText(/3 sections imported/);
     expect(setAppState).toHaveBeenCalledTimes(1);
   });
@@ -387,8 +392,8 @@ describe("SettingsView transfer lifecycle", () => {
     vi.mocked(apiPost).mockReturnValueOnce(pending.promise);
     const { rerender, view, setAppState } = renderTransferSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(mixedTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    const dialog = await reviewTransferBundle(mixedTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     rerender(view(identity === "context" ? "other-fixture" : "kind-test", identity === "token" ? "other-token" : "test-token"));
     await act(async () => pending.resolve({}));
     expect(apiPost).toHaveBeenCalledTimes(1);
@@ -402,12 +407,12 @@ describe("SettingsView transfer lifecycle", () => {
     vi.mocked(apiPost).mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
     const { setAppState } = renderTransferSettings();
     openImportExport();
-    let dialog = reviewTransferBundle(suppressionTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    let dialog = await reviewTransferBundle(suppressionTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await screen.findByRole("button", { name: "Import JSON" });
-    dialog = reviewTransferBundle(suppressionTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    dialog = await reviewTransferBundle(suppressionTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     await act(async () => old.reject(new Error("obsolete failure")));
     expect(screen.queryByText("obsolete failure")).toBeNull();
     expect((within(dialog).getByRole("button", { name: "Importing..." }) as HTMLButtonElement).disabled).toBe(true);
@@ -420,8 +425,8 @@ describe("SettingsView transfer lifecycle", () => {
     vi.mocked(apiPost).mockReturnValueOnce(pending.promise);
     const { unmount, setAppState } = renderTransferSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(mixedTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    const dialog = await reviewTransferBundle(mixedTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     unmount();
     await act(async () => pending.resolve({}));
     expect(apiPost).toHaveBeenCalledTimes(1);
@@ -433,11 +438,11 @@ describe("SettingsView transfer lifecycle", () => {
     vi.mocked(apiPost).mockReturnValueOnce(pending.promise);
     const { rerender, view, setAppState } = renderTransferSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(suppressionTransferBundle());
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    const dialog = await reviewTransferBundle(suppressionTransferBundle());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     // Leave the section without cancelling the mounted review; edit an unrelated preference.
     fireEvent.click(screen.getByText("Appearance"));
-    fireEvent.click(screen.getByRole("switch", { name: "Check for kview updates" }));
+    fireEvent.click(screen.getByLabelText("Check for kview updates"));
     const nextPublisher = vi.fn();
     rerender(view("kind-test", "test-token", nextPublisher));
     await act(async () => pending.resolve({}));
@@ -509,13 +514,13 @@ describe("SettingsView signal suppression transfers", () => {
     window.addEventListener(SIGNAL_SUPPRESSIONS_CHANGED_EVENT, listener);
     renderSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(suppressionTransferBundle({
+    const dialog = await reviewTransferBundle(suppressionTransferBundle({
       "signal:valid": { ...validSuppression, comment: "  planned maintenance  " },
       malformed: { mode: "snooze", createdAt: 1_000 },
     }));
 
-    expect(within(dialog).getByText("1 suppression from source-prod")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    expect(within(dialog).getByText("Added 1 · Changed 0 · Removed 0")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
     await waitFor(() => expect(apiPost).toHaveBeenCalledWith(
       "/api/dataplane/signals/suppressions/import",
@@ -538,11 +543,11 @@ describe("SettingsView signal suppression transfers", () => {
     window.addEventListener(SIGNAL_SUPPRESSIONS_CHANGED_EVENT, listener);
     renderSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(suppressionTransferBundle());
+    const dialog = await reviewTransferBundle(suppressionTransferBundle());
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
-    expect(await within(dialog).findByText("suppression import unavailable")).toBeTruthy();
+    expect(await within(dialog).findByText(/suppression import unavailable/)).toBeTruthy();
     expect(listener).not.toHaveBeenCalled();
     window.removeEventListener(SIGNAL_SUPPRESSIONS_CHANGED_EVENT, listener);
   });
@@ -552,10 +557,10 @@ describe("SettingsView signal suppression transfers", () => {
     bundle.sections.favourites = { favouriteNamespacesByContext: { "source-prod": ["default"] } };
     renderSettings();
     openImportExport();
-    const dialog = reviewTransferBundle(JSON.stringify(bundle));
+    const dialog = await reviewTransferBundle(JSON.stringify(bundle));
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /Signal suppressions/ }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Import Selected Sections" }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Signal suppressions" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
     await within(dialog).findByText(/1 section imported/);
     expect(vi.mocked(apiPost).mock.calls.some(

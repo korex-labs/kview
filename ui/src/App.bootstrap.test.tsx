@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { dispatchApplySavedResourceView, loadPendingSavedResourceView } from "./savedViews";
 import { dispatchApplyFocusedResourceView, loadPendingFocusedResourceView, type FocusedResourceViewIntent } from "./focusedResourceViews";
-import type { SavedResourceViewDefinition } from "./settings";
+import { defaultUserSettings, exportFullProfileJSON, type SavedResourceViewDefinition } from "./settings";
 import { loadListTextFilter, loadQuickFilterSelection, saveListTextFilter, saveQuickFilterSelection } from "./state";
 
 const sidebarMode = vi.hoisted(() => ({ real: false, snapshots: [] as Array<{ context: string; namespaces: string[]; limited: boolean; section: string }> }));
@@ -149,6 +149,33 @@ afterEach(() => {
 });
 
 describe("App view navigation", () => {
+  it.each(["pods", undefined] as const)("applies reviewed full-profile navigation to the mounted App only after Apply (section %s)", async (importedSection) => {
+    apiMocks.getWithContext.mockResolvedValue(namespaceResponse(["default", "imported-namespace"]));
+    render(<App />);
+    await waitForStartupClose();
+    fireEvent.click(screen.getByRole("button", { name: "Browse deployments" }));
+    fireEvent.click(screen.getByTestId("settings-toggle"));
+    fireEvent.click(await screen.findByText("Import / Export"));
+    const text = exportFullProfileJSON({ settings: defaultUserSettings(), appState: {
+      v: 1, activeContext: "saved-context", activeNamespace: "imported-namespace", activeSection: importedSection,
+      favouriteNamespacesByContext: { "saved-context": ["imported-namespace"] }, activityPanelOpen: false,
+    } });
+    fireEvent.change(screen.getByLabelText("Paste JSON"), { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+    const dialog = screen.getByRole("dialog", { name: "Import Full Profile" });
+    expect(contextSelectCalls()).toHaveLength(1);
+    expect(sidebarMode.snapshots[sidebarMode.snapshots.length - 1]).toMatchObject({ context: "backend-context", section: "deployments" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Deselect all" }));
+    fireEvent.click(within(dialog).getByLabelText("Navigation, favourites and layout"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    await waitForStartupClose();
+    expect(contextSelectCalls()).toHaveLength(2);
+    expect(contextSelectCalls()[1][2]).toEqual({ name: "saved-context" });
+    fireEvent.click(screen.getByTestId("settings-toggle"));
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain(`saved-context|imported-namespace|${importedSection || "deployments"}`);
+    expect(await screen.findByTestId(importedSection ? "pods-screen" : "deployments-screen")).toHaveProperty("textContent", `${importedSection ? "Pods" : "Deployments"} in imported-namespace`);
+  });
+
   function apply(kind: "saved" | "focused", overrides: Partial<FocusedResourceViewIntent> = {}) {
     const intent: FocusedResourceViewIntent = { resource: "deployments", filter: `${kind}-filter`, ...overrides };
     if (kind === "focused") {

@@ -2,7 +2,7 @@ import { useStatisticsConsent, setStatisticsConsent } from "../../installationSt
 import { denseSelectMenuProps } from "./shared/denseSelectMenuProps";
 import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import HistorySettings from "./HistorySettings";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Badge,
@@ -10,10 +10,6 @@ import {
   Checkbox,
   Chip,
   Divider,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
   InputLabel,
   List,
@@ -52,9 +48,7 @@ import {
   exportFullProfileJSON,
   newSmartFilterRule,
   normalizeKeyboardSettings,
-  parseFullProfileJSON,
   parseSettingsTransferJSON,
-  parseUserSettingsJSON,
   sanitizeRegexFlags,
   smartFilterResourceKeysForScope,
   dataplaneSettingsForContext,
@@ -75,11 +69,9 @@ import {
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
-  type SettingsTransferMergeStrategy,
   type SettingsTransferSection,
   type SettingsTransferBundleV1,
   type SmartFilterRule,
-  settingsTransferMergeStrategies,
   settingsTransferSectionIds,
   settingsTransferSections,
 } from "../../settings";
@@ -114,6 +106,8 @@ import {
 } from "./dataplaneEdits";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import { useSettingsTransfer } from "./useSettingsTransfer";
+import SettingsImportReviewDialog from "./SettingsImportReviewDialog";
+import { parseSettingsImport, type SettingsImportDocument } from "./settingsImportReview";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import SignalExclusionsDialog, { type SignalExclusionPreview } from "./SignalExclusionsDialog";
@@ -139,6 +133,7 @@ type Props = {
   activeNamespace: string;
   appState: AppStateV1;
   setAppState: React.Dispatch<React.SetStateAction<AppStateV1>>;
+  onImportAppState?: (state: AppStateV1) => void;
   onClose: () => void;
 };
 
@@ -580,10 +575,6 @@ function smartFilterResourceHelperText(scope: SettingsScopeMode): string {
   }
 }
 
-function transferSectionLabel(sectionID: SettingsTransferSection): string {
-  return settingsTransferSections.find((section) => section.id === sectionID)?.label || sectionID;
-}
-
 function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: SettingsTransferSection): string {
   const section = bundle.sections[sectionID];
   switch (sectionID) {
@@ -768,6 +759,7 @@ export default function SettingsView({
   activeNamespace,
   appState,
   setAppState,
+  onImportAppState,
   onClose,
 }: Props) {
   const { settings, setSettings, replaceSettings, resetSettings } = useUserSettings();
@@ -788,12 +780,14 @@ export default function SettingsView({
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [transferSections, setTransferSections] = useState<SettingsTransferSection[]>(["resourceTags", "favourites"]);
-  const [transferImportSections, setTransferImportSections] = useState<SettingsTransferSection[]>([]);
-  const [transferStrategy, setTransferStrategy] = useState<SettingsTransferMergeStrategy>("useImported");
-  const [transferReviewOpen, setTransferReviewOpen] = useState(false);
-  const [pendingTransferBundle, setPendingTransferBundle] = useState<SettingsTransferBundleV1 | null>(null);
-  const [pendingTransferText, setPendingTransferText] = useState("");
-  const [transferDialogMessage, setTransferDialogMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    document: SettingsImportDocument; text: string; context: string; token: string;
+  } | null>(null);
+  const importGeneration = useRef(0);
+  useLayoutEffect(() => {
+    setPendingImport(null);
+    return () => { importGeneration.current += 1; };
+  }, [activeContext, token]);
   const [signalHistoryResetBusy, setSignalHistoryResetBusy] = useState(false);
   const [signalHistoryMessage, setSignalHistoryMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [performanceSnapshot, setPerformanceSnapshot] = useState("");
@@ -1012,11 +1006,6 @@ export default function SettingsView({
     }
   }, [importText]);
 
-  useEffect(() => {
-    if (!transferBundle) return;
-    setTransferImportSections(settingsTransferSectionIds(transferBundle));
-  }, [transferBundle]);
-
   const toggleTransferSection = (
     sectionID: SettingsTransferSection,
     value: boolean,
@@ -1030,26 +1019,15 @@ export default function SettingsView({
     });
   };
 
-  const openTransferReview = (text: string, bundle: SettingsTransferBundleV1) => {
-    cancelTransferImport();
-    const available = settingsTransferSectionIds(bundle);
-    setImportText(text);
-    setPendingTransferText(text);
-    setPendingTransferBundle(bundle);
-    setTransferImportSections(available);
-    setTransferDialogMessage(null);
-    setTransferReviewOpen(true);
-    setImportMessage(null);
-  };
-
-  const { exportTransferSettings, applyTransferImport, cancelTransferImport, transferImportBusy } = useSettingsTransfer({
-    token, activeContext, contextOptions, settings, appState, transferSections, transferImportSections,
-    transferStrategy, replaceSettings, setAppState, setImportText, setImportMessage, setTransferDialogMessage,
+  const { exportTransferSettings } = useSettingsTransfer({
+    token, activeContext, contextOptions, settings, appState, transferSections,
+    transferImportSections: [], transferStrategy: "useImported",
+    replaceSettings, setAppState, setImportText, setImportMessage, setTransferDialogMessage: setImportMessage,
   });
 
-  const closeTransferReview = () => {
-    cancelTransferImport();
-    setTransferReviewOpen(false);
+  const closeImportReview = () => {
+    importGeneration.current += 1;
+    setPendingImport(null);
   };
 
   const resetActiveContextSignalHistory = async () => {
@@ -1075,31 +1053,13 @@ export default function SettingsView({
   };
 
   const importSettingsText = (text: string) => {
-    let transfer: ReturnType<typeof parseSettingsTransferJSON> | null = null;
+    importGeneration.current += 1;
+    setPendingImport(null);
     try {
-      transfer = parseSettingsTransferJSON(text);
-    } catch {
-      // Not a transfer bundle; try the legacy full-profile importer below.
-    }
-    if (transfer) {
-      openTransferReview(text, transfer);
-      return;
-    }
-    try {
-      const fullProfile = parseFullProfileJSON(text);
-      if (fullProfile) {
-        if (!window.confirm("Import full profile backup and overwrite current settings plus app state?")) return;
-        replaceSettings(fullProfile.settings);
-        setAppState(fullProfile.appState);
-        setImportText(text);
-        setImportMessage({ severity: "success", text: "Full profile imported." });
-        return;
-      }
-      const imported = parseUserSettingsJSON(text);
-      if (!window.confirm("Import settings and overwrite the current settings profile?")) return;
-      replaceSettings(imported);
+      const document = parseSettingsImport(text);
       setImportText(text);
-      setImportMessage({ severity: "success", text: "Settings imported." });
+      setImportMessage(null);
+      setPendingImport({ document, text, context: activeContext, token });
     } catch (err) {
       setImportMessage({ severity: "error", text: (err as Error).message || "Import failed." });
     }
@@ -1107,10 +1067,15 @@ export default function SettingsView({
 
   const importSettingsFile = async (file: File | null | undefined) => {
     if (!file) return;
+    const generation = ++importGeneration.current;
+    setPendingImport(null);
+    setImportMessage(null);
     try {
       const text = await file.text();
+      if (generation !== importGeneration.current) return;
       importSettingsText(text);
     } catch (err) {
+      if (generation !== importGeneration.current) return;
       setImportMessage({ severity: "error", text: (err as Error).message || "Failed to read settings file." });
     }
   };
@@ -2911,79 +2876,6 @@ export default function SettingsView({
     );
   };
 
-  const renderTransferImportDialog = () => {
-    const bundle = pendingTransferBundle;
-    const available = bundle ? settingsTransferSectionIds(bundle) : [];
-    return (
-      <Dialog open={transferReviewOpen && !!bundle} onClose={closeTransferReview} fullWidth maxWidth="sm">
-        <DialogTitle>Import Transfer Bundle</DialogTitle>
-        <DialogContent>
-          {bundle ? (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: 0.5 }}>
-              <Alert severity="info">
-                Review the bundle contents and choose how conflicts should be handled before importing.
-              </Alert>
-              {transferDialogMessage ? (
-                <Alert severity={transferDialogMessage.severity}>{transferDialogMessage.text}</Alert>
-              ) : null}
-              <FormControl size="small" fullWidth>
-                <InputLabel id="settings-transfer-dialog-strategy-label">Merge strategy</InputLabel>
-                <Select
-                  labelId="settings-transfer-dialog-strategy-label"
-                  label="Merge strategy"
-                  value={transferStrategy}
-                  onChange={(event: SelectChangeEvent) => setTransferStrategy(event.target.value as SettingsTransferMergeStrategy)}
-                >
-                  {settingsTransferMergeStrategies.map((item) => (
-                    <MenuItem key={item.id} value={item.id}>{item.label}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <List dense disablePadding>
-                {available.map((sectionID) => (
-                  <ListItemButton
-                    key={sectionID}
-                    dense
-                    onClick={() => toggleTransferSection(sectionID, !transferImportSections.includes(sectionID), setTransferImportSections)}
-                    sx={{ borderRadius: 1 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 32 }}>
-                      <Checkbox
-                        edge="start"
-                        size="small"
-                        checked={transferImportSections.includes(sectionID)}
-                        tabIndex={-1}
-                        disableRipple
-                      />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={transferSectionLabel(sectionID)}
-                      secondary={transferSectionSummary(bundle, sectionID)}
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
-            </Box>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <AppButton variant="text" onClick={closeTransferReview}>
-            {transferDialogMessage?.severity === "success" ? "Done" : "Cancel"}
-          </AppButton>
-          <AppButton
-            intent="primary"
-            disabled={!bundle || transferImportSections.length === 0 || transferImportBusy}
-            onClick={() => {
-              if (bundle) void applyTransferImport(bundle, pendingTransferText || importText);
-            }}
-          >
-            {transferImportBusy ? "Importing..." : "Import Selected Sections"}
-          </AppButton>
-        </DialogActions>
-      </Dialog>
-    );
-  };
-
   const renderImportExport = () => (
     <>
     <SettingSection
@@ -3098,7 +2990,7 @@ export default function SettingsView({
       </Box>
       {importMessage ? <Alert severity={importMessage.severity}>{importMessage.text}</Alert> : null}
     </SettingSection>
-    {renderTransferImportDialog()}
+
     </>
   );
 
@@ -3150,6 +3042,15 @@ export default function SettingsView({
         {section === "dataplane" ? renderDataplane() : null}
         {section === "importExport" ? renderImportExport() : null}
       </Box>
+    {pendingImport && pendingImport.context === activeContext && pendingImport.token === token ? (
+      <SettingsImportReviewDialog
+        document={pendingImport.document} text={pendingImport.text}
+        token={token} activeContext={activeContext} contextOptions={contextOptions}
+        settings={settings} appState={appState} replaceSettings={replaceSettings} setAppState={setAppState}
+        onImportAppState={onImportAppState}
+        setImportText={setImportText} setImportMessage={setImportMessage} onClose={closeImportReview}
+      />
+    ) : null}
     </Box>
   );
 }

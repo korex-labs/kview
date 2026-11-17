@@ -624,6 +624,13 @@ function AppInner() {
                     activeNamespace={namespace}
                     appState={appState}
                     setAppState={setAppState}
+                    onImportAppState={(state) => {
+                      cancelPendingViewNavigation();
+                      setAppState({ ...state, activeSection: state.activeSection || section });
+                      // Reuse startup's authenticated context/namespace validation and
+                      // routing, not just persistence while the mounted shell stays stale.
+                      setBootstrapNonce((value) => value + 1);
+                    }}
                     onClose={() => setSettingsOpen(false)}
                   />
                 </React.Suspense>

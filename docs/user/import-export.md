@@ -21,9 +21,23 @@ Dataplane signal settings, favourite namespaces, recent namespaces, signal
 acknowledgements when available, bounded **Signal memory**, active-context
 **Signal suppressions**, and saved Investigation Snapshots.
 
-When importing a transfer bundle, kview detects the bundle and opens a review
-dialog. The dialog shows the available sections, lets you choose which sections
-to import, and applies the selected merge strategy.
+Uploading a file or pasting JSON opens the same review dialog for transfer
+bundles, full profiles, and raw user settings. Each section shows added, changed,
+and removed counts; **Show differences** expands the before/after values with
+sensitive payloads redacted. Select the sections to import, then choose **Apply**.
+Unselected sections stay unchanged. **Cancel** before Apply discards the preview.
+Transfer bundles also offer a merge strategy.
+
+Preview reads current remote records but never writes them. A failed read blocks
+that selected section until **Retry current values** succeeds or you deselect it.
+Remote records can change after preview; the server validates expiry, limits, and
+other rules again on Apply. After a partial failure, the error remains visible
+and remote baselines refresh without automatically retrying writes.
+
+Unsupported or invalid fields may be omitted or replaced with defaults. Review
+the normalized differences and acknowledge the warning before applying. If local
+values change while reviewing, Apply refreshes the differences first and requires
+another explicit Apply.
 
 **Cancel** stops further import work; changing context or authentication also
 cancels pending transfers. Cancellation or a later failure cannot undo server-side
@@ -94,9 +108,17 @@ See [Dashboard And Signals](dashboard-and-signals.md#snooze-and-ignore-until-cha
 
 ## Full Profile Backup
 
-Full profile export writes the complete kview user settings profile. This is
-useful for backup and restore, but it is broader than a transfer bundle. A full
-profile import replaces the current settings profile after confirmation.
+Full profile export includes user settings, saved operator profiles, and browser
+navigation, favourites, and layout. It does not include server-owned signal
+records or Investigation Snapshots; use their transfer sections separately.
+
+Full profile import uses the section review instead of a native confirmation.
+**Navigation, favourites and layout** is independently selectable. When selected,
+Apply validates the imported context through normal startup routing; an omitted
+active section preserves the currently displayed section. Raw user settings have
+no navigation section. Supported formats are full profile version 1, transfer
+bundle version 1, and raw user settings versions 1 and 2; unsupported envelopes
+are rejected rather than treated as another format.
 
 ## Common Workflows
 

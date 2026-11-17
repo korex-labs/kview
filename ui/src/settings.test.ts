@@ -972,6 +972,25 @@ describe("user settings", () => {
     expect(applied.settings.dataplane.contextOverrides["other-context"]).toBeUndefined();
   });
 
+  it.each(["keepMine", "useImported", "replaceSections"] as const)("preserves unselected section references during selective %s imports", (strategy) => {
+    const settings = defaultUserSettings();
+    const appState = { v: 1 as const, favouriteNamespacesByContext: {} };
+    const bundle = parseSettingsTransferJSON(JSON.stringify({
+      kind: "kview.settingsTransfer", v: 1,
+      sections: { logs: { lines: -1, wrap: false, pretty: false } },
+    }));
+    expect(bundle).not.toBeNull();
+    const applied = applySettingsTransferBundle({ settings, appState, bundle: bundle!, sections: ["logs"], strategy });
+    for (const key of Object.keys(settings) as Array<keyof typeof settings>) {
+      if (key !== "logs") expect(applied.settings[key]).toBe(settings[key]);
+    }
+    expect(applied.appState).toBe(appState);
+    expect(applied.settings.logs).toEqual(strategy === "keepMine" ? settings.logs : bundle!.sections.logs);
+    const noLocalSelection = applySettingsTransferBundle({ settings, appState, bundle: bundle!, sections: ["signalHistory"], strategy });
+    expect(noLocalSelection.settings).toBe(settings);
+    expect(noLocalSelection.appState).toBe(appState);
+  });
+
   it("merges transfer sections while keeping local conflicts", () => {
     const current = defaultUserSettings();
     current.customCommands.commands = [
