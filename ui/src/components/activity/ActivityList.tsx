@@ -123,7 +123,7 @@ export default function ActivityList({
   }
 
   return (
-    <Box sx={compactTableContainerSx}>
+    <Box className="kview-native-scrollbar" sx={compactTableContainerSx}>
       <Table size="small" stickyHeader sx={compactTableSx}>
         <TableHead>
           <TableRow>

@@ -711,7 +711,7 @@ export default function ActivityTabs({
         {liveWorkErr && !liveWork ? (
           <EmptyState message={`Dataplane work: ${liveWorkErr}`} sx={panelEmptyStateSx} />
         ) : (
-          <Box sx={compactTableContainerSx}>
+          <Box className="kview-native-scrollbar" sx={compactTableContainerSx}>
             {liveWorkErr ? (
               <Typography variant="caption" color="error" sx={{ px: 0.5, py: 0.25, display: "block" }}>
                 {liveWorkErr}
@@ -1035,7 +1035,7 @@ export default function ActivityTabs({
         )}
       </Box>
       <Box sx={{ display: tab === 3 ? "flex" : "none", flex: 1, minHeight: 0, overflow: "hidden", flexDirection: "column" }}>
-        <Box sx={compactTableContainerSx}>
+        <Box className="kview-native-scrollbar" sx={compactTableContainerSx}>
           {sessionsLoading ? (
             <EmptyState message="Loading port forwards..." sx={panelEmptyStateSx} />
           ) : sessionsErr ? (
@@ -1130,6 +1130,7 @@ export default function ActivityTabs({
             <EmptyState message="Unable to load runtime logs." sx={panelEmptyStateSx} />
           ) : (
             <TableContainer
+              className="kview-native-scrollbar"
               ref={logsScrollRef}
               sx={{
                 ...compactTableContainerSx,
