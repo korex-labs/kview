@@ -50,7 +50,6 @@ import {
   dataplaneNamespaceWarmResourceKeys,
   dataplaneTTLResourceKeys,
   exportFullProfileJSON,
-  exportSettingsTransferJSON,
   newSmartFilterRule,
   normalizeKeyboardSettings,
   parseFullProfileJSON,
@@ -59,7 +58,6 @@ import {
   sanitizeRegexFlags,
   smartFilterResourceKeysForScope,
   dataplaneSettingsForContext,
-  applySettingsTransferBundle,
   removeOperatorProfile,
   updateOperatorProfileSnapshot,
 
@@ -77,8 +75,6 @@ import {
   type SettingsResourceScopeMode,
   type SettingsScopeMode,
   type SignalOverride,
-  type SignalHistoryTransferRecord,
-  type SignalSuppressionsTransferSection,
   type SettingsTransferMergeStrategy,
   type SettingsTransferSection,
   type SettingsTransferBundleV1,
@@ -117,18 +113,12 @@ import {
   updateDataplane,
 } from "./dataplaneEdits";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
-import {
-  deleteInvestigationSnapshot,
-  listInvestigationSnapshots,
-  saveInvestigationSnapshotRecord,
-} from "../../investigationSnapshots";
-import type { InvestigationSnapshot } from "../../types/api";
+import { useSettingsTransfer } from "./useSettingsTransfer";
 import type { ApiDataplaneSignalCatalogResponse, DataplaneSignalCatalogItem } from "../../types/api";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import SignalExclusionsDialog, { type SignalExclusionPreview } from "./SignalExclusionsDialog";
 import KeyboardShortcutsEditor from "./KeyboardShortcutsEditor";
 import { buildPerformanceDiagnosticsReport } from "../../utils/performanceDiagnostics";
-import { dispatchSignalSuppressionsChanged } from "../../signalSuppressions";
 import { sideRailIconSx, sideRailListItemSx, sideRailListTextSx, sideRailPaperSx } from "../shared/sideRail";
 import { useKeyboardScope } from "../../keyboard/KeyboardProvider";
 import { dynamicKeyboardActionDefinitions } from "../../keyboard/dynamicActions";
@@ -663,75 +653,6 @@ function transferSectionSummary(bundle: SettingsTransferBundleV1, sectionID: Set
   }
 }
 
-function snapshotTransferKey(snapshot: InvestigationSnapshot): string {
-  const ref = snapshot.primaryResource;
-  return [
-    snapshot.context || "",
-    ref.kind || "",
-    ref.namespace || "",
-    ref.name || "",
-    snapshot.title || "",
-    String(snapshot.createdAt || 0),
-  ].join("\x00");
-}
-
-function uniqueSnapshots(snapshots: InvestigationSnapshot[]): InvestigationSnapshot[] {
-  const seen = new Set<string>();
-  const out: InvestigationSnapshot[] = [];
-  for (const snapshot of snapshots) {
-    const key = snapshot.id ? `${snapshot.context || ""}\x00id\x00${snapshot.id}` : snapshotTransferKey(snapshot);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(snapshot);
-  }
-  return out;
-}
-
-async function listSnapshotsForContexts(token: string, contextNames: string[]): Promise<InvestigationSnapshot[]> {
-  const contexts = Array.from(new Set(contextNames.map((item) => item.trim()).filter(Boolean)));
-  const groups = await Promise.all(contexts.map((contextName) => listInvestigationSnapshots(token, contextName)));
-  return uniqueSnapshots(groups.flat());
-}
-
-async function importInvestigationSnapshotTransfer(input: {
-  token: string;
-  snapshots: InvestigationSnapshot[];
-  strategy: SettingsTransferMergeStrategy;
-}): Promise<{ imported: number; skipped: number; deleted: number }> {
-  const incoming = uniqueSnapshots(input.snapshots);
-  if (incoming.length === 0) return { imported: 0, skipped: 0, deleted: 0 };
-  const contextNames = Array.from(new Set(incoming.map((snapshot) => snapshot.context || "").filter(Boolean)));
-  const existing = await listSnapshotsForContexts(input.token, contextNames);
-  let deleted = 0;
-  let baseline = existing;
-  if (input.strategy === "replaceSections") {
-    for (const snapshot of existing) {
-      if (!snapshot.id) continue;
-      await deleteInvestigationSnapshot(input.token, snapshot.id);
-      deleted += 1;
-    }
-    baseline = [];
-  }
-  const existingByID = new Map(baseline.filter((snapshot) => snapshot.id).map((snapshot) => [snapshot.id || "", snapshot]));
-  const existingByStableKey = new Map(baseline.map((snapshot) => [snapshotTransferKey(snapshot), snapshot]));
-  let imported = 0;
-  let skipped = 0;
-  for (const snapshot of incoming) {
-    const existingIDMatch = snapshot.id ? existingByID.get(snapshot.id) : undefined;
-    const stableMatch = existingByStableKey.get(snapshotTransferKey(snapshot));
-    if (input.strategy === "keepMine" && (existingIDMatch || stableMatch)) {
-      skipped += 1;
-      continue;
-    }
-    const toSave = input.strategy === "useImported" && stableMatch?.id && snapshot.id !== stableMatch.id
-      ? { ...snapshot, id: stableMatch.id }
-      : snapshot;
-    await saveInvestigationSnapshotRecord(input.token, toSave);
-    imported += 1;
-  }
-  return { imported, skipped, deleted };
-}
-
 function HighlightedJsonTextArea({
   value,
   onChange,
@@ -873,7 +794,6 @@ export default function SettingsView({
   const [pendingTransferBundle, setPendingTransferBundle] = useState<SettingsTransferBundleV1 | null>(null);
   const [pendingTransferText, setPendingTransferText] = useState("");
   const [transferDialogMessage, setTransferDialogMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
-  const [transferImportBusy, setTransferImportBusy] = useState(false);
   const [signalHistoryResetBusy, setSignalHistoryResetBusy] = useState(false);
   const [signalHistoryMessage, setSignalHistoryMessage] = useState<{ severity: "success" | "error"; text: string } | null>(null);
   const [performanceSnapshot, setPerformanceSnapshot] = useState("");
@@ -1111,6 +1031,7 @@ export default function SettingsView({
   };
 
   const openTransferReview = (text: string, bundle: SettingsTransferBundleV1) => {
+    cancelTransferImport();
     const available = settingsTransferSectionIds(bundle);
     setImportText(text);
     setPendingTransferText(text);
@@ -1121,161 +1042,14 @@ export default function SettingsView({
     setImportMessage(null);
   };
 
-  const exportTransferSettings = async () => {
-    if (transferSections.length === 0) {
-      setImportMessage({ severity: "error", text: "Select at least one section to export." });
-      return;
-    }
-    try {
-      let signalAcknowledgements: Record<string, Record<string, {
-        acknowledgedAt: number;
-        acknowledgedBy?: string;
-        comment?: string;
-        updatedAt: number;
-      }>> | undefined;
-      let signalHistory: Record<string, Record<string, SignalHistoryTransferRecord>> | undefined;
-      let investigationSnapshots: InvestigationSnapshot[] | undefined;
-      let signalSuppressions: SignalSuppressionsTransferSection | undefined;
-      if (transferSections.includes("signalSuppressions")) {
-        const res = await apiGet<{ active?: string; items?: SignalSuppressionsTransferSection["items"] }>(
-          "/api/dataplane/signals/suppressions/export",
-          token,
-        );
-        signalSuppressions = {
-          sourceContext: res.active || activeContext,
-          items: res.items || {},
-        };
-      }
-      if (transferSections.includes("signalAcknowledgements") && activeContext) {
-        const res = await apiGet<{ active: string; items: Record<string, {
-          acknowledgedAt: number;
-          acknowledgedBy?: string;
-          comment?: string;
-          updatedAt: number;
-        }> }>("/api/dataplane/signals/ack/export", token);
-        signalAcknowledgements = res.active ? { [res.active]: res.items || {} } : {};
-      }
-      if (transferSections.includes("signalHistory") && activeContext) {
-        const res = await apiGet<{ active: string; items: Record<string, SignalHistoryTransferRecord> }>(
-          "/api/dataplane/signals/history/export",
-          token,
-        );
-        signalHistory = res.active ? { [res.active]: res.items || {} } : {};
-      }
-      if (transferSections.includes("investigationSnapshots")) {
-        investigationSnapshots = await listSnapshotsForContexts(token, contextOptions);
-      }
-      const blob = new Blob([
-        exportSettingsTransferJSON({
-          settings,
-          appState,
-          sections: transferSections,
-          signalAcknowledgements,
-          signalHistory,
-          investigationSnapshots,
-          signalSuppressions,
-        }),
-      ], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "kview-settings-transfer.json";
-      a.click();
-      URL.revokeObjectURL(url);
-      setImportMessage({ severity: "success", text: "Transfer bundle exported." });
-    } catch (err) {
-      setImportMessage({ severity: "error", text: (err as Error).message || "Export failed." });
-    }
-  };
+  const { exportTransferSettings, applyTransferImport, cancelTransferImport, transferImportBusy } = useSettingsTransfer({
+    token, activeContext, contextOptions, settings, appState, transferSections, transferImportSections,
+    transferStrategy, replaceSettings, setAppState, setImportText, setImportMessage, setTransferDialogMessage,
+  });
 
-  const applyTransferImport = async (bundle: SettingsTransferBundleV1, text: string) => {
-    const available = settingsTransferSectionIds(bundle);
-    const selected = transferImportSections.filter((id) => available.includes(id));
-    if (selected.length === 0) {
-      setTransferDialogMessage({ severity: "error", text: "Select at least one transfer section to import." });
-      return;
-    }
-    setTransferImportBusy(true);
-    setTransferDialogMessage(null);
-    try {
-      const applied = applySettingsTransferBundle({
-        settings,
-        appState,
-        bundle,
-        sections: selected,
-        strategy: transferStrategy,
-      });
-      if (selected.includes("signalAcknowledgements") && bundle.sections.signalAcknowledgements) {
-        await apiPost("/api/dataplane/signals/ack/import", token, {
-          strategy: transferStrategy,
-          contexts: bundle.sections.signalAcknowledgements,
-        });
-      }
-      let signalSuppressionsImportResult: { imported: number; skipped: number; replaced: number } | null = null;
-      if (selected.includes("signalSuppressions") && bundle.sections.signalSuppressions) {
-        const res = await apiPost<{
-          active?: string;
-          result?: { imported?: number; skipped?: number; replaced?: number };
-        }>("/api/dataplane/signals/suppressions/import", token, {
-          strategy: transferStrategy,
-          items: bundle.sections.signalSuppressions.items,
-        });
-        signalSuppressionsImportResult = {
-          imported: res.result?.imported || 0,
-          skipped: res.result?.skipped || 0,
-          replaced: res.result?.replaced || 0,
-        };
-        dispatchSignalSuppressionsChanged();
-      }
-      let signalHistoryImportResult: { imported: number; skipped: number; replaced: number } | null = null;
-      if (selected.includes("signalHistory") && bundle.sections.signalHistory) {
-        const res = await apiPost<{
-          items: Record<string, { imported: number; skipped: number; replaced: number }>;
-        }>("/api/dataplane/signals/history/import", token, {
-          strategy: transferStrategy,
-          contexts: bundle.sections.signalHistory,
-        });
-        signalHistoryImportResult = Object.values(res.items || {}).reduce(
-          (total, item) => ({
-            imported: total.imported + (item.imported || 0),
-            skipped: total.skipped + (item.skipped || 0),
-            replaced: total.replaced + (item.replaced || 0),
-          }),
-          { imported: 0, skipped: 0, replaced: 0 },
-        );
-      }
-      let snapshotImportResult: Awaited<ReturnType<typeof importInvestigationSnapshotTransfer>> | null = null;
-      if (selected.includes("investigationSnapshots") && bundle.sections.investigationSnapshots) {
-        snapshotImportResult = await importInvestigationSnapshotTransfer({
-          token,
-          snapshots: bundle.sections.investigationSnapshots,
-          strategy: transferStrategy,
-        });
-      }
-      replaceSettings(applied.settings);
-      setAppState(applied.appState);
-      setImportText(text);
-      const signalHistorySuffix = signalHistoryImportResult
-        ? ` Signal memory: ${signalHistoryImportResult.imported} imported, ${signalHistoryImportResult.skipped} skipped${signalHistoryImportResult.replaced ? `, ${signalHistoryImportResult.replaced} replaced` : ""}.`
-        : "";
-      const signalSuppressionsSuffix = signalSuppressionsImportResult
-        ? ` Signal suppressions: ${signalSuppressionsImportResult.imported} imported, ${signalSuppressionsImportResult.skipped} skipped${signalSuppressionsImportResult.replaced ? `, ${signalSuppressionsImportResult.replaced} replaced` : ""}.`
-        : "";
-      const snapshotSuffix = snapshotImportResult
-        ? ` Investigation snapshots: ${snapshotImportResult.imported} imported, ${snapshotImportResult.skipped} skipped${snapshotImportResult.deleted ? `, ${snapshotImportResult.deleted} replaced` : ""}.`
-        : "";
-      setTransferDialogMessage({
-        severity: "success",
-        text: `${selected.length} section${selected.length === 1 ? "" : "s"} imported with "${settingsTransferMergeStrategies.find((item) => item.id === transferStrategy)?.label || transferStrategy}".${signalSuppressionsSuffix}${signalHistorySuffix}${snapshotSuffix}`,
-      });
-      setImportMessage({ severity: "success", text: "Transfer bundle imported." });
-    } catch (err) {
-      const message = (err as Error).message || "Import failed.";
-      setTransferDialogMessage({ severity: "error", text: message });
-      setImportMessage({ severity: "error", text: message });
-    } finally {
-      setTransferImportBusy(false);
-    }
+  const closeTransferReview = () => {
+    cancelTransferImport();
+    setTransferReviewOpen(false);
   };
 
   const resetActiveContextSignalHistory = async () => {
@@ -3141,7 +2915,7 @@ export default function SettingsView({
     const bundle = pendingTransferBundle;
     const available = bundle ? settingsTransferSectionIds(bundle) : [];
     return (
-      <Dialog open={transferReviewOpen && !!bundle} onClose={() => setTransferReviewOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={transferReviewOpen && !!bundle} onClose={closeTransferReview} fullWidth maxWidth="sm">
         <DialogTitle>Import Transfer Bundle</DialogTitle>
         <DialogContent>
           {bundle ? (
@@ -3193,7 +2967,7 @@ export default function SettingsView({
           ) : null}
         </DialogContent>
         <DialogActions>
-          <AppButton variant="text" onClick={() => setTransferReviewOpen(false)}>
+          <AppButton variant="text" onClick={closeTransferReview}>
             {transferDialogMessage?.severity === "success" ? "Done" : "Cancel"}
           </AppButton>
           <AppButton

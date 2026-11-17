@@ -25,6 +25,11 @@ When importing a transfer bundle, kview detects the bundle and opens a review
 dialog. The dialog shows the available sections, lets you choose which sections
 to import, and applies the selected merge strategy.
 
+**Cancel** stops further import work; changing context or authentication also
+cancels pending transfers. Cancellation or a later failure cannot undo server-side
+writes already completed. Local settings are merged only after all selected
+server-side steps succeed, preserving unrelated edits made while waiting.
+
 ## Merge Strategies
 
 Merge strategies decide how imported sections interact with local settings:

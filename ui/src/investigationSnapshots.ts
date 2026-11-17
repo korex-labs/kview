@@ -106,12 +106,14 @@ export async function saveInvestigationSnapshot(token: string, result: SignalInv
   return saveInvestigationSnapshotRecord(token, buildInvestigationSnapshot(result));
 }
 
-export async function saveInvestigationSnapshotRecord(token: string, snapshot: InvestigationSnapshot): Promise<InvestigationSnapshot> {
+export async function saveInvestigationSnapshotRecord(token: string, snapshot: InvestigationSnapshot, opts?: { signal?: AbortSignal }): Promise<InvestigationSnapshot> {
   const response = await apiPost<InvestigationSnapshotResponse>(
     "/api/investigations/snapshots",
     token,
     snapshot,
+    opts,
   );
+  opts?.signal?.throwIfAborted();
   if (!response.item) throw new Error("Investigation snapshot save returned no item");
   notifyInvestigationSnapshotsChanged();
   return response.item;
@@ -145,13 +147,15 @@ export async function listInvestigationSnapshots(
   return Array.isArray(response.items) ? response.items : [];
 }
 
-export async function deleteInvestigationSnapshot(token: string, id: string): Promise<void> {
+export async function deleteInvestigationSnapshot(token: string, id: string, opts?: { signal?: AbortSignal }): Promise<void> {
   const cleaned = id.trim();
   if (!token || !cleaned) return;
   const res = await fetch(`/api/investigations/snapshots/${encodeURIComponent(cleaned)}`, {
     method: "DELETE",
+    signal: opts?.signal,
     headers: { Authorization: `Bearer ${token}` },
   });
+  opts?.signal?.throwIfAborted();
   if (!res.ok) throw new Error(res.statusText || "Failed to delete investigation snapshot");
   notifyInvestigationSnapshotsChanged();
 }
