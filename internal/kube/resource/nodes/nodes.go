@@ -40,13 +40,17 @@ func nodeListItems(nodes []corev1.Node, podCounts map[string]int, now time.Time)
 	out := make([]dto.NodeListItemDTO, 0, len(nodes))
 	for _, n := range nodes {
 		age := int64(0)
+		createdAt := int64(0)
 		if !n.CreationTimestamp.IsZero() {
+			createdAt = n.CreationTimestamp.Unix()
 			age = int64(now.Sub(n.CreationTimestamp.Time).Seconds())
 		}
 
 		out = append(out, dto.NodeListItemDTO{
 			ResourceRelationshipCarrier: relationships.Capture(&n, relationships.NodeDescriptor),
 			Name:                        n.Name,
+			UID:                         string(n.UID),
+			CreatedAt:                   createdAt,
 			Labels:                      n.Labels,
 			Annotations:                 n.Annotations,
 			Status:                      nodeReadyStatus(n.Status.Conditions),

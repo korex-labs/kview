@@ -58,6 +58,11 @@ func main() {
 	srv := server.New(mgr, rt, token)
 	defer srv.CloseStreams()
 	srv.SetReadOnly(*readOnly)
+	if err := srv.InitializeLocalHistory(context.Background()); err != nil {
+		log.Printf("local history: %v", err)
+		rt.Log(runtime.LogLevelWarn, "local-history", err.Error())
+	}
+	defer srv.CloseLocalHistory()
 
 	srv.Actions().Register("scale", kubeactions.HandleDeploymentScale)
 	srv.Actions().Register("restart", kubeactions.HandleDeploymentRestart)
@@ -152,6 +157,7 @@ func main() {
 	defer stopSignals()
 	go func() {
 		<-shutdownCtx.Done()
+		srv.CloseLocalHistory()
 		srv.CloseStreams()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

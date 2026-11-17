@@ -303,6 +303,48 @@ Contexts with their own replacement rules remain isolated from that policy.
 Global-default preview still evaluates cached candidates from the active context
 only; it is not a cross-context scan.
 
+### History
+
+Open **Settings → Dataplane → History** and use the shared **Global defaults** /
+**This context** selector. History settings are saved on the server, separately
+from browser profiles and other Dataplane controls. Global defaults apply to
+inheriting contexts, including newly added contexts; context edits override only
+changed fields. **Reset to global defaults** removes this context's overrides.
+
+- **Enable history by default** or **Enable history for this context** requests
+  collection in the selected scope. Collection and identity consent default OFF;
+  new contexts inherit any explicit global consent.
+- **Enable signal history** is separate consent to retain resource identities and
+  signal observations. Enabling collection alone does not grant this consent.
+- **History retention** selects 30 or 90 days. History records the full Dashboard
+  signal population after Dashboard policy filters, including Node and namespace
+  signals. Dataplane enrichment controls upstream cached data, not a separate
+  History filter. History never makes additional Kubernetes reads.
+- Edits autosave after a short pause and confirm server readback. Rapid edits are
+  serialized; conflicts keep your latest edits for explicit **Retry settings** or
+  **Discard edits**. Opening the tab never saves, enables or resets consent.
+  Read-only mode locks editing. Startup failures name affected contexts: saved
+  defaults remain durable even if collection cannot start in another inheritor.
+- Identity generations belong to exact contexts, are created by the server, and
+  are never copied from global defaults. Applying an unrelated browser profile
+  cannot enable collection or grant identity consent.
+
+An unreadable, malformed or obsolete History settings file disables only History;
+kview still starts. **History** shows the recovery error and blocks edits so that
+autosave cannot overwrite unreadable consent. No settings migration or automatic
+deletion is performed. Check `kview/local-history/settings.json` under your user
+configuration directory (on Linux, `${XDG_CONFIG_HOME:-$HOME/.config}`). To reset
+History explicitly, stop kview, move that file aside as a backup, restart, then
+opt in again. This leaves history database files untouched; incompatible databases
+have their own separate recovery message.
+
+Disabling preserves stored data but stops collection and denies history reads until
+re-enabled. It does not reset identity. Shortening retention prunes during successful
+publication or maintenance; increasing it does not restore deleted observations. View the four charts
+in **Dashboard → History**; there is no settings gear on that dashboard.
+See [Dashboard and signals](dashboard-and-signals.md#collection-settings) for scope,
+coverage and privacy details.
+
 ## Runtime Signal Suppressions
 
 **Snooze 1 hour**, **Snooze 1 day**, and **Ignore until changed** are runtime

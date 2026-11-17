@@ -95,9 +95,6 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 	}
 
 	var aggregateMetas []SnapshotMetadata
-	signals := newDashboardSignalStore()
-	now := time.Now()
-	namespaceMetadata := namespaceSignalMetadataIndex(namespaceSnapshot)
 
 	for _, ns := range knownNS {
 		s := buildSnapshotSetForNamespace(plane, ns, thresholds)
@@ -218,13 +215,6 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 		if s.limitRangesOK {
 			aggregateMetas = append(aggregateMetas, s.limitRanges.Meta)
 		}
-		if includeSignals {
-			rawSignals := enrichSignalsFromMetadataIndex(detectDashboardSignals(now, ns, s), namespaceMetadata)
-			signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(rawSignals, p, plane.name)...)...)
-		}
-	}
-	if includeSignals {
-		signals.Add(m.attachSignalHistory(plane.name, now, applySignalPolicy(enrichNodeSignalMetadata(detectNodeResourcePressureSignals(now, plane, nodesSnap, thresholds.NodeResourcePressurePct), nodesSnap), p, plane.name)...)...)
 	}
 
 	if len(aggregateMetas) > 0 {
@@ -240,12 +230,10 @@ func (m *manager) aggregateClusterDashboardParts(plane *clusterPlane, namespaceS
 	if includeSignals {
 		signalNote := signalPanel.Note
 		opts.NewestSignalLimit = policy.NewestSignalLimit
-		visibleItems, suppressedItems, suppressedSummary := m.projectSignalSuppressionsAt(context.Background(), plane.name, signals.Items(), now)
-		visibleSignals := newDashboardSignalStore()
-		visibleSignals.Add(visibleItems...)
-		signalPanel = visibleSignals.Summary(policy.SignalLimit, opts)
-		signalPanel.Suppressed = suppressedSummary
-		signalPanel.SuppressedItems = suppressionProjectionSample(suppressedItems)
+		projection := m.canonicalDashboardSignals(plane, namespaceSnapshot, nsNamesSorted, nodesSnap, time.Now())
+		projection.items = m.attachSignalHistory(plane.name, projection.at, projection.items...)
+		projection.suppressed = m.attachSignalHistory(plane.name, projection.at, projection.suppressed...)
+		signalPanel = projection.dashboardSummary(policy.SignalLimit, opts)
 		signalPanel.Note = signalNote
 		signalPanel.AggregateFreshness = res.AggregateFreshness
 		signalPanel.AggregateDegradation = res.AggregateDegradation
@@ -419,9 +407,17 @@ type dashboardSnapshotSet struct {
 }
 
 func detectDashboardSignals(now time.Time, ns string, s dashboardSnapshotSet) []ClusterDashboardSignal {
+	return detectDashboardSignalCandidates(now, ns, s, nil)
+}
+
+// Shared pure registry pipeline, before policy/history/filtering/pagination.
+// Admission can require stronger source evidence for retained trends.
+func detectDashboardSignalCandidates(now time.Time, ns string, s dashboardSnapshotSet, admit func(dashboardSignalDetector) bool) []ClusterDashboardSignal {
 	var out []ClusterDashboardSignal
 	for _, detector := range dashboardSignalDetectors {
-		out = append(out, detector.Detect(now, ns, s)...)
+		if admit == nil || admit(detector) {
+			out = append(out, detector.Detect(now, ns, s)...)
+		}
 	}
 	return enrichDashboardSignalMetadata(out, s)
 }

@@ -1,6 +1,7 @@
 import { isClusterScopedResource, type ListResourceKey } from "./utils/k8sResources";
 import { isSection, type AppStateV1 } from "./state";
 import { normalizeLogPreferences, type LogPreferences } from "./logPreferences";
+import { normalizeHistoryPreferences, type HistoryPreferences } from "./historyPreferences";
 import { DEFAULT_TEXT_VIEWER_FONT_SIZE_PX, normalizeTextViewerFontSize } from "./textViewerPreferences";
 import type { InvestigationSnapshot } from "./types/api";
 import type { KeyboardActionId, KeyboardPresetId, KeySequence } from "./keyboard/actions";
@@ -140,6 +141,7 @@ export type SavedResourceViewDefinition = {
 };
 
 export type OperatorProfileSnapshot = {
+  history: HistoryPreferences;
   logs: LogPreferences;
   appearance: KviewUserSettingsV1["appearance"];
   smartFilters: KviewUserSettingsV1["smartFilters"];
@@ -310,6 +312,7 @@ export type DataplaneSettingsV2 = {
 };
 
 export type KviewUserSettingsV2 = {
+  history: HistoryPreferences;
   logs: LogPreferences;
   v: 2;
   appearance: KviewUserSettingsV1["appearance"];
@@ -769,6 +772,7 @@ function toV2Settings(v1: KviewUserSettingsV1): KviewUserSettingsV2 {
     keyboard: v1.keyboard,
     podDebug: defaultPodDebugSettings(),
     logs: normalizeLogPreferences(),
+    history: normalizeHistoryPreferences(),
     dataplane: {
       global,
       contextOverrides: dataplaneContextOverridesFromLegacy(v1.dataplane.signals.contextOverrides),
@@ -805,6 +809,7 @@ export function operatorProfileSnapshotFromSettings(settings: KviewUserSettingsV
     keyboard: settings.keyboard,
     podDebug: settings.podDebug,
     logs: settings.logs,
+    history: settings.history,
     dataplane: settings.dataplane,
   });
 }
@@ -2554,6 +2559,7 @@ export function validateUserSettings(input: unknown): KviewUserSettingsV2 | null
     v: 2,
     appearance: fallbackAsV1.appearance,
     logs: normalizeLogPreferences(root.logs),
+    history: normalizeHistoryPreferences(root.history),
     smartFilters: fallbackAsV1.smartFilters,
     resourceTags: normalizeResourceTagsSettings(root.resourceTags),
     resourceMacros: normalizeResourceMacrosSettings(root.resourceMacros),

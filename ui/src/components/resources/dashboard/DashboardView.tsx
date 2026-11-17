@@ -33,6 +33,7 @@ import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import DashboardSignalsTab from "./DashboardSignalsTab";
 import DashboardDataplaneTab from "./DashboardDataplaneTab";
+import DashboardHistoryTab from "./DashboardHistoryTab";
 import type { InspectTarget } from "./dashboardTypes";
 import NamespaceDrawer from "../namespaces/NamespaceDrawer";
 import PodDrawer from "../pods/PodDrawer";
@@ -72,6 +73,7 @@ type Props = {
   token: string;
   favouriteNamespaces?: string[];
   recentNamespaces?: string[];
+  historySelection?: Pick<React.ComponentProps<typeof DashboardHistoryTab>, "favouriteNamespaces" | "recentNamespaces" | "namespaceInventory">;
   onNavigate?: (section: string, namespace: string) => void;
 };
 
@@ -81,11 +83,12 @@ const DASHBOARD_WARMUP_RETRY_MS = 1_500;
 const DASHBOARD_WARMUP_RETRY_ATTEMPTS = 12;
 const DASHBOARD_TAB_STORAGE_KEY = "kview:dashboardTab:v1";
 
-type DashboardTab = "signals" | "dataplane";
+type DashboardTab = "signals" | "dataplane" | "history";
 
 function loadDashboardTab(): DashboardTab {
   try {
-    return localStorage.getItem(DASHBOARD_TAB_STORAGE_KEY) === "dataplane" ? "dataplane" : "signals";
+    const saved = localStorage.getItem(DASHBOARD_TAB_STORAGE_KEY);
+    return saved === "dataplane" || saved === "history" ? saved : "signals";
   } catch {
     return "signals";
   }
@@ -542,6 +545,8 @@ export default function DashboardView(props: Props) {
   const deleteDashboardProfile = settings.savedViews.find((view) => view.id === deleteDashboardProfileId) || null;
 
   useEffect(() => {
+    // History owns its local reads; never use the live Dashboard request/polling lane.
+    if (activeDashboardTab === "history") return;
     if (!dashboardViewReady || deferredSignalsQuery !== signalsQuery || health === "unhealthy" || !pageVisible) return;
     let cancelled = false;
     const tab = activeDashboardTab;
@@ -775,6 +780,7 @@ export default function DashboardView(props: Props) {
         flexDirection: "column",
         gap: 2,
         overflowY: "auto",
+        scrollbarGutter: "stable",
         overflowX: "hidden",
         pb: 2,
         boxSizing: "border-box",
@@ -796,7 +802,7 @@ export default function DashboardView(props: Props) {
       <Box sx={{ px: 2, pt: 1, display: "flex", alignItems: "center", gap: 0.75 }}>
         <ResourceIcon name="dashboard" size={21} sx={{ color: "primary.main" }} />
         <Typography variant="h6">Cluster dashboard</Typography>
-        <InfoHint title="Dataplane snapshot view. Resource totals and signals use cached namespace list snapshots only; unknown namespaces are not inferred." />
+        <InfoHint title={activeDashboardTab === "history" ? "Stored cached history for the active context. Collection is opt-in via Settings → Dataplane → History; opening History does not collect samples or refresh caches." : "Dataplane snapshot view. Resource totals and signals use cached namespace list snapshots only; unknown namespaces are not inferred."} />
       </Box>
 
       <Tabs
@@ -806,10 +812,14 @@ export default function DashboardView(props: Props) {
           persistDashboardTab(value);
         }}
         aria-label="Dashboard sections"
-        sx={{ px: 2, borderBottom: "1px solid var(--panel-border)", minHeight: 40 }}
+        variant="scrollable"
+        scrollButtons
+        allowScrollButtonsMobile
+        sx={{ px: 2, borderBottom: "1px solid var(--panel-border)", minHeight: 40, flexShrink: 0, minWidth: 0, maxWidth: "100%", "& .MuiTab-root": { flexShrink: 0 }, "& .MuiTabs-scrollButtons": { flexShrink: 0, width: 32 } }}
       >
         <Tab value="signals" id="dashboard-tab-signals" aria-controls="dashboard-panel-signals" label="Signals" />
         <Tab value="dataplane" id="dashboard-tab-dataplane" aria-controls="dashboard-panel-dataplane" label="Dataplane" />
+        <Tab value="history" id="dashboard-tab-history" aria-controls="dashboard-panel-history" label="History" />
       </Tabs>
 
       {activeDashboardTab === "signals" ? (
@@ -840,7 +850,7 @@ export default function DashboardView(props: Props) {
         </Box>
       ) : null}
 
-      {loading && (
+      {loading && activeDashboardTab !== "history" && (
         <Box sx={{ px: 2, display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={18} />
           <Typography variant="body2" color="text.secondary">
@@ -911,6 +921,12 @@ export default function DashboardView(props: Props) {
             />
           ) : null}
         </Box>
+      </Box>
+
+      <Box id="dashboard-panel-history" role="tabpanel" aria-labelledby="dashboard-tab-history"
+        hidden={activeDashboardTab !== "history"} tabIndex={0}
+        sx={{ px: 2, display: activeDashboardTab === "history" ? "block" : "none" }}>
+        <DashboardHistoryTab token={props.token} context={activeContext} active={activeDashboardTab === "history"} {...props.historySelection} />
       </Box>
 
       <DashboardInspectDrawers

@@ -138,6 +138,9 @@ type ResourceRelationshipSourceDTO struct {
 // legacy Selector field remains for v1 compatibility; new selector evidence is
 // persisted in ResourceRelationshipSelectorDTO instead.
 type ResourceRelationshipEvidenceDTO struct {
+	// VolumeName preserves direct volume display provenance for template signals.
+	// Older sidecars omit it; they cannot prove exact detail-signal parity.
+	VolumeName  string            `json:"volumeName,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Selector    map[string]string `json:"selector,omitempty"`
 }

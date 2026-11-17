@@ -189,6 +189,7 @@ function AppInner() {
   const namespaceAbort = useRef<AbortController | null>(null);
 
   const [namespaces, setNamespaces] = useState<string[]>([]);
+  const [historyInventory, setHistoryInventory] = useState<{ context: string; token: string; items: Array<{ name: string }> }>();
   const [nsLimited, setNsLimited] = useState<boolean>(false);
   const [namespace, setNamespace] = useState<string>("");
 
@@ -459,6 +460,7 @@ function AppInner() {
       if (!current()) return;
       setNsLimited(limited);
       setNamespaces(items);
+      setHistoryInventory({ context: activeContext, token, items: items.map(name => ({ name })) });
       if (!preserveSelection && selection === namespaceSelection.current) {
         const chosen = pickNamespace({ limited, items, preferred });
         setNamespace(chosen);
@@ -825,6 +827,7 @@ function AppInner() {
                   {section === "dashboard" ? (
                     <DashboardView
                       token={token}
+                      historySelection={{ favouriteNamespaces: appState.favouriteNamespacesByContext[activeContext] || [], recentNamespaces, namespaceInventory: historyInventory }}
                       favouriteNamespaces={
                         settings.appearance.dashboardFavouriteNamespaceFilters ? favourites : []
                       }

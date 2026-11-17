@@ -150,6 +150,30 @@ func buildEnrichmentWorkOrder(itemOrder []string, hints NamespaceEnrichHints, ma
 	return candidates
 }
 
+// effectiveNamespaceEnrichmentNames is pure upstream enrichment eligibility,
+// including the entire sweep set rather than its transient queue or completion ledger.
+// It is not a History population filter.
+func effectiveNamespaceEnrichmentNames(order []string, hints NamespaceEnrichHints, policy NamespaceEnrichmentPolicy) []string {
+	if !policy.Enabled {
+		return nil
+	}
+	out := buildEnrichmentWorkOrder(order, applyNamespaceEnrichmentPolicyHints(hints, policy), policy.MaxTargets)
+	seen := make(map[string]bool, len(out))
+	for _, n := range out {
+		seen[n] = true
+	}
+	for _, n := range order {
+		if namespaceSweepEligible(n, policy) && !seen[n] {
+			out = append(out, n)
+			seen[n] = true
+		}
+	}
+	return out
+}
+func namespaceSweepEligible(name string, policy NamespaceEnrichmentPolicy) bool {
+	return policy.Enabled && policy.Sweep.Enabled && name != "" && (policy.Sweep.IncludeSystemNamespaces || !isSystemNamespace(name))
+}
+
 func applyNamespaceEnrichmentPolicyHints(hints NamespaceEnrichHints, policy NamespaceEnrichmentPolicy) NamespaceEnrichHints {
 	out := NamespaceEnrichHints{Favorite: make(map[string]struct{})}
 	if policy.IncludeFocus {
@@ -163,13 +187,16 @@ func applyNamespaceEnrichmentPolicyHints(hints NamespaceEnrichHints, policy Name
 		out.Recent = append(out.Recent, hints.Recent[:limit]...)
 	}
 	if policy.IncludeFavourites && policy.FavouriteLimit > 0 {
-		count := 0
+		names := make([]string, 0, len(hints.Favorite))
 		for n := range hints.Favorite {
-			if count >= policy.FavouriteLimit {
-				break
-			}
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		if len(names) > policy.FavouriteLimit {
+			names = names[:policy.FavouriteLimit]
+		}
+		for _, n := range names {
 			out.Favorite[n] = struct{}{}
-			count++
 		}
 	}
 	return out

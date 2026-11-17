@@ -7,7 +7,7 @@ import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
 import { defaultKeyboardSettings, defaultUserSettings, saveUserSettings } from "../../settings";
-import { apiGet, apiPost } from "../../api";
+import { apiGet, apiPost, apiGetWithContext, apiPostWithContext } from "../../api";
 import { SIGNAL_SUPPRESSIONS_CHANGED_EVENT } from "../../signalSuppressions";
 
 vi.mock("../../api", () => ({
@@ -24,6 +24,7 @@ vi.mock("../../api", () => ({
       }
     : {}),
   apiPost: vi.fn(async () => ({})),
+  apiPostWithContext: vi.fn(async () => ({})),
 }));
 
 function renderSettings(onClose = vi.fn()) {
@@ -113,6 +114,37 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+});
+
+describe("SettingsView history navigation", () => {
+  it("mounts history only under Dataplane, preserves old consent and never writes on navigation", async () => {
+    vi.mocked(apiGetWithContext).mockResolvedValueOnce({
+      context: "kind-test", global: { enabled: true, signalHistory: false, retentionDays: 90 }, globalRevision: 0, override: {}, policy: { enabled: true, signalHistory: false, signalEpoch: "preserved-generation", retentionDays: 90, revision: 7 },
+      editable: true, error: "", collector: { enabled: true },
+      signalHistoryCapability: { available: true, requiresIdentityConsent: true, epochRequired: false },
+    });
+    renderSettings();
+    expect(screen.queryByRole("tab", { name: "History" })).toBeNull();
+    expect(apiGetWithContext).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Dataplane"));
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    const consent = await screen.findByRole("switch", { name: /^Enable signal history/ });
+    expect((consent as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("switch", { name: /^Enable history by default/ }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole("checkbox", { name: "Include Node signals" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: /History retention/ }).textContent).toContain("90 days");
+    expect(screen.getAllByRole("button", { name: "Global defaults" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "This context" })).toHaveLength(1);
+    expect(screen.getAllByText("History", { selector: "h6" })).toHaveLength(1);
+    expect(screen.queryByText(/History settings ·/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /epoch/i })).toBeNull();
+    expect(apiGetWithContext).toHaveBeenCalledWith("/api/history/settings", "test-token", "kind-test", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    const requestSignal = vi.mocked(apiGetWithContext).mock.calls[0][3]?.signal;
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    expect(requestSignal?.aborted).toBe(true);
+    expect(screen.queryByRole("switch", { name: /^Enable signal history/ })).toBeNull();
+    expect(apiPostWithContext).not.toHaveBeenCalled();
+  });
 });
 
 describe("SettingsView statistics consent", () => {

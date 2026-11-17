@@ -1,4 +1,5 @@
 import { useStatisticsConsent, setStatisticsConsent } from "../../installationStatistics";
+import HistorySettings from "./HistorySettings";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -124,7 +125,7 @@ import PodToolsSettingsSection from "./sections/PodToolsSettingsSection";
 import CustomActionsSettingsSection from "./sections/CustomActionsSettingsSection";
 
 type SettingsSection = "appearance" | "profiles" | "keyboard" | "smartFilters" | "resourceTags" | "linksMacros" | "commands" | "actions" | "dataplane" | "importExport";
-type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "cache";
+type DataplaneTab = "overview" | "enrichment" | "metrics" | "signals" | "history" | "cache";
 type LinksMacrosTab = "manual" | "extractors" | "links";
 type ResourceTagsTab = "manual" | "auto";
 
@@ -199,6 +200,7 @@ const dataplaneTabs: Array<{ value: DataplaneTab; label: string; icon: SettingsI
   { value: "enrichment", label: "Enrichment", icon: "enrichment" },
   { value: "metrics", label: "Metrics", icon: "metrics" },
   { value: "signals", label: "Signals", icon: "signals" },
+  { value: "history", label: "History", icon: "signals" },
   { value: "cache", label: "Cache", icon: "cache" },
 ];
 
@@ -2646,12 +2648,14 @@ export default function SettingsView({
           title="Dataplane"
           icon={<SettingsIcon name="dataplane" />}
           hint={
-            dataplaneEditScope === "context" && activeContext
+            dataplaneTab === "history"
+              ? "History consent and retention autosave on this server. Global defaults apply to inheriting contexts; custom fields override them. Browser profiles do not change consent."
+              : dataplaneEditScope === "context" && activeContext
               ? `Dataplane controls cached Kubernetes snapshots, namespace enrichment, metrics sampling cadence, and derived signals. Editing sparse overrides for ${activeContext}; unchanged fields inherit from global defaults.`
               : "Dataplane controls cached Kubernetes snapshots, namespace enrichment, metrics sampling cadence, and derived signals. Editing global defaults shared by all contexts without local overrides."
           }
         >
-          <Box>
+          {<Box>
             <ToggleButtonGroup
               exclusive
               size="small"
@@ -2664,7 +2668,7 @@ export default function SettingsView({
               <ToggleButton value="global">Global defaults</ToggleButton>
               <ToggleButton value="context" disabled={!activeContext}>This context</ToggleButton>
             </ToggleButtonGroup>
-          </Box>
+          </Box>}
           <Tabs
             value={dataplaneTab}
             onChange={(_, value: DataplaneTab) => setDataplaneTab(value)}
@@ -2685,6 +2689,8 @@ export default function SettingsView({
             ))}
           </Tabs>
         </SettingSection>
+
+        {dataplaneTab === "history" && <HistorySettings token={token} context={activeContext} scope={dataplaneEditScope} />}
 
         {dataplaneTab === "overview" && (
           <>

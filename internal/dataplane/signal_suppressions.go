@@ -89,7 +89,17 @@ func (m *manager) projectSignalSuppressionsAt(ctx context.Context, contextName s
 		return append(visible, prepared...), suppressed, summary
 	}
 
+	return projectPreparedSignalSuppressions(prepared, records, now)
+}
+
+// Pure partition over a captured immutable configuration; never hydrates or prunes.
+func projectPreparedSignalSuppressions(prepared []ClusterDashboardSignal, records map[string]SignalSuppressionRecord, now time.Time) (visible, suppressed []ClusterDashboardSignal, summary SignalSuppressionSummary) {
+	visible = make([]ClusterDashboardSignal, 0, len(prepared))
+	suppressed = make([]ClusterDashboardSignal, 0)
 	for _, item := range prepared {
+		item = cloneClusterDashboardSignal(item)
+		item.StateFingerprint = clusterDashboardSignalStateFingerprint(item)
+		item.Suppression = nil
 		key := strings.TrimSpace(item.HistoryKey)
 		record, ok := records[key]
 		if key == "" || !ok || !signalSuppressionRecordActive(record, item.StateFingerprint, now.UTC()) {
@@ -446,6 +456,7 @@ func (m *manager) suppressSignalAt(contextName string, req SignalSuppressionRequ
 	}
 	m.signalSuppressions[contextName][normalized.HistoryKey] = rec
 	m.signalSuppressionsMu.Unlock()
+	m.invalidateCanonicalHistory(contextName)
 	return rec, nil
 }
 
@@ -475,6 +486,7 @@ func (m *manager) UnsuppressSignal(contextName, historyKey string) error {
 	m.signalSuppressionsMu.Lock()
 	delete(m.signalSuppressions[contextName], historyKey)
 	m.signalSuppressionsMu.Unlock()
+	m.invalidateCanonicalHistory(contextName)
 	return nil
 }
 
@@ -599,6 +611,7 @@ func (m *manager) importSignalSuppressionsAt(contextName string, incoming map[st
 	m.signalSuppressionsMu.Lock()
 	m.signalSuppressions[contextName] = next
 	m.signalSuppressionsMu.Unlock()
+	m.invalidateCanonicalHistory(contextName)
 	return result, nil
 }
 
@@ -640,5 +653,6 @@ func (m *manager) ResetSignalSuppressions(contextName, historyKey string) (int, 
 	m.signalSuppressionsMu.Lock()
 	m.signalSuppressions[contextName] = next
 	m.signalSuppressionsMu.Unlock()
+	m.invalidateCanonicalHistory(contextName)
 	return removed, nil
 }

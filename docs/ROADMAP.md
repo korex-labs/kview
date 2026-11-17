@@ -237,38 +237,23 @@ and live user-authorized reads; enable shared cached surfaces resource by
 resource only after exact authorization contracts and cross-user isolation tests
 exist.
 
-### Time-Series / RRD-Style Operator Statistics (Candidate Spike)
+### Signal History
 
-kview already computes many bounded gauges and counters: resource totals, signal
-counts/severity, cache coverage and freshness, scheduler/dataplane pressure,
-namespace sweep progress, profile/scope usage, and projection degradation. A
-future investigation pack should estimate the cost of retaining these as
-local-first time-series statistics and drawing historical trends without turning
-kview into a general metrics backend.
+The current prerelease contract is a local, opt-in signal history with four
+simultaneous charts: Severity, Signal types, Nodes and Namespaces. Collection
+uses the canonical Dashboard signal projection and published cache evidence;
+reads never trigger Kubernetes requests or collection. Settings → Dataplane →
+History owns exact-context collection, separate resource-identity consent,
+and retention. History records the full Dashboard signal population after its
+policy filters, including Node and namespace signals. Dataplane enrichment controls
+upstream caches, not a separate History filter; chart rankings remain browser preferences.
 
-The spike should:
-
-- inventory existing metric producers and classify each value as a gauge,
-  monotonic counter, bounded distribution, state transition, or event count;
-- define stable low-cardinality identity dimensions (`context`, resource kind,
-  scope/family, signal type/severity, dataplane profile) and explicitly reject
-  resource-name/UID and other unbounded labels;
-- compare an embedded round-robin/ring design with minute/hour/day rollups against
-  reuse of the existing local database, including schema/versioning, retention,
-  restart behavior, disk/memory budgets, compaction, and export/reset semantics;
-- sample only already-computed snapshots/projections/runtime state—never add
-  Kubernetes reads or make dashboard rendering the owner of collection;
-- preserve exact-context isolation and record unknown/partial/stale evidence
-  separately from numeric zero;
-- prototype bounded query APIs and compact trend graphs for resource totals,
-  signals, dataplane metrics/usage/scope, scheduler pressure, cache coverage, and
-  degradation;
-- benchmark write amplification, cardinality, storage growth, query latency, and
-  UI payload size before selecting a storage format or implementation tranche.
-
-Do not adopt Prometheus-style unrestricted labels or retain raw per-resource
-samples by default. The expected outcome of the spike is a costed architecture
-choice and one narrow end-to-end graph, not a broad observability rewrite.
+See [Signal history architecture](SIGNAL_HISTORY_DESIGN.md) for the publication,
+coverage, identity, storage and query contracts, and [operator help](user/dashboard-and-signals.md#history)
+for the controls. Remaining work is prerelease integration verification and
+measurement of canonical-path storage growth, write amplification, query cost
+and backpressure before increasing capacity limits. This is not a general metrics
+backend or a resource CPU/memory history feature.
 
 ### Backend-Owned View And Workflow Contracts
 

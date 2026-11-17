@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DashboardView from "./DashboardView";
 import { ActiveContextProvider } from "../../../activeContext";
@@ -9,6 +9,7 @@ import { notifyStatus } from "../../../connectionState";
 import { UserSettingsProvider } from "../../../settingsContext";
 import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dispatchSignalSuppressionsChanged } from "../../../signalSuppressions";
+import { trendWindow } from "./signalTrends";
 
 const apiGet = vi.fn();
 
@@ -229,6 +230,74 @@ afterEach(() => {
 });
 
 describe("DashboardView warmup loading", () => {
+  it("keeps real history independent of live dashboard polling and binds requests to context", async () => {
+    localStorage.setItem("kview:dashboardTab:v1", "history");
+    apiGet.mockImplementation((path: string, _token: string, context: string) => {
+      if (path === "/api/history/inventory") return Promise.resolve({ context, rules: [], nodes: [], namespaces: [], truncated: false });
+      if (path === "/api/dataplane/signals/catalog") return Promise.resolve({ active: context, items: [] });
+      if (path.startsWith("/api/history/signal-trends")) return Promise.reject({ status: 409 });
+      return Promise.resolve(readyDashboardResponse());
+    });
+    const view = renderDashboard("synthetic-active-a");
+    const tabStrip = screen.getByRole("tablist").closest(".MuiTabs-root")!;
+    const scrollSlots = Array.from(tabStrip.querySelectorAll(".MuiTabs-scrollButtons"));
+    expect(scrollSlots).toHaveLength(2);
+    for (const slot of scrollSlots) {
+      expect(getComputedStyle(slot).width).toBe("32px");
+      expect(getComputedStyle(slot).flexShrink).toBe("0");
+      expect(getComputedStyle(slot).display).not.toBe("none");
+    }
+    const scrollPane = tabStrip.parentElement!;
+    expect(getComputedStyle(scrollPane).scrollbarGutter).toBe("stable");
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
+    await screen.findByText(/Signal history is off/);
+    expect(screen.getByRole("heading", { name: "Cluster dashboard" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "History mode" })).toBeNull();
+    // Enumerate History's trend, catalog and inventory reads plus Dashboard's
+    // independent metrics-capability read; reject extra requests or live dashboard data.
+    const window = trendWindow(1);
+    const signalPath = `/api/history/signal-trends?${new URLSearchParams({ ...window, rulesMode: "topHigh10", nodesMode: "topHigh10", namespacesMode: "topHigh10" })}`;
+    const expectedCalls = [
+      [signalPath, "test-token", "synthetic-active-a"],
+      ["/api/dataplane/signals/catalog", "test-token", "synthetic-active-a"],
+      ["/api/history/inventory", "test-token", "synthetic-active-a"],
+      ["/api/dataplane/metrics/status", "test-token", "synthetic-active-a"],
+    ];
+    expect(apiGet.mock.calls.map(call => call.slice(0, 3))).toEqual(expectedCalls);
+    expect(apiGet.mock.calls.filter(call => String(call[0]).startsWith("/api/dashboard/"))).toHaveLength(0);
+    view.rerender(dashboardElement("synthetic-active-b"));
+    await screen.findByText(/Signal history is off/);
+    expect(apiGet.mock.calls.filter(call => String(call[0]).startsWith("/api/history/signal-trends")).map(call => call.slice(1, 3))).toEqual([
+      ["test-token", "synthetic-active-a"],
+      ["test-token", "synthetic-active-b"],
+    ]);
+    fireEvent.click(screen.getByRole("tab", { name: "Signals" }));
+    expect(screen.getByRole("tablist").closest(".MuiTabs-root")).toBe(tabStrip);
+    expect(Array.from(tabStrip.querySelectorAll(".MuiTabs-scrollButtons"))).toEqual(scrollSlots);
+    await waitFor(() => expect(apiGet.mock.calls.some(call => String(call[0]).startsWith("/api/dashboard/signals"))).toBe(true));
+    const historyCalls = apiGet.mock.calls.filter(call => String(call[0]).startsWith("/api/history")).length;
+    vi.useFakeTimers();
+    await act(async () => { vi.advanceTimersByTime(120_000); });
+    expect(apiGet.mock.calls.filter(call => String(call[0]).startsWith("/api/history"))).toHaveLength(historyCalls);
+    vi.useRealTimers();
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    await screen.findByText(/Signal history is off/);
+    for (const name of ["Dataplane", "Signals", "History"]) {
+      fireEvent.click(screen.getByRole("tab", { name }));
+      expect(screen.getByRole("tab", { name }).getAttribute("aria-selected")).toBe("true");
+      expect(screen.getByRole("tablist").closest(".MuiTabs-root")).toBe(tabStrip);
+      expect(Array.from(tabStrip.querySelectorAll(".MuiTabs-scrollButtons"))).toEqual(scrollSlots);
+      expect(tabStrip.parentElement).toBe(scrollPane);
+      expect(getComputedStyle(scrollPane).scrollbarGutter).toBe("stable");
+      for (const slot of scrollSlots) {
+        expect(getComputedStyle(slot).width).toBe("32px");
+        expect(getComputedStyle(slot).flexShrink).toBe("0");
+        expect(getComputedStyle(slot).display).not.toBe("none");
+      }
+      await act(async () => {});
+    }
+  });
+
   it("applies the active signal view before the first dashboard render", async () => {
     localStorage.setItem("kview:dashboardSignalViewProfiles:v1", JSON.stringify({
       activeProfileId: "prod",

@@ -3,6 +3,7 @@ package dataplane
 import (
 	"context"
 	"encoding/json"
+	"github.com/korex-labs/kview/v5/internal/localhistory"
 	"reflect"
 	"strings"
 	"sync"
@@ -339,6 +340,9 @@ type manager struct {
 	mu        sync.RWMutex
 	planes    map[string]*clusterPlane
 	planeInit map[string]chan struct{}
+	// Latest browser hints, process-local and protected by mu. No restart inference.
+	// Exact consent bindings also cover not-yet-created planes; protected by mu.
+	historySubscriptions map[string]*localhistory.PublicationQueue
 
 	scheduler *workScheduler
 	clients   ClientsProvider
@@ -510,6 +514,7 @@ func (m *manager) setPolicyBundle(bundle DataplanePolicyBundle) DataplanePolicyB
 			m.policyMu.Unlock()
 		}
 	}
+	m.invalidateCanonicalHistory("")
 	return CloneDataplanePolicyBundle(nextBundle)
 }
 
@@ -673,6 +678,7 @@ func (m *manager) PlaneForCluster(_ context.Context, clusterName string) (Cluste
 	p.podEventsLifecycle = &m.podEventsLifecycle
 	p.hydrationManager = m
 	m.mu.Lock()
+	p.historyPublications.Store(m.historySubscriptions[clusterName])
 	m.planes[clusterName] = p
 	m.mu.Unlock()
 	m.queueSnapshotHydration(p)
@@ -798,9 +804,10 @@ type clusterPlane struct {
 	persistHydrating        atomic.Bool
 	persistHydrationPartial atomic.Bool
 
-	policy      func() DataplanePolicy
-	persistence func() snapshotPersistence
-	stats       *dataplaneSessionStats
+	policy              func() DataplanePolicy
+	persistence         func() snapshotPersistence
+	stats               *dataplaneSessionStats
+	historyPublications atomic.Pointer[localhistory.PublicationQueue]
 }
 
 func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope ObservationScope, policy func() DataplanePolicy, persistence func() snapshotPersistence, stats *dataplaneSessionStats) *clusterPlane {
@@ -843,36 +850,36 @@ func newClusterPlane(name string, profile Profile, mode DiscoveryMode, scope Obs
 		persistence:          persistence,
 		stats:                stats,
 	}
-	p.nsStore.configureTelemetry(stats, name, ResourceKindNamespaces)
-	p.nodesStore.configureTelemetry(stats, name, ResourceKindNodes)
-	p.persistentVolumesStore.configureTelemetry(stats, name, ResourceKindPersistentVolumes)
-	p.clusterRolesStore.configureTelemetry(stats, name, ResourceKindClusterRoles)
-	p.clusterRoleBindingsStore.configureTelemetry(stats, name, ResourceKindClusterRoleBindings)
-	p.crdsStore.configureTelemetry(stats, name, ResourceKindCRDs)
-	p.clusterCustomResourcesStore.configureTelemetry(stats, name, ResourceKindClusterCustomResources)
-	p.podsStore.configureTelemetry(stats, name, ResourceKindPods)
-	p.depsStore.configureTelemetry(stats, name, ResourceKindDeployments)
-	p.svcsStore.configureTelemetry(stats, name, ResourceKindServices)
-	p.ingStore.configureTelemetry(stats, name, ResourceKindIngresses)
-	p.networkPoliciesStore.configureTelemetry(stats, name, ResourceKindNetworkPolicies)
-	p.pvcsStore.configureTelemetry(stats, name, ResourceKindPVCs)
-	p.cmsStore.configureTelemetry(stats, name, ResourceKindConfigMaps)
-	p.secsStore.configureTelemetry(stats, name, ResourceKindSecrets)
-	p.saStore.configureTelemetry(stats, name, ResourceKindServiceAccounts)
-	p.rolesStore.configureTelemetry(stats, name, ResourceKindRoles)
-	p.roleBindingsStore.configureTelemetry(stats, name, ResourceKindRoleBindings)
-	p.helmReleasesStore.configureTelemetry(stats, name, ResourceKindHelmReleases)
-	p.dsStore.configureTelemetry(stats, name, ResourceKindDaemonSets)
-	p.stsStore.configureTelemetry(stats, name, ResourceKindStatefulSets)
-	p.rsStore.configureTelemetry(stats, name, ResourceKindReplicaSets)
-	p.jobsStore.configureTelemetry(stats, name, ResourceKindJobs)
-	p.cjStore.configureTelemetry(stats, name, ResourceKindCronJobs)
-	p.hpaStore.configureTelemetry(stats, name, ResourceKindHPAs)
-	p.rqStore.configureTelemetry(stats, name, ResourceKindResourceQuotas)
-	p.lrStore.configureTelemetry(stats, name, ResourceKindLimitRanges)
-	p.customResourcesStore.configureTelemetry(stats, name, ResourceKindCustomResources)
-	p.nodeMetricsStore.configureTelemetry(stats, name, ResourceKindNodeMetrics)
-	p.podMetricsStore.configureTelemetry(stats, name, ResourceKindPodMetrics)
+	p.nsStore.configureTelemetry(stats, name, ResourceKindNamespaces, &p.historyPublications)
+	p.nodesStore.configureTelemetry(stats, name, ResourceKindNodes, &p.historyPublications)
+	p.persistentVolumesStore.configureTelemetry(stats, name, ResourceKindPersistentVolumes, &p.historyPublications)
+	p.clusterRolesStore.configureTelemetry(stats, name, ResourceKindClusterRoles, &p.historyPublications)
+	p.clusterRoleBindingsStore.configureTelemetry(stats, name, ResourceKindClusterRoleBindings, &p.historyPublications)
+	p.crdsStore.configureTelemetry(stats, name, ResourceKindCRDs, &p.historyPublications)
+	p.clusterCustomResourcesStore.configureTelemetry(stats, name, ResourceKindClusterCustomResources, &p.historyPublications)
+	p.podsStore.configureTelemetry(stats, name, ResourceKindPods, &p.historyPublications)
+	p.depsStore.configureTelemetry(stats, name, ResourceKindDeployments, &p.historyPublications)
+	p.svcsStore.configureTelemetry(stats, name, ResourceKindServices, &p.historyPublications)
+	p.ingStore.configureTelemetry(stats, name, ResourceKindIngresses, &p.historyPublications)
+	p.networkPoliciesStore.configureTelemetry(stats, name, ResourceKindNetworkPolicies, &p.historyPublications)
+	p.pvcsStore.configureTelemetry(stats, name, ResourceKindPVCs, &p.historyPublications)
+	p.cmsStore.configureTelemetry(stats, name, ResourceKindConfigMaps, &p.historyPublications)
+	p.secsStore.configureTelemetry(stats, name, ResourceKindSecrets, &p.historyPublications)
+	p.saStore.configureTelemetry(stats, name, ResourceKindServiceAccounts, &p.historyPublications)
+	p.rolesStore.configureTelemetry(stats, name, ResourceKindRoles, &p.historyPublications)
+	p.roleBindingsStore.configureTelemetry(stats, name, ResourceKindRoleBindings, &p.historyPublications)
+	p.helmReleasesStore.configureTelemetry(stats, name, ResourceKindHelmReleases, &p.historyPublications)
+	p.dsStore.configureTelemetry(stats, name, ResourceKindDaemonSets, &p.historyPublications)
+	p.stsStore.configureTelemetry(stats, name, ResourceKindStatefulSets, &p.historyPublications)
+	p.rsStore.configureTelemetry(stats, name, ResourceKindReplicaSets, &p.historyPublications)
+	p.jobsStore.configureTelemetry(stats, name, ResourceKindJobs, &p.historyPublications)
+	p.cjStore.configureTelemetry(stats, name, ResourceKindCronJobs, &p.historyPublications)
+	p.hpaStore.configureTelemetry(stats, name, ResourceKindHPAs, &p.historyPublications)
+	p.rqStore.configureTelemetry(stats, name, ResourceKindResourceQuotas, &p.historyPublications)
+	p.lrStore.configureTelemetry(stats, name, ResourceKindLimitRanges, &p.historyPublications)
+	p.customResourcesStore.configureTelemetry(stats, name, ResourceKindCustomResources, &p.historyPublications)
+	p.nodeMetricsStore.configureTelemetry(stats, name, ResourceKindNodeMetrics, &p.historyPublications)
+	p.podMetricsStore.configureTelemetry(stats, name, ResourceKindPodMetrics, &p.historyPublications)
 	return p
 }
 

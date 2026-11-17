@@ -12,57 +12,36 @@ import (
 )
 
 func missingTemplateRefsFromDataplane(ctx context.Context, dp dataplane.DataPlaneManager, clusterName, namespace string, template dto.PodTemplateSummaryDTO, volumes []dto.VolumeDTO) []dto.MissingReferenceDTO {
-	secretRefs := map[string]string{}
-	configMapRefs := map[string]string{}
-	for _, name := range template.ImagePullSecrets {
-		name = strings.TrimSpace(name)
-		if name != "" {
-			secretRefs[name] = "imagePullSecret"
+	refs := dataplane.TemplateReferenceCandidates(template, volumes)
+	var secrets, configMaps dataplane.TemplateReferenceInventory
+	for _, ref := range refs {
+		if ref.Kind == "Secret" && secrets.Names == nil {
+			secrets.Names = map[string]struct{}{}
+		}
+		if ref.Kind == "ConfigMap" && configMaps.Names == nil {
+			configMaps.Names = map[string]struct{}{}
 		}
 	}
-	for _, volume := range volumes {
-		source := strings.TrimSpace(volume.Source)
-		if source == "" {
-			continue
-		}
-		switch strings.ToLower(volume.Type) {
-		case "secret":
-			if _, exists := secretRefs[source]; !exists {
-				secretRefs[source] = "volume/" + volume.Name
-			}
-		case "configmap":
-			configMapRefs[source] = "volume/" + volume.Name
-		}
-	}
-
-	out := []dto.MissingReferenceDTO{}
-	if len(secretRefs) > 0 {
+	if secrets.Names != nil {
 		if snap, err := dp.SecretsSnapshot(ctx, clusterName, namespace); err == nil {
-			existing := map[string]struct{}{}
+			secrets.Available = true
 			for _, item := range snap.Items {
-				existing[item.Name] = struct{}{}
-			}
-			for name, source := range secretRefs {
-				if _, ok := existing[name]; !ok {
-					out = append(out, dto.MissingReferenceDTO{Kind: "Secret", Name: name, Source: source})
-				}
+				secrets.Names[item.Name] = struct{}{}
 			}
 		}
 	}
-	if len(configMapRefs) > 0 {
+	if configMaps.Names != nil {
 		if snap, err := dp.ConfigMapsSnapshot(ctx, clusterName, namespace); err == nil {
-			existing := map[string]struct{}{}
+			configMaps.Available = true
 			for _, item := range snap.Items {
-				existing[item.Name] = struct{}{}
-			}
-			for name, source := range configMapRefs {
-				if _, ok := existing[name]; !ok {
-					out = append(out, dto.MissingReferenceDTO{Kind: "ConfigMap", Name: name, Source: source})
-				}
+				configMaps.Names[item.Name] = struct{}{}
 			}
 		}
 	}
-	return out
+	// Preserve the detail UI's best-effort behavior without making its swallowed
+	// availability errors into negative History evidence.
+	missing, _ := dataplane.MissingTemplateReferences(refs, secrets, configMaps)
+	return missing
 }
 
 func detailSignalsResponse(signals []dataplane.ClusterDashboardSignal) []dto.NamespaceInsightSignalDTO {

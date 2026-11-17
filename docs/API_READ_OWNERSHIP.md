@@ -32,6 +32,70 @@ and [manual Worker deployment](../packaging/cloudflare/README.md) for retention
 and D1 reporting semantics. Cancellation prevents queued sends and cancels
 in-flight HTTP work, but cannot undo a request already accepted by the service.
 
+## Optional local history reads
+
+`GET /api/history/status` is an authenticated local-only read, usable in cluster
+read-only mode. It requires one explicit `X-Kview-Context` and never falls back
+to another context. It reads collector consent/status, is background-classified,
+and cannot reset user-activity timers.
+
+`GET /api/history/settings` reads backend-owned exact-context policy, server-owned
+`signalEpoch`, collector status, capabilities, editability and sanitized errors. It never creates/hydrates
+a plane or reads Kubernetes. `POST /api/history/settings` is an explicit bearer/JSON
+local-state mutation, blocked in read-only mode and cross-site requests. It validates
+known context and required `{scope, revision, globalRevision}`: scope is `global`
+or `context`, revision targets that scope, and globalRevision guards inheritance.
+Optional `enabled`, `signalHistory`, and `retentionDays` form a sparse mutation;
+context-only `reset` clears overrides before applying supplied fields. Unknown and
+retired fields are rejected; there is no legacy mutation fallback. The epoch is
+GET-only. GET includes global defaults, sparse context override and effective policy.
+The mutation atomically saves private settings, then reconciles affected collectors
+without restarting unchanged contexts. Global changes include inheritors, while
+explicit field overrides remain isolated. Context epochs are independently generated
+and persisted before startup, including for contexts first discovered on restart. All history
+routes are background-classified, including settings. Ordinary UX is Settings →
+Dataplane → History → scope → retention → enable both consent switches (autosaved), not a config file.
+History includes the full Dashboard signal population after its policy filters.
+Dataplane enrichment controls upstream cached evidence, not a History scope filter.
+Incompatible database startup failures return `history_database_incompatible` with
+a sanitized, explicit start-fresh recovery action; POST returns 503 while GET
+settings/status retain the saved consent and failure classification. Settings also
+returns sorted `collectionFailures` entries (`context`, safe `error`, `errorCode`)
+so a global save cannot hide failures in other inheritors. Source subscription
+failures are classified separately from storage failures; raw errors never appear.
+
+`Server.InitializeLocalHistory` restores saved exact-context consent from Settings.
+There is no CLI history override. Per-context hashed DB paths are backend-owned. Disable closes its
+DB but preserves data; disabled data queries return 409 until re-enabled. Disabled
+contexts do not prune. Read handlers hold the server read lock through Query;
+exclusive reconfiguration joins workers before DB close/reopen.
+`internal/localhistory` owns origin isolation, publication ingestion, retention,
+bounded signal trends and read-only queries. With explicit collection and identity
+consent, the manager publishes bounded dirty-source metadata to the collector;
+the worker evaluates the canonical Dashboard projection from cached dependencies
+and persists incremental trends. Maintenance prunes without inventing observations.
+There is one publication path, without polling fallback or extra Kubernetes reads.
+See [Signal history](SIGNAL_HISTORY_DESIGN.md) for the signal-only contract.
+
+`GET /api/history/inventory` requires one explicit `X-Kview-Context` and no query
+or body. It is authenticated, background-classified and independent of collection
+consent. `manager.HistoryInventory` peeks published Node/Namespace snapshot headers
+only: no plane creation/hydration, client resolution, scheduler, `/api/nodes`, or
+live IO. Derived nodes and missing UIDs are excluded. Sorted choice accumulation
+is capped before allocating a full inventory copy (4096 per group); overflow is
+explicit. Node keys are exact name+UID pairs, never guessed identities.
+
+`GET /api/history/signal-trends` checks exact-context collection and identity
+consent, then calls `Collector.QueryTrends` → `Store.QueryTrends` → a read-only
+bbolt transaction. Neither manual **Refresh history** nor automatic reads invoke
+collection. The bounded catalog includes retained period series before top-ten
+ranking, preserving replaced/deleted node UIDs separately from current inventory.
+The UI reports overflow of the actual combined choice union as well as server caps.
+Visible History owns a completion-based 60-second trend timer, independent of live
+Dashboard polling. Hidden documents pause and abort trend reads; visibility resumes
+once. Leaving History unmounts/aborts its readers. Context/token/filter changes abort
+obsolete reads and reject late results; detail aggregation is local-only.
+
 ## Principles
 
 1. **Dataplane snapshots** are the default substrate for the main list surfaces the UI uses as anchors.

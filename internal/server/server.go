@@ -12,6 +12,7 @@ import (
 	"github.com/korex-labs/kview/v5/internal/investigation"
 	"github.com/korex-labs/kview/v5/internal/kube"
 	"github.com/korex-labs/kview/v5/internal/kube/jobdebug"
+	"github.com/korex-labs/kview/v5/internal/localhistory"
 	"github.com/korex-labs/kview/v5/internal/runtime"
 	"github.com/korex-labs/kview/v5/internal/session"
 )
@@ -31,20 +32,28 @@ const (
 )
 
 type Server struct {
-	mgr            *cluster.Manager
-	token          string
-	actions        *kube.ActionRegistry
-	rt             runtime.RuntimeManager
-	dp             dataplane.DataPlaneManager
-	sessions       session.Manager
-	jobRuns        *jobdebug.Manager
-	investigations investigation.Store
-	readOnly       bool
-	deniedLogMu    sync.Mutex
-	deniedLogUntil map[string]time.Time
-	statusLogMu    sync.Mutex
-	clusterOnline  map[string]bool
-	podDebugLocks  keyedRequestLocks
+	historyMu          sync.RWMutex
+	historySettings    *localhistory.Settings
+	historyCollectors  map[string]*localhistory.Collector
+	historyFailures    map[string]historyStartFailure
+	historyInitFailure historyStartFailure
+	historyDirectory   string
+	historyParent      context.Context
+	historyClosed      bool
+	mgr                *cluster.Manager
+	token              string
+	actions            *kube.ActionRegistry
+	rt                 runtime.RuntimeManager
+	dp                 dataplane.DataPlaneManager
+	sessions           session.Manager
+	jobRuns            *jobdebug.Manager
+	investigations     investigation.Store
+	readOnly           bool
+	deniedLogMu        sync.Mutex
+	deniedLogUntil     map[string]time.Time
+	statusLogMu        sync.Mutex
+	clusterOnline      map[string]bool
+	podDebugLocks      keyedRequestLocks
 }
 
 type keyedRequestLockEntry struct {

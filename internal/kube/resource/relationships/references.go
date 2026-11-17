@@ -180,6 +180,7 @@ func PodSpecReferences(namespace, prefix string, spec corev1.PodSpec) ReferenceE
 	for i := range spec.Volumes {
 		volume := &spec.Volumes[i]
 		base := indexed(field(prefix, "volumes"), i)
+		before := len(out.References)
 		switch {
 		case volume.PersistentVolumeClaim != nil:
 			add(PersistentVolumeClaimDescriptor, namespace, volume.PersistentVolumeClaim.ClaimName, field(base, "persistentVolumeClaim.claimName"))
@@ -187,6 +188,9 @@ func PodSpecReferences(namespace, prefix string, spec corev1.PodSpec) ReferenceE
 			add(ConfigMapDescriptor, namespace, volume.ConfigMap.Name, field(base, "configMap.name"))
 		case volume.Secret != nil:
 			add(SecretDescriptor, namespace, volume.Secret.SecretName, field(base, "secret.secretName"))
+		}
+		if len(out.References) > before && (volume.Secret != nil || volume.ConfigMap != nil) {
+			out.References[len(out.References)-1].Evidence.VolumeName = volume.Name
 		}
 		if volume.Projected != nil {
 			for j := range volume.Projected.Sources {

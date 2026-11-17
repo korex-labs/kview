@@ -1,7 +1,9 @@
 package dataplane
 
 import (
+	"github.com/korex-labs/kview/v5/internal/localhistory"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,9 +19,10 @@ type snapshotStore[T observedAtGetter] struct {
 }
 
 type snapshotStoreTelemetry struct {
-	stats   *dataplaneSessionStats
-	cluster string
-	kind    ResourceKind
+	stats        *dataplaneSessionStats
+	cluster      string
+	kind         ResourceKind
+	publications *atomic.Pointer[localhistory.PublicationQueue]
 }
 
 func (s *snapshotStore[T]) getFresh(ttl time.Duration) (T, bool) {
@@ -40,11 +43,12 @@ func (s *snapshotStore[T]) getFresh(ttl time.Duration) (T, bool) {
 // setClusterSnapshot stores a cluster-wide snapshot and bumps the monotonic revision for that list.
 func setClusterSnapshot[I any](s *snapshotStore[Snapshot[I]], snap Snapshot[I]) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.rev++
 	snap.Meta.Revision = s.rev
 	s.snap = snap
 	s.telemetry.recordCacheWrite("", snap)
+	s.mu.Unlock()
+	notifySnapshotPublication(s.telemetry, "", snap)
 }
 
 func clearClusterSnapshot[I any](s *snapshotStore[Snapshot[I]]) {
@@ -75,12 +79,12 @@ func newNamespacedSnapshotStore[T observedAtGetter]() namespacedSnapshotStore[T]
 	return namespacedSnapshotStore[T]{snaps: make(map[string]T)}
 }
 
-func (s *snapshotStore[T]) configureTelemetry(stats *dataplaneSessionStats, cluster string, kind ResourceKind) {
-	s.telemetry = snapshotStoreTelemetry{stats: stats, cluster: cluster, kind: kind}
+func (s *snapshotStore[T]) configureTelemetry(stats *dataplaneSessionStats, cluster string, kind ResourceKind, publications *atomic.Pointer[localhistory.PublicationQueue]) {
+	s.telemetry = snapshotStoreTelemetry{stats: stats, cluster: cluster, kind: kind, publications: publications}
 }
 
-func (s *namespacedSnapshotStore[T]) configureTelemetry(stats *dataplaneSessionStats, cluster string, kind ResourceKind) {
-	s.telemetry = snapshotStoreTelemetry{stats: stats, cluster: cluster, kind: kind}
+func (s *namespacedSnapshotStore[T]) configureTelemetry(stats *dataplaneSessionStats, cluster string, kind ResourceKind, publications *atomic.Pointer[localhistory.PublicationQueue]) {
+	s.telemetry = snapshotStoreTelemetry{stats: stats, cluster: cluster, kind: kind, publications: publications}
 }
 
 func (s *namespacedSnapshotStore[T]) getFresh(namespace string, ttl time.Duration) (T, bool) {
@@ -116,7 +120,6 @@ func (s *namespacedSnapshotStore[T]) getCached(namespace string) (T, bool) {
 // setNamespacedSnapshot stores a per-namespace snapshot and bumps revision for that namespace key.
 func setNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], namespace string, snap Snapshot[I]) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.snaps == nil {
 		s.snaps = make(map[string]Snapshot[I])
 	}
@@ -127,6 +130,8 @@ func setNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], names
 	snap.Meta.Revision = s.nsRev[namespace]
 	s.snaps[namespace] = snap
 	s.telemetry.recordCacheWrite(namespace, snap)
+	s.mu.Unlock()
+	notifySnapshotPublication(s.telemetry, namespace, snap)
 }
 
 func clearNamespacedSnapshot[I any](s *namespacedSnapshotStore[Snapshot[I]], namespace string) {

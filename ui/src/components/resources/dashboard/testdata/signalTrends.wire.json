@@ -1,0 +1,5702 @@
+[
+  {
+    "name": "persisted-malformed-hour",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [],
+        "nodes": [],
+        "namespaces": [],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "invalid-retained-hour",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [],
+      "nodes": [],
+      "namespaces": [],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:20:00Z",
+        "sourceAt": "2026-01-01T12:20:00Z",
+        "sourceAgeSeconds": 4200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2288,
+        "databaseBytes": 49152,
+        "retainedHours": 1,
+        "reasons": {
+          "invalid-retained-hour": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "persisted-null-active-confirmed",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "unknown",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "coverage": "unknown",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "unknown",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "unknown",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:20:00Z",
+        "sourceAt": "2026-01-01T12:20:00Z",
+        "sourceAgeSeconds": 4200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2288,
+        "databaseBytes": 49152,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "same-hour-epoch-reset",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [],
+        "nodes": [],
+        "namespaces": [],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [],
+      "nodes": [],
+      "namespaces": [],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "0001-01-01T00:00:00Z",
+        "sourceAt": "0001-01-01T00:00:00Z",
+        "sourceAgeSeconds": null,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 864,
+        "databaseBytes": 49152,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "carried-node-disappeared",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          },
+          {
+            "key": "peer",
+            "label": "peer"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 2,
+          "changesScore": 1,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 2,
+          "changesScore": 1,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "domain-not-observed",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1800,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:30:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 3600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:30:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "peer",
+          "label": "peer",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        },
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1800,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:30:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 3600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:30:00Z",
+              "sourceAt": "2026-01-01T12:30:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:30:00Z",
+        "sourceAt": "2026-01-01T12:20:00Z",
+        "sourceAgeSeconds": 4200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2977,
+        "databaseBytes": 49152,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "partial-confirmed-changes",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "coverage": "complete",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 0,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:20:00Z",
+        "sourceAt": "2026-01-01T12:20:00Z",
+        "sourceAgeSeconds": 4200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2441,
+        "databaseBytes": 49152,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "dense-partial-changes",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T00:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-03T00:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T14:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T00:00:00Z",
+      "to": "2026-01-03T00:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 1,
+          "changesScore": 3,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "fresh",
+              "sourceAgeSeconds": 600,
+              "confirmedChanges": 2,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 2,
+                "changes": 2
+              },
+              "sampleAt": "2026-01-01T14:20:00Z",
+              "sourceAt": "2026-01-01T14:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 1,
+          "changesScore": 3,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "coverage": "complete",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "fresh",
+              "sourceAgeSeconds": 600,
+              "confirmedChanges": 2,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 2,
+                "changes": 2
+              },
+              "sampleAt": "2026-01-01T14:20:00Z",
+              "sourceAt": "2026-01-01T14:20:00Z",
+              "coverage": "complete",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 1,
+          "changesScore": 3,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "fresh",
+              "sourceAgeSeconds": 600,
+              "confirmedChanges": 2,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 2,
+                "changes": 2
+              },
+              "sampleAt": "2026-01-01T14:20:00Z",
+              "sourceAt": "2026-01-01T14:20:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 1,
+          "changesScore": 3,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 2400,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 1,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:20:00Z",
+              "sourceAt": "2026-01-01T12:20:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "fresh",
+              "sourceAgeSeconds": 600,
+              "confirmedChanges": 2,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 2,
+                "changes": 2
+              },
+              "sampleAt": "2026-01-01T14:20:00Z",
+              "sourceAt": "2026-01-01T14:20:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T00:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T01:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T02:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T03:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T04:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T05:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T06:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T07:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T08:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T09:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T10:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T16:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T17:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T18:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T19:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T20:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T21:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T22:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-02T23:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T14:20:00Z",
+        "sourceAt": "2026-01-01T14:20:00Z",
+        "sourceAgeSeconds": 600,
+        "coverageGaps": 48,
+        "capLosses": 0,
+        "retainedBytes": 4054,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "empty",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [],
+        "nodes": [],
+        "namespaces": [],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [],
+      "nodes": [],
+      "namespaces": [],
+      "diagnostics": {
+        "eligibleScopes": 0,
+        "evaluatedScopes": 0,
+        "snapshotCount": 0,
+        "supportedRules": [],
+        "unsupportedRules": [],
+        "lastSample": "0001-01-01T00:00:00Z",
+        "sourceAt": "0001-01-01T00:00:00Z",
+        "sourceAgeSeconds": null,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 0,
+        "databaseBytes": 24576,
+        "retainedHours": 0,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "first-baseline",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T11:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T11:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 4800,
+        "coverageGaps": 4,
+        "capLosses": 0,
+        "retainedBytes": 2286,
+        "databaseBytes": 36864,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "predecessor",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T13:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T16:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T14:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T13:00:00Z",
+      "to": "2026-01-01T16:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 8400,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 8400,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 8400,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 8400,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2286,
+        "databaseBytes": 36864,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "changed",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 1,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T13:10:00Z",
+        "sourceAt": "2026-01-01T13:10:00Z",
+        "sourceAgeSeconds": 1200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 3761,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "unaffected-domain",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          },
+          {
+            "key": "peer",
+            "label": "peer"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 3,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 2,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 3,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 2,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "source-unavailable",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        },
+        {
+          "key": "peer",
+          "label": "peer",
+          "highScore": 1,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T13:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 4800,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 4638,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "denied",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "source-unavailable",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 4800,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 3952,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "no-uid",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 4800,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 1826,
+        "databaseBytes": 36864,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "epoch-reset",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T14:30:00Z",
+      "catalog": {
+        "rules": [],
+        "nodes": [],
+        "namespaces": [],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 0,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [],
+      "nodes": [],
+      "namespaces": [],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "0001-01-01T00:00:00Z",
+        "sourceAt": "0001-01-01T00:00:00Z",
+        "sourceAgeSeconds": null,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 2337,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "disappearance",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T15:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:30:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T15:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 1,
+          "changesScore": 1,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 1200,
+              "confirmedChanges": 1,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 0,
+                "medium": 0,
+                "low": 0,
+                "changes": 1
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T13:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "partial"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T13:10:00Z",
+        "sourceAt": "2026-01-01T13:10:00Z",
+        "sourceAgeSeconds": 1200,
+        "coverageGaps": 3,
+        "capLosses": 0,
+        "retainedBytes": 3647,
+        "databaseBytes": 49152,
+        "retainedHours": 2,
+        "reasons": {}
+      }
+    }
+  },
+  {
+    "name": "historical-asof-clamped",
+    "query": {
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "namespaces": [],
+      "namespacesMode": "topHigh10",
+      "nodes": [],
+      "nodesMode": "topChanges10",
+      "rules": [],
+      "rulesMode": "topHigh10",
+      "to": "2026-01-01T13:00:00Z"
+    },
+    "response": {
+      "asOf": "2026-01-01T13:00:00Z",
+      "catalog": {
+        "rules": [
+          {
+            "key": "pod_crash_loop_waiting",
+            "label": "pod_crash_loop_waiting"
+          }
+        ],
+        "nodes": [
+          {
+            "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+            "label": "synthetic-worker"
+          }
+        ],
+        "namespaces": [
+          {
+            "key": "apps",
+            "label": "apps"
+          }
+        ],
+        "truncated": false
+      },
+      "schemaVersion": 1,
+      "context": "synthetic-a",
+      "from": "2026-01-01T12:00:00Z",
+      "to": "2026-01-01T13:00:00Z",
+      "severity": [
+        {
+          "key": "all",
+          "label": "all",
+          "highScore": 1,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "key": "pod_crash_loop_waiting",
+          "label": "pod_crash_loop_waiting",
+          "highScore": 1,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "coverage": "complete",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "nodes": [],
+      "namespaces": [
+        {
+          "key": "apps",
+          "label": "apps",
+          "highScore": 1,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "unsupported-rules",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "eligibleScopes": 1,
+        "evaluatedScopes": 1,
+        "snapshotCount": 0,
+        "supportedRules": [
+          "pod_crash_loop_waiting"
+        ],
+        "unsupportedRules": [
+          "detail-only"
+        ],
+        "lastSample": "2026-01-01T12:10:00Z",
+        "sourceAt": "2026-01-01T12:10:00Z",
+        "sourceAgeSeconds": 3000,
+        "coverageGaps": 1,
+        "capLosses": 0,
+        "retainedBytes": 2286,
+        "databaseBytes": 36864,
+        "retainedHours": 1,
+        "reasons": {}
+      }
+    }
+  }
+]

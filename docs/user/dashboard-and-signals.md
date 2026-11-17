@@ -14,8 +14,8 @@ Use the dashboard to answer:
 
 ## Dashboard Sections
 
-The dashboard separates two operator workflows into tabs backed by independent
-cached projections:
+The dashboard separates live operator workflows into tabs backed by independent
+cached projections, with a separate opt-in local-history view:
 
 - **Signals** is the default triage section. It contains attention counters,
   signal filters and search, saved dashboard views, the signal table, and
@@ -24,8 +24,11 @@ cached projections:
 - **Dataplane** contains known resource totals, cluster usage, scope and
   freshness, coverage, cache traffic, and scheduler execution statistics. Its
   request does not transfer signal rows or derived signal projections.
+- **History** shows opt-in local cached history for the active context, with
+  four trend charts. It shares the **Cluster dashboard** header with Signals
+  and Dataplane.
 
-kview remembers the last selected dashboard tab locally. On first opening a tab,
+kview remembers the last selected dashboard tab locally. On first opening a live tab,
 kview loads only that tab's endpoint. Returning to a recently loaded tab reuses
 its short-lived local cache; background refresh applies only to the active tab.
 A load failure is shown inside that tab with a **Retry** action and does not
@@ -42,6 +45,208 @@ session evidence are not flattened into resource-list freshness semantics.
 Dashboard saved views remain part of **Signals** because they store signal-view
 state rather than dataplane statistics. Applying one opens Signals before its
 request is issued.
+
+## History
+
+**Dashboard → History** shows four simultaneous signal-trend charts for the active
+context: **Severity**, **Signal types**, **Nodes**, and **Namespaces**. It does
+not provide CPU or memory monitoring, instance tables, or instance timelines.
+Each chart’s local filters sit to the right of its title. Custom and tag selectors
+sit beside the ranking dropdown when space permits; controls wrap on narrow cards.
+**Period** and **Detail** remain shared controls above the charts.
+Changing a chart’s ranking or selection keeps the other charts visible and shows
+loading or retry feedback only on the affected chart. New shared observations may
+still update their values without clearing them. **Period** and **Refresh history**
+reload the shared view; **Detail** only changes local display aggregation.
+
+Your selections survive leaving History and returning, including browser reloads.
+**Period** and **Detail** are shared across contexts; chart rankings, custom
+selections (including an intentionally empty **Custom** selection), and namespace
+tags are remembered separately for each context. Saved Node selections retain
+their exact UID rather than selecting a replacement with the same name. Search
+text is temporary. These preferences are included in settings/full-profile backups
+and saved operator profiles; they do not enable history collection or consent.
+
+### Signal trends
+
+- **Period** selects 24 hours, 7 days, 30 days or 90 days, including the current
+  incomplete UTC hour. **Detail** selects hourly, six-hour or daily intervals.
+  Severity stacks active High, Medium and Low as areas: the upper boundary shows
+  their total, or the known subtotal when coverage is incomplete. Risk colors
+  and stack order stay High, Medium, Low.
+- **Top High 10** ranks series over the whole period and plots active High.
+  Nodes offer **Top High 10**, **Top Changes 10**, and **Custom**, and default to
+  **Top High 10**, like Signal types and Namespaces. An explicitly saved
+  **Top Changes 10** or **Custom** choice is preserved.
+  **Top Changes 10** ranks confirmed individual transitions and plots stacked
+  bars per interval, with only positive changes in the tooltip,
+  not net differences in active counts. Appearance, confirmed disappearance and
+  severity change each count once; replacing one instance with another counts
+  twice even when totals stay unchanged. A domain's first observation is a
+  baseline with zero changes. Policy, membership and coverage changes do not
+  count as incidents, and a gap cannot prove resolution. Only series with recorded
+  positive changes are included, up to ten, without zero or unknown padding.
+  **No recorded changes** does not mean no activity occurred.
+- **Custom** combines retained series from the selected period with current cached
+  inventory. Checked choices come first; search and selected identities survive
+  refreshes. Signal types use full names from the existing signal catalog in
+  legends, tooltips and choices, with readable fallback names for unavailable
+  types; selections retain their original identities. Node choices retain name and UID: a retained node and its replacement
+  remain distinct even when their names match. Cached choices can be available
+  before history has any samples; selecting one does not create observations.
+  Choices are bounded to 4096 per group, with an overflow warning; selected
+  identities remain available. Nodes combine their own and hosted signals using observation-time membership;
+  association does not establish node causality.
+- Namespace **Favourites**, **Recent**, and enabled **Tag** modes use current
+  context selections, not historical preferences or tags. Tag resolution uses
+  existing cached namespace inventory; label/annotation rules cannot match
+  unavailable metadata. No live inventory request is made by History.
+  **Favourites** and **Recent** are available only when their Dashboard namespace
+  filter features are enabled; **Tag** requires resource tags enabled and defined.
+  If a saved mode is unavailable (including a removed tag), History temporarily
+  uses **Top High 10** without replacing the saved ranking or selection. Re-enabling
+  the feature or restoring the tag restores that choice. **Custom** remains available.
+- Explicit selections are limited to 20 per chart. Namespace selections above
+  that limit block the request with a warning rather than silently truncating.
+- Charts hide series whose observed plotted values are all zero with complete
+  coverage over the selected period. **Top High 10** considers only High counts,
+  not Medium/Low counts or changes. Unknown-only series, incomplete zero subtotals,
+  and earlier positive values are retained. A compact hidden-series note explains
+  omissions; **Custom** checkboxes and selections stay unchanged. Severity keeps
+  its three severity layers even at zero. Top High and Custom remain line charts;
+  Top Changes uses the positive-only rule above.
+- Without retained evidence, values are gaps, never healthy zero. Last-known
+  active values may carry forward with degraded coverage, never before the first
+  observation. Partial observations keep their subtotals with per-point coverage markers.
+  Legacy evidence without coverage is unknown, not complete. Larger intervals
+  retain the last usable active counts and sum confirmed transitions. Changes
+  can retain confirmed subtotals even without active counts; unknown changes
+  remain gaps rather than zero. Active-count and Changes coverage are independent,
+  and aggregation never promotes partial or unknown evidence to complete.
+- Hover a chart or focus it and use <kbd>ArrowLeft</kbd>/<kbd>ArrowRight</kbd>
+  to inspect the timestamp and each selected series’ signal or change count.
+  Tooltip rows show the series label, value and unit without repeated coverage
+  labels. Signal counts are last observed values, not live readings; changes count
+  confirmed transitions and may be incomplete. **No data** is a missing observation,
+  never zero. The shared information tooltip explains these limits without
+  repeating explanatory text below every chart. The diagnostic chips
+  below the charts show the last observation, evaluated/eligible scopes,
+  incomplete hours and retained storage—not live cluster health. **Cap losses**
+  appears only when history limits omitted data; zero losses are not a warning.
+- History records the same **30 signal types** as Dashboard. The other **10 catalog
+  rules** are outside that projection, not missing Dashboard observations or
+  cluster faults. Their catalog count is not a chart warning. Partial and unknown
+  observations remain marked independently; this is not full catalog coverage.
+  Static policy and runtime suppression filters match Dashboard. Stale cached rows
+  still count, with their original source timestamps; fresh, complete evidence is
+  required to confirm disappearances. Unsupported rules are not healthy zeros.
+  This describes what History can evaluate, not a cluster failure.
+- Matching Dashboard counts means using the same captured evidence, evaluation time
+  and policy. Each cache store is captured consistently, but stores are not captured
+  atomically together; separate requests can observe different generations. History
+  starts from current evidence as a baseline and never backfills earlier observations.
+- If a query exceeds the memory limit, choose a shorter period or narrower date
+  range. This limit message is different from an unavailable-storage error.
+- Queries isolate the current history identity generation; retained records from
+  older generations do not contribute identities, rankings, or observations.
+  A retained hour with confirmed changes but no valid observation time is shown
+  as unknown with `invalid-retained-hour`. Its original records are not changed.
+  Individual transitions cannot be recovered reliably from such a mixed hour;
+  correctly timestamped changes without active counts remain usable.
+- An invalid-response error identifies the rejected field or consistency check.
+  Charts remain hidden rather than displaying mismatched data. When reporting it,
+  include that reason; do not share authentication tokens.
+- **Refresh history** rereads the local persisted history database and published
+  cached inventory; it does not trigger the collector, warm caches, or request
+  Kubernetes resources. While History is visible, trends refresh 60 seconds after
+  each completed read (including failures), with no overlapping active reads.
+  Hiding the document cancels its trend read and pauses the timer; returning
+  resumes once. Context, credentials, selection and period changes cancel obsolete
+  reads; leaving History cancels them too. Publication collection runs independently.
+
+### Separate signal identity consent
+
+In **Settings → Dataplane → History**, **Enable signal history** is a
+separate opt-in, OFF by default. Opening History,
+changing a profile, or enabling collection does not grant this permission.
+Choose **Global defaults** or **This context**, enable collection too, and choose
+retention. Edits autosave. Global consent covers inheriting contexts, including new
+ones; each has its own server-generated identity, never a copied global epoch.
+
+Settings changes, disabling/re-enabling and server restarts preserve existing
+history identity. Use a distinct kubeconfig context for a different cluster:
+kview cannot detect retargeting from the context name alone.
+
+Consent stores context, names, namespaces, resource UIDs, rule/subtarget,
+node membership and bounded transitions on this server. It does not store raw
+manifests, secret or label maps. Retention is 30 or 90 days with bounded capacity;
+no pre-consent history is reconstructed. History includes Node and namespace
+signals from the full Dashboard population after Dashboard policy filters.
+Disabling identity history stops that collection and denies its reads without
+removing retained data. Data can remain beyond retention while
+disabled. Permission/storage failures and unavailable evidence are not zero.
+
+To check collection after enabling:
+
+1. Select the intended context and visit **Namespaces** normally so its cache is
+   populated. In **Settings → Dataplane → History**, enable both history
+   checkboxes, choose retention, and wait for autosave confirmation.
+2. Open the selected namespace's Pods or the Nodes view normally to populate
+   fresh cache evidence. History itself does not fetch Kubernetes resources.
+3. Collection follows published cache updates without making new Kubernetes
+   requests. Choose **Refresh history**, then inspect **Signal types** and
+   **Coverage details**. Bursts can be coalesced; publication-driven collection
+   does not guarantee that every intermediate transition is captured.
+4. Allow observations to accumulate. There is no pre-enable backfill; first
+   observations are baselines, not new-incident events. Missing/partial coverage
+   and unsupported rules are not proof of a healthy cluster.
+
+### Collection settings
+
+Open **Dashboard → History** to read stored history for the active context.
+Collection and identity consent default OFF. Open **Settings → Dataplane → History**
+and choose **Global defaults** or **This context**. Choose **History retention**
+(30 or 90 days), enable collection and **Enable signal history**. Changes autosave
+and are read back before confirmation. Global edits affect inheritors; context edits
+override only changed fields. **Reset to global defaults** removes context overrides.
+New contexts inherit explicit global defaults. No config copying or restart is needed.
+Conflicts retain edits for **Retry settings** or **Discard edits**. If another
+inheritor cannot start, its safe failure and recovery action remain visible even
+when defaults saved durably and the selected collector is running.
+
+History records the full Dashboard signal population after Dashboard policy
+filters, including direct Node and namespace signals. There is no separate Node
+switch or namespace collection filter. Dataplane enrichment affects upstream
+cached data, not History admission; History never fetches additional Kubernetes
+resources. Missing evidence does not prove disappearance or a healthy zero.
+Changing a browser profile never grants history consent.
+
+Settings are persisted on this server, not in browser profiles; saved enabled
+contexts resume on restart.
+Read-only mode locks editing.
+
+To disable one context, choose **This context**, clear **Enable history for this context**
+and wait for autosave. This joins the
+worker and preserves its stored data, but history is not readable until this
+context is re-enabled. Changing upstream enrichment does not erase retained
+samples. Disabled settings survive restart. No pruning happens while
+disabled: retained data can outlive the selected horizon until collection resumes.
+Shorter retention prunes older data during successful publication or maintenance;
+longer retention cannot restore deleted observations. Neither settings nor stored history is included in
+browser profile exports.
+
+The optional backend records published cache evidence. Retained last-known
+active values can continue across quiet or unloaded periods, marked **Last known**,
+with original observation times and degraded coverage. They are not fresh samples.
+Before the first retained observation, values remain unknown. Confirmed changes
+are independent of active counts; unknown changes are not zero. Coalescing and
+queue overflow are shown in the diagnostics below the charts when reported.
+History requests do not fetch Kubernetes data; the surrounding Dashboard retains its independent
+metrics-capability check. History is not Prometheus or a continuous
+current-cluster telemetry feed.
+
+History never writes to Kubernetes. Viewing it does not enable collection; an
+explicit checkbox change in the chosen settings scope controls consent.
 
 ## Main Controls
 

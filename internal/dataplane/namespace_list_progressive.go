@@ -85,7 +85,7 @@ func (m *manager) selectNamespaceSweepNames(cluster string, order []string, focu
 		if _, ok := focusedSet[name]; ok {
 			continue
 		}
-		if !sweep.IncludeSystemNamespaces && isSystemNamespace(name) {
+		if !namespaceSweepEligible(name, policy) {
 			continue
 		}
 		last := lastByNS[name]

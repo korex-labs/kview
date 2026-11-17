@@ -988,6 +988,11 @@ func detectNodeResourcePressureSignals(_ time.Time, plane *clusterPlane, nodesSn
 	if !ok || nodeMetricsSnap.Err != nil || len(nodeMetricsSnap.Items) == 0 {
 		return nil
 	}
+	return detectNodeResourcePressureFromSnapshots(nodesSnap, nodeMetricsSnap, thresholdPct)
+}
+
+// Pure shared detector; history supplies independently validated cache evidence.
+func detectNodeResourcePressureFromSnapshots(nodesSnap NodesSnapshot, nodeMetricsSnap NodeMetricsSnapshot, thresholdPct int) []ClusterDashboardSignal {
 	byName := make(map[string]dto.NodeMetricsDTO, len(nodeMetricsSnap.Items))
 	for _, nm := range nodeMetricsSnap.Items {
 		byName[nm.Name] = nm
