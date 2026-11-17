@@ -33,7 +33,7 @@ beforeEach(() => {
     const context = new Headers(init.headers).get("X-Kview-Context")!;
     const data = path === "/api/history/inventory" ? { context, rules: [], nodes: [], namespaces: [], truncated: false } : trendFixture(queryFromTrendURL(path, context));
     if ("severity" in data) data.nodes = data.nodes.map(series => series.key.includes("old-uid") ? {
-      ...series, label: series.key, highScore: 0, changesScore: 0,
+      ...series, label: series.key, totalScore: 0, changesScore: 0,
       points: series.points.map(point => ({ ...point, counts: null, sampleAt: "0001-01-01T00:00:00Z", sourceAt: "0001-01-01T00:00:00Z", reason: "no-sample" })),
     } : series);
     return Promise.resolve(new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -41,14 +41,14 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-it("normalizes invalid stored controls, defaults fresh/remounted Nodes to Top High, and remembers manually empty Custom", async () => {
+it("normalizes invalid stored controls, defaults fresh/remounted Nodes to Top signals, and remembers manually empty Custom", async () => {
   localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify({ ...defaultUserSettings(), history: { days: 999, hours: false, contexts: { [props.context]: { nodesMode: "recent", rulesMode: "invalid", namespaceMode: "invalid" } } } }));
   const view = render(<Shell />); await loaded();
-  expect(query()).toMatchObject({ nodesMode: "topHigh10", rulesMode: "topHigh10", namespacesMode: "topHigh10" });
+  expect(query()).toMatchObject({ nodesMode: "topSignals10", rulesMode: "topSignals10", namespacesMode: "topSignals10" });
   expect(screen.getByRole("combobox", { name: "Period" }).textContent).toBe("24 hours");
   expect(screen.getByRole("combobox", { name: "Detail" }).textContent).toBe("Hourly");
   view.rerender(<Shell active={false} />); view.rerender(<Shell />); await loaded();
-  expect(query().nodesMode).toBe("topHigh10");
+  expect(query().nodesMode).toBe("topSignals10");
   select("Nodes ranking", "Custom"); await loaded();
   cleanup(); render(<Shell />); await loaded();
   expect(query()).toMatchObject({ nodesMode: "custom", nodes: [] });
@@ -57,7 +57,7 @@ it("normalizes invalid stored controls, defaults fresh/remounted Nodes to Top Hi
 });
 it("persists manual period/detail/ranking and Node UID through section back and fresh provider reload without write/fetch loops", async () => {
   const view = render(<Shell />); await loaded();
-  expect(query().nodesMode).toBe("topHigh10"); expect(calls()).toHaveLength(1);
+  expect(query().nodesMode).toBe("topSignals10"); expect(calls()).toHaveLength(1);
   select("Period", "7 days"); await loaded();
   select("Detail", "Daily"); expect(calls()).toHaveLength(2);
   select("Signal types ranking", "Top Changes 10"); await loaded();
@@ -105,7 +105,7 @@ it("restores independent context filters, explicit empty Custom, and stale UID w
   expect(query()).toMatchObject({ nodesMode: "topChanges10", nodes: [], namespacesMode: "custom", namespaces: [] });
   expect(screen.getByRole("combobox", { name: "Period" }).textContent).toBe("30 days");
   view.rerender(<Shell context="synthetic-new" />); await loaded();
-  expect(query()).toMatchObject({ nodesMode: "topHigh10", nodes: [], namespacesMode: "topHigh10", namespaces: [] });
+  expect(query()).toMatchObject({ nodesMode: "topSignals10", nodes: [], namespacesMode: "topSignals10", namespaces: [] });
   view.rerender(<Shell token="synthetic-renewed" />); await loaded();
   expect(query().nodes).toEqual([stale]);
   expect(loadUserSettings().history).toEqual(settings.history); expect(calls()).toHaveLength(4);
@@ -123,7 +123,7 @@ it("persists a manually selected namespace tag through provider reload and falls
   cleanup(); saved.resourceTags.definitions = []; saveUserSettings(saved);
   render(<Shell />); await loaded();
   expect(screen.queryByRole("combobox", { name: "Namespace tag" })).toBeNull();
-  expect(query().namespacesMode).toBe("topHigh10");
+  expect(query().namespacesMode).toBe("topSignals10");
   expect(loadUserSettings().history).toEqual(saved.history);
   expect(query().namespaces).toEqual([]);
 });

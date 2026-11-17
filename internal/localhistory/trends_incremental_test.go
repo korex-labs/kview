@@ -141,7 +141,7 @@ func TestTrendsIncrementalPredecessorNoFutureOrPrefirst(t *testing.T) {
 			t.Fatal(p)
 		}
 	}
-	if out.Namespaces[0].HighScore != 3 || out.Namespaces[0].ChangesScore != 0 {
+	if out.Namespaces[0].TotalScore != 3 || out.Namespaces[0].ChangesScore != 0 {
 		t.Fatal(out.Namespaces)
 	}
 	q.From = start.Add(-time.Hour)

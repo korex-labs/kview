@@ -36,20 +36,20 @@ it("uses catalog names in legends and selected/searchable filters while sending 
   expect(within(screen.getByLabelText("Signal types legend")).getByText("Pods awaiting scheduling")).toBeTruthy();
   expect(fetchMock.mock.calls.filter(([path]) => path === "/api/dataplane/signals/catalog")).toHaveLength(1);
 });
-it.each(["Signal types", "Nodes", "Namespaces"])("uses stacked bars only for %s Top Changes and returns to High lines", async title => {
+it.each(["Signal types", "Nodes", "Namespaces"])("uses stacked bars only for %s Top Changes and returns to total-signal lines", async title => {
   render(<DashboardHistoryTab {...props} />); await loaded();
   const card = screen.getByLabelText(`${title} chart header`).parentElement!;
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1);
   select(`${title} ranking`, "Top Changes 10"); await loaded();
   expect(card.querySelectorAll(".MuiBarChart-element")).toHaveLength(1);
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(0);
-  select(`${title} ranking`, "Top High 10"); await loaded();
+  select(`${title} ranking`, "Top signals 10"); await loaded();
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1);
   expect(card.querySelectorAll(".MuiBarChart-element")).toHaveLength(0);
 });
 it("ignores a late catalog response after context change and labels retained unknown selections readably", async () => {
   const settings = defaultUserSettings();
-  settings.history.contexts["synthetic-other"] = { rulesMode: "custom", rules: ["retired_rule"], nodesMode: "topHigh10", nodes: [], namespaceMode: "topHigh10", namespaces: [], tag: "" };
+  settings.history.contexts["synthetic-other"] = { rulesMode: "custom", rules: ["retired_rule"], nodesMode: "topSignals10", nodes: [], namespaceMode: "topSignals10", namespaces: [], tag: "" };
   saveUserSettings(settings);
   let resolveOld!: (value: Response) => void;
   fetchMock.mockImplementation((path: string, init: RequestInit) => {
@@ -76,12 +76,22 @@ it("renders four simultaneous charts, three severity lines, factual diagnostics,
   expect(severity.querySelectorAll(".MuiLineChart-line")).toHaveLength(3);
   expect(severity.querySelector('[data-observation="isolated"]')).not.toBeNull();
   for (const name of ["Signal scope", "Node lane", "Signal rule", "Signal measure"]) expect(screen.queryByRole("combobox", { name })).toBeNull();
-  expect(screen.queryByRole("table")).toBeNull(); expect(screen.queryByText(/Timeline/)).toBeNull();
+  const legendNames = ["Severity legend", "Signal types legend", "Nodes legend", "Namespaces legend"];
+  const tables = screen.getAllByRole("table");
+  expect(tables).toHaveLength(legendNames.length);
+  expect(tables).toEqual(legendNames.map(name => screen.getByRole("table", { name })));
+  for (const table of tables) {
+    expect(within(table).getAllByRole("columnheader").map(header => header.textContent)).toEqual(["Series", "Min", "Avg", "Max", "Last"]);
+  }
+  expect(screen.queryByRole("table", { name: /resource|instance|timeline/i })).toBeNull();
+  expect(screen.queryByText(/Timeline/)).toBeNull();
   expect(screen.getByText("Scopes 3/5")).toBeTruthy(); expect(screen.getByText("Cap losses 2")).toBeTruthy();
   expect(screen.queryByText(/Coverage details/)).toBeNull();
   expect(screen.queryByText(/^Snapshots /)).toBeNull();
   expect(screen.queryByText(/supported · .*unsupported/)).toBeNull();
-  expect(screen.getByText(/^Incomplete hours /).closest(".MuiChip-root")?.className).toContain("MuiChip-colorWarning");
+  expect(screen.queryByText(/^Incomplete hours /)).toBeNull();
+  expect(screen.queryByText(/^Carried hours /)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Refresh history" })).toBeNull();
   expect(screen.getByText("Cap losses 2").closest(".MuiChip-root")?.className).toContain("MuiChip-colorWarning");
   expect(screen.queryByText(/stale-source|source-cap/)).toBeNull();
   // Real-library interaction/scale/DOM bounds are covered in SignalTrendsChart.test.
@@ -98,22 +108,39 @@ it("keeps recorded history visible with zero legacy snapshots and hides zero los
   render(<DashboardHistoryTab {...props} />); await loaded();
   const diagnostics = screen.getByLabelText("History diagnostics");
   expect(within(diagnostics).getByText(/^Last observation /)).toBeTruthy();
-  expect(within(diagnostics).getByText("Persisted 1h · 2048 B")).toBeTruthy();
+  expect(within(diagnostics).getByText("Persisted 1h · 2.0 KB")).toBeTruthy();
   expect(within(diagnostics).queryByText(/Snapshots|Cap losses|unsupported|Coverage details/)).toBeNull();
-  expect(within(diagnostics).getByText(/^Incomplete hours /).closest(".MuiChip-root")?.className).toContain("MuiChip-colorWarning");
+  expect(within(diagnostics).queryByText(/Incomplete hours|Carried hours/)).toBeNull();
   expect(screen.getByLabelText(/^Severity chart;/).querySelectorAll(".MuiLineChart-line")).toHaveLength(3);
+});
+it("keeps zero carried and 24 incomplete hours quiet without changing the observed subtotal or gaps", async () => {
+  fetchMock.mockImplementation((path: string, init: RequestInit) => {
+    if (!path.startsWith("/api/history/signal-trends?")) return reply(path, init);
+    const data = trendFixture(queryFromTrendURL(path, props.context));
+    data.diagnostics.coverageGaps = 24;
+    data.severity[0].points[0].coverage = "partial";
+    expect(data.severity[0].points.filter(point => point.carriedForward)).toHaveLength(0);
+    expect(data.severity[0].points.filter(point => point.counts === null || point.coverage !== "complete")).toHaveLength(24);
+    return json(data);
+  });
+  render(<DashboardHistoryTab {...props} />); await loaded();
+  expect(screen.queryByText(/Carried hours|Incomplete hours/)).toBeNull();
+  expect(screen.queryByText(/Partial or unknown coverage —/)).toBeNull();
+  const chart = screen.getByLabelText(/^Severity chart;/);
+  expect(chart.querySelector('[data-observation="isolated"]')).not.toBeNull();
+  expect(within(screen.getByLabelText("History diagnostics")).getByText("Persisted 1h · 2.0 KB").closest(".MuiChip-root")?.getAttribute("title")).toContain("database 4.0 KB");
 });
 it("shows a concise information tooltip without internal diagnostics", async () => {
   render(<DashboardHistoryTab {...props} />); await loaded();
   fireEvent.mouseOver(screen.getByRole("button", { name: "More information" }));
   const tooltip = await screen.findByRole("tooltip");
-  expect(tooltip.textContent).toBe("Signal counts are last observed values, not live readings; changes count confirmed transitions and may be incomplete, while gaps mean no data, not zero.");
+  expect(tooltip.textContent).toBe("Signal counts are last observed values, not live readings. Partial values are subtotals; gaps mean no data, not zero. Changes count confirmed transitions and may be incomplete.");
 });
 it("keeps publication diagnostics below four charts without adding filter controls", async () => {
   fetchMock.mockImplementation((path: string, init: RequestInit) => path === "/api/history/inventory" ? reply(path, init) : json(carriedTrendFixture(queryFromTrendURL(path, props.context))));
   render(<DashboardHistoryTab {...props} />); await loaded();
   const diagnostics = screen.getByLabelText("History diagnostics");
-  expect(within(diagnostics).getByText("Carried hours 24")).toBeTruthy();
+  expect(within(diagnostics).queryByText(/Carried hours|Incomplete hours/)).toBeNull();
   expect(screen.queryAllByText(/Last known values include carried or stale observations\./)).toHaveLength(0);
   expect(screen.queryAllByText(/Partial or unknown coverage — observed subtotals, not complete totals\./)).toHaveLength(0);
   expect(within(diagnostics).getByText("Coalesced 3")).toBeTruthy();
@@ -182,29 +209,29 @@ it("uses period-fixed rankings in a single request and detail is display-only", 
   expect(Date.parse(lastQuery().to) - Date.parse(lastQuery().from)).toBe(7 * 24 * 3600000);
   expect(trendCalls()).toHaveLength(3);
 });
-it("offers Node Top High alongside Top Changes and Custom, preserving the default and request contract", async () => {
+it("offers Node Top signals alongside Top Changes and Custom, preserving the default and request contract", async () => {
   render(<DashboardHistoryTab {...props} />); await loaded();
-  expect(lastQuery().nodesMode).toBe("topHigh10");
+  expect(lastQuery().nodesMode).toBe("topSignals10");
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "Nodes ranking" }));
-  expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["Top High 10", "Top Changes 10", "Custom"]);
-  fireEvent.click(screen.getByRole("option", { name: "Top High 10" })); await loaded();
-  expect(lastQuery().nodesMode).toBe("topHigh10");
+  expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["Top signals 10", "Top Changes 10", "Custom"]);
+  fireEvent.click(screen.getByRole("option", { name: "Top signals 10" })); await loaded();
+  expect(lastQuery().nodesMode).toBe("topSignals10");
   expect(lastQuery().nodes).toEqual([]);
   const calls = trendCalls();
   const path = calls[calls.length - 1][0];
-  expect(new URL(path, "http://fixture.invalid").searchParams.get("nodesMode")).toBe("topHigh10");
+  expect(new URL(path, "http://fixture.invalid").searchParams.get("nodesMode")).toBe("topSignals10");
   const header = screen.getByLabelText("Nodes chart header");
   expect(within(header).getByText("Nodes").textContent).toBe("Nodes");
   expect(within(header).queryByRole("combobox", { name: "Select nodes" })).toBeNull();
   select("Nodes ranking", "Top Changes 10"); await loaded();
   expect(lastQuery().nodesMode).toBe("topChanges10");
 });
-it("hides Top High signal types with other severity changes but retains the independent Changes plot", async () => {
+it("includes medium/low-only signal types and retains the independent Changes plot", async () => {
   fetchMock.mockImplementation((path: string, init: RequestInit) => {
     if (path === "/api/history/inventory") return reply(path, init);
     const data = trendFixture(queryFromTrendURL(path, props.context));
     for (const series of data.rules) {
-      series.highScore = 0;
+      series.totalScore = 4;
       for (const point of series.points) if (point.counts) {
         point.counts.high = 0; point.coverage = "complete";
         point.confirmedChanges = point.counts.changes; point.changesCoverage = "unknown";
@@ -214,8 +241,16 @@ it("hides Top High signal types with other severity changes but retains the inde
   });
   render(<DashboardHistoryTab {...props} />); await loaded();
   const card = screen.getByLabelText("Signal types chart header").parentElement!;
-  expect(within(card).getByText("1 zero-only series hidden.").title).toContain("plotted measure");
-  expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(0);
+  expect(within(card).queryByText(/zero-only series hidden/)).toBeNull();
+  expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1);
+  select("Signal types ranking", "Custom"); await loaded();
+  const field = screen.getByRole("combobox", { name: "Select signal types" });
+  fireEvent.mouseDown(field);
+  fireEvent.click(await screen.findByRole("option", { name: /Synthetic rule/ }));
+  await waitFor(() => expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1));
+  expect(lastQuery().rules).toEqual(["synthetic_rule"]);
+  fireEvent.keyDown(field, { key: "Escape" });
+  expect(within(card).queryByText(/zero-only series hidden/)).toBeNull();
   select("Signal types ranking", "Top Changes 10"); await loaded();
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(0);
   expect(card.querySelectorAll(".MuiBarChart-element").length).toBeGreaterThan(0);
@@ -235,7 +270,7 @@ it("hides zero-only auto and Custom lines without clearing selected checkboxes o
     if (path === "/api/history/inventory") return reply(path, init);
     const data = trendFixture(queryFromTrendURL(path, props.context));
     for (const group of [data.severity, data.rules, data.nodes, data.namespaces]) for (const series of group) {
-      series.highScore = 0; series.changesScore = 0;
+      series.totalScore = 0; series.changesScore = 0;
       for (const point of series.points) if (point.counts) {
         point.counts = { high: 0, medium: 0, low: 0, changes: 0 };
         point.coverage = "complete"; point.changesCoverage = "complete";
@@ -310,7 +345,7 @@ it("cancels filter changes, ignores late failure, aborts unmount", async () => {
   fetchMock.mockImplementationOnce(() => new Promise<Response>((_, r) => { reject = r; }));
   select("Signal types ranking", "Top Changes 10");
   const old = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1].signal as AbortSignal;
-  select("Signal types ranking", "Top High 10"); await loaded(); expect(old.aborted).toBe(true);
+  select("Signal types ranking", "Top signals 10"); await loaded(); expect(old.aborted).toBe(true);
   await act(async () => reject(new Error("synthetic-late-error"))); expect(screen.queryByText(/synthetic-late-error/)).toBeNull();
   fetchMock.mockImplementationOnce(() => new Promise<Response>(() => {}));
   select("Signal types ranking", "Top Changes 10");
@@ -322,7 +357,7 @@ it("rejects mismatched data, retries and keeps consent explicit without writes",
   render(<DashboardHistoryTab {...props} />); await screen.findByText(/Invalid or mismatched/);
   fetchMock.mockImplementation(reply);
   fireEvent.click(screen.getByRole("button", { name: "Retry signals" })); await loaded();
-  fetchMock.mockImplementation((path, init) => path === "/api/history/inventory" ? reply(path, init) : json({ error: "off" }, 409)); fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+  fetchMock.mockImplementation((path, init) => path === "/api/history/inventory" ? reply(path, init) : json({ error: "off" }, 409)); select("Period", "7 days");
   await screen.findByText(/Signal history is off/);
   expect(screen.queryByLabelText("History diagnostics")).toBeNull();
   expect(fetchMock.mock.calls.every(([, init]) => init.method !== "POST")).toBe(true);

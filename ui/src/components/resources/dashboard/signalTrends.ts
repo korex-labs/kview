@@ -2,11 +2,11 @@ import { buildResourceTagsIndex, resourceTagsForTarget, type ResourceTagTarget }
 import { parseHistoryCatalog, type HistoryCatalog } from "./historyOptions";
 import type { ResourceTagsSettings } from "../../../settings";
 
-export type TrendMode = "topHigh10" | "topChanges10" | "custom" | "favourites" | "recent" | "tag";
+export type TrendMode = "topSignals10" | "topChanges10" | "custom" | "favourites" | "recent" | "tag";
 export type TrendQuery = { context: string; from: string; to: string; rulesMode: TrendMode; nodesMode: TrendMode; namespacesMode: TrendMode; rules: string[]; nodes: string[]; namespaces: string[] };
 export type TrendCounts = { high: number; medium: number; low: number; changes: number };
 export type TrendPoint = { carriedForward?: boolean; freshness?: "fresh" | "stale" | "unknown"; sourceAgeSeconds?: number | null; confirmedChanges?: number; at: string; counts: TrendCounts | null; sampleAt: string; sourceAt: string; reason?: string; coverage?: "complete" | "partial" | "unknown"; changesCoverage?: "complete" | "partial" | "unknown" };
-export type TrendSeries = { key: string; label: string; highScore: number; changesScore: number; points: TrendPoint[] };
+export type TrendSeries = { key: string; label: string; totalScore: number; changesScore: number; points: TrendPoint[] };
 export type TrendDiagnostics = { coalesced?: number; overflow?: number; eligibleScopes: number; evaluatedScopes: number; snapshotCount: number; supportedRules: string[]; unsupportedRules: string[]; lastSample: string; sourceAt: string; sourceAgeSeconds: number | null; coverageGaps: number; capLosses: number; retainedBytes: number; databaseBytes: number; retainedHours: number; reasons: Record<string, number> };
 export type SignalTrends = { asOf?: string; catalog?: HistoryCatalog; schemaVersion: 1; context: string; from: string; to: string; severity: TrendSeries[]; rules: TrendSeries[]; nodes: TrendSeries[]; namespaces: TrendSeries[]; diagnostics: TrendDiagnostics };
 export type NamespaceInventory = { context: string; token: string; items: Array<Pick<ResourceTagTarget, "name" | "labels" | "annotations">> };
@@ -36,11 +36,11 @@ export function parseSignalTrends(raw: unknown, q: TrendQuery): SignalTrends {
     const keys = new Set<string>();
     for (const rawSeries of series as unknown[]) {
       const s = object(rawSeries);
-      if (!text(s.key) || !s.key || !text(s.label) || !s.label || keys.has(s.key) || !count(s.highScore) || !count(s.changesScore) || !Array.isArray(s.points) || s.points.length !== hours) fail("series identity, scores or point count");
+      if (!text(s.key) || !s.key || !text(s.label) || !s.label || keys.has(s.key) || !count(s.totalScore) || !count(s.changesScore) || !Array.isArray(s.points) || s.points.length !== hours) fail("series identity, scores or point count");
       const key = s.key as string; keys.add(key);
       if (!mode.startsWith("top") && !chosen.includes(key)) fail("series key outside requested selection");
       if (group === "nodes") { let node: unknown; try { node = JSON.parse(key); } catch { fail("node key must be canonical JSON"); } if (!Array.isArray(node) || node.length !== 2 || !node.every(n => text(n, 512) && n.length > 0) || JSON.stringify(node) !== key) fail("node key must include name and UID"); }
-      let high = 0, changes = 0;
+      let total = 0, changes = 0;
       (s.points as unknown[]).forEach((rawPoint, i) => {
         const p = object(rawPoint), at = instant(p.at), sample = instant(p.sampleAt), source = instant(p.sourceAt);
         if (at !== from + i * trendHour || (p.reason !== undefined && !text(p.reason))) fail("point at or reason invalid");
@@ -59,7 +59,7 @@ export function parseSignalTrends(raw: unknown, q: TrendQuery): SignalTrends {
           const c = object(p.counts);
           if (![c.high, c.medium, c.low, c.changes].every(count) || sample < 0 || (!p.carriedForward && sample < at) || sample >= at + trendHour || at >= asOf) fail("point counts or sampleAt outside bucket bounds");
           if (sample < at && (c.changes !== 0 || p.confirmedChanges !== 0)) fail("point confirmedChanges before bucket");
-          high += c.high as number;
+          total += (c.high as number) + (c.medium as number) + (c.low as number);
         }
         // Go timestamps retain nanoseconds; Date.parse truncates to milliseconds.
         if (p.sourceAgeSeconds !== undefined && p.sourceAgeSeconds !== null && (source < 0 || Math.abs(Number(p.sourceAgeSeconds) - Math.floor((end - source) / 1000)) > 1)) fail("point sourceAgeSeconds does not match sourceAt");
@@ -67,11 +67,11 @@ export function parseSignalTrends(raw: unknown, q: TrendQuery): SignalTrends {
         if (Number(p.confirmedChanges) > 0 && (sample < 0 || sample < at || at >= asOf)) fail("point confirmedChanges without an in-bucket observation");
         changes += p.confirmedChanges === undefined ? Number((p.counts as TrendCounts | null)?.changes || 0) : p.confirmedChanges as number;
       });
-      if (s.highScore !== high || s.changesScore !== changes) fail("series scores do not match points");
+      if (s.totalScore !== total || s.changesScore !== changes) fail("series scores do not match points");
     }
     if (!mode.startsWith("top") && keys.size !== chosen.length) fail("selected series missing");
     if (mode.startsWith("top")) {
-      const metric = mode === "topHigh10" ? "highScore" : "changesScore";
+      const metric = mode === "topSignals10" ? "totalScore" : "changesScore";
       const rows = series as TrendSeries[];
       for (let i = 1; i < rows.length; i++) if (rows[i - 1][metric] < rows[i][metric] || (rows[i - 1][metric] === rows[i][metric] && rows[i - 1].key > rows[i].key)) fail("series ranking mismatch");
     }
@@ -101,16 +101,16 @@ export function namespaceSelection(mode: TrendMode, input: { context: string; to
   return [...new Set(selected.filter(Boolean))];
 }
 export function sampleLabel(value: string): string { return value.startsWith("0001-") ? "Unavailable" : new Date(value).toLocaleString(); }
-export function trendValue(point: TrendPoint | undefined, metric: keyof TrendCounts): number | null {
+export function trendValue(point: TrendPoint | undefined, metric: keyof TrendCounts | "total"): number | null {
   if (!point) return null;
+  if (metric === "total") return point.counts ? point.counts.high + point.counts.medium + point.counts.low : null;
   if (metric !== "changes") return point.counts?.[metric] ?? null;
   const value = point.confirmedChanges ?? point.counts?.changes;
   return value === undefined || (value === 0 && (!point.changesCoverage || point.changesCoverage === "unknown")) ? null : value;
 }
-export type ChartLine = { key: string; label: string; color?: string; points: TrendPoint[]; metric: keyof TrendCounts };
+export type ChartLine = { key: string; label: string; color?: string; points: TrendPoint[]; metric: keyof TrendCounts | "total" };
 // Inspect the requested hourly window, never a coarse bucket or ranking score.
-// Only the plotted measure matters: events or other severities cannot keep a
-// high-zero line visible. Changes remain independent of active-count coverage.
+// Active lines total all severities. Changes remain independent of active-count coverage.
 // Missing hours are gaps, not zero evidence. Incomplete zero subtotals cannot
 // establish absence; a wholly unknown series must remain distinguishable.
 export function isZeroTrendLine(line: ChartLine): boolean {
@@ -125,6 +125,6 @@ export function isZeroTrendLine(line: ChartLine): boolean {
   return observed;
 }
 export function trendLines(series: TrendSeries[], mode: TrendMode, detail: "active" | "changes"): ChartLine[] {
-  const metric = mode === "topChanges10" || (mode !== "topHigh10" && detail === "changes") ? "changes" : "high";
+  const metric = mode === "topChanges10" || (mode !== "topSignals10" && detail === "changes") ? "changes" : "total";
   return series.map(s => ({ key: s.key, label: s.label, points: s.points, metric }));
 }

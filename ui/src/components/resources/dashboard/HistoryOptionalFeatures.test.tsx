@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-it.each(["favourites", "recent", "tag"] as const)("projects disabled saved %s to Top High, preserves it through edits/reload and restores on enable", async mode => {
+it.each(["favourites", "recent", "tag"] as const)("projects disabled saved %s to Top signals, preserves it through edits/reload and restores on enable", async mode => {
   const settings = defaultUserSettings();
   settings.resourceTags.enabled = false;
   settings.resourceTags.definitions = [definition];
@@ -51,8 +51,8 @@ it.each(["favourites", "recent", "tag"] as const)("projects disabled saved %s to
   settings.history = normalizeHistoryPreferences({ contexts: { [context]: { namespaceMode: mode, tag: definition.id, namespaces: ["must-not-be-custom-fallback"], rulesMode: "custom", rules: [], nodesMode: "topChanges10" } } });
   saveUserSettings(settings);
   const view = render(<Shell />); await flush();
-  expect(query()).toMatchObject({ namespacesMode: "topHigh10", namespaces: [], rulesMode: "custom", rules: [], nodesMode: "topChanges10" });
-  expect(screen.getByText(/ranking is unavailable; showing Top High 10/)).toBeTruthy();
+  expect(query()).toMatchObject({ namespacesMode: "topSignals10", namespaces: [], rulesMode: "custom", rules: [], nodesMode: "topChanges10" });
+  expect(screen.getByText(/ranking is unavailable; showing Top signals 10/)).toBeTruthy();
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "Namespaces ranking" }));
   for (const name of ["Favourites", "Recent", "Tag"]) expect(screen.queryByRole("option", { name })).toBeNull();
   fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
@@ -68,7 +68,7 @@ it.each(["favourites", "recent", "tag"] as const)("projects disabled saved %s to
   expect(loadUserSettings().history.contexts).toEqual(settings.history.contexts);
   expect(loadUserSettings().resourceTags.assignments).toEqual(settings.resourceTags.assignments);
   fireEvent.click(screen.getByText("Toggle features")); await flush();
-  expect(query()).toMatchObject({ namespacesMode: "topHigh10", namespaces: [] });
+  expect(query()).toMatchObject({ namespacesMode: "topSignals10", namespaces: [] });
   expect(requests()).toHaveLength(4);
   expect(fetchMock.mock.calls.every(([path]) => path.startsWith("/api/history/") || path === "/api/dataplane/signals/catalog")).toBe(true);
 });
@@ -81,7 +81,7 @@ it("falls back for missing definitions, restores the saved tag, and rejects cach
   const view = render(<Shell />); await flush();
   expect(query().namespaces).toEqual(["synthetic-apps"]);
   fireEvent.click(screen.getByText("Remove tags")); await flush();
-  expect(query()).toMatchObject({ namespacesMode: "topHigh10", namespaces: [] });
+  expect(query()).toMatchObject({ namespacesMode: "topSignals10", namespaces: [] });
   expect(screen.queryByRole("combobox", { name: "Namespace tag" })).toBeNull();
   fireEvent.click(screen.getByText("Restore tags")); await flush();
   expect(query()).toMatchObject({ namespacesMode: "tag", namespaces: ["synthetic-apps"] });
@@ -92,7 +92,7 @@ it("falls back for missing definitions, restores the saved tag, and rejects cach
   expect(query()).toMatchObject({ namespacesMode: "custom", namespaces: [] });
   view.rerender(<Shell />); await flush();
   fireEvent.click(screen.getByText("Replace tag")); await flush();
-  expect(query()).toMatchObject({ namespacesMode: "topHigh10", namespaces: [] });
+  expect(query()).toMatchObject({ namespacesMode: "topSignals10", namespaces: [] });
   expect(loadUserSettings().history).toEqual(settings.history);
   // An explicit choice can replace a removed tag; automatic fallback cannot.
   select("Namespaces ranking", "Tag"); await flush();

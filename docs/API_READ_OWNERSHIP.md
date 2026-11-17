@@ -87,8 +87,8 @@ explicit. Node keys are exact name+UID pairs, never guessed identities.
 
 `GET /api/history/signal-trends` checks exact-context collection and identity
 consent, then calls `Collector.QueryTrends` → `Store.QueryTrends` → a read-only
-bbolt transaction. Neither manual **Refresh history** nor automatic reads invoke
-collection. The bounded catalog includes retained period series before top-ten
+bbolt transaction. Neither error **Retry signals** nor automatic reads invoke
+collection. There is no normal manual-refresh control. The bounded catalog includes retained period series before top-ten
 ranking, preserving replaced/deleted node UIDs separately from current inventory.
 The UI reports overflow of the actual combined choice union as well as server caps.
 Visible History owns a completion-based 60-second trend timer, independent of live

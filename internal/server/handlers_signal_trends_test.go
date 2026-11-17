@@ -73,7 +73,7 @@ func TestTrendsAuthenticatedGETContextFiltersNoIO(t *testing.T) {
 		}
 	}
 	before, calls := c.Status(), source.calls.Load()
-	for _, suffix := range []string{"", "&diagnostics=transitions", "&nodesMode=topHigh10", "&rulesMode=custom&rule=node_resource_pressure", "&nodesMode=custom&node=" + url.QueryEscape(localhistory.TrendNodeKey("worker", "uid-a")), "&namespacesMode=favourites&namespace=apps", "&namespacesMode=recent&namespace=apps", "&namespacesMode=tag&namespace=apps"} {
+	for _, suffix := range []string{"", "&diagnostics=transitions", "&nodesMode=topSignals10", "&rulesMode=custom&rule=node_resource_pressure", "&nodesMode=custom&node=" + url.QueryEscape(localhistory.TrendNodeKey("worker", "uid-a")), "&namespacesMode=favourites&namespace=apps", "&namespacesMode=recent&namespace=apps", "&namespacesMode=tag&namespace=apps"} {
 		w := request("GET", path+suffix, "secret", "synthetic-a", nil)
 		var got localhistory.TrendResponse
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &got) != nil {
@@ -151,5 +151,22 @@ func TestTrendsAuthenticatedGETContextFiltersNoIO(t *testing.T) {
 	c.Close()
 	if w = request("GET", path, "secret", "synthetic-a", nil); w.Code != 503 {
 		t.Fatal("closed store", w.Code)
+	}
+}
+
+func TestSignalTrendsTotalRankingQueryDefaults(t *testing.T) {
+	base := "/api/history/signal-trends?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z"
+	for _, suffix := range []string{"", "&rulesMode=topSignals10&nodesMode=topSignals10&namespacesMode=topSignals10"} {
+		r := httptest.NewRequest("GET", base+suffix, nil)
+		r.Header.Set("X-Kview-Context", "synthetic-a")
+		q, err := parseSignalTrendsQuery(r)
+		if err != nil || q.RulesMode != "topSignals10" || q.NodesMode != q.RulesMode || q.NamespacesMode != q.RulesMode {
+			t.Fatal(q, err)
+		}
+	}
+	r := httptest.NewRequest("GET", base+"&nodesMode=topHigh10", nil)
+	r.Header.Set("X-Kview-Context", "synthetic-a")
+	if _, err := parseSignalTrendsQuery(r); err == nil {
+		t.Fatal("obsolete API mode accepted")
 	}
 }

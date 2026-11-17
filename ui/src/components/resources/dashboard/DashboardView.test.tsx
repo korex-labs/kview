@@ -268,7 +268,7 @@ describe("DashboardView warmup loading", () => {
     // Enumerate History's trend, catalog and inventory reads plus Dashboard's
     // independent metrics-capability read; reject extra requests or live dashboard data.
     const window = trendWindow(1);
-    const signalPath = `/api/history/signal-trends?${new URLSearchParams({ ...window, rulesMode: "topHigh10", nodesMode: "topHigh10", namespacesMode: "topHigh10" })}`;
+    const signalPath = `/api/history/signal-trends?${new URLSearchParams({ ...window, rulesMode: "topSignals10", nodesMode: "topSignals10", namespacesMode: "topSignals10" })}`;
     const expectedCalls = [
       [signalPath, "test-token", "synthetic-active-a"],
       ["/api/dataplane/signals/catalog", "test-token", "synthetic-active-a"],

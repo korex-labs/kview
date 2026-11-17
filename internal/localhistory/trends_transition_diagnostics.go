@@ -20,6 +20,7 @@ type TransitionDiagnostics struct {
 	Overflow    uint64                `json:"overflow"`
 	Evicted     uint64                `json:"evicted"`
 	Recent      []TransitionRejection `json:"recent"`
+	hour        *TransitionHourEvidence
 	recentBytes int
 }
 type TransitionRejection struct {
@@ -68,6 +69,7 @@ func cloneTransitionDiagnostics(in *TransitionDiagnostics, name, epoch string) *
 		return out
 	}
 	*out = *in
+	out.hour = nil
 	out.Reasons = make(map[string]uint64, len(in.Reasons))
 	for k, v := range in.Reasons {
 		out.Reasons[k] = v
@@ -91,7 +93,7 @@ func (t *TransitionDiagnostics) rejectAttempt(old, next TrendBatch, p, d TrendDo
 	oldCounts, newCounts := transitionActive(p.Signals), transitionActive(d.Signals)
 	for _, s := range d.Signals {
 		before, found := previous[s.ID]
-		if !found || before.Severity != s.Severity || before.Node != s.Node {
+		if !found || before.Severity != s.Severity || before.Node != s.Node || before.Multiplicity != s.Multiplicity {
 			t.reject(old, next, p, d, exists, before, s, found, true, fresh, false, oldCounts, newCounts)
 		}
 		delete(previous, s.ID)
@@ -149,11 +151,14 @@ func (t *TransitionDiagnostics) reject(old, next TrendBatch, p, d TrendDomain, e
 		candidate = "appearance-candidate"
 	} else if !has {
 		candidate = "disappearance-candidate"
+	} else if before.Multiplicity != after.Multiplicity {
+		candidate = "population-count-candidate"
 	} else if before.Severity == after.Severity {
 		candidate = "membership-only"
 	}
 	r := TransitionRejection{At: next.At, Namespace: d.Namespace, Rule: d.Rule, Reason: reason, Candidate: candidate, Decision: "not-confirmed", Old: transitionObservation(p, before, had, oldCounts), New: transitionObservation(d, after, has, newCounts), PolicyChanged: old.Policy != "" && old.Policy != next.Policy, GenerationChanged: p.Generation != d.Generation}
 	t.Reasons[reason]++
+	t.hour.record(r)
 	raw, _ := json.Marshal(r)
 	// Both record count and encoded size are hard bounds. No native objects,
 	// messages, policy hashes, signal fingerprints or arbitrary errors enter here.

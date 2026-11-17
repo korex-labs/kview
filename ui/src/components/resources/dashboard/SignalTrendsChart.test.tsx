@@ -150,6 +150,20 @@ it("formats counts and keeps missing, zero and singular values distinct without 
   fireEvent.keyDown(chart, { key: "End" });
   expect(within(screen.getByRole("tooltip")).getByText("1 signal")).toBeTruthy();
 });
+it("shows all-severity signal totals and human labels while preserving unknown gaps", () => {
+  const source = line([1, null, 0]); source.metric = "total"; source.label = "Pod crash loop waiting";
+  source.points[0].counts = { high: 1, medium: 50, low: 0, changes: 9 };
+  source.points[2].counts = { high: 0, medium: 0, low: 0, changes: 0 };
+  const { container } = mount([source]);
+  const chart = container.querySelector('[tabindex="0"]')!;
+  fireEvent.focus(chart); fireEvent.keyDown(chart, { key: "ArrowRight" });
+  expect(within(screen.getByRole("tooltip")).getByText("51 signals")).toBeTruthy();
+  expect(within(screen.getByRole("tooltip")).getByText("Pod crash loop waiting")).toBeTruthy();
+  fireEvent.keyDown(chart, { key: "ArrowRight" });
+  expect(within(screen.getByRole("tooltip")).getByText("No data")).toBeTruthy();
+  fireEvent.keyDown(chart, { key: "End" });
+  expect(within(screen.getByRole("tooltip")).getByText("0 signals")).toBeTruthy();
+});
 it("renders parsed retained overnight evidence with clean numeric hover and bounded marks", async () => {
   const data = parseSignalTrends(carriedTrendFixture(fixtureQuery), fixtureQuery);
   const { container } = mount([{ key: "retained", label: "Retained signals", metric: "high", points: data.severity[0].points }]);
@@ -168,7 +182,7 @@ it("renders parsed retained overnight evidence with clean numeric hover and boun
 it.each(["partial", "unknown"] as const)("plots parsed confirmed changes with %s coverage without active counts or invented unknown zero", changesCoverage => {
   const raw = trendFixture(fixtureQuery), series = raw.nodes[0];
   Object.assign(series.points[0], { counts: null, confirmedChanges: 4, changesCoverage });
-  series.highScore = 0;
+  series.totalScore = 0;
   const data = parseSignalTrends(raw, fixtureQuery);
   const { container } = mount([{ key: "changes", label: "Node changes", metric: "changes", points: data.nodes[0].points }]);
   expect(container.querySelector('[data-observation="isolated"]')).not.toBeNull();
@@ -193,7 +207,7 @@ it("keeps confirmed changes authoritative and unknown zero distinct from observe
   fireEvent.keyDown(chart, { key: "End" });
   expect(within(screen.getByRole("tooltip")).getByText("0 changes")).toBeTruthy();
 });
-it("plots the generated Go partial-confirmed fixture as changes, not active High counts", () => {
+it("plots the generated Go partial-confirmed fixture as changes, not active totals", () => {
   const fixture = wireFixtures.find(value => value.name === "partial-confirmed-changes")!;
   const data = parseSignalTrends(structuredClone(fixture.response), fixture.query as TrendQuery);
   const lines = trendLines(data.nodes, "topChanges10", "active");
@@ -405,6 +419,173 @@ it.each([{ lines: [] }, { lines: [changes([0, 0], "zero")] }, { lines: [changes(
   expect(screen.getByText("No recorded changes.")).toBeTruthy();
   expect(screen.queryByText(/No activity|No selected retained series|zero-only/)).toBeNull();
   expect(container.querySelectorAll(".MuiBarChart-element")).toHaveLength(0);
+});
+
+function legendCells(label: string) {
+  return within(screen.getByRole("row", { name: label })).getAllByRole("cell").map(cell => cell.textContent);
+}
+it("shows displayed-bucket statistics with true final unknown and known zero", () => {
+  const { container } = render(<SignalTrendsChart title="Stats" preserveZero lines={[line([0, 2, null, null]), line([0, 0, 0, 0], "zero"), line([null, null, null, null], "unknown")]} from={from} to="2026-01-01T04:00:00Z" hours={2} />);
+  expect(legendCells("Series alpha")).toEqual(["2", "2", "2", "—"]);
+  expect(legendCells("Series zero")).toEqual(["0", "0", "0", "0"]);
+  expect(legendCells("Series unknown")).toEqual(["—", "—", "—", "—"]);
+  expect(within(screen.getByRole("table", { name: "Stats legend" })).getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Series", "Min", "Avg", "Max", "Last"]);
+  expect(container.querySelector(".MuiChartsLegend-root")).toBeNull();
+  const scroll = screen.getByRole("table").parentElement!;
+  expect(scroll.classList.contains("kview-native-scrollbar")).toBe(true);
+  expect(getComputedStyle(scroll).height).toBe("auto"); // Short legends have no fixed-height blank space.
+  expect(getComputedStyle(scroll).overflow).toBe("auto");
+});
+it.each([3, 10, 11])("budgets the legend header and ten natural rows for %i series without shrinking the plot", count => {
+  const { container } = mount(Array.from({ length: count }, (_, i) => line([1, 2], `long-series-name-${i}`)));
+  const table = screen.getByRole("table", { name: "Signals legend" });
+  const scroll = table.parentElement!;
+  const style = getComputedStyle(scroll), tableStyle = getComputedStyle(table);
+  const rows = [...table.querySelectorAll<HTMLElement>("tbody tr")];
+  expect(rows).toHaveLength(count);
+  expect(scroll.classList.contains("kview-native-scrollbar")).toBe(true);
+  expect(style.overflow).toBe("auto");
+  expect(style.height).toBe("auto");
+  expect(tableStyle.borderCollapse).toBe("collapse");
+  expect(tableStyle.fontSize).toBe(style.fontSize);
+  expect(tableStyle.lineHeight).toBe(style.lineHeight);
+  // jsdom has no table layout: verify the CSS budget, not scrollHeight/clientHeight.
+  // The collapsed table has no borders or vertical gaps; each single-line cell
+  // contributes its inherited line-height plus its actual top/bottom padding.
+  const padding = (element: Element) => {
+    const cell = getComputedStyle(element);
+    expect(cell.whiteSpace).toBe("nowrap");
+    expect(cell.borderTopStyle).toBe("none");
+    expect(cell.borderBottomStyle).toBe("none");
+    return parseFloat(cell.paddingTop) + parseFloat(cell.paddingBottom);
+  };
+  const headerPadding = padding(table.querySelector("thead th")!);
+  const rowPadding = padding(rows[0].querySelector("th")!);
+  for (const cell of table.querySelectorAll("th, td")) expect(padding(cell)).toBe(rowPadding);
+  const textHeight = Number(style.lineHeight) * parseFloat(style.fontSize);
+  expect(parseFloat(style.maxHeight)).toBe(11 * textHeight + headerPadding + 10 * rowPadding);
+  expect(getComputedStyle(table.querySelector("thead")!).position).toBe("sticky");
+  const label = rows[0].querySelector("th")!;
+  expect(label.title).toBe("Series long-series-name-0");
+  expect(getComputedStyle(label.querySelector("span span:last-child")!).textOverflow).toBe("ellipsis");
+  expect(rows.every(row => row.tabIndex === 0 && getComputedStyle(row).height === "auto")).toBe(true);
+  const surface = container.querySelector(".MuiChartsSurface-root")!;
+  expect(surface.querySelector("svg")!.getAttribute("viewBox")).toBe("0 0 640 240");
+  if (count > 10) {
+    // Native focus remains available beyond the viewport; no pagination/rerender
+    // is needed to expose row 11. Browser scroll-into-view remains a manual check.
+    act(() => rows[10].focus());
+    expect(document.activeElement).toBe(rows[10]);
+    expect(container.querySelector('[data-highlight-overlay="long-series-name-10"]')).not.toBeNull();
+    expect(container.querySelector(".MuiChartsSurface-root")).toBe(surface);
+  }
+});
+it("uses severity layer values and summed Changes intervals in legend statistics", () => {
+  const layers = (["high", "medium", "low"] as const).map(metric => ({ ...line([1, 5]), key: metric, label: metric, metric }));
+  const view = render(<SignalTrendsChart title="Severity" kind="stacked-area" lines={layers} from={from} to="2026-01-01T02:00:00Z" hours={1} />);
+  expect(legendCells("high")).toEqual(["1", "3", "5", "5"]);
+  expect(legendCells("medium")).toEqual(["2", "2", "2", "2"]);
+  expect(legendCells("low")).toEqual(["3", "3", "3", "3"]);
+  view.rerender(<SignalTrendsChart title="Changes" kind="stacked-bar" lines={[changes([2, 3, 0, 0], "alpha")]} from={from} to="2026-01-01T04:00:00Z" hours={2} />);
+  expect(legendCells("Series alpha")).toEqual(["0", "2.5", "5", "0"]);
+});
+it("highlights coincident lines above peers, fades marks, and clears on hover leave and keyboard blur", () => {
+  const { container } = mount([line([1, null, 2], "alpha", "partial"), line([1, null, 2], "beta", "partial")]);
+  const [a, b] = [...container.querySelectorAll<SVGPathElement>(".MuiLineChart-line")];
+  const original = [a, b].map(path => ({ d: path.getAttribute("d"), color: path.getAttribute("stroke"), id: path.id }));
+  expect(original[0].d).toBe(original[1].d);
+  const row = screen.getByRole("row", { name: "Series alpha" });
+  fireEvent.mouseEnter(row);
+  expect(a.getAttribute("data-highlighted")).toBe("true");
+  expect(b.getAttribute("data-faded")).toBe("true");
+  expect(getComputedStyle(b).opacity).toBe("0.15");
+  expect(a.style.strokeWidth).toBe("4");
+  const overlay = container.querySelector('[data-highlight-overlay="alpha"]')!;
+  expect(overlay.getAttribute("pointer-events")).toBe("none");
+  expect(overlay.querySelector("use")!.getAttribute("href")).toBe(`#${a.id}`);
+  expect(b.compareDocumentPosition(overlay) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(container.querySelector('[data-observation-series="beta"]')!.getAttribute("opacity")).toBe("0.15");
+  expect([a, b].map(path => ({ d: path.getAttribute("d"), color: path.getAttribute("stroke"), id: path.id }))).toEqual(original);
+  fireEvent.mouseLeave(row);
+  expect(container.querySelector("[data-highlight-overlay]")).toBeNull();
+  expect(b.hasAttribute("data-faded")).toBe(false);
+  fireEvent.keyDown(document.body, { key: "Tab" });
+  act(() => row.focus());
+  expect(document.activeElement).toBe(row);
+  expect(a.getAttribute("data-highlighted")).toBe("true");
+  expect(b.getAttribute("data-faded")).toBe("true");
+  act(() => row.blur());
+  expect(container.querySelector("[data-highlight-overlay]")).toBeNull();
+  expect(a.style.strokeWidth).toBe("2");
+  expect(b.hasAttribute("data-faded")).toBe(false);
+});
+it("makes coincident zero series selectable without hiding or changing their observations", () => {
+  const { container } = render(<SignalTrendsChart title="Zeros" preserveZero lines={[line([0, 0], "alpha"), line([0, 0], "beta")]} from={from} to="2026-01-01T02:00:00Z" hours={1} />);
+  const paths = [...container.querySelectorAll(".MuiLineChart-line")];
+  expect(paths[0].getAttribute("d")).toBe(paths[1].getAttribute("d"));
+  const a = screen.getByRole("row", { name: "Series alpha" }), b = screen.getByRole("row", { name: "Series beta" });
+  act(() => a.focus());
+  expect(paths[0].getAttribute("data-highlighted")).toBe("true");
+  fireEvent.mouseEnter(b);
+  expect(paths[1].getAttribute("data-highlighted")).toBe("true");
+  fireEvent.mouseLeave(b);
+  expect(paths[0].getAttribute("data-highlighted")).toBe("true");
+  act(() => b.focus());
+  expect(paths[1].getAttribute("data-highlighted")).toBe("true");
+  act(() => b.blur());
+  expect(container.querySelector("[data-highlight-overlay]")).toBeNull();
+  expect(container.querySelectorAll(".MuiLineChart-line")).toHaveLength(2);
+  expect(legendCells("Series alpha")).toEqual(["0", "0", "0", "0"]);
+  expect(legendCells("Series beta")).toEqual(["0", "0", "0", "0"]);
+});
+it.each(["stacked-area", "stacked-bar"] as const)("fades %s peers without changing stack geometry", kind => {
+  const lines = kind === "stacked-bar" ? [changes([2, 3], "alpha"), changes([3, 2], "beta")] : [line([2, 3]), line([3, 2], "beta")];
+  const { container } = render(<SignalTrendsChart title="Stack" kind={kind} lines={lines} from={from} to="2026-01-01T02:00:00Z" hours={1} />);
+  const elements = [...container.querySelectorAll(kind === "stacked-bar" ? ".MuiBarChart-element" : ".MuiLineChart-area")];
+  const geometry = elements.map(el => ["d", "x", "y", "height", "width"].map(attr => el.getAttribute(attr)));
+  act(() => screen.getByRole("row", { name: "Series alpha" }).focus());
+  expect(elements.some(el => el.getAttribute("data-highlighted") === "true")).toBe(true);
+  expect(elements.some(el => el.getAttribute("data-faded") === "true")).toBe(true);
+  expect(elements.map(el => ["d", "x", "y", "height", "width"].map(attr => el.getAttribute(attr)))).toEqual(geometry);
+});
+it("keeps chart-local IDs, colors and paths stable through reorder and peer removal", () => {
+  const key = '["worker/one","uid%#"]', a = line([1, 2], key), b = line([2, 1], "beta");
+  const chart = (lines: ChartLine[], title = "Stable") => <SignalTrendsChart title={title} lines={lines} from={from} to="2026-01-01T02:00:00Z" hours={1} />;
+  const view = render(<>{chart([a, b])}{chart([a], "Other")}</>);
+  const originals = [...view.container.querySelectorAll(".MuiLineChart-line")];
+  expect(new Set(originals.map(el => el.id)).size).toBe(3);
+  const original = originals[0], color = original.getAttribute("stroke"), id = original.id;
+  view.rerender(<>{chart([b, a])}{chart([a], "Other")}</>);
+  expect(document.getElementById(id)).toBe(original);
+  expect(original.getAttribute("stroke")).toBe(color);
+  view.rerender(<>{chart([a])}{chart([a], "Other")}</>);
+  expect(document.getElementById(id)).toBe(original);
+  expect(original.getAttribute("stroke")).toBe(color);
+  const row = within(screen.getByRole("table", { name: "Stable legend" })).getByRole("row", { name: a.label });
+  fireEvent.mouseEnter(row);
+  const reference = view.container.querySelector("[data-highlight-overlay] use")!.getAttribute("href")!;
+  expect(document.getElementById(reference.slice(1))).toBe(original);
+});
+
+it.each(["hover", "focus"] as const)("forgets removed-series %s without remounting the chart or reviving stale highlights", interaction => {
+  const a = line([1, 2], "alpha"), b = line([2, 1], "beta");
+  const chart = (lines: ChartLine[]) => <SignalTrendsChart title="Stable" lines={lines} from={from} to="2026-01-01T02:00:00Z" hours={1} />;
+  const view = render(chart([a, b]));
+  const surface = view.container.querySelector(".MuiChartsSurface-root");
+  const row = screen.getByRole("row", { name: a.label });
+  if (interaction === "hover") fireEvent.mouseEnter(row);
+  else act(() => row.focus());
+  expect(view.container.querySelector('[data-highlight-overlay="alpha"]')).not.toBeNull();
+  view.rerender(chart([b]));
+  expect(view.container.querySelector("[data-highlight-overlay]")).toBeNull();
+  view.rerender(chart([a, b]));
+  expect(view.container.querySelector(".MuiChartsSurface-root")).toBe(surface);
+  expect(view.container.querySelector("[data-highlight-overlay]")).toBeNull();
+  expect(view.container.querySelector('[data-highlighted="true"], [data-faded="true"]')).toBeNull();
+  fireEvent.mouseEnter(screen.getByRole("row", { name: b.label }));
+  expect(view.container.querySelector('[data-highlight-overlay="beta"]')).not.toBeNull();
+  view.unmount();
+  expect(document.querySelector("[data-highlight-overlay]")).toBeNull();
 });
 
 it("bounds SVG nodes for 20 series across 90 days, including alternating isolated partial samples", () => {

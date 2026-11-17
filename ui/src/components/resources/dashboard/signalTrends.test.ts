@@ -18,7 +18,7 @@ describe("bounded retained signal trends", () => {
     const data = parseSignalTrends(trendFixture(q), q);
     expect(data.severity[0].points[1].counts).toBeNull();
     expect(trendLines(data.nodes, "topChanges10", "active")[0].metric).toBe("changes");
-    expect(trendLines(data.rules, "topHigh10", "changes")[0].metric).toBe("high");
+    expect(trendLines(data.rules, "topSignals10", "changes")[0].metric).toBe("total");
   });
   const mutations: Array<[string, (d: SignalTrends) => void]> = [
     ["context", d => { d.context = "wrong"; }], ["version", d => { d.schemaVersion = 2 as 1; }],
@@ -57,7 +57,7 @@ describe("bounded retained signal trends", () => {
     expect(chartBuckets([point, { ...point, coverage: "complete" }], 2)[0]).toMatchObject({ coverage: "partial", counts: { high: 2, changes: 8 } });
     // A confirmed disappearance can retain transitions without an active source.
     point.counts = { high: 0, medium: 0, low: 0, changes: 1 };
-    data.nodes[0].highScore = 0; data.nodes[0].changesScore = 1;
+    data.nodes[0].totalScore = 0; data.nodes[0].changesScore = 1;
     expect(parseSignalTrends(data, q).nodes[0].points[0].counts).toEqual({ high: 0, medium: 0, low: 0, changes: 1 });
     Object.assign(point, { coverage: "invented" });
     expect(() => parseSignalTrends(data, q)).toThrow();
@@ -81,7 +81,7 @@ describe("bounded retained signal trends", () => {
   it("accepts independent projection totals without equating node memberships to global severity", () => {
     const data = trendFixture(q);
     data.nodes[0].points[0].counts!.high = 7;
-    data.nodes[0].highScore = 7;
+    data.nodes[0].totalScore = 11;
     data.nodes[0].points[0].coverage = "partial";
     data.severity[0].points[0].coverage = "complete";
     const parsed = parseSignalTrends(data, q);
@@ -90,13 +90,13 @@ describe("bounded retained signal trends", () => {
     expect(parsed.nodes[0].points[0].coverage).toBe("partial");
     expect(parsed.severity[0].points[0].coverage).toBe("complete");
   });
-  it("uses the existing generic node ranking field and plots active High in Node Top High mode", () => {
-    const query = { ...q, nodesMode: "topHigh10" as const };
+  it("uses the existing generic node ranking field and plots all active severities in Node Top signals mode", () => {
+    const query = { ...q, nodesMode: "topSignals10" as const };
     const data = parseSignalTrends(trendFixture(query), query);
     const url = new URL(trendURL(query), "http://fixture.invalid");
-    expect(url.searchParams.get("nodesMode")).toBe("topHigh10");
+    expect(url.searchParams.get("nodesMode")).toBe("topSignals10");
     expect(url.searchParams.getAll("node")).toEqual([]);
-    expect(trendLines(data.nodes, query.nodesMode, "active")[0].metric).toBe("high");
+    expect(trendLines(data.nodes, query.nodesMode, "active")[0].metric).toBe("total");
     expect(trendValue(data.nodes[0].points[0], "high")).toBe(2);
     expect(trendValue(data.nodes[0].points[0], "changes")).toBe(4);
   });
@@ -112,7 +112,7 @@ describe("publication carry-forward wire contract", () => {
     const data = parseSignalTrends(carriedTrendFixture(q), q), points = data.severity[0].points;
     expect(points).toHaveLength(24);
     expect(points.every(p => p.sampleAt === "2025-12-31T23:00:00.000Z" && p.counts?.high === 2)).toBe(true);
-    expect(data.severity[0].highScore).toBe(48);
+    expect(data.severity[0].totalScore).toBe(144);
     expect(data.severity[0].changesScore).toBe(0);
     expect(points.every(p => trendValue(p, "changes") === null)).toBe(true);
     const coarse = chartBuckets(points, 24)[0];
@@ -139,7 +139,7 @@ describe("publication carry-forward wire contract", () => {
   it("ranks and plots independent confirmed changes despite null active counts", () => {
     const data = trendFixture(q), series = data.rules[0], point = series.points[0];
     Object.assign(point, { counts: null, confirmedChanges: 7, changesCoverage: "partial" });
-    series.highScore = 0; series.changesScore = 7;
+    series.totalScore = 0; series.changesScore = 7;
     const parsed = parseSignalTrends(data, q).rules[0].points;
     expect(trendValue(parsed[0], "changes")).toBe(7);
     expect(trendValue(parsed[1], "changes")).toBeNull();
@@ -158,7 +158,7 @@ describe("publication carry-forward wire contract", () => {
 describe("whole-window zero-only display filtering", () => {
   const base = trendFixture(q).rules[0];
   const zero = { ...base.points[0], counts: { high: 0, medium: 0, low: 0, changes: 0 }, coverage: "complete" as const, changesCoverage: "complete" as const };
-  const line = (points: typeof base.points, mode: "topHigh10" | "topChanges10" | "custom" = "topHigh10") => trendLines([{ ...base, points }], mode, "active")[0];
+  const line = (points: typeof base.points, mode: "topSignals10" | "topChanges10" | "custom" = "topSignals10") => trendLines([{ ...base, points }], mode, "active")[0];
   it("hides exact observed zero, but never empty, unknown-only or incomplete zero", () => {
     expect(isZeroTrendLine(line([zero, zero]))).toBe(true);
     expect(isZeroTrendLine(line([zero, { ...zero, counts: null }]))).toBe(true);
@@ -168,7 +168,7 @@ describe("whole-window zero-only display filtering", () => {
   });
   it("filters each plotted measure independently despite other severities and confirmed changes", () => {
     const point = { ...zero, counts: { high: 0, medium: 3, low: 4, changes: 5 }, confirmedChanges: 5, changesCoverage: "unknown" as const };
-    expect(isZeroTrendLine(line([point]))).toBe(true);
+    expect(isZeroTrendLine(line([point]))).toBe(false);
     expect(isZeroTrendLine(line([point], "topChanges10"))).toBe(false);
     expect(isZeroTrendLine({ ...line([point]), metric: "medium" })).toBe(false);
     expect(isZeroTrendLine({ ...line([point]), metric: "low" })).toBe(false);
@@ -193,6 +193,30 @@ describe("whole-window zero-only display filtering", () => {
     expect(lines.filter(item => !isZeroTrendLine(item))).toEqual([]);
     expect(source).toEqual(before);
     expect(lines[0].points).toBe(source[0].points);
+  });
+});
+describe("all-severity active totals", () => {
+  it.each(["topSignals10", "custom", "favourites", "recent", "tag"] as const)("plots totals in %s, preserving null, partial and carry evidence", mode => {
+    const source = trendFixture(q).nodes[0];
+    source.points[0] = { ...source.points[0], counts: { high: 0, medium: 50, low: 1, changes: 9 }, coverage: "partial", carriedForward: true };
+    const line = trendLines([source], mode, "active")[0];
+    expect(line.metric).toBe("total");
+    expect(trendValue(line.points[0], line.metric)).toBe(51);
+    expect(trendValue(line.points[1], line.metric)).toBeNull();
+    expect(isZeroTrendLine(line)).toBe(false);
+    const coarse = chartBuckets(line.points, 6, "total")[0];
+    expect(trendValue(coarse, "total")).toBe(51);
+    expect(coarse).toMatchObject({ coverage: "unknown", carriedForward: true });
+  });
+  it("validates ranking by summed total rather than High and rejects wrong scores/order", () => {
+    const data = trendFixture(q), first = data.nodes[0];
+    first.points[0].counts = { high: 1, medium: 50, low: 0, changes: 4 }; first.totalScore = 51;
+    const second = structuredClone(first); second.key = '["high-worker","uid"]';
+    second.points[0].counts = { high: 10, medium: 0, low: 0, changes: 4 }; second.totalScore = 10;
+    data.nodes.push(second);
+    expect(parseSignalTrends(data, q).nodes.map(s => s.totalScore)).toEqual([51, 10]);
+    first.totalScore = 1; expect(() => parseSignalTrends(data, q)).toThrow(/scores/);
+    first.totalScore = 51; data.nodes.reverse(); expect(() => parseSignalTrends(data, q)).toThrow(/ranking/);
   });
 });
 describe("current namespace selection", () => {

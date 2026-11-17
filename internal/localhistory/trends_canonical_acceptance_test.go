@@ -41,7 +41,7 @@ func TestTrendsZeroRankingBeforeTopPreservesUnknownIncompleteAndCustom(t *testin
 		t.Fatal(err)
 	}
 	q := TrendQuery{Context: b.Context, From: from, To: from.Add(time.Hour), AsOf: from.Add(time.Minute)}
-	for _, mode := range []string{"topHigh10", "topChanges10"} {
+	for _, mode := range []string{"topSignals10", "topChanges10"} {
 		q.RulesMode = mode
 		out, err := s.QueryTrends(q)
 		if err != nil {
@@ -52,8 +52,8 @@ func TestTrendsZeroRankingBeforeTopPreservesUnknownIncompleteAndCustom(t *testin
 			keys = append(keys, v.Key)
 		}
 		want := []string{"a-low-changes", "z-positive"}
-		if mode == "topHigh10" {
-			want = []string{"z-positive", "z-incomplete", "z-unknown"}
+		if mode == "topSignals10" {
+			want = []string{"a-low-changes", "z-positive", "z-incomplete", "z-unknown"}
 		}
 		if !reflect.DeepEqual(keys, want) {
 			t.Fatalf("%s zero rows displaced eligible rows: %v", mode, keys)

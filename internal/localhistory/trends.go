@@ -104,31 +104,33 @@ type TrendGroup struct {
 	TrendPoint
 }
 type TrendHour struct {
-	Epoch  string       `json:"epoch,omitempty"`
-	Policy string       `json:"policy,omitempty"`
-	At     time.Time    `json:"at"`
-	Groups []TrendGroup `json:"groups"`
+	TransitionEvidence *TransitionHourEvidence `json:"transitionEvidence,omitempty"`
+	Epoch              string                  `json:"epoch,omitempty"`
+	Policy             string                  `json:"policy,omitempty"`
+	At                 time.Time               `json:"at"`
+	Groups             []TrendGroup            `json:"groups"`
 }
 type TrendSeries struct {
 	Key          string       `json:"key"`
 	Label        string       `json:"label"`
-	HighScore    int          `json:"highScore"`
+	TotalScore   int          `json:"totalScore"`
 	ChangesScore int          `json:"changesScore"`
 	Points       []TrendPoint `json:"points"`
 }
 type TrendResponse struct {
-	TransitionDiagnostics *TransitionDiagnostics `json:"transitionDiagnostics,omitempty"`
-	AsOf                  time.Time              `json:"asOf"`
-	Catalog               TrendCatalog           `json:"catalog"`
-	SchemaVersion         int                    `json:"schemaVersion"`
-	Context               string                 `json:"context"`
-	From                  time.Time              `json:"from"`
-	To                    time.Time              `json:"to"`
-	Severity              []TrendSeries          `json:"severity"`
-	Rules                 []TrendSeries          `json:"rules"`
-	Nodes                 []TrendSeries          `json:"nodes"`
-	Namespaces            []TrendSeries          `json:"namespaces"`
-	Diagnostics           TrendDiagnostics       `json:"diagnostics"`
+	TransitionHours       []TransitionHourEvidence `json:"transitionHours,omitempty"`
+	TransitionDiagnostics *TransitionDiagnostics   `json:"transitionDiagnostics,omitempty"`
+	AsOf                  time.Time                `json:"asOf"`
+	Catalog               TrendCatalog             `json:"catalog"`
+	SchemaVersion         int                      `json:"schemaVersion"`
+	Context               string                   `json:"context"`
+	From                  time.Time                `json:"from"`
+	To                    time.Time                `json:"to"`
+	Severity              []TrendSeries            `json:"severity"`
+	Rules                 []TrendSeries            `json:"rules"`
+	Nodes                 []TrendSeries            `json:"nodes"`
+	Namespaces            []TrendSeries            `json:"namespaces"`
+	Diagnostics           TrendDiagnostics         `json:"diagnostics"`
 }
 type TrendQuery struct {
 	TransitionDetails                    bool
@@ -147,13 +149,13 @@ func trendKey(parts ...string) string     { b, _ := json.Marshal(parts); return 
 func trendDomainKey(d TrendDomain) string { return trendKey(d.Namespace, d.Rule) }
 func (q *TrendQuery) Normalize() {
 	if q.RulesMode == "" {
-		q.RulesMode = "topHigh10"
+		q.RulesMode = "topSignals10"
 	}
 	if q.NodesMode == "" {
-		q.NodesMode = "topChanges10"
+		q.NodesMode = "topSignals10"
 	}
 	if q.NamespacesMode == "" {
-		q.NamespacesMode = "topHigh10"
+		q.NamespacesMode = "topSignals10"
 	}
 }
 func (q TrendQuery) Validate() error {
@@ -162,9 +164,9 @@ func (q TrendQuery) Validate() error {
 		return ErrInvalidQuery
 	}
 	for i, mode := range []string{q.RulesMode, q.NodesMode, q.NamespacesMode} {
-		valid := mode == "custom" || mode == "topChanges10" || mode == "topHigh10" || (i == 2 && (mode == "favourites" || mode == "recent" || mode == "tag"))
+		valid := mode == "custom" || mode == "topChanges10" || mode == "topSignals10" || (i == 2 && (mode == "favourites" || mode == "recent" || mode == "tag"))
 		selections := [][]string{q.Rules, q.Nodes, q.Namespaces}[i]
-		if !valid || len(selections) > TrendMaxSelections || ((mode == "topHigh10" || mode == "topChanges10") && len(selections) > 0) {
+		if !valid || len(selections) > TrendMaxSelections || ((mode == "topSignals10" || mode == "topChanges10") && len(selections) > 0) {
 			return ErrInvalidQuery
 		}
 		seen := map[string]bool{}
@@ -357,7 +359,7 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 			}
 			before, found := previous[s.ID]
 			changed := identityComparable(s) && fresh && (!found || before.Severity != s.Severity)
-			if !changed && (!found || before.Severity != s.Severity || before.Node != s.Node) {
+			if !changed && (!found || before.Severity != s.Severity || before.Node != s.Node || before.Multiplicity != s.Multiplicity) {
 				next.transitionTrace.reject(old, next, p, *d, exists, before, s, found, true, fresh, identityComparable(s), oldCounts, newCounts)
 			}
 			// Membership is not a health event, but the old node is still observed.

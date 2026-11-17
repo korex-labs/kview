@@ -92,9 +92,15 @@ It reads retained history and, only when requested, process-local diagnostics;
 never samples or refreshes caches. `from`/`to` are UTC hour boundaries, `[from,to)`, up to
 90 days. Invalid/duplicate/unknown query fields are rejected.
 
-- Rules: `topHigh10`, `topChanges10`, `custom`.
-- Nodes: `topHigh10`, `topChanges10`, `custom`.
-- Namespaces: `topHigh10`, `topChanges10`, `favourites`, `recent`, `custom`, `tag`.
+All three groups default to `topSignals10` when the API mode is omitted.
+Only Severity splits High/Medium/Low; other active charts (including Custom,
+Favourites, Recent and Tag) use their sum. Browser preferences normalize the
+previous `topHigh10` choice to `topSignals10`, preserving selections, context
+identities and global period/detail; the API accepts only current mode names.
+
+- Rules: `topSignals10`, `topChanges10`, `custom`.
+- Nodes: `topSignals10`, `topChanges10`, `custom`.
+- Namespaces: `topSignals10`, `topChanges10`, `favourites`, `recent`, `custom`, `tag`.
 - Explicit `rule`, `node`, `namespace` lists have at most 20 keys each. Empty custom
   selection selects nothing. Node keys are JSON `[name,uid]`; names are not identity.
   Favourites/recent/tags resolve to current UI namespace lists, not historical tags.
@@ -120,7 +126,7 @@ empty lists. Replay identity uses bounded per-dependency publication generations
 not ordering of the minimum source timestamp; policy changes establish a new baseline.
 
 Rankings are fixed for the range, descending score then ascending exact key.
-Top High sums displayed hourly active High values, including retained carry; Top Changes sums confirmed individual
+Top signals sums displayed hourly active High + Medium + Low values (`totalScore`), including retained carry; Top Changes sums confirmed individual
 appearances, disappearances and severity changes, each once. A replacement can
 contribute two despite unchanged totals. First observations are baselines. Fresh,
 complete, comparable evidence is required for a disappearance. Gaps, policy changes,
@@ -161,6 +167,54 @@ not interruption inside bbolt transaction acquisition, JSON decoding or sorting.
 These limits are safeguards, not a large-cluster capacity guarantee. Scope/admission
 loss is reported; increasing limits is not a substitute for coverage correctness.
 
+### Durable hourly decision evidence
+
+`diagnostics=transitions` additionally returns optional `transitionHours` for the
+requested `[from,to)` hours and exact context/current epoch. Existing `rule`,
+`node` (name + UID), and `namespace` selections intersect-filter its groups and
+examples; ranking modes do not filter this diagnostic evidence. Whole-hour
+`reasons`, truncation counters and queue counters remain explicitly whole-hour
+values, not totals for the filtered groups. The predecessor hour used for carried
+chart values is excluded. Ordinary responses omit this field.
+
+Each existing hourly JSON record now has an additive `transitionEvidence` field.
+It contains fixed-vocabulary candidate reason counters, at most 128
+(namespace, rule, node identity) groups, and at most eight small examples, within
+64 KiB encoded JSON. Groups retain their latest attempt timestamp and the
+compared **domain** active counts (`domainBefore` / `domainAfter`), not invented
+node-specific deltas. Candidate reason counters accumulate every rejected
+operation: an observed 12 → 13 → 12 in one hour does not cancel two rejected
+candidates. Compact multiplicity changes are `population-count-candidate`, not
+inferred individual events. Baseline/rebase reasons are not incidents.
+
+The existing reducer gates populate the summary before the process-local ring
+evicts records. UID/source/policy evidence describes the actual decision; it does
+not establish which source caused an observed aggregate delta. Fresh, identified
+appearances and disappearances still count once each, including in separate
+hours. Queue coalescing/overflow are cumulative coverage observations and are
+never assigned as an unsupported per-resource cause.
+
+`truncatedCandidates` reports omitted group attributions (a membership move can
+have two node attributions); `examplesOmitted` reports omitted examples. Reasons
+remain whole-hour totals even when attribution is truncated. An absent summary
+means durable evidence is unavailable (old writer or exhausted byte headroom),
+**not** a known zero rejection count. `incomplete: true` means earlier appends
+in that same hour lacked retained evidence; counters then cover only recorded
+attempts. Examples are bounded samples, not an exhaustive resource journal.
+
+Evidence and counts commit atomically in the same hourly payload, including exact
+retained-byte accounting and the existing 64 MiB retained payload cap per DB.
+Canonical groups are admitted first; optional evidence uses only remaining hourly
+and retained-byte headroom. Examples, then group attribution, are trimmed with
+explicit loss counters. If even the summary cannot fit it is omitted, rather than
+rejecting an otherwise valid canonical append. Context capacity and disk guards
+remain unchanged. The same 30/90-day pruning deletes both. Existing current
+DBs open without schema reset, bucket deletion or rewrite; legacy hours remain
+readable without fabricated evidence. This is future-only: records lost from the
+old process-local ring cannot be explained retrospectively. Source objects, logs,
+credentials and arbitrary error text are never retained. Identity metadata uses
+the existing explicit consent and authentication boundary.
+
 ### Internal transition diagnostics
 
 After rebuilding, append `&diagnostics=transitions` to an authenticated trends
@@ -169,7 +223,7 @@ request with the same exact-context header and required hour-aligned window, e.g
 ```http
 GET /api/history/signal-trends?from=2026-11-16T00:00:00Z&to=2026-11-17T00:00:00Z&diagnostics=transitions
 X-Kview-Context: synthetic-context
-Authorization: Bearer <existing application token>
+Authorization: Bearer <application-token>
 ```
 
 Replace the synthetic context and window; no new consent, live-cluster request or
@@ -188,7 +242,7 @@ has unknown transition evidence; unrelated unknown sources are not rejection cau
 for a healthy candidate. Queue loss describes coverage, not an invented per-resource
 cause. Zero source timestamps mean unavailable, not the evaluation time.
 
-This is future-only, process-local evidence since successful ingestion under the
+The `transitionDiagnostics` ring remains future-only, process-local evidence since successful ingestion under the
 current store/context epoch, not a historical event log or a reconstruction of past
 missing changes. It is not filtered by the requested chart window or selectors.
 Restart, store/collector close and accepted epoch replacement reset it. Recent
@@ -210,7 +264,7 @@ formatting and native MUI interactions. Severity stacks High/Medium/Low in stabl
 risk colors; the upper boundary is their total or known subtotal, never a claim
 of complete coverage. Missing severity layers gap the whole stack rather than
 contributing a fabricated zero. Coverage diamonds and carried marks use cumulative
-coordinates. Top High and Custom remain line charts. Top Changes stacks confirmed
+coordinates. Top signals and Custom remain line charts. Top Changes stacks confirmed
 transitions per interval, admits only positive-evidence series without padding,
 and omits zero/null tooltip rows. Empty changes charts say “No recorded changes”,
 not “no activity”. Coarser intervals retain last active counts and sum confirmed
@@ -234,7 +288,18 @@ choices by exact identity; selected values survive missing inventory, overflow i
 visible, and over-20 resolved lists block rather than silently truncate queries.
 Namespace metadata absent from the current cache cannot satisfy label/annotation tags.
 
-Visible trends refresh 60 seconds after completion, without overlapping requests.
+The normal toolbar has only period/detail and the shared information tooltip;
+there is no manual-refresh button. Opening or changing the period reads immediately.
+Visible trends refresh 60 seconds after completion (including failure), without
+overlapping requests. Errors retain explicit Retry signals / Retry choices actions.
+Carried/incomplete-hour diagnostic counters are not normal-view chips: the shared
+hint explains last-observed counts, partial subtotals and unknown gaps without
+repeated warnings. Per-point coverage and null semantics are unchanged. Existing
+observation, scope, queue and nonzero cap-loss chips remain. Persisted formats bytes
+through the shared `fmtBytes` helper: hours count retained hourly keys for the exact
+context, independently of the query window; payload bytes account for trend current
+state and hourly JSON across contexts, not the database file size. The tooltip
+separately formats database bytes (including overhead and other history data).
 Document hiding aborts/pauses; returning resumes once. Leaving History unmounts work;
 context/token changes key state and abort old inventory/trend/settings requests.
 The Settings History tab reuses the Dataplane Global defaults / This context selector

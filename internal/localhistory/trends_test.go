@@ -177,13 +177,13 @@ func TestTrendsQueryBoundsAndAtomicRejection(t *testing.T) {
 		t.Fatal("unbounded filter")
 	}
 	q.Rules = nil
-	q.NodesMode = "topHigh10"
+	q.NodesMode = "topSignals10"
 	if err := q.Validate(); err != nil {
-		t.Fatal("node Top High rejected", err)
+		t.Fatal("node Top signals rejected", err)
 	}
 	q.Nodes = []string{TrendNodeKey("synthetic-node", "uid")}
 	if q.Validate() == nil {
-		t.Fatal("Top High accepted explicit node selections")
+		t.Fatal("Top signals accepted explicit node selections")
 	}
 	q.Nodes = nil
 	q.NodesMode = "tag"

@@ -147,12 +147,12 @@ it("publishes genuinely changed shared values without replacing other chart SVGs
   const severity = chart("Severity"), before = severity.innerHTML;
   const stable = retain(["Nodes", "Namespaces"]);
   defer = true; select("Signal types", "Top Changes 10");
-  const series = pending[0].data.severity[0]; series.points[0].counts!.high = 9; series.highScore = 9;
+  const series = pending[0].data.severity[0]; series.points[0].counts!.high = 9; series.totalScore = 13;
   await finish(0); stable();
   expect(chart("Severity")).toBe(severity); expect(severity.innerHTML).not.toBe(before);
   expect(within(card("Severity")).queryByRole("status", { name: /loading/ })).toBeNull();
 });
-it.each(["context", "token"] as const)("reloads all for period/manual refresh, aggregates detail locally and clears old %s data", async field => {
+it.each(["context", "token"] as const)("reloads all for period changes, aggregates detail locally and clears old %s data", async field => {
   const view = render(<DashboardHistoryTab {...props} />); await flush();
   const count = fetchMock.mock.calls.length;
   select("Detail", "Daily"); await flush(); expect(fetchMock.mock.calls).toHaveLength(count);
@@ -160,7 +160,7 @@ it.each(["context", "token"] as const)("reloads all for period/manual refresh, a
   expect(screen.getByText("Loading signal trends…")).toBeTruthy();
   expect(screen.queryByLabelText("History diagnostics")).toBeNull();
   await finish(0);
-  fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+  select("Period", "30 days");
   expect(screen.getByText("Loading signal trends…")).toBeTruthy();
   await finish(1);
   select("Nodes", "Custom");

@@ -123,7 +123,7 @@ func TestTrendsFixedWindowRankingFiltersAndDecodedMemoryCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Rules) != 10 || out.Rules[0].Key != "rule-00" || out.Rules[0].HighScore != 13 || out.Rules[0].Points[0].Counts.High != 1 || out.Rules[0].Points[1].Counts.High != 12 {
+	if len(out.Rules) != 10 || out.Rules[0].Key != "rule-00" || out.Rules[0].TotalScore != 13 || out.Rules[0].Points[0].Counts.High != 1 || out.Rules[0].Points[1].Counts.High != 12 {
 		t.Fatal("ranking not fixed across entire window", out.Rules)
 	}
 	q.RulesMode = "custom"

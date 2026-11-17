@@ -56,8 +56,8 @@ sit beside the ranking dropdown when space permits; controls wrap on narrow card
 **Period** and **Detail** remain shared controls above the charts.
 Changing a chart’s ranking or selection keeps the other charts visible and shows
 loading or retry feedback only on the affected chart. New shared observations may
-still update their values without clearing them. **Period** and **Refresh history**
-reload the shared view; **Detail** only changes local display aggregation.
+still update their values without clearing them. **Period** reloads the shared
+view immediately; **Detail** only changes local display aggregation.
 
 Your selections survive leaving History and returning, including browser reloads.
 **Period** and **Detail** are shared across contexts; chart rankings, custom
@@ -74,9 +74,11 @@ and saved operator profiles; they do not enable history collection or consent.
   Severity stacks active High, Medium and Low as areas: the upper boundary shows
   their total, or the known subtotal when coverage is incomplete. Risk colors
   and stack order stay High, Medium, Low.
-- **Top High 10** ranks series over the whole period and plots active High.
-  Nodes offer **Top High 10**, **Top Changes 10**, and **Custom**, and default to
-  **Top High 10**, like Signal types and Namespaces. An explicitly saved
+- **Top signals 10** ranks the sum of hourly active totals over the whole period
+  and plots active signals across High, Medium and Low. Only Severity splits
+  counts by severity; Custom, Favourites, Recent and Tag also plot all-severity totals.
+  Nodes offer **Top signals 10**, **Top Changes 10**, and **Custom**, and default to
+  **Top signals 10**, like Signal types and Namespaces. An explicitly saved
   **Top Changes 10** or **Custom** choice is preserved.
   **Top Changes 10** ranks confirmed individual transitions and plots stacked
   bars per interval, with only positive changes in the tooltip,
@@ -104,16 +106,16 @@ and saved operator profiles; they do not enable history collection or consent.
   **Favourites** and **Recent** are available only when their Dashboard namespace
   filter features are enabled; **Tag** requires resource tags enabled and defined.
   If a saved mode is unavailable (including a removed tag), History temporarily
-  uses **Top High 10** without replacing the saved ranking or selection. Re-enabling
+  uses **Top signals 10** without replacing the saved ranking or selection. Re-enabling
   the feature or restoring the tag restores that choice. **Custom** remains available.
 - Explicit selections are limited to 20 per chart. Namespace selections above
   that limit block the request with a warning rather than silently truncating.
 - Charts hide series whose observed plotted values are all zero with complete
-  coverage over the selected period. **Top High 10** considers only High counts,
-  not Medium/Low counts or changes. Unknown-only series, incomplete zero subtotals,
+  coverage over the selected period. **Top signals 10** considers High + Medium + Low,
+  not changes. Medium-only and Low-only series remain visible. Unknown-only series, incomplete zero subtotals,
   and earlier positive values are retained. A compact hidden-series note explains
   omissions; **Custom** checkboxes and selections stay unchanged. Severity keeps
-  its three severity layers even at zero. Top High and Custom remain line charts;
+  its three severity layers even at zero. Top signals and Custom remain line charts;
   Top Changes uses the positive-only rule above.
 - Without retained evidence, values are gaps, never healthy zero. Last-known
   active values may carry forward with degraded coverage, never before the first
@@ -123,6 +125,20 @@ and saved operator profiles; they do not enable history collection or consent.
   can retain confirmed subtotals even without active counts; unknown changes
   remain gaps rather than zero. Active-count and Changes coverage are independent,
   and aggregation never promotes partial or unknown evidence to complete.
+  For troubleshooting, the authenticated History API's optional
+  `diagnostics=transitions` response includes bounded hourly explanations of why
+  candidate changes were not confirmed, filterable by rule, namespace and Node
+  identity. These explanations survive restart under the same retention policy;
+  they do not reconstruct older missing evidence or turn uncertain changes into
+  incidents. Baseline observations are not incidents.
+- Each chart's legend shows **Min**, **Avg**, **Max**, and **Last** for its
+  displayed intervals. Unknown values are excluded from Min/Avg/Max; observed
+  zeros are included. Last is the final displayed interval, with **—** for
+  unknown rather than an earlier known value. Severity statistics describe each
+  layer, not cumulative stack heights. Hover or keyboard-focus a legend row to
+  emphasize its series, including coincident lines, without changing the data.
+  Up to ten series fit without vertical scrolling; larger Custom or Tag legends
+  scroll within the same bounded area. Shorter legends use only the space needed.
 - Hover a chart or focus it and use <kbd>ArrowLeft</kbd>/<kbd>ArrowRight</kbd>
   to inspect the timestamp and each selected series’ signal or change count.
   Tooltip rows show the series label, value and unit without repeated coverage
@@ -130,9 +146,12 @@ and saved operator profiles; they do not enable history collection or consent.
   confirmed transitions and may be incomplete. **No data** is a missing observation,
   never zero. The shared information tooltip explains these limits without
   repeating explanatory text below every chart. The diagnostic chips
-  below the charts show the last observation, evaluated/eligible scopes,
-  incomplete hours and retained storage—not live cluster health. **Cap losses**
-  appears only when history limits omitted data; zero losses are not a warning.
+  below the charts show the last observation, evaluated/eligible scopes and
+  retained storage—not live cluster health. **Persisted** shows retained hourly
+  records for this context, not the requested period, plus human-readable payload
+  bytes across contexts. Its tooltip distinguishes payload from database size,
+  which includes overhead and other history data. **Cap losses** appears only
+  when history limits omitted data; zero losses are not a warning.
 - History records the same **30 signal types** as Dashboard. The other **10 catalog
   rules** are outside that projection, not missing Dashboard observations or
   cluster faults. Their catalog count is not a chart warning. Partial and unknown
@@ -156,10 +175,12 @@ and saved operator profiles; they do not enable history collection or consent.
 - An invalid-response error identifies the rejected field or consistency check.
   Charts remain hidden rather than displaying mismatched data. When reporting it,
   include that reason; do not share authentication tokens.
-- **Refresh history** rereads the local persisted history database and published
-  cached inventory; it does not trigger the collector, warm caches, or request
-  Kubernetes resources. While History is visible, trends refresh 60 seconds after
-  each completed read (including failures), with no overlapping active reads.
+- History loads automatically when opened. While visible, trends reread the local
+  persisted database 60 seconds after each completed read (including failures),
+  with no overlapping active reads. No manual refresh button is needed.
+  **Retry signals** is available on errors; **Retry choices** recovers failed
+  cached-inventory reads. Neither retry nor automatic reads trigger collection,
+  warm caches, or request Kubernetes resources.
   Hiding the document cancels its trend read and pauses the timer; returning
   resumes once. Context, credentials, selection and period changes cancel obsolete
   reads; leaving History cancels them too. Publication collection runs independently.
@@ -194,8 +215,8 @@ To check collection after enabling:
 2. Open the selected namespace's Pods or the Nodes view normally to populate
    fresh cache evidence. History itself does not fetch Kubernetes resources.
 3. Collection follows published cache updates without making new Kubernetes
-   requests. Choose **Refresh history**, then inspect **Signal types** and
-   **Coverage details**. Bursts can be coalesced; publication-driven collection
+   requests. Open **History** or wait for its next automatic read, then inspect
+   **Signal types** and the last observation below the charts. Bursts can be coalesced; publication-driven collection
    does not guarantee that every intermediate transition is captured.
 4. Allow observations to accumulate. There is no pre-enable backfill; first
    observations are baselines, not new-incident events. Missing/partial coverage

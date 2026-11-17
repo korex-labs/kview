@@ -5,11 +5,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -28,7 +28,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 0,
           "points": [
             {
@@ -88,7 +88,7 @@
         "sourceAgeSeconds": 4200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2288,
+        "retainedBytes": 3429,
         "databaseBytes": 49152,
         "retainedHours": 1,
         "reasons": {
@@ -103,11 +103,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -141,7 +141,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -187,7 +187,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -232,7 +232,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -278,7 +278,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -335,7 +335,7 @@
         "sourceAgeSeconds": 4200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2288,
+        "retainedBytes": 3429,
         "databaseBytes": 49152,
         "retainedHours": 1,
         "reasons": {}
@@ -348,11 +348,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -371,7 +371,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 0,
           "points": [
             {
@@ -431,7 +431,7 @@
         "sourceAgeSeconds": null,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 864,
+        "retainedBytes": 1012,
         "databaseBytes": 49152,
         "retainedHours": 1,
         "reasons": {}
@@ -444,11 +444,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -486,7 +486,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -544,7 +544,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -602,7 +602,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -659,7 +659,7 @@
         {
           "key": "peer",
           "label": "peer",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -715,7 +715,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 1,
           "points": [
             {
@@ -783,7 +783,7 @@
         "sourceAgeSeconds": 4200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2977,
+        "retainedBytes": 4987,
         "databaseBytes": 49152,
         "retainedHours": 1,
         "reasons": {}
@@ -796,11 +796,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -834,7 +834,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 4,
           "changesScore": 1,
           "points": [
             {
@@ -891,7 +891,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 0,
+          "totalScore": 4,
           "changesScore": 1,
           "points": [
             {
@@ -947,7 +947,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 0,
+          "totalScore": 4,
           "changesScore": 1,
           "points": [
             {
@@ -1004,7 +1004,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 0,
+          "totalScore": 4,
           "changesScore": 1,
           "points": [
             {
@@ -1072,7 +1072,7 @@
         "sourceAgeSeconds": 4200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2441,
+        "retainedBytes": 4266,
         "databaseBytes": 49152,
         "retainedHours": 1,
         "reasons": {}
@@ -1085,11 +1085,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T00:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-03T00:00:00Z"
     },
     "response": {
@@ -1123,7 +1123,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 1,
+          "totalScore": 7,
           "changesScore": 3,
           "points": [
             {
@@ -1725,7 +1725,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 1,
+          "totalScore": 7,
           "changesScore": 3,
           "points": [
             {
@@ -2325,7 +2325,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 1,
+          "totalScore": 7,
           "changesScore": 3,
           "points": [
             {
@@ -2927,7 +2927,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 1,
+          "totalScore": 7,
           "changesScore": 3,
           "points": [
             {
@@ -3540,8 +3540,8 @@
         "sourceAgeSeconds": 600,
         "coverageGaps": 48,
         "capLosses": 0,
-        "retainedBytes": 4054,
-        "databaseBytes": 49152,
+        "retainedBytes": 6015,
+        "databaseBytes": 53248,
         "retainedHours": 2,
         "reasons": {}
       }
@@ -3553,11 +3553,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -3576,7 +3576,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 0,
           "points": [
             {
@@ -3645,11 +3645,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T11:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -3683,7 +3683,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -3752,7 +3752,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -3816,12 +3816,80 @@
           ]
         }
       ],
-      "nodes": [],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "totalScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T11:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
       "namespaces": [
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -3901,7 +3969,7 @@
         "sourceAgeSeconds": 4800,
         "coverageGaps": 4,
         "capLosses": 0,
-        "retainedBytes": 2286,
+        "retainedBytes": 3427,
         "databaseBytes": 36864,
         "retainedHours": 1,
         "reasons": {}
@@ -3914,11 +3982,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T13:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T16:00:00Z"
     },
     "response": {
@@ -3952,7 +4020,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4010,7 +4078,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4064,12 +4132,69 @@
           ]
         }
       ],
-      "nodes": [],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "totalScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 6600,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 8400,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "last-observed",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T15:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
       "namespaces": [
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4138,7 +4263,7 @@
         "sourceAgeSeconds": 8400,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2286,
+        "retainedBytes": 3427,
         "databaseBytes": 36864,
         "retainedHours": 1,
         "reasons": {}
@@ -4151,11 +4276,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -4189,7 +4314,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 1,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -4245,7 +4370,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 1,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -4299,7 +4424,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 1,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -4355,7 +4480,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 1,
+          "totalScore": 2,
           "changesScore": 1,
           "points": [
             {
@@ -4422,8 +4547,8 @@
         "sourceAgeSeconds": 1200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 3761,
-        "databaseBytes": 49152,
+        "retainedBytes": 5038,
+        "databaseBytes": 53248,
         "retainedHours": 2,
         "reasons": {}
       }
@@ -4435,11 +4560,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -4477,7 +4602,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 3,
+          "totalScore": 3,
           "changesScore": 0,
           "points": [
             {
@@ -4534,7 +4659,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 3,
+          "totalScore": 3,
           "changesScore": 0,
           "points": [
             {
@@ -4586,12 +4711,68 @@
           ]
         }
       ],
-      "nodes": [],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "totalScore": 3,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 2,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T13:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
       "namespaces": [
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4646,7 +4827,7 @@
         {
           "key": "peer",
           "label": "peer",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 0,
           "points": [
             {
@@ -4708,8 +4889,8 @@
         "sourceAgeSeconds": 4800,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 4638,
-        "databaseBytes": 49152,
+        "retainedBytes": 6920,
+        "databaseBytes": 53248,
         "retainedHours": 2,
         "reasons": {}
       }
@@ -4721,11 +4902,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -4759,7 +4940,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4816,7 +4997,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4868,12 +5049,68 @@
           ]
         }
       ],
-      "nodes": [],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "totalScore": 2,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "carriedForward": true,
+              "freshness": "stale",
+              "sourceAgeSeconds": 4800,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T13:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            },
+            {
+              "freshness": "unknown",
+              "sourceAgeSeconds": null,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T14:00:00Z",
+              "counts": null,
+              "sampleAt": "0001-01-01T00:00:00Z",
+              "sourceAt": "0001-01-01T00:00:00Z",
+              "reason": "no-sample",
+              "coverage": "unknown",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
       "namespaces": [
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -4941,8 +5178,8 @@
         "sourceAgeSeconds": 4800,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 3952,
-        "databaseBytes": 49152,
+        "retainedBytes": 5229,
+        "databaseBytes": 53248,
         "retainedHours": 2,
         "reasons": {}
       }
@@ -4954,11 +5191,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -4987,7 +5224,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -5044,7 +5281,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -5101,7 +5338,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 2,
+          "totalScore": 2,
           "changesScore": 0,
           "points": [
             {
@@ -5169,7 +5406,7 @@
         "sourceAgeSeconds": 4800,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 1826,
+        "retainedBytes": 2868,
         "databaseBytes": 36864,
         "retainedHours": 1,
         "reasons": {}
@@ -5182,11 +5419,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -5205,7 +5442,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 0,
+          "totalScore": 0,
           "changesScore": 0,
           "points": [
             {
@@ -5265,7 +5502,7 @@
         "sourceAgeSeconds": null,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 2337,
+        "retainedBytes": 3626,
         "databaseBytes": 49152,
         "retainedHours": 2,
         "reasons": {}
@@ -5278,11 +5515,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T15:00:00Z"
     },
     "response": {
@@ -5316,7 +5553,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 1,
           "points": [
             {
@@ -5372,7 +5609,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 1,
           "points": [
             {
@@ -5426,7 +5663,7 @@
         {
           "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
           "label": "synthetic-worker",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 1,
           "points": [
             {
@@ -5482,7 +5719,7 @@
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 1,
           "points": [
             {
@@ -5549,8 +5786,8 @@
         "sourceAgeSeconds": 1200,
         "coverageGaps": 3,
         "capLosses": 0,
-        "retainedBytes": 3647,
-        "databaseBytes": 49152,
+        "retainedBytes": 4924,
+        "databaseBytes": 53248,
         "retainedHours": 2,
         "reasons": {}
       }
@@ -5562,11 +5799,11 @@
       "context": "synthetic-a",
       "from": "2026-01-01T12:00:00Z",
       "namespaces": [],
-      "namespacesMode": "topHigh10",
+      "namespacesMode": "topSignals10",
       "nodes": [],
-      "nodesMode": "topChanges10",
+      "nodesMode": "topSignals10",
       "rules": [],
-      "rulesMode": "topHigh10",
+      "rulesMode": "topSignals10",
       "to": "2026-01-01T13:00:00Z"
     },
     "response": {
@@ -5600,7 +5837,7 @@
         {
           "key": "all",
           "label": "all",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 0,
           "points": [
             {
@@ -5627,7 +5864,7 @@
         {
           "key": "pod_crash_loop_waiting",
           "label": "pod_crash_loop_waiting",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 0,
           "points": [
             {
@@ -5649,12 +5886,38 @@
           ]
         }
       ],
-      "nodes": [],
+      "nodes": [
+        {
+          "key": "[\"synthetic-worker\",\"synthetic-uid\"]",
+          "label": "synthetic-worker",
+          "totalScore": 1,
+          "changesScore": 0,
+          "points": [
+            {
+              "freshness": "stale",
+              "sourceAgeSeconds": 3000,
+              "confirmedChanges": 0,
+              "at": "2026-01-01T12:00:00Z",
+              "counts": {
+                "high": 1,
+                "medium": 0,
+                "low": 0,
+                "changes": 0
+              },
+              "sampleAt": "2026-01-01T12:10:00Z",
+              "sourceAt": "2026-01-01T12:10:00Z",
+              "reason": "partial-node-contributions",
+              "coverage": "partial",
+              "changesCoverage": "unknown"
+            }
+          ]
+        }
+      ],
       "namespaces": [
         {
           "key": "apps",
           "label": "apps",
-          "highScore": 1,
+          "totalScore": 1,
           "changesScore": 0,
           "points": [
             {
@@ -5692,7 +5955,7 @@
         "sourceAgeSeconds": 3000,
         "coverageGaps": 1,
         "capLosses": 0,
-        "retainedBytes": 2286,
+        "retainedBytes": 3427,
         "databaseBytes": 36864,
         "retainedHours": 1,
         "reasons": {}

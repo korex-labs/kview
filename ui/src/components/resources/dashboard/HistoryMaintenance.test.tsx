@@ -25,7 +25,8 @@ async function advance(ms: number) { await act(async () => { await vi.advanceTim
 beforeEach(() => { localStorage.clear(); fetchMock.mockReset().mockImplementation(response); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("offers cached UID choices before any history and keeps checked/search/selected-first state across reads", async () => {
-  fetchMock.mockImplementation((path, init) => !path.startsWith("/api/history/signal-trends?") ? response(path, init) : new Promise(() => {}));
+  let resolve!: (value: Response) => void;
+  fetchMock.mockImplementation((path, init) => !path.startsWith("/api/history/signal-trends?") ? response(path, init) : new Promise<Response>(r => { resolve = r; }));
   render(<DashboardHistoryTab {...props} />); await flush();
   select("Nodes ranking", "Custom");
   const field = screen.getByRole("combobox", { name: "Select nodes" }) as HTMLInputElement;
@@ -40,7 +41,7 @@ it("offers cached UID choices before any history and keeps checked/search/select
   expect(screen.getAllByRole("option")[0].textContent).toContain("worker · cached");
   expect(screen.getAllByRole("option")[1].textContent).toContain("alpha · cached");
   fetchMock.mockImplementation(response);
-  fireEvent.click(screen.getByRole("button", { name: "Refresh history" })); await flush();
+  await act(async () => resolve(response(last()[0], last()[1]))); await flush();
   fireEvent.change(field, { target: { value: "worker" } });
   expect(screen.getAllByRole("option").map(option => option.getAttribute("title"))).toEqual(["worker · cached", "worker · retained"]);
   expect((within(screen.getAllByRole("option")[0]).getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
@@ -60,6 +61,7 @@ it("refreshes 60s after completion, never overlaps, pauses/aborts hidden and res
   fetchMock.mockImplementation((path, init) => !path.startsWith("/api/history/signal-trends?") ? response(path, init) : new Promise<Response>(r => { resolve = r; }));
   const view = render(<DashboardHistoryTab {...props} />); await flush();
   expect(calls()).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Refresh history" })).toBeNull();
   await advance(120000); expect(calls()).toHaveLength(1);
   await act(async () => resolve(response(last()[0], last()[1])));
   await advance(59999); expect(calls()).toHaveLength(1);
@@ -77,6 +79,33 @@ it("refreshes 60s after completion, never overlaps, pauses/aborts hidden and res
   await advance(120000); expect(calls()).toHaveLength(3);
   view.rerender(<DashboardHistoryTab {...props} />); await flush(); expect(calls()).toHaveLength(4);
   const resumed = last(); view.unmount(); expect(resumed[1].signal.aborted).toBe(true);
+});
+it("retries a failed trend read immediately and resumes automatic reads after failure", async () => {
+  vi.useFakeTimers();
+  fetchMock.mockImplementation((path, init) => !path.startsWith("/api/history/signal-trends?") ? response(path, init) : Promise.reject(new Error("synthetic offline")));
+  render(<DashboardHistoryTab {...props} />); await flush();
+  expect(calls()).toHaveLength(1);
+  expect(screen.getByText(/synthetic offline/)).toBeTruthy();
+  await advance(59999); expect(calls()).toHaveLength(1);
+  await advance(1); expect(calls()).toHaveLength(2);
+  fetchMock.mockImplementation(response);
+  fireEvent.click(screen.getByRole("button", { name: "Retry signals" })); await flush();
+  expect(calls()).toHaveLength(3);
+  expect(screen.queryByText(/synthetic offline/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Retry signals" })).toBeNull();
+  await advance(60000); expect(calls()).toHaveLength(4);
+  expect(fetchMock.mock.calls.every(([, init]) => init.method !== "POST")).toBe(true);
+});
+it("keeps a cached-choice error recoverable without a normal refresh button", async () => {
+  fetchMock.mockImplementation((path, init) => path === "/api/history/inventory" ? Promise.reject(new Error("synthetic choices unavailable")) : response(path, init));
+  render(<DashboardHistoryTab {...props} />); await flush();
+  expect(screen.getByText(/Cached history choices unavailable/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Refresh history" })).toBeNull();
+  fetchMock.mockImplementation(response);
+  fireEvent.click(screen.getByRole("button", { name: "Retry choices" })); await flush();
+  expect(screen.queryByText(/Cached history choices unavailable/)).toBeNull();
+  expect(fetchMock.mock.calls.filter(([path]) => path === "/api/history/inventory")).toHaveLength(2);
+  expect(calls()).toHaveLength(1);
 });
 it("keeps the rolled-forward shared window when a local ranking changes", async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-01-01T10:59:30Z"));

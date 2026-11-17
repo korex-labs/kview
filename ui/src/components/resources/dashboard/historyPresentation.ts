@@ -1,3 +1,12 @@
+import { fmtBytes } from "../../../utils/format";
+
+export function historyStorage(d: { retainedHours: number; retainedBytes: number; databaseBytes: number }): { label: string; title: string } {
+  return {
+    label: `Persisted ${d.retainedHours}h · ${fmtBytes(d.retainedBytes)}`,
+    title: `Retained hourly records for this context, not the selected period. Payload ${fmtBytes(d.retainedBytes)} across contexts (hourly records and current state); database ${fmtBytes(d.databaseBytes)} includes overhead and other history data.`,
+  };
+}
+
 export function historyError(cause: unknown): string {
   const e = cause as { status?: number; message?: string } | null;
   switch (e?.status) {

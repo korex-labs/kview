@@ -135,12 +135,15 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			return nil
 		}
 		trace := cloneTransitionDiagnostics(s.transitions[batch.Context], batch.Context, batch.Epoch)
+		trace.hour = newTransitionHour(batch.At, batch.Epoch)
+		trace.hour.Coalesced, trace.hour.Overflow = batch.Diagnostics.Coalesced, batch.Diagnostics.Overflow
 		trace.AcceptedAt = batch.At
 		trace.Coalesced = batch.Diagnostics.Coalesced
 		trace.Overflow = batch.Diagnostics.Overflow
 		batch.transitionTrace = trace
 		next, hour := reduceTrends(old, batch)
 		tx.OnCommit(func() {
+			trace.hour = nil
 			if s.transitions == nil {
 				s.transitions = make(map[string]*TransitionDiagnostics)
 			}
@@ -229,6 +232,10 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			}
 		}
 		hour.Groups = append(hour.Groups, extra...)
+		if !prior.At.IsZero() && prior.TransitionEvidence == nil {
+			trace.hour.Incomplete = true
+		}
+		evidence := mergeTransitionHours(prior.TransitionEvidence, trace.hour)
 		admitTrendGroups(&next, &hour, prior)
 		if batch.FullProjection && next.Diagnostics.CapLosses > batch.Diagnostics.CapLosses {
 			return errors.New("canonical projection storage cap: no partial total accepted")
@@ -246,6 +253,18 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			return errors.New("trend payload cap")
 		}
 		retained := number(root.Get([]byte("bytes"))) + int64(len(current)-len(b.Get([]byte("current")))+len(payload)-len(h.Get(hk)))
+		// Optional evidence uses only headroom left by the canonical append.
+		// Include its JSON field envelope in both exact budgets.
+		budget := min(int64(trendHourMaxBytes-len(payload)), int64(trendRetainedMaxBytes)-retained) - int64(len(`,"transitionEvidence":`))
+		hour.TransitionEvidence = fitTransitionHour(evidence, int(budget))
+		if hour.TransitionEvidence != nil {
+			withEvidence, err := json.Marshal(hour)
+			if err != nil {
+				return err
+			}
+			retained += int64(len(withEvidence) - len(payload))
+			payload = withEvidence
+		}
 		if retained < 0 || retained > trendRetainedMaxBytes {
 			return errors.New("trend retained byte cap")
 		}
@@ -374,6 +393,17 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 			if memory > trendQueryMemoryBudget {
 				return ErrTrendQueryLimit
 			}
+			if q.TransitionDetails && !hour.At.Before(q.From) && hour.TransitionEvidence != nil {
+				evidence := hour.TransitionEvidence
+				raw, _ := json.Marshal(evidence)
+				memory += 8 * len(raw)
+				if memory > trendQueryMemoryBudget {
+					return ErrTrendQueryLimit
+				}
+				filterTransitionHour(evidence, q)
+				out.TransitionHours = append(out.TransitionHours, *evidence)
+			}
+			hour.TransitionEvidence = nil
 			hours = append(hours, hour)
 		}
 		return nil
@@ -428,7 +458,7 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 			predecessor = byHour[h.At.Unix()]
 		}
 	}
-	type zeroEvidence struct{ highObserved, highNonzeroOrUnknown bool }
+	type zeroEvidence struct{ totalObserved, totalNonzeroOrUnknown bool }
 	zeroOnly := map[string]zeroEvidence{}
 	for kind, entries := range all {
 		for key, series := range entries {
@@ -447,14 +477,14 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 					last = point
 				}
 				if p.Counts != nil {
-					series.HighScore += p.Counts.High
+					series.TotalScore += p.Counts.High + p.Counts.Medium + p.Counts.Low
 				}
 				series.ChangesScore += p.ConfirmedChanges
 				if p.Counts != nil {
-					evidence.highObserved = true
-					// Rank the plotted High measure, not transition activity or
-					// other severities. Incomplete zero subtotals cannot prove zero.
-					evidence.highNonzeroOrUnknown = evidence.highNonzeroOrUnknown || p.Counts.High != 0 || p.Coverage != "complete"
+					evidence.totalObserved = true
+					// Rank all active severities, independently of transitions.
+					// Incomplete zero subtotals cannot prove zero.
+					evidence.totalNonzeroOrUnknown = evidence.totalNonzeroOrUnknown || p.Counts.High+p.Counts.Medium+p.Counts.Low != 0 || p.Coverage != "complete"
 				}
 
 			}
@@ -468,7 +498,7 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 	selectSeries := func(kind, mode string, chosen []string) ([]TrendSeries, error) {
 		available := all[kind]
 		keys := []string{}
-		if mode == "topHigh10" || mode == "topChanges10" {
+		if mode == "topSignals10" || mode == "topChanges10" {
 			for k := range available {
 				if err := ctx.Err(); err != nil {
 					return nil, err
@@ -479,14 +509,14 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 				if mode == "topChanges10" && available[k].ChangesScore <= 0 {
 					continue
 				}
-				if mode == "topHigh10" && evidence.highObserved && !evidence.highNonzeroOrUnknown {
+				if mode == "topSignals10" && evidence.totalObserved && !evidence.totalNonzeroOrUnknown {
 					continue
 				}
 				keys = append(keys, k)
 			}
 			sort.Slice(keys, func(i, j int) bool {
 				a, b := available[keys[i]], available[keys[j]]
-				av, bv := a.HighScore, b.HighScore
+				av, bv := a.TotalScore, b.TotalScore
 				if mode == "topChanges10" {
 					av, bv = a.ChangesScore, b.ChangesScore
 				}
