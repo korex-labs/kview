@@ -106,6 +106,16 @@ import {
   ScopeTag,
 } from "./shared";
 import { moveItem } from "./shared/reorder";
+import {
+  deepMerge,
+  isPlainObject,
+  patchDataplaneSection as applyDataplaneSectionPatch,
+  resetDataplaneOverridePath,
+  setDataplanePrimitive as applyDataplanePrimitive,
+  stripUndefinedDeep,
+  updateContextDataplaneOverride,
+  updateDataplane,
+} from "./dataplaneEdits";
 import { apiGet, apiGetWithContext, apiPost } from "../../api";
 import {
   deleteInvestigationSnapshot,
@@ -337,14 +347,6 @@ function updateKeyboard(
   };
 }
 
-
-function updateDataplane(settings: KviewUserSettingsV2, patch: Partial<DataplaneSettings>): KviewUserSettingsV2 {
-  return {
-    ...settings,
-    dataplane: { ...settings.dataplane, global: { ...settings.dataplane.global, ...patch } },
-  };
-}
-
 function suggestedResourceTagColor(usedColors: readonly string[]): string {
   const used = new Set(usedColors.map((color) => color.toLowerCase()));
   return resourceTagColorPresets.find((color) => !used.has(color.toLowerCase())) || resourceTagColorPresets[used.size % resourceTagColorPresets.length];
@@ -563,72 +565,6 @@ function parseResourceList(value: string): ListResourceKey[] {
 
 function selectValues(primary: string, values: readonly string[]): string[] {
   return Array.from(new Set([primary, ...values].map((value) => value.trim()).filter(Boolean)));
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function deepMerge<T>(base: T, patch: Partial<T>): T {
-  if (!isPlainObject(base) || !isPlainObject(patch)) return (patch as T) ?? base;
-  const out: Record<string, unknown> = { ...base };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    const prev = out[key];
-    if (isPlainObject(prev) && isPlainObject(value)) out[key] = deepMerge(prev, value);
-    else out[key] = value;
-  }
-  return out as T;
-}
-
-function stripUndefinedDeep<T>(value: T): T | undefined {
-  if (Array.isArray(value)) return value as T;
-  if (!isPlainObject(value)) return value;
-  const next: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    if (child === undefined) continue;
-    const normalized = stripUndefinedDeep(child);
-    if (normalized === undefined) continue;
-    if (isPlainObject(normalized) && Object.keys(normalized).length === 0) continue;
-    next[key] = normalized;
-  }
-  return Object.keys(next).length > 0 ? (next as T) : undefined;
-}
-
-function settingsValueEqual(left: unknown, right: unknown): boolean {
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
-    return left.every((item, index) => settingsValueEqual(item, right[index]));
-  }
-  if (isPlainObject(left) || isPlainObject(right)) {
-    if (!isPlainObject(left) || !isPlainObject(right)) return false;
-    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
-    for (const key of keys) {
-      if (!settingsValueEqual(left[key], right[key])) return false;
-    }
-    return true;
-  }
-  return left === right;
-}
-
-function pruneContextOverrideValue(value: unknown, globalValue: unknown): unknown {
-  if (Array.isArray(value)) return settingsValueEqual(value, globalValue) ? undefined : value;
-  if (!isPlainObject(value)) return settingsValueEqual(value, globalValue) ? undefined : value;
-  const out: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    const pruned = pruneContextOverrideValue(child, isPlainObject(globalValue) ? globalValue[key] : undefined);
-    if (pruned === undefined) continue;
-    if (isPlainObject(pruned) && Object.keys(pruned).length === 0) continue;
-    out[key] = pruned;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function pruneContextOverride(
-  override: DataplaneContextOverrideSettings,
-  global: DataplaneSettings,
-): DataplaneContextOverrideSettings | undefined {
-  return pruneContextOverrideValue(override, global) as DataplaneContextOverrideSettings | undefined;
 }
 
 function rulePatternError(rule: SmartFilterRule): string | null {
@@ -992,43 +928,15 @@ export default function SettingsView({
     });
   };
 
-
-  const updateContextDataplaneOverride = (
-    prev: KviewUserSettingsV2,
-    updater: (current: DataplaneContextOverrideSettings) => DataplaneContextOverrideSettings,
-  ): KviewUserSettingsV2 => {
-    const contextName = activeContext.trim();
-    if (!contextName) return prev;
-    const contextOverrides = { ...prev.dataplane.contextOverrides };
-    const current = contextOverrides[contextName] || {};
-    const next = stripUndefinedDeep(pruneContextOverride(updater(current), prev.dataplane.global));
-    if (next) contextOverrides[contextName] = next;
-    else delete contextOverrides[contextName];
-    return { ...prev, dataplane: { ...prev.dataplane, contextOverrides } };
-  };
-
   const patchDataplaneSection = <K extends keyof DataplaneSettings>(
     key: K,
     patch: Partial<DataplaneSettings[K]>,
   ) => {
-    setSettings((prev) => {
-      if (dataplaneEditScope === "global") {
-        return updateDataplane(prev, {
-          [key]: deepMerge(prev.dataplane.global[key], patch),
-        } as Partial<DataplaneSettings>);
-      }
-      return updateContextDataplaneOverride(prev, (current) => ({
-        ...current,
-        [key]: deepMerge((current[key] || {}) as DataplaneSettings[K], patch),
-      }));
-    });
+    setSettings((prev) => applyDataplaneSectionPatch(prev, dataplaneEditScope, activeContext, key, patch));
   };
 
   const setDataplanePrimitive = <K extends keyof DataplaneSettings>(key: K, value: DataplaneSettings[K]) => {
-    setSettings((prev) => {
-      if (dataplaneEditScope === "global") return updateDataplane(prev, { [key]: value } as Partial<DataplaneSettings>);
-      return updateContextDataplaneOverride(prev, (current) => ({ ...current, [key]: value }));
-    });
+    setSettings((prev) => applyDataplanePrimitive(prev, dataplaneEditScope, activeContext, key, value));
   };
 
   const setNamespaceEnrichment = (patch: Partial<DataplaneSettings["namespaceEnrichment"]>) => {
@@ -1075,7 +983,7 @@ export default function SettingsView({
   const resetContextMetricsOverride = () => {
     setSettings((prev) => {
       if (dataplaneEditScope !== "context") return prev;
-      return updateContextDataplaneOverride(prev, (current) => ({ ...current, metrics: undefined }));
+      return updateContextDataplaneOverride(prev, activeContext, (current) => ({ ...current, metrics: undefined }));
     });
   };
   const setDataplaneSignals = (patch: Partial<DataplaneSettings["signals"]>) => {
@@ -1099,7 +1007,7 @@ export default function SettingsView({
         });
       }
       const contextSignals = dataplaneSettingsForContext(prev.dataplane, activeContext).signals;
-      return updateContextDataplaneOverride(prev, (current) => ({
+      return updateContextDataplaneOverride(prev, activeContext, (current) => ({
         ...current,
         signals: sanitizeSignals(
           deepMerge(contextSignals, patch),
@@ -2385,19 +2293,7 @@ export default function SettingsView({
   const hasOverrideAtPath = (path: string[]): boolean => getOverrideAtPath(path) !== undefined;
   const resetOverridePath = (path: string[]) => {
     if (!isContextEditing) return;
-    setSettings((prev) =>
-      updateContextDataplaneOverride(prev, (current) => {
-        const next = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
-        let cursor: Record<string, unknown> = next;
-        for (let i = 0; i < path.length - 1; i += 1) {
-          const key = path[i];
-          if (!isPlainObject(cursor[key])) return current;
-          cursor = cursor[key] as Record<string, unknown>;
-        }
-        delete cursor[path[path.length - 1]];
-        return next as DataplaneContextOverrideSettings;
-      }),
-    );
+    setSettings((prev) => resetDataplaneOverridePath(prev, activeContext, path));
   };
   const resetOverrideSection = (sectionKey: keyof DataplaneContextOverrideSettings) => resetOverridePath([sectionKey]);
 

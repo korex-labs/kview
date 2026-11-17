@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "./SettingsView";
 import { UserSettingsProvider } from "../../settingsContext";
 import KeyboardProvider from "../../keyboard/KeyboardProvider";
-import { defaultKeyboardSettings, defaultUserSettings, saveUserSettings } from "../../settings";
+import { defaultKeyboardSettings, defaultUserSettings, loadUserSettings, saveUserSettings } from "../../settings";
 import { apiGet, apiPost, apiGetWithContext, apiPostWithContext } from "../../api";
 import { SIGNAL_SUPPRESSIONS_CHANGED_EVENT } from "../../signalSuppressions";
 
@@ -114,6 +114,41 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+});
+
+describe("SettingsView dataplane edits", () => {
+  it("autosaves global defaults and sparse context edits, then resets to inheritance across remount", () => {
+    const initial = defaultUserSettings();
+    initial.dataplane.global.backgroundBudget.longRunNoticeSec = 45;
+    initial.dataplane.contextOverrides.other = { dashboard: { signalLimit: 17 } };
+    saveUserSettings(initial);
+    renderSettings();
+    fireEvent.click(screen.getByText("Dataplane"));
+    const field = () => screen.getByRole("spinbutton", { name: /^Long-run notice/ }) as HTMLInputElement;
+    fireEvent.change(field(), { target: { value: "60" } });
+    expect(loadUserSettings().dataplane.global.backgroundBudget.longRunNoticeSec).toBe(60);
+    fireEvent.click(screen.getByRole("button", { name: "This context" }));
+    expect(field().value).toBe("60");
+    fireEvent.change(field(), { target: { value: "0" } });
+    expect(loadUserSettings().dataplane.contextOverrides).toEqual({
+      other: { dashboard: { signalLimit: 17 } },
+      "kind-test": { backgroundBudget: { longRunNoticeSec: 0 } },
+    });
+    cleanup();
+    renderSettings();
+    fireEvent.click(screen.getByText("Dataplane"));
+    expect(field().value).toBe("60");
+    fireEvent.click(screen.getByRole("button", { name: "This context" }));
+    expect(field().value).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Reset to global" }));
+    expect(field().value).toBe("60");
+    expect(loadUserSettings().dataplane.contextOverrides).toEqual(initial.dataplane.contextOverrides);
+    fireEvent.change(field(), { target: { value: "61" } });
+    fireEvent.change(field(), { target: { value: "60" } });
+    expect(loadUserSettings().dataplane.contextOverrides).toEqual(initial.dataplane.contextOverrides);
+    expect(apiPost).not.toHaveBeenCalled();
+    expect(apiPostWithContext).not.toHaveBeenCalled();
+  });
 });
 
 describe("SettingsView native scroll owners", () => {
