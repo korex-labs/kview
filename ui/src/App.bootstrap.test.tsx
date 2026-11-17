@@ -4,8 +4,12 @@ import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { dispatchApplySavedResourceView, loadPendingSavedResourceView } from "./savedViews";
+import { dispatchApplyFocusedResourceView, loadPendingFocusedResourceView, type FocusedResourceViewIntent } from "./focusedResourceViews";
+import type { SavedResourceViewDefinition } from "./settings";
+import { loadListTextFilter, loadQuickFilterSelection, saveListTextFilter, saveQuickFilterSelection } from "./state";
 
-const sidebarMode = vi.hoisted(() => ({ real: false, snapshots: [] as Array<{ context: string; namespaces: string[]; limited: boolean }> }));
+const sidebarMode = vi.hoisted(() => ({ real: false, snapshots: [] as Array<{ context: string; namespaces: string[]; limited: boolean; section: string }> }));
 
 const apiMocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -28,7 +32,7 @@ vi.mock("./components/Sidebar", async (importOriginal) => {
   const { default: Sidebar } = await importOriginal<typeof import("./components/Sidebar")>();
   return {
     default: (props: React.ComponentProps<typeof Sidebar>) => {
-      sidebarMode.snapshots.push({ context: props.activeContext, namespaces: props.namespaces, limited: props.nsLimited });
+      sidebarMode.snapshots.push({ context: props.activeContext, namespaces: props.namespaces, limited: props.nsLimited, section: props.section });
       if (sidebarMode.real) return <Sidebar {...props} />;
       const { activeContext, namespace, section, onSelectContext, onSelectNamespace, onSelectSection } = props;
       return (
@@ -63,6 +67,9 @@ vi.mock("./components/resources/deployments/DeploymentsTable", () => ({
     <div data-testid="deployments-screen">Deployments in {namespace}</div>
   ),
 }));
+
+vi.mock("./components/resources/dashboard/DashboardView", () => ({ default: () => <div data-testid="dashboard-screen" /> }));
+vi.mock("./components/resources/nodes/NodesTable", () => ({ default: () => <div data-testid="nodes-screen" /> }));
 
 const contextResponse = (overrides: Record<string, unknown> = {}) => ({
   active: "backend-context",
@@ -139,6 +146,145 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   localStorage.clear();
+});
+
+describe("App view navigation", () => {
+  function apply(kind: "saved" | "focused", overrides: Partial<FocusedResourceViewIntent> = {}) {
+    const intent: FocusedResourceViewIntent = { resource: "deployments", filter: `${kind}-filter`, ...overrides };
+    if (kind === "focused") {
+      dispatchApplyFocusedResourceView({ ...intent, label: "Exact identity", source: "resource-link" });
+    } else {
+      dispatchApplySavedResourceView({
+        id: "saved-id", name: "Saved resource", context: "", namespace: "", filter: "", ...intent,
+        sortModel: [{ field: "name", sort: "desc" }], columnVisibilityModel: { age: false },
+        columnWidths: { name: 321 }, createdAt: 1, updatedAt: 2,
+      });
+    }
+  }
+  async function start() {
+    render(<App />);
+    await waitForStartupClose();
+    saveListTextFilter("old-filter");
+    saveQuickFilterSelection(["old-quick"]);
+    sessionStorage.clear();
+  }
+
+  it.each(["saved", "focused"] as const)("maps %s resource intent, resets filters and preserves its pending payload", async (kind) => {
+    await start();
+    const calls = namespaceCalls().length;
+    act(() => apply(kind, { context: "backend-context", namespace: "target-namespace" }));
+    await flushBootstrap();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|target-namespace|deployments");
+    expect(loadListTextFilter()).toBe(`${kind}-filter`);
+    expect(loadQuickFilterSelection()).toEqual([]);
+    expect(namespaceCalls()).toHaveLength(calls);
+    expect(contextSelectCalls()).toHaveLength(1);
+    if (kind === "saved") expect(loadPendingSavedResourceView()).toMatchObject({
+      id: "saved-id", filter: "saved-filter", sortModel: [{ field: "name", sort: "desc" }],
+      columnVisibilityModel: { age: false }, columnWidths: { name: 321 },
+    });
+    else expect(loadPendingFocusedResourceView()).toEqual({
+      resource: "deployments", filter: "focused-filter", context: "backend-context", namespace: "target-namespace",
+      label: "Exact identity", source: "resource-link",
+    });
+  });
+
+  it.each([
+    ["saved", undefined], ["saved", ""], ["focused", undefined], ["focused", ""],
+  ] as const)("retains namespace for %s with namespace %s and clears missing text filter", async (kind, namespace) => {
+    await start();
+    act(() => apply(kind, { namespace, filter: undefined }));
+    await flushBootstrap();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|deployments");
+    expect(loadListTextFilter()).toBe("");
+    expect(loadQuickFilterSelection()).toEqual([]);
+    expect(namespaceCalls()).toHaveLength(1);
+  });
+
+  it.each(["saved", "focused"] as const)("keeps cluster resource identity and current namespace for %s", async (kind) => {
+    await start();
+    act(() => apply(kind, { resource: "nodes", namespace: "" }));
+    await flushBootstrap();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|nodes");
+    expect(screen.getByTestId("nodes-screen")).toBeTruthy();
+    expect(namespaceCalls()).toHaveLength(1);
+  });
+
+  it.each(["saved", "focused"] as const)("ignores invalid %s sections without resetting filters", async (kind) => {
+    await start();
+    act(() => apply(kind, { resource: "not-a-section" as FocusedResourceViewIntent["resource"] }));
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|pods");
+    expect(loadListTextFilter()).toBe("old-filter");
+    expect(loadQuickFilterSelection()).toEqual(["old-quick"]);
+  });
+
+  it.each([
+    ["saved", "explicit", "recent", "configured", "favourite", "explicit"],
+    ["focused", "explicit", "recent", "configured", "favourite", "explicit"],
+    ["saved", "", "recent", "configured", "favourite", "recent"],
+    ["focused", undefined, "recent", "configured", "favourite", "recent"],
+    ["saved", "", "", "configured", "favourite", "configured"],
+    ["focused", "", "", "configured", "favourite", "configured"],
+    ["saved", "", "", "", "favourite", "favourite"],
+    ["focused", "", "", "", "favourite", "favourite"],
+    ["saved", "", "", "", "", "default"],
+    ["focused", undefined, "", "", "", "default"],
+  ] as const)("uses %s target namespace precedence (%s/%s/%s/%s)", async (kind, namespace, recent, configured, favourite, expected) => {
+    localStorage.setItem("kview.state.v1", JSON.stringify({ v: 1,
+      favouriteNamespacesByContext: { "saved-context": [favourite] },
+      recentNamespacesByContext: { "saved-context": [recent] },
+    }));
+    apiMocks.get.mockImplementation(async (path: string) => path === "/api/contexts" ? contextResponse({
+      contexts: [{ name: "backend-context" }, { name: "saved-context", namespace: configured }],
+    }) : {});
+    await start();
+    // Hold inventory to observe navigation's preferred namespace, not server fallback.
+    apiMocks.getWithContext.mockImplementation(() => new Promise(() => {}));
+    act(() => apply(kind, { context: "saved-context", namespace }));
+    await flushBootstrap();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain(`saved-context|${expected}|deployments`);
+    expect(contextSelectCalls()).toHaveLength(2);
+    expect(contextSelectCalls()[1]).toEqual(["/api/context/select", "bootstrap-test-token", { name: "saved-context" }]);
+    expect(namespaceCalls()).toHaveLength(2);
+    expect(namespaceCalls()[1][2]).toBe("saved-context");
+    expect(namespaceCalls()[1][0]).toContain(`enrichFocus=${expected}`);
+    expect(sidebarMode.snapshots.some(({ context, section }) => context === "backend-context" && section === "deployments")).toBe(false);
+  });
+
+  it("routes Dashboard saved views without applying resource fields or changing scope", async () => {
+    await start();
+    const view: SavedResourceViewDefinition = {
+      id: "dashboard-id", name: "Dashboard view", viewType: "dashboard", context: "saved-context", namespace: "ignored",
+      resource: "pods", filter: "ignored-filter", sortModel: [], columnWidths: {}, columnVisibilityModel: {}, createdAt: 1, updatedAt: 2,
+      dashboardSnapshot: { signalFilter: "high", signalFilters: ["warning"], signalsQuery: "signal-query", signalsSort: "severity", signalsRowsPerPage: 25 },
+    };
+    act(() => dispatchApplySavedResourceView(view));
+    await flushBootstrap();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|dashboard");
+    expect(screen.getByTestId("dashboard-screen")).toBeTruthy();
+    expect(loadListTextFilter()).toBe("old-filter");
+    expect(loadQuickFilterSelection()).toEqual(["old-quick"]);
+    expect(loadPendingSavedResourceView()).toEqual(view);
+    expect(contextSelectCalls()).toHaveLength(1);
+    expect(namespaceCalls()).toHaveLength(1);
+  });
+
+  it.each(["saved", "focused"] as const)("does not route %s into the old context when selection is pending or denied", async (kind) => {
+    await start();
+    let reject!: (error: Error) => void;
+    apiMocks.post.mockImplementation((path: string) => path === "/api/context/select"
+      ? new Promise((_resolve, no) => { reject = no; }) : Promise.resolve({}));
+    act(() => apply(kind, { context: "saved-context", namespace: "target-namespace" }));
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|pods");
+    expect(loadListTextFilter()).toBe("old-filter");
+    await act(async () => { reject(new Error("navigation switch denied")); });
+    expect(screen.getByText("navigation switch denied")).toBeTruthy();
+    expect(screen.getByTestId("bootstrap-sidebar").textContent).toContain("backend-context|default|pods");
+    expect(screen.queryByTestId("deployments-screen")).toBeNull();
+    expect(loadQuickFilterSelection()).toEqual(["old-quick"]);
+    expect(namespaceCalls()).toHaveLength(1);
+    expect(apiMocks.setDefaultContext).not.toHaveBeenCalledWith("saved-context");
+  });
 });
 
 describe("App outreach readiness", () => {

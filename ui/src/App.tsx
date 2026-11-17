@@ -14,11 +14,8 @@ import { apiGet, apiGetWithContext, apiPost, setApiDefaultContext } from "./api"
 import type { ApiContextsResponse, ApiNamespacesListResponse, ApiViewResourcesResponse, InvestigationSnapshot } from "./types/api";
 import {
   loadState,
-  isSection,
   recordRecentSection,
   saveState,
-  saveListTextFilter,
-  saveQuickFilterSelection,
   setSidebarGroupCollapsed,
   toggleFavouriteNamespace,
   type AppStateV1,
@@ -38,14 +35,9 @@ import type { ResourceDrawerDestination } from "./components/shared/resourceMapI
 import type { ApiDataplaneSearchItem } from "./types/api";
 import StartupDialog, { type StartupKubeconfigInfo, type StartupStep, type StartupStepStatus } from "./components/StartupDialog";
 import { dataplaneSearchSectionByKind } from "./constants/resourceSections";
-import { dataplaneSettingsForContext, type SavedResourceViewDefinition } from "./settings";
+import { dataplaneSettingsForContext } from "./settings";
 import { buildDataplaneBundleForSync } from "./dataplaneSync";
-import { APPLY_SAVED_RESOURCE_VIEW_EVENT, isDashboardSavedView } from "./savedViews";
-import {
-  APPLY_FOCUSED_RESOURCE_VIEW_EVENT,
-  dispatchApplyFocusedResourceView,
-  type FocusedResourceViewIntent,
-} from "./focusedResourceViews";
+import { dispatchApplyFocusedResourceView } from "./focusedResourceViews";
 import usePageVisible from "./utils/usePageVisible";
 import { applyViewResourceDescriptors, isClusterScopedSection } from "./utils/k8sResources";
 import {
@@ -54,6 +46,7 @@ import {
 } from "./utils/performanceDiagnostics";
 import useBackendStatusPolling from "./hooks/useBackendStatusPolling";
 import useNamespaceInventory from "./hooks/useNamespaceInventory";
+import useViewNavigation from "./hooks/useViewNavigation";
 import KeyboardProvider from "./keyboard/KeyboardProvider";
 import { SignalMemoryProvider } from "./signalMemory";
 import { QuickSignalExclusionProvider } from "./components/shared/QuickSignalExclusion";
@@ -350,7 +343,7 @@ function AppInner() {
   }, [bootstrapNonce]);
 
   async function onSelectContext(name: string, preferredNamespace?: string) {
-    if (!name || name === activeContext || contextSwitching) return;
+    if (!name || name === activeContext || contextSwitching) return false;
     const selected = contexts.find((c) => c.name === name);
     const preferred = preferredNamespace || optimisticNamespaceForContext(appState, name, selected?.namespace);
     const generation = ++contextGeneration.current;
@@ -359,16 +352,18 @@ function AppInner() {
     setBootstrapError("");
     try {
       await apiPost("/api/context/select", token, { name });
-      if (generation !== contextGeneration.current) return;
+      if (generation !== contextGeneration.current) return false;
       prepareNamespaceInventory(appState, preferred);
       setActiveContext(name);
       setAppState((s) => ({ ...s, activeContext: name, activeNamespace: preferred }));
       setBootstrapPhase("ready");
+      return true;
     } catch (err) {
-      if (generation !== contextGeneration.current) return;
+      if (generation !== contextGeneration.current) return false;
       const message = String((err as Error | undefined)?.message || err || "Context switch failed");
       setBootstrapError(message);
       setBootstrapPhase("error");
+      return false;
     } finally {
       if (generation === contextGeneration.current) setContextSwitching(false);
     }
@@ -384,48 +379,14 @@ function AppInner() {
   }
 
   function onSelectSection(sec: Section) {
+    cancelPendingViewNavigation();
     setSettingsOpen(false);
     setSection(sec);
     setAppState((s) => recordRecentSection({ ...s, activeSection: sec }, sec, settings.appearance.recentMenuLimit));
   }
 
-  useEffect(() => {
-    const handleApplySavedView = (event: Event) => {
-      const view = (event as CustomEvent<SavedResourceViewDefinition>).detail;
-      if (!view) return;
-      if (isDashboardSavedView(view)) {
-        onSelectSection("dashboard");
-        return;
-      }
-      if (!isSection(view.resource)) return;
-      saveListTextFilter(view.filter || "");
-      saveQuickFilterSelection([]);
-      if (view.context && view.context !== activeContext) {
-        void onSelectContext(view.context, view.namespace);
-      } else if (view.namespace) {
-        onSelectNamespace(view.namespace);
-      }
-      onSelectSection(view.resource);
-    };
-    window.addEventListener(APPLY_SAVED_RESOURCE_VIEW_EVENT, handleApplySavedView);
-    return () => window.removeEventListener(APPLY_SAVED_RESOURCE_VIEW_EVENT, handleApplySavedView);
-  });
-
-  useEffect(() => {
-    const handleApplyFocusedView = (event: Event) => {
-      const intent = (event as CustomEvent<FocusedResourceViewIntent>).detail;
-      if (!intent || !isSection(intent.resource)) return;
-      saveListTextFilter(intent.filter || "");
-      saveQuickFilterSelection([]);
-      if (intent.context && intent.context !== activeContext) {
-        void onSelectContext(intent.context, intent.namespace);
-      } else if (intent.namespace) {
-        onSelectNamespace(intent.namespace);
-      }
-      onSelectSection(intent.resource);
-    };
-    window.addEventListener(APPLY_FOCUSED_RESOURCE_VIEW_EVENT, handleApplyFocusedView);
-    return () => window.removeEventListener(APPLY_FOCUSED_RESOURCE_VIEW_EVENT, handleApplyFocusedView);
+  const cancelPendingViewNavigation = useViewNavigation({
+    activeContext, onSelectContext, onSelectNamespace, onSelectSection,
   });
 
   function onToggleSidebarGroup(groupId: string) {
