@@ -196,6 +196,34 @@ describe("App bootstrap", () => {
     expect(contextSelectCalls()).toHaveLength(1);
   });
 
+  it("opens cached real namespace options immediately during one deferred background refresh", async () => {
+    sidebarMode.real = true;
+    apiMocks.getWithContext.mockResolvedValue(namespaceResponse(["default", "cached-team"]));
+    render(<App />);
+    await waitForStartupClose();
+    const initialCalls = namespaceCalls().length;
+    let resolve!: (value: ReturnType<typeof namespaceResponse>) => void;
+    apiMocks.getWithContext.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const input = screen.getByRole("combobox", { name: "Namespace" });
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    // No response or timer advancement: the current inventory is immediately usable.
+    expect(screen.getByRole("option", { name: /cached-team/ })).toBeTruthy();
+    expect(screen.queryByText(/Loading namespaces and dataplane cache/)).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: /cached-team/ })).toBeTruthy();
+    expect(namespaceCalls().length - initialCalls).toBe(1);
+    expect(screen.getByTestId("pods-screen").textContent).toBe("Pods in default");
+    await act(async () => { resolve(namespaceResponse(["default", "fresh-team"])); });
+    expect(screen.getByRole("option", { name: /fresh-team/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /cached-team/ })).toBeNull();
+    expect(namespaceCalls().length - initialCalls).toBe(1);
+    expect(screen.queryByText(/Loading namespaces and dataplane cache/)).toBeNull();
+  });
+
   it("keeps options and navigation usable during a refresh and accepts an empty refreshed inventory", async () => {
     render(<App />);
     await waitForStartupClose();
