@@ -36,7 +36,7 @@ export default function HelmReleaseResourceMap({
     if (resource) onOpenResource(resource);
   }, [manifestResources, onOpenResource, onOpenIdentity, releaseNamespace, ownership]);
 
-  return <Box sx={{ height: "100%", overflow: "auto" }}>
+  return <Box className="kview-native-scrollbar" sx={{ height: "100%", overflow: "auto" }}>
     <Stack spacing={1}>
       <Alert severity="info">Rendered Helm declarations plus cached workload ownership (two hops). Pods are grouped by immediate owner; expand one bounded member sample at a time without fetching. Unknown cache state does not mean absent or healthy. Custom descendants and non-owner relationships are not evaluated.</Alert>
       {ownershipError ? <Alert severity="warning">{ownershipError}</Alert> : null}

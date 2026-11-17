@@ -276,7 +276,7 @@ export default function PersistentVolumeClaimDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <PVCActions
@@ -315,7 +315,7 @@ export default function PersistentVolumeClaimDrawer(props: {
 
               {/* SPEC */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Section title="Spec Summary">
                     <KeyValueTable
                       columns={3}
@@ -370,14 +370,14 @@ export default function PersistentVolumeClaimDrawer(props: {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/persistentvolumeclaims/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this PVC." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                     {showPvDeniedHint ? (

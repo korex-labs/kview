@@ -47,6 +47,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe("ServiceDrawer request lifecycle", () => {
+  it("themes actual generic scroll owners, not clipped shells or auxiliary/code panels", async () => {
+    render(view());
+    await flush();
+    const shell = screen.getByTestId("drawer-services");
+    const tabs = shell.querySelector("[data-resource-drawer-tabs]")!;
+    for (const label of ["Overview", "Pods", "Metadata"]) {
+      await act(async () => tab(label));
+      const owners = shell.querySelectorAll(".kview-native-scrollbar");
+      expect(owners).toHaveLength(1);
+      const owner = owners[0];
+      expect(getComputedStyle(owner).overflowY).toBe("auto");
+      expect(owner.parentElement).toBe(tabs.nextElementSibling);
+      expect(getComputedStyle(owner.parentElement!).overflow).toBe("hidden");
+      expect(shell.classList.contains("kview-native-scrollbar")).toBe(false);
+    }
+    for (const label of ["YAML", "Notes", "Resource Map"]) {
+      await act(async () => tab(label));
+      expect(shell.querySelector(".kview-native-scrollbar")).toBeNull();
+    }
+    expect(screen.getByText("Map panel")).toBeTruthy();
+    await act(async () => tab("Overview"));
+    expect(shell.querySelector(".kview-native-scrollbar")).toBeTruthy();
+  });
+
   it("keeps B details when A completes last and preserves native/auxiliary tabs", async () => {
     const a = deferred<ReturnType<typeof detail>>();
     const b = deferred<ReturnType<typeof detail>>();

@@ -218,7 +218,7 @@ export default function Sidebar(props: Props) {
           <Divider sx={{ my: 0.25 }} />
         </Box>
 
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
+        <Box className="kview-native-scrollbar" sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
           {visibleGroups.map((group, index) => {
             const collapsed = Boolean(props.collapsedGroups?.[group.id]);
             return (

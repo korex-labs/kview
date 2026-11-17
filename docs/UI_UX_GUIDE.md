@@ -46,6 +46,57 @@ that can steal focus from dialogs, popovers, text inputs, or terminal sessions.
 
 ---
 
+# Native Scrollbars
+
+`theme.css` owns light/dark thumb, hover and track tokens. Opt in with
+`kview-native-scrollbar` **on the existing scroll owner**, never the app root or
+all Papers. Coverage starts with Dashboard's vertical Paper, ResourceTags' portaled
+Menu paper, and the separate horizontal/vertical `.MuiDataGrid-scrollbar` owners
+via `ResourceListPage`'s `classes.scrollbar`. This canonical component means
+**all resource lists** receive the grid styling; no per-resource special case is
+introduced. MUI v9's virtual scroller/ref and iOS native-scrollbar path are left
+untouched; do not force its hidden desktop bars visible.
+
+Keep native `auto` width, existing overflow axes, heights, Dashboard stable gutter,
+virtualization and focus/scroll restoration. Inherited scrollbar color is reset
+on non-opted-in descendants so nested panes do not silently inherit styling;
+explicit nested opt-ins retain their own colors.
+Standard color styling takes precedence; WebKit paint-only fallback is guarded
+for engines without standard color support. Forced colors restore native colors.
+No wrappers, scrolling library, smooth movement, wheel handlers or hidden bars.
+OS overlay preferences still control visibility; always-visible bars and exact
+cross-engine appearance are not promised. Terminal, YAML overlays, graph zoom,
+log follow-tail and unrelated dialogs remain outside this scoped styling.
+
+The main Sidebar navigation list, Settings/Help side rails and their main content
+surfaces opt in individually, not through the shared sideRail token. Resource
+drawers opt in their explicit ordinary Overview, details/spec, inventory/list,
+Events outer and Metadata scroll owners. Additional owners include Namespace
+Overview and its suppressed list, custom-resource Spec/Status outer panels and
+detail-error panel, Helm chart Versions/deployment browse lists, Helm release
+Recovery and Release Notes, and ordinary outer Resource Map panels (generic and
+Helm). Graph internals and their wheel/zoom handling remain untouched.
+
+Reuse the class on those existing Boxes/Stacks, whether overflow comes from
+shared sx tokens or inline sx. Do not style RightDrawer/ResourceDrawerShell or
+drawerBodySx: those are layout/clipping boundaries, not the panel scroll owner.
+Keep direct Tabs children intact for auxiliary-tab discovery. Direct custom-
+resource Events and injected Notes have no existing ordinary scrolling container;
+leave their layout unchanged rather than adding wrappers or changing overflow in
+a color-only pass. Nested independently scrolling code/editors/logs, textareas,
+relationship evidence lists and unrelated feature surfaces remain native unless
+explicitly opted in. This is not blanket coverage of every scrollbar in the app.
+
+Before expanding scope, manually check both themes with a long Dashboard, a
+large/wide resource grid and a long tag menu: thumb/track and hover contrast,
+wheel, pointer drag, touch where available, keyboard focus/selection and Escape,
+refresh scroll retention, and narrow-window horizontal access without page
+scrolling. Include OS overlay/persistent-scrollbar and forced-color settings.
+Mounted tests establish DOM/style and interaction contracts, not rendered pixels.
+Keep any further rollout scoped to audited scroll owners and maintainer feedback.
+
+---
+
 # Resource List Pattern
 
 All resource lists follow the same layout:

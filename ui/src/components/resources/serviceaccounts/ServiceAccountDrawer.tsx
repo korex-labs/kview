@@ -228,7 +228,7 @@ export default function ServiceAccountDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {name && (
                     <DrawerActionStrip>
                       <ServiceAccountActions
@@ -258,7 +258,7 @@ export default function ServiceAccountDrawer(props: {
 
               {/* ROLE BINDINGS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {roleBindingsLoading ? (
                     <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
                       <CircularProgress size={20} />
@@ -298,14 +298,14 @@ export default function ServiceAccountDrawer(props: {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/serviceaccounts/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this ServiceAccount." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

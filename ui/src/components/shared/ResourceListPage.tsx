@@ -1041,6 +1041,8 @@ export default function ResourceListPage<TRow extends { id: string }>({
           columns={gridColumns}
           apiRef={apiRef}
           density="compact"
+          // MUI v9 paints native bars on these separate axis owners, not the virtual scroller.
+          classes={{ scrollbar: "kview-native-scrollbar" }}
           loading={loading && rows.length === 0}
           sx={{ flex: 1, minHeight: 0, width: "100%" }}
           disableMultipleRowSelection

@@ -1472,7 +1472,7 @@ function PodDrawerContent(props: PodDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <AppButton
@@ -1659,7 +1659,7 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* RESOURCES */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
                   <Section title="Volumes" dividerPlacement="content">
                       {(details?.resources?.volumes || []).length === 0 ? (
                         <EmptyState message="No volumes defined." />
@@ -1876,7 +1876,7 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* NETWORKING */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
                   <Section title="Services" dividerPlacement="content">
                       {networkingServicesLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
@@ -1985,7 +1985,7 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* EVENTS */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel
                     endpoint={`/api/namespaces/${encodeURIComponent(ns)}/pods/${encodeURIComponent(name || "")}/events`}
                     token={props.token}
@@ -2132,7 +2132,7 @@ function PodDrawerContent(props: PodDrawerProps) {
 
               {/* METADATA */}
               {tab === 6 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

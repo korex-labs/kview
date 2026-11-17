@@ -94,7 +94,7 @@ export type PodContainersTabProps = {
 
 export default function PodContainersTab(props: PodContainersTabProps) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
+    <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1.5, height: "100%", overflow: "auto" }}>
       {props.containers.length === 0 ? (
         <EmptyState message="No containers found for this Pod." />
       ) : (

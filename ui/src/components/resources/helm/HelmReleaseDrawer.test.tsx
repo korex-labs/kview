@@ -97,12 +97,16 @@ describe("HelmReleaseDrawer presence lifecycle", () => {
     expect(labels.indexOf("Recovery")).toBe(labels.indexOf("History") + 1);
     expect(screen.queryByRole("button", { name: "Preview recovery" })).toBeNull();
     fireEvent.click(releaseNotesTab);
-    expect(screen.getByText("Chart instructions")).toBeTruthy();
+    const notesOwner = screen.getByText("Chart instructions").closest(".kview-native-scrollbar")!;
+    expect(notesOwner).not.toBeNull();
+    expect(getComputedStyle(notesOwner).overflow).toBe("auto");
+    expect(getComputedStyle(notesOwner.parentElement!).overflow).toBe("hidden");
     fireEvent.click(notesTab);
     expect(screen.queryByText("Chart instructions")).toBeNull();
     fireEvent.click(recoveryTab);
     expect(apiGetMock.mock.calls.filter(([path]) => path.endsWith("/recovery"))).toHaveLength(0);
     const panel = screen.getByRole("tabpanel", { name: "Recovery" });
+    expect(panel.classList.contains("kview-native-scrollbar")).toBe(true);
     expect(getComputedStyle(panel).overflow).toBe("auto");
     expect(getComputedStyle(panel).minHeight).toBe("0px");
     expect(getComputedStyle(panel.parentElement!).overflow).toBe("hidden");
@@ -160,7 +164,7 @@ describe("HelmReleaseDrawer presence lifecycle", () => {
     expect(apiGetMock.mock.calls.filter(([path]) => !path.endsWith("/recovery"))).toHaveLength(2);
     expect(apiGetMock.mock.calls.filter(([path]) => path.endsWith("/recovery"))).toHaveLength(3);
   });
-  it("requests cache presence only after Resource Map opens", async () => {
+  it("requests cache ownership only after Resource Map opens", async () => {
     apiGetMock.mockResolvedValue({
       active: "ctx",
       item: {
@@ -169,7 +173,13 @@ describe("HelmReleaseDrawer presence lifecycle", () => {
         manifest,
       },
     });
-    apiPostWithContextMock.mockResolvedValue({ active: "ctx", items: [], scannedRecords: 0, truncated: false });
+    apiPostWithContextMock.mockResolvedValue({
+      active: "ctx", roots: [], nodes: [], edges: [], podGroups: [], maxMembers: 10,
+      coverage: { coverage: "full", completeness: "complete", families: {} },
+      cache: { freshness: "hot", snapshotsPresent: 1, snapshotsMissing: 0, scannedRecords: 0, totalNodes: 0, returnedNodes: 0, totalEdges: 0, returnedEdges: 0 },
+      limits: { depth: 2, maxNodes: 100, maxEdges: 200, maxScanRecords: 50000 },
+      truncated: false,
+    });
 
     render(
       <HelmReleaseDrawer
@@ -187,10 +197,11 @@ describe("HelmReleaseDrawer presence lifecycle", () => {
     fireEvent.click(resourceMapTab);
     await waitFor(() => expect(apiPostWithContextMock).toHaveBeenCalledTimes(1));
     expect(apiPostWithContextMock).toHaveBeenCalledWith(
-      "/api/dataplane/resource-presence",
+      "/api/dataplane/resource-ownership",
       "token",
       "ctx",
       {
+        depth: 2,
         identities: [expect.objectContaining({
           group: "",
           version: "v1",
@@ -201,6 +212,7 @@ describe("HelmReleaseDrawer presence lifecycle", () => {
           name: "backend",
         })],
       },
+      { signal: expect.any(AbortSignal) },
     );
     expect(await screen.findByTestId("helm-resource-map")).toBeTruthy();
   });

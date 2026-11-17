@@ -208,7 +208,7 @@ export default function NodeDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {derived ? (
                     <Section title="Derived Projection" divider={false}>
                       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -343,7 +343,7 @@ export default function NodeDrawer(props: {
 
               {/* PODS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.pods || []).length === 0 ? (
                     <EmptyState message="No pods found for this node." />
                   ) : (
@@ -434,7 +434,7 @@ export default function NodeDrawer(props: {
 
               {/* CONDITIONS */}
               {tab === 2 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <HealthConditionsPanel
                     conditions={conditions}
                     isHealthy={(cond) => isNodeConditionHealthy(cond as NodeCondition)}
@@ -446,7 +446,7 @@ export default function NodeDrawer(props: {
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

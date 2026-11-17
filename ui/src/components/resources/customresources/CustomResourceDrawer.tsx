@@ -275,7 +275,7 @@ function CustomResourceDrawerContent(props: Props & { contextName: string }) {
             <CircularProgress />
           </Box>
         ) : err ? (
-          <Box sx={drawerTabContentSx}>
+          <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
             <ErrorState message={err} status={errStatus} notFoundMessage={notFoundMessage} />
             <AppButton onClick={() => setRefreshNonce((value) => value + 1)}>Retry details</AppButton>
           </Box>
@@ -293,7 +293,7 @@ function CustomResourceDrawerContent(props: Props & { contextName: string }) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {ref && resolvedResource ? (
                     <DrawerActionStrip>
                       <CustomResourceActions
@@ -330,7 +330,7 @@ function CustomResourceDrawerContent(props: Props & { contextName: string }) {
               )}
 
               {(tab === 1 || tab === 2) && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {fragmentCode === undefined ? <Typography>Absent</Typography> : (
                     <>
                       {fragmentCode.length > MAX_HIGHLIGHT_LENGTH && (
@@ -346,7 +346,7 @@ function CustomResourceDrawerContent(props: Props & { contextName: string }) {
                   endpoint={`/api/customresources/${encodeURIComponent(ref.group)}/${encodeURIComponent(ref.version)}/${encodeURIComponent(resolvedResource)}/${encodeURIComponent(ref.name)}/events?${new URLSearchParams({ ...(drawerNamespace ? { namespace: drawerNamespace } : {}), uid: summary.uid })}`} />
               ) : <ErrorState message="Events require a verified resource UID." />)}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <MetadataSection labels={summary?.labels} annotations={summary?.annotations} />
                 </Box>
               )}

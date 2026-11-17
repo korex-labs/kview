@@ -235,7 +235,7 @@ export default function IngressDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <IngressActions
@@ -302,7 +302,7 @@ export default function IngressDrawer(props: {
 
               {/* RULES */}
               {tab === 1 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   {(details?.rules || []).length === 0 ? (
                     <EmptyState message="No rules configured for this Ingress." />
                   ) : (
@@ -364,7 +364,7 @@ export default function IngressDrawer(props: {
 
               {/* TLS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.tls || []).length === 0 ? (
                     <EmptyState message="No TLS configured for this Ingress." />
                   ) : (
@@ -390,14 +390,14 @@ export default function IngressDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/ingresses/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this Ingress." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

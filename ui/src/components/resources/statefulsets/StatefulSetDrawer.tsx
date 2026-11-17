@@ -286,7 +286,7 @@ function StatefulSetDrawerContent(props: StatefulSetDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <StatefulSetActions
@@ -324,7 +324,7 @@ function StatefulSetDrawerContent(props: StatefulSetDrawerProps) {
 
               {/* PODS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.pods || []).length === 0 ? (
                     <EmptyState message="No pods found for this StatefulSet." />
                   ) : (
@@ -374,7 +374,7 @@ function StatefulSetDrawerContent(props: StatefulSetDrawerProps) {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <WorkloadSpecPanels
                     template={details?.spec?.podTemplate}
                     scheduling={details?.spec?.scheduling}
@@ -392,14 +392,14 @@ function StatefulSetDrawerContent(props: StatefulSetDrawerProps) {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/statefulsets/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this StatefulSet." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}

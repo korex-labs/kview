@@ -66,6 +66,9 @@ afterEach(cleanup);
 describe("NamespaceSignalsTab suppressed signals", () => {
   it("keeps visible signals and attention unchanged while toggling the suppressed list", () => {
     const view = renderTab();
+    const owner = view.container.firstElementChild!;
+    expect(owner.classList.contains("kview-native-scrollbar")).toBe(true);
+    expect(getComputedStyle(owner).overflow).toBe("auto");
     const toggle = screen.getByRole("button", { name: "Show suppressed (2)" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByTestId("attention-count").textContent).toBe("1");
@@ -79,6 +82,10 @@ describe("NamespaceSignalsTab suppressed signals", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const section = view.container.querySelector("#namespace-suppressed-signals") as HTMLElement;
     expect(section).toBeTruthy();
+    const listOwner = section.querySelector("table")!.parentElement!;
+    expect(listOwner.classList.contains("kview-native-scrollbar")).toBe(true);
+    expect(getComputedStyle(listOwner).overflow).toBe("auto");
+    expect(getComputedStyle(listOwner).maxHeight).toBe("360px");
     expect(within(section).getByText("Showing 1 of 2 suppressed.")).toBeTruthy();
     expect(within(section).getByText("apps/suppressed-service")).toBeTruthy();
     expect(within(section).getByText("Suppressed namespace reason")).toBeTruthy();

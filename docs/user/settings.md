@@ -15,6 +15,14 @@ on narrow/mobile screens. Tab labels and keyboard navigation remain available.
 
 ## Appearance And Workflow
 
+Dashboard, resource lists, main navigation, Settings/Help navigation and content,
+and ordinary resource drawer panels use scrollbar colors matched to the current
+light or dark theme. This includes Namespace Overview, custom-resource Spec/Status
+outer panels, Helm chart version lists, Recovery, Release Notes and outer Resource
+Map panels. This is automatic, not a separate setting. Width and visibility follow
+your browser and operating system. Nested code viewers, YAML editors, terminals,
+logs and graph controls keep their existing scrolling behavior and styling.
+
 Appearance settings currently include:
 
 - **Check for kview updates**: optional and off by default. When enabled, kview

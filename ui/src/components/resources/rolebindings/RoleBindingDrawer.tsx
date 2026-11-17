@@ -196,7 +196,7 @@ export default function RoleBindingDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {name && (
                     <DrawerActionStrip>
                       <RoleBindingActions
@@ -226,7 +226,7 @@ export default function RoleBindingDrawer(props: {
 
               {/* SUBJECTS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {subjects.length === 0 ? (
                     <EmptyState message="No subjects defined for this RoleBinding." />
                   ) : (
@@ -254,7 +254,7 @@ export default function RoleBindingDrawer(props: {
 
               {/* ROLE REF */}
               {tab === 2 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={[
@@ -275,14 +275,14 @@ export default function RoleBindingDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={[drawerTabContentSx, { gap: 1 }] as SxProps<Theme>}>
+                <Box className="kview-native-scrollbar" sx={[drawerTabContentSx, { gap: 1 }] as SxProps<Theme>}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/rolebindings/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this RoleBinding." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

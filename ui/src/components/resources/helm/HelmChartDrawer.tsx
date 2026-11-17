@@ -239,7 +239,7 @@ export default function HelmChartDrawer(props: {
 
             <Box sx={drawerBodySx}>
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
@@ -287,7 +287,7 @@ export default function HelmChartDrawer(props: {
                     <EmptyState message="No chart versions found." />
                   ) : (
                     <>
-                      <Box sx={{ minWidth: 0, overflow: "auto", maxHeight: 220 }}>
+                      <Box className="kview-native-scrollbar" sx={{ minWidth: 0, overflow: "auto", maxHeight: 220 }}>
                         <Table size="small" stickyHeader sx={{ tableLayout: "fixed", width: "100%" }}>
                           <TableHead>
                             <TableRow>
@@ -344,7 +344,7 @@ export default function HelmChartDrawer(props: {
                                 Exact release deployment rows are unavailable for this chart version. Open Helm Releases for release-level manifests.
                               </Typography>
                             ) : (
-                              <Box sx={{ minWidth: 0, overflow: "auto", maxHeight: 180 }}>
+                              <Box className="kview-native-scrollbar" sx={{ minWidth: 0, overflow: "auto", maxHeight: 180 }}>
                                 <Table size="small" stickyHeader sx={{ tableLayout: "fixed", width: "100%" }}>
                                   <TableHead>
                                     <TableRow>
@@ -416,7 +416,7 @@ export default function HelmChartDrawer(props: {
               )}
 
               {tab === 2 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Section title="Namespaces">
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
                       {namespaces.length > 0 ? (

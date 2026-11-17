@@ -1,6 +1,9 @@
 :root {
   --bg-primary: #ffffff;
   --bg-elevated: #f5f5f5;
+  --scrollbar-thumb: #697586;
+  --scrollbar-thumb-hover: #475467;
+  --scrollbar-track: #f5f5f5;
   --text-primary: #111111;
   --border-subtle: rgba(0, 0, 0, 0.12);
   --panel-border: #ddd;
@@ -67,6 +70,9 @@
 [data-theme="dark"] {
   --bg-primary: #0f1115;
   --bg-elevated: #181b20;
+  --scrollbar-thumb: #8a95a5;
+  --scrollbar-thumb-hover: #b0bac7;
+  --scrollbar-track: #181b20;
   --text-primary: #e6e6e6;
   --border-subtle: rgba(255, 255, 255, 0.16);
   --panel-border: rgba(255, 255, 255, 0.2);
@@ -128,6 +134,54 @@
   --link-color: #7cb3ff;
   --link-color-hover: #a7ccff;
   --link-color-visited: #b89cff;
+}
+
+/* Opt in on the existing scroll owner only; never on the app/theme root.
+ * scrollbar-color inherits: reset non-opted-in descendants so nested grids,
+ * viewers and editors retain native colors; explicit nested opt-ins keep theirs.
+ * No geometry, overflow, focus, motion or input behavior belongs in this class.
+ */
+.kview-native-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.kview-native-scrollbar:hover {
+  scrollbar-color: var(--scrollbar-thumb-hover) var(--scrollbar-track);
+}
+
+.kview-native-scrollbar :not(.kview-native-scrollbar) {
+  scrollbar-color: auto;
+}
+
+/* Non-standard paint-only fallback. Standards-capable engines use the rules
+ * above (their non-auto scrollbar-color takes precedence over WebKit styling).
+ * Leave width/height and OS overlay visibility entirely native.
+ */
+@supports not (scrollbar-color: auto) {
+  @media (forced-colors: none) {
+    .kview-native-scrollbar::-webkit-scrollbar,
+    .kview-native-scrollbar::-webkit-scrollbar-track,
+    .kview-native-scrollbar::-webkit-scrollbar-corner {
+      background-color: var(--scrollbar-track);
+    }
+
+    .kview-native-scrollbar::-webkit-scrollbar-thumb {
+      background-color: var(--scrollbar-thumb);
+    }
+
+    .kview-native-scrollbar::-webkit-scrollbar-thumb:hover,
+    .kview-native-scrollbar::-webkit-scrollbar-thumb:active {
+      background-color: var(--scrollbar-thumb-hover);
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .kview-native-scrollbar,
+  .kview-native-scrollbar:hover {
+    scrollbar-color: auto;
+  }
 }
 
 html,

@@ -466,7 +466,7 @@ export default function NamespaceDrawer(props: {
               )}
 
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>
@@ -579,7 +579,7 @@ export default function NamespaceDrawer(props: {
               )}
 
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {metricsUsable && resourceUsage ? (
                     <Section title="Resource usage">
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
@@ -721,7 +721,7 @@ export default function NamespaceDrawer(props: {
               )}
 
               {tab === eventsTabIndex && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <EventsPanel
                     endpoint={name ? `/api/namespaces/${encodeURIComponent(name)}/events` : undefined}
                     token={props.token}
@@ -733,7 +733,7 @@ export default function NamespaceDrawer(props: {
               )}
 
               {tab === metadataTabIndex && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {detailsLoading && !details ? (
                     <Box sx={loadingCenterSx}>
                       <CircularProgress />

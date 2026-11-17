@@ -174,7 +174,7 @@ export default function ClusterRoleBindingDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <ClusterRoleBindingActions
@@ -203,7 +203,7 @@ export default function ClusterRoleBindingDrawer(props: {
 
               {/* SUBJECTS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {subjects.length === 0 ? (
                     <EmptyState message="No subjects defined for this ClusterRoleBinding." />
                   ) : (
@@ -231,7 +231,7 @@ export default function ClusterRoleBindingDrawer(props: {
 
               {/* ROLE REF */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={[
@@ -252,14 +252,14 @@ export default function ClusterRoleBindingDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/clusterrolebindings/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this ClusterRoleBinding." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

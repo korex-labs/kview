@@ -314,7 +314,7 @@ function ReplicaSetDrawerContent(props: ReplicaSetDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <ReplicaSetActions
@@ -352,7 +352,7 @@ function ReplicaSetDrawerContent(props: ReplicaSetDrawerProps) {
 
               {/* PODS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.pods || []).length === 0 ? (
                     <EmptyState message="No pods found for this ReplicaSet." />
                   ) : (
@@ -402,7 +402,7 @@ function ReplicaSetDrawerContent(props: ReplicaSetDrawerProps) {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <WorkloadSpecPanels
                     template={details?.spec?.podTemplate}
                     scheduling={details?.spec?.scheduling}
@@ -416,14 +416,14 @@ function ReplicaSetDrawerContent(props: ReplicaSetDrawerProps) {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/replicasets/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this ReplicaSet." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}

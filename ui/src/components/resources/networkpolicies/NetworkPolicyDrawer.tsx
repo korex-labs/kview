@@ -138,7 +138,7 @@ export default function NetworkPolicyDrawer(props: {
             </Tabs>
             <Box sx={drawerBodySx}>
               {tab === 0 ? (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <DrawerActionStrip>
                     {(summary?.policyTypes || []).map((type) => <Chip key={type} size="small" label={type} />)}
                     {name ? (
@@ -163,7 +163,7 @@ export default function NetworkPolicyDrawer(props: {
                 </Box>
               ) : null}
               {tab === 1 ? (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Section title="Ingress">
                     <Box sx={panelBoxSx}>
                       <RulesTable rules={details?.ingress} emptyMessage="No ingress rules configured." />
@@ -177,7 +177,7 @@ export default function NetworkPolicyDrawer(props: {
                 </Box>
               ) : null}
               {tab === 2 ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel
                     endpoint={`/api/namespaces/${encodeURIComponent(ns)}/networkpolicies/${encodeURIComponent(name || "")}/events`}
                     token={props.token}
@@ -186,7 +186,7 @@ export default function NetworkPolicyDrawer(props: {
                 </Box>
               ) : null}
               {tab === 3 ? (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryRows} columns={3} />
                   </Box>

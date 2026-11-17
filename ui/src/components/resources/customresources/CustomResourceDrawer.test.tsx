@@ -153,6 +153,12 @@ describe("resolvedCustomResourceNamespace", () => {
     await screen.findByText("json-resource");
     for (const tab of ["Spec", "Status"]) {
       fireEvent.click(screen.getByRole("tab", { name: tab }));
+      const owner = view.container.querySelector(".kview-native-scrollbar")!;
+      expect(owner).not.toBeNull();
+      expect(getComputedStyle(owner).overflowY).toBe("auto");
+      expect(getComputedStyle(owner).overflowX).toBe("hidden");
+      expect(getComputedStyle(owner.parentElement!).overflow).toBe("hidden");
+      expect(owner.querySelector(".kview-native-scrollbar")).toBeNull();
       expect(screen.queryByTestId("yaml-panel")).toBeNull();
       expect(screen.queryByRole("textbox")).toBeNull();
       expect(view.container.querySelector('[contenteditable="true"]')).toBeNull();

@@ -279,7 +279,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
             <Box sx={drawerBodySx}>
               {tab === 0 && (() => {
                 return (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <AttentionSummary
                     token={props.token}
                     signals={resourceSignals.signals}
@@ -358,7 +358,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
               })()}
 
               {tab === eventsTabIndex && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <EventsPanel
                     endpoint={`/api/namespaces/${encodeURIComponent(ns)}/horizontalpodautoscalers/${encodeURIComponent(name || "")}/events`}
                     token={props.token}
@@ -368,7 +368,7 @@ export default function HorizontalPodAutoscalerDrawer(props: {
               )}
 
               {tab === metadataTabIndex && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Section
                     title="Summary"
                     actions={

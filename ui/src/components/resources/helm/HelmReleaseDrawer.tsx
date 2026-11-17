@@ -345,7 +345,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
               {err && <ErrorState message={err} />}
               {loading && <Typography variant="body2" color="text.secondary" role="status">Refreshing release details…</Typography>}
               {activeTabId === "recovery" && name && (
-                <Box role="tabpanel" aria-label="Recovery" sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" role="tabpanel" aria-label="Recovery" sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                   <HelmRecovery
                     open={props.open}
                     token={props.token}
@@ -359,6 +359,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
               {/* OVERVIEW */}
               {activeTabId === "overview" && (
                 <Box
+                  className="kview-native-scrollbar"
                   sx={{
                     display: "flex",
                     flexDirection: "column",
@@ -455,7 +456,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
 
               {/* HOOKS */}
               {activeTabId === "hooks" && (
-                <Box sx={{ height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ height: "100%", overflow: "auto" }}>
                   {hooks.length === 0 ? (
                     <EmptyState message="No hooks found." />
                   ) : (
@@ -506,7 +507,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
 
               {/* HISTORY */}
               {activeTabId === "history" && (
-                <Box sx={{ height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ height: "100%", overflow: "auto" }}>
                   {history.length === 0 ? (
                     <EmptyState message="No revision history found." />
                   ) : (
@@ -561,6 +562,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
               {activeTabId === "release-notes" && (
                 <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
                   <Box
+                    className="kview-native-scrollbar"
                     sx={{
                       flexGrow: 1,
                       overflow: "auto",
@@ -583,6 +585,7 @@ function HelmReleaseDrawerSession(props: HelmReleaseDrawerProps) {
               {/* METADATA */}
               {activeTabId === "metadata" && (
                 <Box
+                  className="kview-native-scrollbar"
                   sx={{
                     display: "flex",
                     flexDirection: "column",

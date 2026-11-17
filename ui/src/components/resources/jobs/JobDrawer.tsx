@@ -315,7 +315,7 @@ function JobDrawerContent(props: JobDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <JobActions
@@ -351,7 +351,7 @@ function JobDrawerContent(props: JobDrawerProps) {
 
               {/* PODS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.pods || []).length === 0 ? (
                     <EmptyState message="No pods found for this Job." />
                   ) : (
@@ -401,7 +401,7 @@ function JobDrawerContent(props: JobDrawerProps) {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <WorkloadSpecPanels
                     template={details?.spec?.podTemplate}
                     scheduling={details?.spec?.scheduling}
@@ -415,14 +415,14 @@ function JobDrawerContent(props: JobDrawerProps) {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/jobs/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this Job." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}

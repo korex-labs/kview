@@ -261,7 +261,7 @@ export default function NamespaceSignalsTab({
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+    <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
       <DrawerActionStrip>
         <NamespaceActions token={token} namespaceName={namespaceName} onDeleted={onClose} />
       </DrawerActionStrip>
@@ -529,7 +529,7 @@ export default function NamespaceSignalsTab({
                 Showing {suppressedSignals.length} of {suppressedSignalCount} suppressed.
               </Typography>
             ) : null}
-            <Box sx={{ maxHeight: 360, overflow: "auto", mt: 1 }}>
+            <Box className="kview-native-scrollbar" sx={{ maxHeight: 360, overflow: "auto", mt: 1 }}>
               <Table size="small" stickyHeader sx={{ width: "100%", minWidth: 720, tableLayout: "fixed" }}>
                 <TableHead>
                   <TableRow>

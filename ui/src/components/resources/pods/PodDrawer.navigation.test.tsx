@@ -61,6 +61,31 @@ describe("PodDrawer terminal launch", () => {
 });
 
 describe("PodDrawer Object navigation", () => {
+  it("paints generic Pod panel owners without opting in logs, YAML or auxiliary tabs", async () => {
+    vi.mocked(apiGet).mockResolvedValue({ item: { ...details, summary: { ...details.summary, uid: "" } } });
+    await act(async () => { render(<Harness />); });
+    const shell = screen.getByTestId("drawer-pods");
+    const tabs = shell.querySelector("[data-resource-drawer-tabs]")!;
+    for (const label of ["Overview", "Containers", "Resources", "Networking", "Object"]) {
+      await act(async () => { fireEvent.click(within(shell).getByRole("tab", { name: label })); });
+      const owners = shell.querySelectorAll(".kview-native-scrollbar");
+      expect(owners).toHaveLength(1);
+      expect(getComputedStyle(owners[0]).overflow).toBe("auto");
+      expect(shell.classList.contains("kview-native-scrollbar")).toBe(false);
+      const body = owners[0].parentElement!;
+      expect(getComputedStyle(body).overflow).toBe("hidden");
+      // Object inserts its existing Details/YAML controls before the body.
+      expect(label === "Object" ? tabs.nextElementSibling!.nextElementSibling : tabs.nextElementSibling).toBe(body);
+    }
+    fireEvent.click(within(shell).getByRole("button", { name: "YAML" }));
+    expect(shell.querySelector(".kview-native-scrollbar")).toBeNull();
+    for (const label of ["Logs", "Notes", "Resource Map"]) {
+      await act(async () => { fireEvent.click(within(shell).getByRole("tab", { name: label })); });
+      expect(shell.querySelector(".kview-native-scrollbar")).toBeNull();
+    }
+    expect(screen.getByText("Map content")).toBeTruthy();
+  });
+
   it("keeps the shared tab boundary and insets floating Events/Logs labels inside the clipped body", async () => {
     vi.mocked(apiGet).mockImplementation(async (path) => path.endsWith("/events?limit=50&offset=0")
       ? { items: [], total: 0 } : { item: { ...details, summary: { ...details.summary, uid: "" },

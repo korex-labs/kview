@@ -116,6 +116,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("SettingsView native scroll owners", () => {
+  it("opts in only the existing side rail and main surface with default settings", () => {
+    renderSettings();
+    const shell = screen.getByTestId("settings-view");
+    const [rail, main] = Array.from(shell.children);
+    expect(shell.classList.contains("kview-native-scrollbar")).toBe(false);
+    expect(getComputedStyle(shell).overflow).toBe("hidden");
+    expect(rail.classList.contains("kview-native-scrollbar")).toBe(true);
+    expect(getComputedStyle(rail).overflowY).toBe("auto");
+    expect(main.classList.contains("kview-native-scrollbar")).toBe(true);
+    expect(getComputedStyle(main).overflow).toBe("auto");
+    fireEvent.click(screen.getByText("Dataplane"));
+    expect(screen.getByTestId("settings-view").children[1]).toBe(main);
+    expect(shell.querySelectorAll(".kview-native-scrollbar")).toHaveLength(2);
+  });
+});
+
 describe("SettingsView history navigation", () => {
   it("mounts history only under Dataplane, preserves old consent and never writes on navigation", async () => {
     vi.mocked(apiGetWithContext).mockResolvedValueOnce({

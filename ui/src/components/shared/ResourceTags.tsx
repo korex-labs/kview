@@ -280,7 +280,7 @@ export function ResourceTagsEditorButton({ target }: { target: ResourceTagTarget
         open={open}
         onClose={() => setAnchorEl(null)}
         keepMounted
-        slotProps={{ paper: { sx: { width: 320, maxWidth: "calc(100vw - 32px)" } } }}
+        slotProps={{ paper: { className: "kview-native-scrollbar", sx: { width: 320, maxWidth: "calc(100vw - 32px)" } } }}
       >
         <MenuItem disabled dense sx={{ opacity: 1, minHeight: 34, py: 0.5 }}>
           <ListItemText

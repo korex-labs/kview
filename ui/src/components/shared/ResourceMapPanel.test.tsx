@@ -153,7 +153,13 @@ describe("ResourceMapPanel", () => {
     vi.mocked(apiGet).mockResolvedValue({ ...response, coverage: { coverage: "partial", completeness: "partial", families: {} }, cache: { ...response.cache, freshness: "unknown" }, truncated: true, truncationReasons: ["node limit"] });
     render(<ActiveContextProvider value="ctx"><ResourceMapPanel identity={identity} token="token" onOpenResource={vi.fn()} /></ActiveContextProvider>);
     expect(screen.getByLabelText("Loading resource map")).toBeTruthy();
-    await screen.findByText(/Relationship coverage is partial/);
+    const warning = await screen.findByText(/Relationship coverage is partial/);
+    const owner = warning.closest(".kview-native-scrollbar")!;
+    expect(owner).not.toBeNull();
+    expect(getComputedStyle(owner).overflow).toBe("auto");
+    const graph = await screen.findByRole("region", { name: "Resource relationship map" });
+    expect(graph.classList.contains("kview-native-scrollbar")).toBe(false);
+    expect(graph.querySelector(".kview-native-scrollbar")).toBeNull();
     expect(screen.queryByText("partial coverage")).toBeNull();
     expect(screen.queryByText("unknown cache")).toBeNull();
     expect(screen.getByText("3/3 nodes · 2/2 edges")).toBeTruthy();

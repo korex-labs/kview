@@ -262,7 +262,7 @@ export default function PersistentVolumeDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <PVActions
@@ -300,7 +300,7 @@ export default function PersistentVolumeDrawer(props: {
 
               {/* SPEC */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Section title="Spec Summary">
                     <KeyValueTable
                       columns={3}
@@ -335,14 +335,14 @@ export default function PersistentVolumeDrawer(props: {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/persistentvolumes/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this PV." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                     {showPvcDeniedHint ? (

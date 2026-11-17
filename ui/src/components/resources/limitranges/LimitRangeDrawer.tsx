@@ -128,7 +128,7 @@ export default function LimitRangeDrawer({
             </Tabs>
             <Box sx={drawerBodySx}>
               {tab === 0 ? (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <DrawerActionStrip>
                     {limitRangeName ? (
                       <LimitRangeActions
@@ -157,7 +157,7 @@ export default function LimitRangeDrawer({
                 </Box>
               ) : null}
               {tab === 1 ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel
                     endpoint={`/api/namespaces/${encodeURIComponent(namespace)}/limitranges/${encodeURIComponent(limitRangeName || "")}/events`}
                     token={token}
@@ -166,7 +166,7 @@ export default function LimitRangeDrawer({
                 </Box>
               ) : null}
               {tab === 2 ? (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryRows} columns={3} />
                   </Box>

@@ -181,7 +181,7 @@ export default function ResourceMapPanel({ identity, token, onOpenResource }: { 
   if (error) return <Alert severity="error">Could not load Resource Map: {error}</Alert>;
   if (!response) return null;
   const partial = response.coverage.coverage !== "full" || response.coverage.completeness !== "complete";
-  return <Stack spacing={1.25} sx={{ overflow: "auto", pb: 1 }}>
+  return <Stack className="kview-native-scrollbar" spacing={1.25} sx={{ overflow: "auto", pb: 1 }}>
     <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
       {!partial ? <>
         <Chip size="small" label={`${response.coverage.coverage} coverage`} color="success" />

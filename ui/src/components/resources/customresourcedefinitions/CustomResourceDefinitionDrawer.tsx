@@ -236,7 +236,7 @@ function DefinitionDrawerContent(props: Props & { context: string }) {
               )}
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {name && (
                     <DrawerActionStrip>
                       <CRDActions
@@ -273,7 +273,7 @@ function DefinitionDrawerContent(props: Props & { context: string }) {
 
               {/* VERSIONS */}
               {tab === 1 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {versions.length === 0 ? (
                     <EmptyState message="No versions defined for this CRD." />
                   ) : (
@@ -315,14 +315,14 @@ function DefinitionDrawerContent(props: Props & { context: string }) {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/customresourcedefinitions/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this CRD." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

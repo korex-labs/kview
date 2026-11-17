@@ -48,8 +48,12 @@ describe("HelmReleaseResourceMap", () => {
       />,
     );
 
-    expect(screen.getByText(/derived from the rendered Helm release manifest/i)).toBeTruthy();
-    expect(screen.getByText("3 declared resources")).toBeTruthy();
+    expect(screen.getByText(/Rendered Helm declarations plus cached workload ownership/)).toBeTruthy();
+    expect(screen.getByText("3 declarations shown")).toBeTruthy();
+    const owner = screen.getByTestId("resource-map-view").closest(".kview-native-scrollbar")!;
+    expect(owner).not.toBeNull();
+    expect(getComputedStyle(owner).overflow).toBe("auto");
+    expect(owner.querySelector(".kview-native-scrollbar")).toBeNull();
     expect((screen.getByRole("button", { name: "Service/backend" }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "Certificate/tls" }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "PodDisruptionBudget/backend" }) as HTMLButtonElement).disabled).toBe(true);

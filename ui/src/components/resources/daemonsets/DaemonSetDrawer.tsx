@@ -277,7 +277,7 @@ function DaemonSetDrawerContent(props: DaemonSetDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <DaemonSetActions
@@ -314,7 +314,7 @@ function DaemonSetDrawerContent(props: DaemonSetDrawerProps) {
 
               {/* PODS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {(details?.pods || []).length === 0 ? (
                     <EmptyState message="No pods found for this DaemonSet." />
                   ) : (
@@ -364,7 +364,7 @@ function DaemonSetDrawerContent(props: DaemonSetDrawerProps) {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <WorkloadSpecPanels
                     template={details?.spec?.podTemplate}
                     scheduling={details?.spec?.scheduling}
@@ -378,14 +378,14 @@ function DaemonSetDrawerContent(props: DaemonSetDrawerProps) {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/daemonsets/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this DaemonSet." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}

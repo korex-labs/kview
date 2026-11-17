@@ -3435,6 +3435,7 @@ export default function SettingsView({
   return (
     <Box data-testid="settings-view" sx={settingsShellSx}>
       <Paper
+        className="kview-native-scrollbar"
         variant="outlined"
         sx={sideRailPaperSx}
       >
@@ -3462,7 +3463,7 @@ export default function SettingsView({
           ))}
         </List>
       </Paper>
-      <Box sx={settingsMainSurfaceSx}>
+      <Box className="kview-native-scrollbar" sx={settingsMainSurfaceSx}>
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1.25 }}>
           <AppIconButton tooltip="Close settings" label="Close settings" onClick={onClose}>
             <CloseIcon fontSize="small" />

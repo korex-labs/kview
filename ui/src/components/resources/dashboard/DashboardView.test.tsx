@@ -4,6 +4,7 @@ import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DashboardView from "./DashboardView";
+import { readFileSync } from "node:fs";
 import { ActiveContextProvider } from "../../../activeContext";
 import { notifyStatus } from "../../../connectionState";
 import { UserSettingsProvider } from "../../../settingsContext";
@@ -11,6 +12,7 @@ import type { ApiDashboardClusterResponse } from "../../../types/api";
 import { dispatchSignalSuppressionsChanged } from "../../../signalSuppressions";
 import { trendWindow } from "./signalTrends";
 
+const themeCss = readFileSync("src/styles/theme.css", "utf8");
 const apiGet = vi.fn();
 
 vi.mock("../../../api", () => ({
@@ -203,6 +205,7 @@ function coldContextSwitchDashboardResponse(): ApiDashboardClusterResponse {
 function dashboardElement(context = "") {
   return (
     <ActiveContextProvider value={context}>
+      <style>{themeCss}</style>
       <UserSettingsProvider>
         <DashboardView token="test-token" />
       </UserSettingsProvider>
@@ -248,6 +251,15 @@ describe("DashboardView warmup loading", () => {
       expect(getComputedStyle(slot).display).not.toBe("none");
     }
     const scrollPane = tabStrip.parentElement!;
+    expect(scrollPane.classList.contains("kview-native-scrollbar")).toBe(true);
+    expect(getComputedStyle(scrollPane).overflowY).toBe("auto");
+    expect(getComputedStyle(scrollPane).overflowX).toBe("hidden");
+    expect(getComputedStyle(scrollPane).scrollbarWidth).toBe("auto");
+    // jsdom 30 miscomputes scrollbar-color (even `auto`); pair mounted
+    // selector-boundary checks with the CSSOM declarations in nativeScrollbars.
+    const resetSelector = ".kview-native-scrollbar :not(.kview-native-scrollbar)";
+    expect(tabStrip.matches(resetSelector)).toBe(true);
+    expect(scrollPane.matches(resetSelector)).toBe(false);
     expect(getComputedStyle(scrollPane).scrollbarGutter).toBe("stable");
     expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
     await screen.findByText(/Signal history is off/);

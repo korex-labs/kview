@@ -166,7 +166,7 @@ export default function ClusterRoleDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {name && (
                     <DrawerActionStrip>
                       <ClusterRoleActions
@@ -195,7 +195,7 @@ export default function ClusterRoleDrawer(props: {
 
               {/* RULES */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   {rules.length === 0 ? (
                     <EmptyState message="No rules defined for this ClusterRole." />
                   ) : (
@@ -227,14 +227,14 @@ export default function ClusterRoleDrawer(props: {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/clusterroles/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this ClusterRole." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

@@ -400,7 +400,7 @@ export default function ServiceDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   {name && (
                     <DrawerActionStrip>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -515,7 +515,7 @@ export default function ServiceDrawer(props: {
 
               {/* INVENTORY */}
               {tab === 1 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Section title="Endpoint Pods">
                     <Box sx={panelBoxSx}>
                       {(details?.endpoints?.pods || []).length === 0 ? (
@@ -610,14 +610,14 @@ export default function ServiceDrawer(props: {
 
               {/* EVENTS */}
               {tab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/services/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this Service." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 3 && (
-                <Box sx={drawerTabContentSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable rows={summaryItems} columns={3} />
                   </Box>

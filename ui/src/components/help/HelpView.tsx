@@ -141,6 +141,7 @@ export default function HelpView({ onClose }: { onClose: () => void }) {
   return (
     <Box data-testid="help-view" sx={helpShellSx}>
       <Paper
+        className="kview-native-scrollbar"
         variant="outlined"
         sx={sideRailPaperSx}
       >
@@ -218,7 +219,7 @@ export default function HelpView({ onClose }: { onClose: () => void }) {
         ) : null}
       </Paper>
 
-      <Box sx={helpMainSurfaceSx}>
+      <Box className="kview-native-scrollbar" sx={helpMainSurfaceSx}>
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1.25 }}>
           <AppIconButton tooltip="Close help" label="Close help" onClick={onClose}>
             <CloseIcon fontSize="small" />

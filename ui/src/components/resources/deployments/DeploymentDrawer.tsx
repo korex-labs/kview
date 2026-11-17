@@ -366,7 +366,7 @@ function DeploymentDrawerContent(props: DeploymentDrawerProps) {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <DeploymentActions
@@ -480,7 +480,7 @@ function DeploymentDrawerContent(props: DeploymentDrawerProps) {
 
               {/* INVENTORY */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   <Section title="Pods" dividerPlacement="content">
                       {(details?.pods || []).length === 0 ? (
                         <EmptyState message="No pods found for this Deployment." />
@@ -583,7 +583,7 @@ function DeploymentDrawerContent(props: DeploymentDrawerProps) {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Section title="Pod Template Summary" dividerPlacement="content">
                       <Typography variant="caption" color="text.secondary">
                         Containers
@@ -819,14 +819,14 @@ function DeploymentDrawerContent(props: DeploymentDrawerProps) {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/deployments/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this Deployment." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}

@@ -286,7 +286,7 @@ export default function CronJobDrawer(props: {
             <Box sx={drawerBodySx}>
               {/* OVERVIEW */}
               {tab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {name && (
                     <DrawerActionStrip>
                       <CronJobActions
@@ -343,7 +343,7 @@ export default function CronJobDrawer(props: {
 
               {/* JOBS */}
               {tab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
                   {details?.jobsForbidden ? (
                     <AccessDeniedState resourceLabel="Jobs" />
                   ) : allJobs.length === 0 ? (
@@ -386,7 +386,7 @@ export default function CronJobDrawer(props: {
 
               {/* SPEC */}
               {tab === 2 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <WorkloadSpecPanels
                     template={details?.spec?.jobTemplate}
                     scheduling={details?.spec?.scheduling}
@@ -401,14 +401,14 @@ export default function CronJobDrawer(props: {
 
               {/* EVENTS */}
               {tab === 3 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
+                <Box className="kview-native-scrollbar" sx={{ display: "flex", flexDirection: "column", gap: 1, height: "100%", overflow: "auto" }}>
                   <EventsPanel endpoint={`/api/namespaces/${encodeURIComponent(ns)}/cronjobs/${encodeURIComponent(name || "")}/events`} token={props.token} emptyMessage="No events found for this CronJob." />
                 </Box>
               )}
 
               {/* METADATA */}
               {tab === 4 && (
-                <Box sx={drawerTabContentCompactSx}>
+                <Box className="kview-native-scrollbar" sx={drawerTabContentCompactSx}>
                   <Box sx={panelBoxSx}>
                     <KeyValueTable
                       rows={summaryItems}
