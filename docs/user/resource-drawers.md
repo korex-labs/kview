@@ -82,8 +82,9 @@ objects, events, metadata, YAML, and supported actions.
   safe drawer identity remain visible but are not selectable. Dense manifests are
   capped at 99 resource nodes plus the release node and report truncation
   explicitly.
-- **Search and Activity**: saved investigation snapshots can appear in header
-  search results and the Activity panel, linking back to their primary resource.
+- **Search**: saved investigation snapshots can appear in header search results,
+  linking back to their primary resource. Open saved bundles from **Notes**;
+  saved triage states are not runtime activities.
 - **Attention banner**: shows resource signals in a consistent order: severity,
   optional local recurrence and saved-investigation state, reason, optional
   calculated detail, **Acknowledge signal**, and **Investigate signal**.

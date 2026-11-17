@@ -86,6 +86,8 @@ describe("ResourceMemoryPanel", () => {
 
     fireEvent.click(within(dialog).getByRole("tab", { name: "Export" }));
     expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
-    expect(screen.getByText("Full saved evidence bundle.")).toBeTruthy();
+    await waitFor(() => expect(dialog.querySelector("pre")?.textContent).toContain("Full saved evidence bundle."));
+    expect(dialog.querySelector("pre")?.textContent).toContain("# Investigation");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -110,8 +110,10 @@ collapsed, expanded, or resized vertically.
 The panel tabs are:
 
 - **Activities**: recent and active runtime operations such as terminal
-  sessions, port forwards, dataplane snapshots, namespace enrichment, saved
-  investigation snapshots, runtime logs, and connectivity events.
+  sessions, port forwards, dataplane snapshots, namespace enrichment, runtime
+  logs, and connectivity events. Saved investigation snapshots stay in resource
+  **Notes** and header search; their **Investigating** triage state is not running
+  work and does not appear in Activities.
 - **Work**: current dataplane scheduler work, including running and queued
   snapshot tasks, cluster, kind, namespace, priority, source, wait time, and
   running time.

@@ -23,6 +23,7 @@ import SaveAltIcon from "@mui/icons-material/SaveAlt";
 import RuleIcon from "@mui/icons-material/Rule";
 import TravelExploreIcon from "@mui/icons-material/TravelExplore";
 import { apiPost } from "../../api";
+import { useActiveContext } from "../../activeContext";
 import { saveInvestigationSnapshot } from "../../investigationSnapshots";
 import type {
   DashboardSignalItem,
@@ -344,6 +345,7 @@ function HelperCard({ helper }: { helper: SignalInvestigationHelperRun }) {
 }
 
 export default function SignalInvestigationDialog({ token, signal, snapshot = null, onClose }: Props) {
+  const activeContext = useActiveContext();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -380,6 +382,7 @@ export default function SignalInvestigationDialog({ token, signal, snapshot = nu
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
     setTab(0);
     setLoading(true);
     setError("");
@@ -387,7 +390,10 @@ export default function SignalInvestigationDialog({ token, signal, snapshot = nu
     setSavedSnapshotId("");
     setSavingSnapshot(false);
     setResult(null);
-    apiPost<InvestigationResponse>("/api/dataplane/signals/investigate", token, { signal })
+    apiPost<InvestigationResponse>("/api/dataplane/signals/investigate", token, { signal }, {
+      signal: controller.signal,
+      headers: activeContext ? { "X-Kview-Context": activeContext } : undefined,
+    })
       .then((res) => {
         if (!cancelled) setResult(res.item || null);
       })
@@ -399,8 +405,9 @@ export default function SignalInvestigationDialog({ token, signal, snapshot = nu
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [requestKey, signal, snapshot, snapshotKey, token]);
+  }, [activeContext, requestKey, signal, snapshot, snapshotKey, token]);
 
   const handleSaveSnapshot = async () => {
     if (!result || !token) return;

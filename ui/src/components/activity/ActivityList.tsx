@@ -45,8 +45,6 @@ function activityTypeDisplayLabel(type: string): string {
       return "Namespace rows";
     case "dataplane-snapshot":
       return "Resource list";
-    case "investigation-snapshot":
-      return "Investigation";
     case "runtime-log":
     case "runtime_log":
       return "System log";
@@ -74,10 +72,6 @@ function activityTargetDisplay(a: Activity): string {
   }
   if (a.type === "dataplane-snapshot") {
     return `${a.metadata?.cluster || "-"} / ${a.metadata?.namespace || "-"} / ${a.metadata?.kind || "-"}`;
-  }
-  if (a.type === "investigation-snapshot") {
-    const ns = a.metadata?.namespace ? `${a.metadata.namespace}/` : "";
-    return `${a.metadata?.context || "local"} · ${a.metadata?.resourceKind || "resource"} ${ns}${a.metadata?.name || "-"}`;
   }
   if (a.type === "connectivity") {
     return `${a.metadata?.context || "-"} · ${a.metadata?.state || a.status || "-"}`;

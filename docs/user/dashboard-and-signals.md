@@ -460,6 +460,10 @@ They do not run hidden repairs and do not mutate the cluster. For full logs,
 complete event history, and full YAML, use the resource drawer tabs after
 reviewing the bundle's targeted checks.
 
+Closing the dialog cancels its pending bundle request. Changing the signal or
+active context replaces that request; a late response cannot replace the new
+result. Saved snapshots remain local follow-up records, not active tasks.
+
 ## Signal Actions In Drawers
 
 Resource drawer attention banners use the same action order as dashboard
