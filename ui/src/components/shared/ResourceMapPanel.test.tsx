@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
+import { createTheme, getContrastRatio, ThemeProvider } from "@mui/material/styles";
+import { resourceMapColors } from "./resourceMapColors";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { apiGet, apiGetWithContext } from "../../api";
@@ -51,6 +53,28 @@ beforeAll(async () => { await import("./ResourceMapGraph"); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("ResourceMapPanel", () => {
+  it.each(["light", "dark"] as const)("%s: shares an opaque canvas/card/control palette without additional reads", async (mode) => {
+    const theme = createTheme({ palette: { mode } });
+    const colors = resourceMapColors(theme);
+    render(<ThemeProvider theme={theme}><ResourceMapSvg response={response} onOpenResource={vi.fn()} /></ThemeProvider>);
+    const region = await screen.findByRole("region", { name: "Resource relationship map" });
+    const flow = region.querySelector<HTMLElement>(".react-flow")!;
+    expect(flow.classList.contains(mode)).toBe(true);
+    expect(getComputedStyle(region).backgroundColor).toBe(colors.canvas);
+    expect(getComputedStyle(flow).backgroundColor).toBe(colors.canvas);
+    const card = await screen.findByRole("button", { name: "Pod: api-abc" });
+    expect(getComputedStyle(card).backgroundColor).toBe(resourceMapColors(theme, "pods").fill);
+    expect(getComputedStyle(card).backgroundColor).not.toBe(getComputedStyle(flow).backgroundColor);
+    const controls = region.querySelectorAll<HTMLElement>(".react-flow__controls-button");
+    expect(controls.length).toBeGreaterThan(0);
+    for (const control of controls) {
+      const style = getComputedStyle(control);
+      expect(style.backgroundColor).toBe(colors.fill);
+      expect(getContrastRatio(style.color, style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(apiGet).not.toHaveBeenCalled();
+    expect(apiGetWithContext).not.toHaveBeenCalled();
+  });
 
   it("collapses direct zero-replica rollout history while preserving current and unknown ReplicaSets", async () => {
     const current = { ...node("rs-current", "ReplicaSet", "api-current", "child", 1, "replicasets"), replicaSet: { revision: 10, desired: 0, ready: 0 } };

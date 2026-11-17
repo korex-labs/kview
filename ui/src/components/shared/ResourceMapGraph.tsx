@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo } from "react";
+import { useTheme } from "@mui/material/styles";
+import { resourceMapColors } from "./resourceMapColors";
 import CenterFocusStrongOutlinedIcon from "@mui/icons-material/CenterFocusStrongOutlined";
 import { Alert, Box, Tooltip } from "@mui/material";
 import {
@@ -70,6 +72,8 @@ export default function ResourceMapGraph({
   showCacheFreshness?: boolean;
   layoutDirection?: "TB" | "LR";
 }) {
+  const theme = useTheme();
+  const colors = resourceMapColors(theme);
   const graph = useMemo(
     () => buildResourceMapGraph(nodes, edges, canOpenResource, layoutDirection),
     [canOpenResource, edges, layoutDirection, nodes],
@@ -101,10 +105,12 @@ export default function ResourceMapGraph({
         minHeight: 420,
         borderTop: 1,
         borderColor: "divider",
-        bgcolor: "background.default",
-        "& .react-flow__controls": { boxShadow: 2, border: 1, borderColor: "divider" },
-        "& .react-flow__controls-button": { bgcolor: "background.paper", color: "text.primary", borderColor: "divider" },
-        "& .react-flow__controls-button:hover": { bgcolor: "action.hover" },
+        bgcolor: colors.canvas,
+        "& .react-flow__controls": { boxShadow: 2, border: 1, borderColor: colors.boundary },
+        "& .react-flow": { backgroundColor: colors.canvas },
+        "& .react-flow__controls-button": { bgcolor: colors.fill, color: colors.text, borderColor: colors.boundary },
+        "& .react-flow__controls-button:focus-visible": { outline: `3px solid ${colors.accent}`, outlineOffset: 2 },
+        "& .react-flow__controls-button:hover": { bgcolor: colors.hover },
       }}
     >
       {graph.layoutFallback && (
@@ -136,6 +142,7 @@ export default function ResourceMapGraph({
         zoomOnPinch
         preventScrolling
         proOptions={{ hideAttribution: true }}
+        colorMode={theme.palette.mode}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(127, 127, 127, 0.28)" />
         <ViewportControls targetId={response.targetId} layoutKey={layoutKey} />

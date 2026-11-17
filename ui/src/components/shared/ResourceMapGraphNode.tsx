@@ -1,4 +1,6 @@
 import React from "react";
+import { useTheme } from "@mui/material/styles";
+import { resourceMapColors } from "./resourceMapColors";
 import { Box, ButtonBase, Chip, Divider, Stack, Tooltip, Typography } from "@mui/material";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { ResourceMapNode } from "../../types/api";
@@ -45,11 +47,16 @@ function handleStyle(index: number, count: number, position: Position, routeOffs
 
 export default function ResourceMapGraphNode({ data }: NodeProps<ResourceMapFlowNode>) {
   const { resourceNode } = data;
+  const theme = useTheme();
+  const iconName = isPodGroupNode(resourceNode) ? "pods" : isResourceIconName(resourceNode.identity.resource)
+    ? resourceNode.identity.resource
+    : resourceNode.identity.scope === "cluster" ? "clusterresources" : "customresources";
+  const colors = resourceMapColors(theme, iconName);
   if (isPodGroupNode(resourceNode)) {
     const { group, expanded, owner } = resourceNode;
     return <>
       {data.incoming.map((edge, index) => <Handle key={edge.id} id={`target-${edge.id}`} type="target" position={data.incomingHandlePositions[edge.id] || Position.Left} isConnectable={false} style={handleStyle(index, data.incoming.length, data.incomingHandlePositions[edge.id] || Position.Left, data.incomingHandleOffsets[edge.id])} />)}
-      <ButtonBase className="nodrag" aria-label={`${expanded ? "Collapse" : "Expand"} Pods owned by ${owner.kind} ${owner.name}`} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); data.onToggleGroup?.(group.id); }} sx={{ width: "100%", height: "100%", p: 1, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.paper", textAlign: "left", display: "block", "&.Mui-focusVisible": { outline: "3px solid", outlineColor: "primary.main" } }}>
+      <ButtonBase className="nodrag" aria-label={`${expanded ? "Collapse" : "Expand"} Pods owned by ${owner.kind} ${owner.name}`} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); data.onToggleGroup?.(group.id); }} sx={{ width: "100%", height: "100%", p: 1, border: 1, borderColor: colors.boundary, borderRadius: 1.5, bgcolor: colors.fill, color: colors.text, "&:hover": { bgcolor: colors.hover }, textAlign: "left", display: "block", "&.Mui-focusVisible": { outline: "3px solid", outlineColor: colors.accent, outlineOffset: 3 } }}>
         <Typography variant="subtitle2">Pods · {group.countComplete ? "" : "at least "}{group.observedCount} observed</Typography>
         <Typography variant="caption" sx={{ display: "block" }}>{expanded ? `Collapse · ${resourceNode.visibleMembers} visible` : "Expand · Collapsed"} · {Math.min(10, group.members.length)} cached members{group.membersTruncated || group.members.length > 10 ? " (sample limited)" : ""}</Typography>
         <Typography variant="caption" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={Object.entries(group.states).map(([state, count]) => `${state}: ${count}`).join(" · ")}>{Object.entries(group.states).sort(([a], [b]) => a.localeCompare(b)).map(([state, count]) => `${state}: ${count}`).join(" · ")}</Typography>
@@ -58,9 +65,6 @@ export default function ResourceMapGraphNode({ data }: NodeProps<ResourceMapFlow
     </>;
   }
   const identity = resourceNode.identity;
-  const iconName = isResourceIconName(identity.resource)
-    ? identity.resource
-    : identity.scope === "cluster" ? "clusterresources" : "customresources";
   const relationships = relationshipSummary(data);
   const accessibleLabel = resourceNode.replicaSet
     ? `${identity.kind}: ${identity.name}, revision ${resourceNode.replicaSet.revision}, desired ${resourceNode.replicaSet.desired}, ready ${resourceNode.replicaSet.ready}`
@@ -126,19 +130,21 @@ export default function ResourceMapGraphNode({ data }: NodeProps<ResourceMapFlow
             px: 1.25,
             py: 1,
             border: 1.5,
-            borderColor: resourceNode.current ? "primary.main" : resourceNode.availability === "present" ? "divider" : "text.disabled",
+            borderColor: colors.boundary,
             borderStyle: resourceNode.availability === "present" ? "solid" : "dashed",
             borderRadius: 1.5,
-            bgcolor: resourceNode.current ? "action.selected" : "background.paper",
+            bgcolor: resourceNode.current ? colors.current : colors.fill,
+            color: colors.text,
+            outline: resourceNode.current ? `2px solid ${colors.accent}` : undefined,
+            outlineOffset: 1,
             boxShadow: resourceNode.current ? 3 : 1,
-            opacity: resourceNode.availability === "present" ? 1 : 0.76,
             cursor: data.uiNavigable ? "pointer" : "default",
-            "&:hover": { borderColor: data.uiNavigable ? "primary.main" : undefined, boxShadow: data.uiNavigable ? 3 : 1 },
-            "&.Mui-focusVisible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 3 },
+            "&:hover": { bgcolor: colors.hover, boxShadow: data.uiNavigable ? 3 : 1 },
+            "&.Mui-focusVisible": { outline: "3px solid", outlineColor: colors.accent, outlineOffset: 3 },
           }}
         >
           <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", minWidth: 0 }}>
-            <ResourceIcon name={iconName} size={18} sx={{ flexShrink: 0, color: resourceNode.current ? "primary.main" : "text.secondary" }} />
+            <ResourceIcon name={iconName} size={18} sx={{ flexShrink: 0, color: colors.icon }} />
             <Typography component="span" variant="caption" sx={{ fontWeight: 800, minWidth: 0 }}>
               {identity.kind}{resourceNode.replicaSet ? ` · rev ${resourceNode.replicaSet.revision}` : ""}
             </Typography>
@@ -146,7 +152,7 @@ export default function ResourceMapGraphNode({ data }: NodeProps<ResourceMapFlow
             <Chip size="small" label={resourceNode.availability} color={availabilityColor(resourceNode.availability)} sx={{ height: 19, "& .MuiChip-label": { px: 0.75, fontSize: "0.65rem" } }} />
           </Stack>
           {identity.namespace ? (
-            <Typography component="span" variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Typography component="span" variant="caption" sx={{ color: colors.metadata, display: "block", mt: 0.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {identity.namespace}
             </Typography>
           ) : null}

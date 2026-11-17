@@ -30,6 +30,11 @@ objects, events, metadata, YAML, and supported actions.
   controls to fit the complete map, zoom, or center the current resource; drag
   the empty canvas to pan and use the mouse wheel to zoom. Resource cards show kind, namespace,
   availability, rollout revision when available, and wrapped resource names.
+  Opaque, subtle blue/cyan/slate card tints distinguish resource families in both
+  themes; kind labels and icons remain the identity cues. These tints are not
+  health or severity colors: availability badges retain their status meaning.
+  The current resource has a separate accent outline, and keyboard focus and
+  hover remain visible without replacing status badges.
   Hover a card or focus it with the keyboard to see the exact full identity,
   direction/depth, cached rollout state, incident relationship summary, cache
   freshness, and coverage caveats. Relationship edges use compact midpoint

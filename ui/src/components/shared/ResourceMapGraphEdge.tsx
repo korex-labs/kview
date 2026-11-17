@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useTheme } from "@mui/material/styles";
+import { resourceMapColors } from "./resourceMapColors";
 import { Box, Chip, Divider, Stack, Tooltip, Typography } from "@mui/material";
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from "@xyflow/react";
 import { resourceMapEdgeLabel, resourceMapIdentityLabel, type ResourceMapFlowEdge } from "./resourceMapGraphModel";
@@ -75,6 +77,7 @@ export default function ResourceMapGraphEdge({
   data,
 }: EdgeProps<ResourceMapFlowEdge>) {
   const [labelActive, setLabelActive] = useState(false);
+  const colors = resourceMapColors(useTheme());
   const pathOptions = { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition };
   let path: string;
   let labelX: number;
@@ -138,10 +141,10 @@ export default function ResourceMapGraphEdge({
               px: labelActive ? 0.6 : 0.35,
               py: 0.15,
               border: 1,
-              borderColor: "transparent",
+              borderColor: labelActive ? colors.boundary : "transparent",
               borderRadius: 0.75,
-              bgcolor: "transparent",
-              color: "text.secondary",
+              bgcolor: labelActive ? colors.fill : colors.canvas,
+              color: colors.text,
               typography: "caption",
               fontSize: "0.64rem",
               lineHeight: 1.2,
@@ -149,15 +152,15 @@ export default function ResourceMapGraphEdge({
               boxShadow: 0,
               minWidth: labelActive ? undefined : 14,
               textAlign: "center",
-              opacity: labelActive ? 1 : 0.45,
+              opacity: 1,
               transition: "opacity 120ms ease, background-color 120ms ease, border-color 120ms ease",
               "&:hover, &:focus-visible": {
                 opacity: 1,
-                bgcolor: "background.paper",
-                borderColor: "divider",
+                bgcolor: colors.fill,
+                borderColor: colors.boundary,
                 boxShadow: 1,
               },
-              "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
+              "&:focus-visible": { outline: "2px solid", outlineColor: colors.accent, outlineOffset: 2 },
             }}
           >
             {labelActive ? label : "•"}

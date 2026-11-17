@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
+import { createTheme, getContrastRatio, ThemeProvider } from "@mui/material/styles";
+import { resourceMapColors } from "./resourceMapColors";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Position, type EdgeProps } from "@xyflow/react";
@@ -38,7 +40,9 @@ const resourceEdge: ResourceMapEdge = {
 };
 
 describe("ResourceMapGraphEdge", () => {
-  it("exposes exact endpoints, source path, evidence, and selector on hover", async () => {
+  it.each(["light", "dark"] as const)("%s: readable labels expose exact endpoints, source path, evidence, and selector on hover", async (mode) => {
+    const theme = createTheme({ palette: { mode } });
+    const colors = resourceMapColors(theme);
     const props = {
       id: resourceEdge.id,
       source: resourceEdge.from,
@@ -60,14 +64,18 @@ describe("ResourceMapGraphEdge", () => {
         routePoints: [{ x: 0, y: 0 }, { x: 20, y: 50 }, { x: 80, y: 50 }, { x: 100, y: 100 }],
       },
     } as EdgeProps<ResourceMapFlowEdge>;
-    render(<ResourceMapGraphEdge {...props} />);
+    render(<ThemeProvider theme={theme}><ResourceMapGraphEdge {...props} /></ThemeProvider>);
     expect(screen.getByTestId(`edge-${resourceEdge.id}`).getAttribute("data-path")).toContain(" Q ");
     expect(getSmoothStepPathMock).not.toHaveBeenCalled();
     const label = screen.getByLabelText(/Namespace containment: Namespace prod to Deployment prod\/api, exact confidence, resolved/);
-    expect(window.getComputedStyle(label).opacity).toBe("0.45");
+    expect(window.getComputedStyle(label).opacity).toBe("1");
+    expect(getComputedStyle(label).backgroundColor).toBe(colors.canvas);
+    expect(getContrastRatio(getComputedStyle(label).color, colors.canvas)).toBeGreaterThanOrEqual(4.5);
     expect(label.textContent).toBe("•");
     fireEvent.mouseOver(label);
     expect(label.textContent).toBe("Namespace containment");
+    expect(getComputedStyle(label).backgroundColor).toBe(colors.fill);
+    expect(getContrastRatio(getComputedStyle(label).color, colors.fill)).toBeGreaterThanOrEqual(4.5);
     expect(await screen.findByText("Source field: metadata.namespace")).toBeTruthy();
     expect(screen.getByText("Evidence: namespace membership")).toBeTruthy();
     expect(screen.getByText("Selector: app=api, environment=production")).toBeTruthy();
@@ -75,6 +83,8 @@ describe("ResourceMapGraphEdge", () => {
     expect(label.textContent).toBe("•");
     fireEvent.focus(label);
     expect(label.textContent).toBe("Namespace containment");
+    expect(getComputedStyle(label).backgroundColor).toBe(colors.fill);
+    expect(getContrastRatio(getComputedStyle(label).color, colors.fill)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("uses an external Bezier route for self-loops", () => {
