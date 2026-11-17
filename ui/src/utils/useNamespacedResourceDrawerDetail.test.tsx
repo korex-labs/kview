@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import React from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ActiveContextProvider } from "../activeContext";
+
+afterEach(cleanup);
 import useNamespacedResourceDrawerDetail from "./useNamespacedResourceDrawerDetail";
 
 type Details = { name: string };
@@ -18,13 +22,48 @@ function result(name: string) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 describe("useNamespacedResourceDrawerDetail", () => {
+
+  it.each(["name", "namespace", "token", "resource", "context", "retry"])("guards obsolete rejection/finally on %s changes and aborts on unmount", async (dimension) => {
+    const old = deferred<ReturnType<typeof result>>();
+    const current = deferred<ReturnType<typeof result>>();
+    const unmounting = deferred<ReturnType<typeof result>>();
+    const fetchDetail = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise).mockReturnValueOnce(unmounting.promise);
+    let context = "context-a";
+    const initialProps = { name: "fixture-a", namespace: "fixture-ns", token: "token-a", resource: "services", retryNonce: 0 };
+    const { result: hook, rerender, unmount } = renderHook(
+      (identity) => useNamespacedResourceDrawerDetail<Details>({ ...identity, open: true, fetchDetail }),
+      { initialProps, wrapper: ({ children }) => <ActiveContextProvider value={context}>{children}</ActiveContextProvider> },
+    );
+    const oldSignal = fetchDetail.mock.calls[0][0].signal as AbortSignal;
+    if (dimension === "context") context = "context-b";
+    const next = dimension === "retry" ? { ...initialProps, retryNonce: 1 }
+      : dimension === "context" ? initialProps : { ...initialProps, [dimension]: "fixture-b" };
+    rerender(next);
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => old.reject(new Error("obsolete")));
+    expect(hook.current.loading).toBe(true);
+    expect(hook.current.error).toBe("");
+    await act(async () => current.resolve(result("current")));
+    expect(hook.current.details).toEqual({ name: "current" });
+    expect(hook.current.loading).toBe(false);
+    rerender(next);
+    expect(fetchDetail).toHaveBeenCalledTimes(2);
+    act(() => hook.current.refresh());
+    const signal = fetchDetail.mock.calls[2][0].signal as AbortSignal;
+    unmount();
+    expect(signal.aborted).toBe(true);
+    await act(async () => unmounting.resolve(result("unmounted")));
+  });
+
   it("stays idle until the drawer has a resource identity", () => {
     const fetchDetail = vi.fn();
     const { result: hook } = renderHook(() =>
@@ -70,6 +109,8 @@ describe("useNamespacedResourceDrawerDetail", () => {
       namespace: "default",
       resource: "resourcequotas",
       name: "quota",
+      contextName: "",
+      signal: expect.any(AbortSignal),
     });
     expect(hook.current.details).toEqual({ name: "first" });
     expect(hook.current.events).toHaveLength(1);

@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fetchClusterResourceDetailWithWarnings, fetchNamespacedResourceDetailWithWarnings } from "./resourceDrawerFetch";
 
 describe("resource drawer fetch helpers", () => {
+  it.each(["fixture-context", ""])("binds both requests to explicit context %j and the same abort signal", async (contextName) => {
+    const apiGetFn = vi.fn().mockResolvedValue({});
+    const controller = new AbortController();
+    await fetchNamespacedResourceDetailWithWarnings({ token: "token", namespace: "fixture-ns", resource: "services", name: "fixture-service", contextName, signal: controller.signal, apiGetFn });
+    expect(apiGetFn).toHaveBeenCalledTimes(2);
+    for (const [, token, options] of apiGetFn.mock.calls) {
+      expect(token).toBe("token");
+      expect(options).toEqual({ signal: controller.signal, headers: contextName ? { "X-Kview-Context": contextName } : undefined, useDefaultContext: false });
+    }
+  });
+
   it("fetches detail and warning events in parallel with encoded paths", async () => {
     const calls: string[] = [];
     const apiGetFn = async <T>(path: string): Promise<T> => {

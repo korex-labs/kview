@@ -319,6 +319,7 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 		snaps.deps.Meta,
 		snaps.svcs.Meta,
 		snaps.ing.Meta,
+		snaps.networkPolicies.Meta,
 		snaps.pvcs.Meta,
 		snaps.cms.Meta,
 		snaps.secs.Meta,
@@ -368,7 +369,7 @@ func buildNamespaceSummaryProjectionFromSnapshots(snaps namespaceProjectionSnaps
 	out.Resources = res
 	out.Err = firstNorm
 	err := FirstError(
-		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
+		snaps.podsErr, snaps.depsErr, snaps.svcsErr, snaps.ingErr, snaps.networkPoliciesErr, snaps.pvcsErr, snaps.cmsErr, snaps.secsErr,
 		snaps.dsErr, snaps.stsErr, snaps.rsErr, snaps.jobsErr, snaps.cjErr, snaps.hpaErr,
 		snaps.saErr, snaps.rolesErr, snaps.roleBindingsErr, snaps.helmErr, snaps.customResourcesErr, snaps.rqErr, snaps.lrErr,
 	)

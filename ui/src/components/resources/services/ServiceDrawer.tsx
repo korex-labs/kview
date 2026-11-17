@@ -19,7 +19,7 @@ import {
   TextField,
 } from "@mui/material";
 import CableIcon from "@mui/icons-material/Cable";
-import { apiGet, toApiError, type ApiError } from "../../../api";
+import { apiGetWithContext, toApiError, type ApiError } from "../../../api";
 import { useConnectionState } from "../../../connectionState";
 import IngressDrawer from "../ingresses/IngressDrawer";
 import PodDrawer from "../pods/PodDrawer";
@@ -47,10 +47,8 @@ import DetailTabIcon from "../../shared/DetailTabIcon";
 import ResourceYamlPanel from "../../shared/ResourceYamlPanel";
 import type { ApiListResponse, DashboardSignalItem } from "../../../types/api";
 import useResourceSignals from "../../../utils/useResourceSignals";
-import {
-  fetchNamespacedResourceDetailWithWarnings,
-  type ResourceWarningEvent,
-} from "../../../utils/resourceDrawerFetch";
+import useNamespacedResourceDrawerDetail from "../../../utils/useNamespacedResourceDrawerDetail";
+import { useActiveContext } from "../../../activeContext";
 import {
   panelBoxSx,
   drawerBodySx,
@@ -181,15 +179,12 @@ export default function ServiceDrawer(props: {
   const offline = health === "unhealthy";
   const offlineReason = "Cluster connection is unavailable";
   const [tab, setTab] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState<ServiceDetails | null>(null);
-  const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
-  const [err, setErr] = useState("");
+  const contextName = useActiveContext();
   const [drawerPod, setDrawerPod] = useState<string | null>(null);
   const [drawerPodNs, setDrawerPodNs] = useState<string>("");
   const [ingresses, setIngresses] = useState<ServiceIngress[]>([]);
   const [ingressesLoading, setIngressesLoading] = useState(false);
-  const [ingressesLoaded, setIngressesLoaded] = useState(false);
+  const [ingressesRequestedFor, setIngressesRequestedFor] = useState<string | null>(null);
   const [ingressesErr, setIngressesErr] = useState<ApiError | null>(null);
   const [drawerIngress, setDrawerIngress] = useState<{ name: string; namespace: string } | null>(null);
   const [drawerNamespace, setDrawerNamespace] = useState<string | null>(null);
@@ -199,63 +194,63 @@ export default function ServiceDrawer(props: {
   const [portForwardLocalPort, setPortForwardLocalPort] = useState<string>("");
   const [portForwardError, setPortForwardError] = useState<string>("");
   const [portForwardCreatedMsg, setPortForwardCreatedMsg] = useState("");
-  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const ns = props.namespace;
   const name = props.serviceName;
 
-  useEffect(() => {
-    if (!props.open || !name || offline) return;
-
-    setTab(0);
-    setErr("");
-    setDetails(null);
-    setEvents([]);
-    setDrawerPod(null);
-    setDrawerPodNs("");
-    setIngresses([]);
-    setIngressesLoading(false);
-    setIngressesLoaded(false);
-    setIngressesErr(null);
-    setDrawerIngress(null);
-    setDrawerNamespace(null);
-    setLoading(true);
-
-    fetchNamespacedResourceDetailWithWarnings<ServiceDetails>({
-      token: props.token,
-      namespace: ns,
-      resource: "services",
-      name,
-    })
-      .then((res) => {
-        setDetails(res.item);
-        setEvents(res.warningEvents);
-      })
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [props.open, name, ns, props.token, retryNonce, offline, refreshNonce]);
+  const ingressIdentity = JSON.stringify([contextName, props.token, ns, name, retryNonce]);
+  const { loading, details, events, error: err, refresh } = useNamespacedResourceDrawerDetail<ServiceDetails>({
+    open: props.open && !offline,
+    token: props.token,
+    namespace: ns,
+    resource: "services",
+    name,
+    retryNonce,
+    onReset: () => {
+      setTab(0);
+      setDrawerPod(null);
+      setDrawerPodNs("");
+      setIngresses([]);
+      setIngressesLoading(false);
+      setIngressesRequestedFor(null);
+      setIngressesErr(null);
+      setDrawerIngress(null);
+      setDrawerNamespace(null);
+    },
+  });
 
   useEffect(() => {
-    if (!props.open || !name || tab !== 1 || offline) return;
-    if (ingressesLoading || ingressesLoaded) return;
+    if (!props.open || offline) setIngressesRequestedFor(null);
+  }, [props.open, offline]);
 
+  // Latch demand for this exact identity: tab navigation must not refetch or
+  // cancel a pending inventory read. Only its own lifecycle invalidates it.
+  useEffect(() => {
+    if (!props.open || !name || offline || ingressesRequestedFor !== ingressIdentity) {
+      setIngressesLoading(false);
+      return;
+    }
+    const controller = new AbortController();
     setIngressesLoading(true);
     setIngressesErr(null);
 
-    apiGet<ApiListResponse<ServiceIngress>>(
+    apiGetWithContext<ApiListResponse<ServiceIngress>>(
       `/api/namespaces/${encodeURIComponent(ns)}/services/${encodeURIComponent(name)}/ingresses`,
-      props.token
+      props.token,
+      contextName,
+      { signal: controller.signal },
     )
       .then((res) => {
-        const items: ServiceIngress[] = res?.items || [];
-        setIngresses(items);
+        if (!controller.signal.aborted) setIngresses(res?.items || []);
       })
-      .catch((e) => setIngressesErr(toApiError(e)))
+      .catch((e) => {
+        if (!controller.signal.aborted) setIngressesErr(toApiError(e));
+      })
       .finally(() => {
-        setIngressesLoading(false);
-        setIngressesLoaded(true);
+        if (!controller.signal.aborted) setIngressesLoading(false);
       });
-  }, [props.open, name, ns, props.token, tab, ingressesLoading, ingressesLoaded, offline]);
+    return () => controller.abort();
+  }, [props.open, name, ns, props.token, contextName, ingressIdentity, ingressesRequestedFor, offline]);
 
   const summary = details?.summary;
   const resourceSignals = useResourceSignals({
@@ -391,7 +386,10 @@ export default function ServiceDrawer(props: {
           <ErrorState message={err} />
         ) : (
           <>
-            <Tabs value={tab} onChange={(_, v) => setTab(v)}>
+            <Tabs value={tab} onChange={(_, v) => {
+              setTab(v);
+              if (v === 1) setIngressesRequestedFor(ingressIdentity);
+            }}>
               <Tab data-keyboard-action-id="drawer.tab.overview" icon={<DetailTabIcon label="Overview" />} iconPosition="start" label="Overview" />
               <Tab data-keyboard-action-id="drawer.tab.pods" icon={<DetailTabIcon label="Pods" />} iconPosition="start" label="Pods" />
               <Tab data-keyboard-action-id="drawer.tab.events" icon={<DetailTabIcon label="Events" />} iconPosition="start" label="Events" />
@@ -640,7 +638,7 @@ export default function ServiceDrawer(props: {
                     namespace: ns,
                     name: name || "",
                   }}
-                  onApplied={() => setRefreshNonce((v) => v + 1)}
+                  onApplied={refresh}
                 />
               )}
             </Box>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useActiveContext } from "../activeContext";
 import {
   fetchNamespacedResourceDetailWithWarnings,
   type NamespacedResourceDetailFetchResult,
@@ -10,6 +11,8 @@ type FetchDetail<TDetails> = (args: {
   namespace: string;
   resource: string;
   name: string;
+  contextName: string;
+  signal: AbortSignal;
 }) => Promise<NamespacedResourceDetailFetchResult<TDetails>>;
 
 type Options<TDetails> = {
@@ -33,6 +36,7 @@ export default function useNamespacedResourceDrawerDetail<TDetails>({
   onReset,
   fetchDetail,
 }: Options<TDetails>) {
+  const contextName = useActiveContext();
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<TDetails | null>(null);
   const [events, setEvents] = useState<ResourceWarningEvent[]>([]);
@@ -56,8 +60,9 @@ export default function useNamespacedResourceDrawerDetail<TDetails>({
     setEvents([]);
     setLoading(true);
 
+    const controller = new AbortController();
     const load = fetchDetailRef.current ?? fetchNamespacedResourceDetailWithWarnings<TDetails>;
-    load({ token, namespace, resource, name })
+    load({ token, namespace, resource, name, contextName, signal: controller.signal })
       .then((result) => {
         if (requestIdRef.current !== requestId) return;
         setDetails(result.item);
@@ -72,8 +77,9 @@ export default function useNamespacedResourceDrawerDetail<TDetails>({
 
     return () => {
       if (requestIdRef.current === requestId) requestIdRef.current += 1;
+      controller.abort();
     };
-  }, [open, name, namespace, token, resource, retryNonce, refreshNonce]);
+  }, [open, name, namespace, token, contextName, resource, retryNonce, refreshNonce]);
 
   const refresh = useCallback(() => setRefreshNonce((value) => value + 1), []);
 

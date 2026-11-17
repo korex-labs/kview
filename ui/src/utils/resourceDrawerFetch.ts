@@ -14,7 +14,7 @@ export type DetailResponseWithSignals<TDetails> = ApiItemResponse<TDetails> & {
   detailSignals?: DashboardSignalItem[];
 };
 
-type ApiGetFn = <T>(path: string, token: string) => Promise<T>;
+type ApiGetFn = typeof apiGet;
 
 export type NamespacedResourceDetailFetchResult<TDetails> = {
   item: TDetails | null;
@@ -29,21 +29,32 @@ export async function fetchNamespacedResourceDetailWithWarnings<TDetails>({
   namespace,
   resource,
   name,
+  contextName,
+  signal,
   apiGetFn = apiGet,
 }: {
   token: string;
   namespace: string;
   resource: string;
   name: string;
+  contextName?: string;
+  signal?: AbortSignal;
   apiGetFn?: ApiGetFn;
 }): Promise<NamespacedResourceDetailFetchResult<TDetails>> {
   const ns = encodeURIComponent(namespace);
   const encodedName = encodeURIComponent(name);
   const basePath = `/api/namespaces/${ns}/${resource}/${encodedName}`;
+  const options = {
+    signal,
+    ...(contextName !== undefined ? {
+      headers: contextName ? { "X-Kview-Context": contextName } : undefined,
+      useDefaultContext: false,
+    } : {}),
+  };
 
   const [detail, events] = await Promise.all([
-    apiGetFn<DetailResponseWithSignals<TDetails>>(basePath, token),
-    apiGetFn<ApiListResponse<ResourceWarningEvent>>(`${basePath}/events?limit=5&type=Warning`, token),
+    apiGetFn<DetailResponseWithSignals<TDetails>>(basePath, token, options),
+    apiGetFn<ApiListResponse<ResourceWarningEvent>>(`${basePath}/events?limit=5&type=Warning`, token, options),
   ]);
 
   return {
