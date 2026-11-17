@@ -1,4 +1,5 @@
 import React from "react";
+import { denseSelectMenuProps } from "../shared/denseSelectMenuProps";
 import { Box, MenuItem, TextField, Typography } from "@mui/material";
 import {
   newCustomCommandDefinition,
@@ -26,17 +27,7 @@ const settingsItemCardSx = {
   flexDirection: "column",
   gap: 1,
 } as const;
-const denseSelectMenuProps = {
-  slotProps: {
-    paper: {
-      sx: {
-        "& .MuiMenuItem-root": { minHeight: 30, py: 0.25, fontSize: "0.875rem" },
-        "& .MuiCheckbox-root": { py: 0.25 },
-        "& .MuiListItemText-root": { my: 0 },
-      },
-    },
-  },
-};
+
 
 function updateCustomCommands(
   settings: KviewUserSettingsV2,

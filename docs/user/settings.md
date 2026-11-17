@@ -10,6 +10,9 @@ Settings control local kview preferences, optional UI behavior, custom operator
 workflows, and dataplane policy. Settings are local to the browser profile
 unless exported and imported elsewhere.
 
+Settings tab groups scroll when space is limited, with overflow arrows available
+on narrow/mobile screens. Tab labels and keyboard navigation remain available.
+
 ## Appearance And Workflow
 
 Appearance settings currently include:

@@ -38,6 +38,36 @@ const revision = { fetchRevision: async () => "1", pollSec: 3600 };
 
 // Production DataGrid, toolbar, metadata strip and useListQuery are all mounted.
 describe("ResourceListPage production Refresh", () => {
+  it("bounds the filter to its container and keeps Enter, clear and Escape focus behavior", async () => {
+    const fetchRows = vi.fn().mockResolvedValue(snapshot);
+    await act(async () => { render(<div style={{ width: 280 }}><ResourceListPage<Row>
+      token="token" resourceKey="pods" columns={columns} fetchRows={fetchRows}
+      suspendPolling filterLabel="Filter pods" renderDrawer={() => null}
+    /></div>); });
+    const filter = screen.getByRole("textbox", { name: "Filter pods" }) as HTMLInputElement;
+    const field = filter.closest(".MuiTextField-root")!;
+    const style = getComputedStyle(field);
+    // jsdom does not lay out flex boxes: protect the container-relative sizing contract.
+    expect(style.minWidth).toBe("0px");
+    expect(style.flexBasis).toBe("340px");
+    expect(style.flexShrink).toBe("1");
+    expect(style.maxWidth).toBe("100%");
+    expect(getComputedStyle(field.parentElement!).width).toBe("100%");
+    act(() => filter.focus());
+    fireEvent.change(filter, { target: { value: "pod-a" } });
+    expect(screen.queryByText("pod-b")).toBeNull();
+    fireEvent.keyDown(filter, { key: "Enter" });
+    expect(screen.getByRole("grid").contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(filter);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filter" }));
+    expect(filter.value).toBe("");
+    expect(screen.getByText("pod-b")).toBeTruthy();
+    act(() => filter.focus());
+    fireEvent.keyDown(filter, { key: "Escape" });
+    expect(document.activeElement).not.toBe(filter);
+    expect(fetchRows).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves terminal input focus across Live updates after filtering and double-clicking", async () => {
     const fetchRows = vi.fn().mockImplementation(async () => ({ rows: snapshot.rows.map((row) => ({ ...row })) }));
     const page = (externalRevision?: string) => <ResourceListPage<Row>

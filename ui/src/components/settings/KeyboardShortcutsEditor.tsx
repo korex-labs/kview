@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
@@ -35,6 +36,7 @@ import { canonicalizeKeyChord, eventToBinding } from "../../keyboard/keyboardUti
 import type { KeyboardSettings } from "../../settings";
 import SettingsIcon, { type SettingsIconName } from "./SettingsIcon";
 import { settingsTabsSx } from "./settingsTabs";
+import { DialogActionButton } from "../shared/AppActions";
 
 export type KeyboardShortcutsEditorProps = {
   settings: KeyboardSettings;
@@ -261,8 +263,7 @@ export default function KeyboardShortcutsEditor({
       <Tabs
         value={selectedGroup}
         onChange={(_, group: string) => { setSelectedGroup(group); setPage(0); }}
-        variant="scrollable"
-        scrollButtons="auto"
+        {...overflowOnlyTabsProps}
         aria-label="Keyboard shortcut groups"
         sx={settingsTabsSx}
       >
@@ -451,8 +452,8 @@ export default function KeyboardShortcutsEditor({
           {recorderError && <Alert severity="error" sx={{ mt: 1.5 }}>{recorderError}</Alert>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeRecorder}>Cancel</Button>
-          <Button variant="contained" onClick={saveRecordedBinding} disabled={recordedSequence.length === 0}>Save binding</Button>
+          <DialogActionButton action="cancel" size="medium" onClick={closeRecorder}>Cancel</DialogActionButton>
+          <DialogActionButton action="primary" size="medium" onClick={saveRecordedBinding} disabled={recordedSequence.length === 0}>Save binding</DialogActionButton>
         </DialogActions>
       </Dialog>
     </Stack>

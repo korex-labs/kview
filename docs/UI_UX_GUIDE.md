@@ -206,6 +206,26 @@ Examples:
 
 Avoid copy‑paste implementations.
 
+## Tab appearance and overflow
+
+Use `ui/src/theme/tabTokens.ts` for shared drawer/Settings appearance and
+explicit overflow policies, not a new tab wrapper. Keep direct MUI `Tabs`/`Tab`
+children in resource drawers: the shell discovers semantic actions and injects
+Notes and Resource Map there. Appearance does not own panel mounting.
+
+- `overflowOnlyTabsProps`: automatic arrows, including mobile; Settings keeps
+  its existing disabled-arrow collapse geometry. Activity keeps its compact
+  header/session density and mounted terminal content.
+- `reservedSlotsTabsProps` + `reservedSlotsTabsSx`: Dashboard retains both
+  non-shrinking 32px arrow slots, stable node identities and existing tab widths.
+- Shared drawer/Settings tabs retain 40px minimum height, horizontal icon/text
+  spacing and sentence case. Keep meaningful existing icons and visible labels;
+  text-only strips do not need decorative icons.
+- Dense Settings selects reuse `settings/shared/denseSelectMenuProps.ts`; keep
+  MUI menu focus, sizing and checkbox behavior intact.
+- Resource list filters use a shrinkable 340px flex basis bounded by their
+  container, not a viewport-only minimum width.
+
 ## Action controls
 
 All command-style controls use the shared action primitives in

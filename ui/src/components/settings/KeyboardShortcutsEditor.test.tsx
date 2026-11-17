@@ -91,8 +91,8 @@ describe("KeyboardShortcutsEditor", () => {
   it("uses standard table pagination controls", () => {
     renderEditor();
     selectGroup("Navigation");
-    expect(screen.getByTitle("Go to previous page")).toBeTruthy();
-    expect(screen.getByTitle("Go to next page")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Go to previous page" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Go to next page" })).toBeTruthy();
     expect(screen.queryByText("Previous actions")).toBeNull();
     expect(screen.queryByText("Next actions")).toBeNull();
   });
@@ -119,6 +119,40 @@ describe("KeyboardShortcutsEditor", () => {
     expect(screen.queryByText(/Choose a preset, then override individual actions/i)).toBeNull();
     expect(screen.queryByText("No keyboard shortcut conflicts detected.")).toBeNull();
     expect(screen.queryByText(/^Scope:/)).toBeNull();
+  });
+
+  it("keeps recorder footer intent, disabled state and click-save behavior", () => {
+    const view = renderEditor();
+    fireEvent.click(within(row("help.open")).getByRole("button", { name: "Add binding for Show keyboard shortcuts" }));
+    const dialog = screen.getByRole("dialog");
+    const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+    const save = within(dialog).getByRole("button", { name: "Save binding" }) as HTMLButtonElement;
+    expect(cancel.classList.contains("MuiButton-text")).toBe(true);
+    expect(save.classList.contains("MuiButton-contained")).toBe(true);
+    expect(save.classList.contains("MuiButton-sizeMedium")).toBe(true);
+    expect(save.disabled).toBe(true);
+    fireEvent.keyDown(screen.getByLabelText("Record shortcut sequence"), { key: "g" });
+    fireEvent.keyDown(screen.getByLabelText("Record shortcut sequence"), { key: "z" });
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    applyKeyboardChanges();
+    expect(view.settings().overrides["help.open"]).toContainEqual(["g", "z"]);
+  });
+
+  it("preserves tab typography, icons and Arrow/Home/End focus without changing selection", () => {
+    renderEditor();
+    const tabs = within(screen.getByRole("tablist", { name: "Keyboard shortcut groups" })).getAllByRole("tab");
+    expect(getComputedStyle(tabs[0]).minHeight).toBe("40px");
+    expect(getComputedStyle(tabs[0]).textTransform).toBe("none");
+    expect(tabs[0].querySelector("svg")).not.toBeNull();
+    tabs[0].focus();
+    fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
+    expect(document.activeElement).toBe(tabs[1]);
+    fireEvent.keyDown(tabs[1], { key: "End" });
+    expect(document.activeElement).toBe(tabs[tabs.length - 1]);
+    fireEvent.keyDown(tabs[tabs.length - 1]!, { key: "Home" });
+    expect(document.activeElement).toBe(tabs[0]);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
   });
 
   it("records and adds a multi-chord binding from key events", () => {

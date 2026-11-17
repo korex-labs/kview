@@ -1,7 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Button,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -27,8 +26,9 @@ import { useUserSettings } from "../../../settingsContext";
 import type { SavedDashboardViewSnapshot, SavedResourceViewDefinition } from "../../../settings";
 import usePageVisible from "../../../utils/usePageVisible";
 import InfoHint from "../../shared/InfoHint";
-import { DialogActionButton } from "../../shared/AppActions";
+import { AppButton, DialogActionButton } from "../../shared/AppActions";
 import SavedViewPicker from "../../shared/SavedViewPicker";
+import { reservedSlotsTabsProps, reservedSlotsTabsSx } from "../../../theme/tabTokens";
 import ResourceIcon from "../../icons/resources/ResourceIcon";
 import { useMetricsStatus, isMetricsUsable } from "../../metrics/useMetricsStatus";
 import DashboardSignalsTab from "./DashboardSignalsTab";
@@ -812,10 +812,8 @@ export default function DashboardView(props: Props) {
           persistDashboardTab(value);
         }}
         aria-label="Dashboard sections"
-        variant="scrollable"
-        scrollButtons
-        allowScrollButtonsMobile
-        sx={{ px: 2, borderBottom: "1px solid var(--panel-border)", minHeight: 40, flexShrink: 0, minWidth: 0, maxWidth: "100%", "& .MuiTab-root": { flexShrink: 0 }, "& .MuiTabs-scrollButtons": { flexShrink: 0, width: 32 } }}
+        {...reservedSlotsTabsProps}
+        sx={{ px: 2, borderBottom: "1px solid var(--panel-border)", minHeight: 40, flexShrink: 0, minWidth: 0, maxWidth: "100%", "& .MuiTab-root": { flexShrink: 0 }, ...reservedSlotsTabsSx }}
       >
         <Tab value="signals" id="dashboard-tab-signals" aria-controls="dashboard-panel-signals" label="Signals" />
         <Tab value="dataplane" id="dashboard-tab-dataplane" aria-controls="dashboard-panel-dataplane" label="Dataplane" />
@@ -871,7 +869,7 @@ export default function DashboardView(props: Props) {
           {visibleSignalsError ? (
             <Paper variant="outlined" role="alert" sx={{ p: 2, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
               <Typography variant="body2" color="error">{visibleSignalsError}</Typography>
-              <Button size="small" variant="outlined" onClick={retryActiveDashboardTab}>Retry</Button>
+              <AppButton intent="neutral" size="small" variant="outlined" onClick={retryActiveDashboardTab}>Retry</AppButton>
             </Paper>
           ) : null}
           {visibleSignalsData?.item ? (
@@ -908,7 +906,7 @@ export default function DashboardView(props: Props) {
           {visibleDataplaneError ? (
             <Paper variant="outlined" role="alert" sx={{ p: 2, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
               <Typography variant="body2" color="error">{visibleDataplaneError}</Typography>
-              <Button size="small" variant="outlined" onClick={retryActiveDashboardTab}>Retry</Button>
+              <AppButton intent="neutral" size="small" variant="outlined" onClick={retryActiveDashboardTab}>Retry</AppButton>
             </Paper>
           ) : null}
           {visibleDataplaneData?.item ? (

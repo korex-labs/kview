@@ -17,7 +17,8 @@ and port forwards.
 - **Status area**: shows backend and cluster status dots plus active context
   details on hover.
 - **Tabs**: switch between **Activities**, **Work**, **Terminals**,
-  **Port forwards**, and **Logs**.
+  **Port forwards**, and **Logs**. When space is limited, the strip scrolls with
+  overflow arrows, including on mobile. Terminal session tabs scroll the same way.
 
 ## Tabs
 

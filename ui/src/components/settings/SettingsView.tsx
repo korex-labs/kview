@@ -1,4 +1,6 @@
 import { useStatisticsConsent, setStatisticsConsent } from "../../installationStatistics";
+import { denseSelectMenuProps } from "./shared/denseSelectMenuProps";
+import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import HistorySettings from "./HistorySettings";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -245,25 +247,7 @@ const settingsItemCardSx = { ...settingsPanelChromeSx, display: "flex", flexDire
 const settingsSubsectionHeaderSx = { ...headerRowSx, mt: 0.5, minHeight: 32 } as const;
 const settingsSummaryPanelSx = { ...settingsPanelChromeSx, display: "grid", gap: 0.75 } as const;
 
-const denseSelectMenuProps = {
-  slotProps: {
-    paper: {
-      sx: {
-        "& .MuiMenuItem-root": {
-          minHeight: 30,
-          py: 0.25,
-          fontSize: "0.875rem",
-        },
-        "& .MuiCheckbox-root": {
-          py: 0.25,
-        },
-        "& .MuiListItemText-root": {
-          my: 0,
-        },
-      },
-    },
-  },
-};
+
 
 const settingsShellSx = {
   flex: 1,
@@ -1990,8 +1974,7 @@ export default function SettingsView({
       <Tabs
         value={resourceTagsTab}
         onChange={(_, value) => setResourceTagsTab(value)}
-        variant="scrollable"
-        scrollButtons="auto"
+        {...overflowOnlyTabsProps}
         sx={settingsTabsSx}
       >
         {resourceTagsTabs.map((item) => (
@@ -2204,8 +2187,7 @@ export default function SettingsView({
       <Tabs
         value={linksMacrosTab}
         onChange={(_, value) => setLinksMacrosTab(value)}
-        variant="scrollable"
-        scrollButtons="auto"
+        {...overflowOnlyTabsProps}
         sx={settingsTabsSx}
       >
         {linksMacrosTabs.map((item) => (
@@ -2672,8 +2654,7 @@ export default function SettingsView({
           <Tabs
             value={dataplaneTab}
             onChange={(_, value: DataplaneTab) => setDataplaneTab(value)}
-            variant="scrollable"
-            scrollButtons="auto"
+            {...overflowOnlyTabsProps}
             aria-label="Dataplane settings groups"
             sx={settingsTabsSx}
           >

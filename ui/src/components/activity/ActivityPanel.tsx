@@ -1,3 +1,4 @@
+import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Tabs, Tab, Tooltip, Typography } from "@mui/material";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
@@ -203,12 +204,14 @@ export default function ActivityPanel({
         }}
       >
         <Tabs
+          {...overflowOnlyTabsProps}
+          aria-label="Activity sections"
           value={tab}
           onChange={(_, v) => {
             setTab(v);
             updateOpen(true);
           }}
-          sx={{ minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0, textTransform: "none" } }}
+          sx={{ minWidth: 0, flexShrink: 1, minHeight: HEADER_HEIGHT, "& .MuiTab-root": { minHeight: HEADER_HEIGHT, py: 0, textTransform: "none" } }}
         >
           <Tab label={<TabLabel label="Activities" count={tabCounts.activities} />} />
           <Tab label={<TabLabel label="Work" count={tabCounts.dataplaneWork} />} />
@@ -226,7 +229,7 @@ export default function ActivityPanel({
               alignItems: "center",
               gap: 1,
               mr: 1,
-              minWidth: 0,
+              minWidth: 40,
               flex: "0 1 720px",
               justifyContent: "flex-end",
             }}

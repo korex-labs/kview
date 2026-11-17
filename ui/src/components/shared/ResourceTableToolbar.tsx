@@ -80,7 +80,7 @@ export default function ResourceTableToolbar({
 }: ResourceTableToolbarProps) {
   return (
     <GridToolbarContainer sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1 }}>
-      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", width: "100%", minWidth: 0 }}>
         <TextField
           size="small"
           label={filterLabel}
@@ -89,7 +89,7 @@ export default function ResourceTableToolbar({
           inputRef={filterInputRef}
           onKeyDown={onFilterKeyDown}
           onFocus={onFilterFocus}
-          sx={{ minWidth: 340 }}
+          sx={{ flex: "0 1 340px", width: "100%", minWidth: 0, maxWidth: "100%" }}
           disabled={disabled}
           slotProps={{
             input: {

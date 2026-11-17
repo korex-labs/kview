@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import {
   Box,
   Tabs,
@@ -968,15 +969,16 @@ export default function ActivityTabs({
                 setActiveTerminalId(next);
                 setFocusNonce((n) => n + 1);
               }}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ minHeight: 30, "& .MuiTab-root": { minHeight: 30, textTransform: "none", py: 0 } }}
+              {...overflowOnlyTabsProps}
+              aria-label="Terminal sessions"
+              sx={{ minWidth: 0, minHeight: 30, "& .MuiTab-root": { minHeight: 30, textTransform: "none", py: 0 } }}
             >
               {openTerminalIds.map((id) => {
                 const info = sessionsById.get(id) || terminalInfoCacheRef.current.get(id);
                 const label = info?.targetContainer || info?.title || id;
                 return (
                   <Tab
+                    component="div"
                     key={id}
                     label={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>

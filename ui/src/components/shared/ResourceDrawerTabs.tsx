@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { overflowOnlyTabsProps } from "../../theme/tabTokens";
 import { Box, ListItemIcon, Menu, MenuItem, Tabs, TabScrollButton, type TabsProps, type TabScrollButtonProps } from "@mui/material";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import { AppButton } from "./AppActions";
@@ -86,9 +87,7 @@ export default function ResourceDrawerTabs(props: TabsProps) {
     <Box ref={rootRef} data-resource-drawer-tabs sx={{ display: "flex", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 0, mb: 2 }}>
       <Tabs
         {...props}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
+        {...overflowOnlyTabsProps}
         slots={{ ...props.slots, scrollButtons: DrawerScrollButton }}
         sx={[{ minWidth: 0, flex: 1 }, ...(Array.isArray(props.sx) ? props.sx : [props.sx])]}
       />

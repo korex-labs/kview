@@ -28,6 +28,7 @@ import { ResourceDrawerMacros } from "./ResourceMacros";
 import { ResourceMemoryPanel, ResourceMemoryTabLabel } from "./ResourceMemory";
 import DetailTabIcon from "./DetailTabIcon";
 import ResourceDrawerTabs from "./ResourceDrawerTabs";
+import { tabAppearanceSx } from "../../theme/tabTokens";
 import { ResourceDrawerTabContext } from "./ResourceDrawerTabContext";
 import {
   actionDefinitionById,
@@ -399,29 +400,7 @@ export default function ResourceDrawerShell({
         "& .MuiTabs-root": {
           minHeight: 40,
         },
-        "& .MuiTabs-flexContainer": {
-          alignItems: "stretch",
-        },
-        "& .MuiTab-root": {
-          minHeight: 40,
-          py: 0,
-          px: 1.5,
-          alignItems: "center",
-          flexDirection: "row",
-          gap: 1.25,
-          lineHeight: 1.2,
-          textTransform: "none",
-          whiteSpace: "nowrap",
-        },
-        "& .MuiTab-root.MuiTab-labelIcon": {
-          minHeight: 40,
-          pt: 0,
-          pb: 0,
-        },
-        "& .MuiTab-root .MuiTab-iconWrapper": {
-          mr: 0,
-          mb: 0,
-        },
+        ...tabAppearanceSx,
       }}
     >
       <Box
