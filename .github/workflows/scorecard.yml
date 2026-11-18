@@ -49,6 +49,6 @@ jobs:
           path: results
 
       - name: Upload Scorecard results to code scanning
-        uses: github/codeql-action/upload-sarif@ed410739ba306e4ebe5e123421a6bd694e494a2b # v4
+        uses: github/codeql-action/upload-sarif@3ea37a44b6e4e6847c46edae209410d258d548d1 # v4
         with:
           sarif_file: results/scorecard.sarif
