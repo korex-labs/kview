@@ -14,7 +14,9 @@ func TestHistoryRejectExistingEmptyFileWithoutMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if s, err := OpenReal(path, 30); err == nil {
-		s.Close()
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("accepted unrelated empty file")
 	}
 	after, err := os.ReadFile(path)

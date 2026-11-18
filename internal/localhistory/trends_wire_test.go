@@ -87,7 +87,11 @@ func TestTrendsWireContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer s.Close()
+			t.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			for _, b := range tc.batches {
 				if err = s.AppendTrends(b); err != nil {
 					t.Fatal(err)

@@ -75,7 +75,8 @@ func LoadSettings(dir string) (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	// Read-only handle: cleanup is best-effort; decoding/validation errors take precedence.
+	defer func() { _ = f.Close() }()
 	dec := json.NewDecoder(io.LimitReader(f, 65537))
 	dec.DisallowUnknownFields()
 	out = nil

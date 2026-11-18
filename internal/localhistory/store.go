@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	bolt "go.etcd.io/bbolt"
+	berrors "go.etcd.io/bbolt/errors"
 )
 
 const SampleSeconds = 900
@@ -134,7 +135,7 @@ func reopen(path string, readOnly bool) (*Store, error) {
 	}
 	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: time.Second, ReadOnly: readOnly})
 	if err != nil {
-		if errors.Is(err, bolt.ErrInvalid) || errors.Is(err, bolt.ErrVersionMismatch) || errors.Is(err, bolt.ErrChecksum) {
+		if errors.Is(err, berrors.ErrInvalid) || errors.Is(err, berrors.ErrVersionMismatch) || errors.Is(err, berrors.ErrChecksum) {
 			return nil, fmt.Errorf("%w: %w", ErrIncompatibleDatabase, err)
 		}
 		return nil, fmt.Errorf("open history database (preserved, no migration): %w", err)

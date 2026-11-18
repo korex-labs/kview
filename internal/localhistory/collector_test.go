@@ -50,5 +50,7 @@ func TestHistoryDisabledAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store.Close()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
 }

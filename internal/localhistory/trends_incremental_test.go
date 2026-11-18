@@ -51,7 +51,11 @@ func TestTrendsIncrementalDirtyPreservesReopenAndIncompleteBaseline(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	if got := retainedTrend(t, s, a.Context); !reflect.DeepEqual(got, before) {
 		t.Fatal("reopen lost baseline")
 	}

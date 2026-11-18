@@ -87,7 +87,11 @@ func TestDashboardCanonicalHistoryPopulation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer store.Close()
+			t.Cleanup(func() {
+				if err := store.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			batch := m.HistoryPublicationBatch(context.Background(), localhistory.Publication{Context: "contextA", Epoch: "epoch"}, at)
 			if len(m.signalHistory["contextA"]) != 0 {
 				t.Fatal("canonical reader mutated recurrence")
@@ -140,7 +144,11 @@ func TestDashboardCanonicalSuppressionPolicyRebase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	first := m.canonicalHistoryBatch(context.Background(), "contextA", "epoch", at)
 	if err := store.AppendTrends(first); err != nil {
 		t.Fatal(err)

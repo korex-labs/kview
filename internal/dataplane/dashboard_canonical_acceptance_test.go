@@ -58,7 +58,11 @@ func TestDashboardCanonicalCapturedProjectionConsumersAndEmptyPopulation(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	restored := canonicalQuery(t, store, at)
 	if !reflect.DeepEqual(point, restored) {
 		t.Fatal("reopen changed canonical point", point, restored)

@@ -23,7 +23,11 @@ func TestTrendsReviewGenerationRestartAndLegacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	b := trendFixture(epoch.Add(time.Minute), TrendSignal{ID: "service", Severity: "high"})
 	b.Diagnostics.UnsupportedRules = nil
 	b.Domains[0].SourceAt = epoch

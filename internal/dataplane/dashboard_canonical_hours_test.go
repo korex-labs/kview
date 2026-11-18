@@ -74,7 +74,11 @@ func TestCanonicalPublicationSeparateHours(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		t.Cleanup(func() {
+			if err := s.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		q := localhistory.TrendQuery{Context: "synthetic", From: start.Truncate(time.Hour), To: start.Truncate(time.Hour).Add(3 * time.Hour), AsOf: time.Now(), NodesMode: "custom", Nodes: []string{localhistory.TrendNodeKey("worker", "node-uid")}, RulesMode: "custom", Rules: []string{"pod_image_pull_failure"}, NamespacesMode: "custom", Namespaces: []string{"apps"}}
 		out, err := s.QueryTrends(q)
 		if err != nil {

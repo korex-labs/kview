@@ -174,7 +174,11 @@ func TestTransitionDiagnosticsBoundsIsolationClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reopened.Close()
+	t.Cleanup(func() {
+		if err := reopened.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	if len(reopened.transitionDiagnostics(batch.Context, batch.Epoch).Recent) != 0 {
 		t.Fatal("unexpected backfill")
 	}

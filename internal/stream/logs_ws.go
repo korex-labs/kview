@@ -101,7 +101,7 @@ func (h *LogsWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if string(current.UID) != expectedUID {
-			writeLogStreamError(conn, fmt.Errorf("Pod identity changed; reopen the Pod drawer"))
+			writeLogStreamError(conn, fmt.Errorf("pod identity changed; reopen the Pod drawer"))
 			return
 		}
 	}

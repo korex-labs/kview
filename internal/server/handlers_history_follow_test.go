@@ -36,7 +36,9 @@ func TestHistorySettingsDefaultConsentAndRetainedPopulation(t *testing.T) {
 		t.Fatal("obsolete cluster flag exposed")
 	}
 	var p localhistory.Policy
-	json.Unmarshal(response["policy"], &p)
+	if err := json.Unmarshal(response["policy"], &p); err != nil {
+		t.Fatal(err)
+	}
 	if p.Enabled || p.SignalHistory || p.SignalEpoch != "" || p.RetentionDays != 30 {
 		t.Fatal(p)
 	}

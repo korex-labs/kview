@@ -17,7 +17,11 @@ func TestCanonicalTransitionsUnrelatedMissingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	pod := func(name string) dto.PodListItemDTO {
 		return dto.PodListItemDTO{Name: name, UID: "uid-" + name, Namespace: "space-000", Phase: "Running", Ready: "1/1", ContainerWaitingReasons: []string{"ImagePullBackOff"}}
 	}
@@ -62,7 +66,11 @@ func TestCanonicalTransitionSeverityAlongsideUnknownIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	p.sources = map[string]canonicalSourceEvidence{canonicalKey("apps", "Pod"): {at: at, known: true, generation: "first"}}
 	first := p.historyBatch("contextA", "epoch")
 	if err = store.AppendTrends(first); err != nil {
@@ -100,7 +108,11 @@ func TestCanonicalTransitionsMissingOwnSourceCannotResolve(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer store.Close()
+			t.Cleanup(func() {
+				if err := store.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			setNamespacedSnapshot(&p.podsStore, "space-000", PodsSnapshot{Meta: p.snapshotMetaHot(at), Items: []dto.PodListItemDTO{{Name: "known", UID: "uid-known", Namespace: "space-000", Phase: "Running", Ready: "1/1", ContainerWaitingReasons: []string{"ImagePullBackOff"}}}})
 			if err = store.AppendTrends(m.canonicalHistoryBatch(context.Background(), "contextA", "epoch", at)); err != nil {
 				t.Fatal(err)

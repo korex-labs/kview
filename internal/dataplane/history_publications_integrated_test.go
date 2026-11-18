@@ -74,7 +74,11 @@ func TestHistoryPublicationsIntegratedManagedPersistence(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	out, e := store.QueryTrends(query)
 	if e != nil || len(out.Rules) != 1 || out.Rules[0].Points[0].Counts == nil || !out.Rules[0].Points[0].SourceAt.Equal(observed) {
 		t.Fatal("durable evidence missing", out, e)

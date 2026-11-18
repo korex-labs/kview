@@ -143,7 +143,11 @@ func TestTrendsStoreRankingRestartAnd600Namespaces(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer reopened.Close()
+	t.Cleanup(func() {
+		if err := reopened.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	again, e := reopened.QueryTrends(q)
 	if e != nil {
 		t.Fatal(e)

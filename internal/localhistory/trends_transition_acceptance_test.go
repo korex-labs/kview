@@ -60,7 +60,11 @@ func TestTransitionHoursDecisionBranches(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer s.Close()
+			t.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			q := TrendQuery{Context: next.Context, From: next.At, To: next.At.Add(time.Hour), AsOf: next.At.Add(time.Minute), TransitionDetails: true}
 			out, err := s.QueryTrends(q)
 			if err != nil || len(out.TransitionHours) != 1 {
@@ -102,7 +106,11 @@ func TestTransitionHoursDecisionBranches(t *testing.T) {
 
 func TestTransitionHoursIncompleteLegacyAppendReopen(t *testing.T) {
 	s, path := trendStore(t, 30)
-	defer func() { s.Close() }()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	first := trendFixture(epoch, TrendSignal{ID: "one", Severity: "high"})
 	if err := s.AppendTrends(first); err != nil {
 		t.Fatal(err)
@@ -246,7 +254,11 @@ func TestTransitionHoursCapacityDoesNotRejectMainAppend(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer func() { s.Close() }()
+			t.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			for i, severity := range []string{"high", "medium"} {
 				next = trendFixture(epoch.Add(time.Duration(i+2)*time.Minute), TrendSignal{ID: "one", Severity: severity})
 				next.Domains[0].Signals[0].IdentityKnown = false

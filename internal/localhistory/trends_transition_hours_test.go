@@ -52,7 +52,11 @@ func TestTransitionHoursDurableRejectedRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer s.Close()
+			t.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			after, err := s.QueryTrends(q)
 			if err != nil {
 				t.Fatal(err)
@@ -142,13 +146,19 @@ func TestTransitionHoursOutliveRingWithNodeAttribution(t *testing.T) {
 	if s.transitionDiagnostics(b.Context, b.Epoch).Evicted == 0 {
 		t.Fatal("fixture did not evict ring")
 	}
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	var err error
 	s, err = OpenReal(path, 30)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	q := TrendQuery{TransitionDetails: true, Context: b.Context, From: epoch, To: epoch.Add(time.Hour)}
 	out, err := s.QueryTrends(q)
 	if err != nil {
@@ -241,13 +251,19 @@ func TestTransitionHoursLegacyOpenPruneAndAccounting(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			s.Close()
+			if err := s.Close(); err != nil {
+				t.Fatal(err)
+			}
 			var err error
 			s, err = OpenReal(path, days)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer s.Close()
+			t.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 			q := TrendQuery{TransitionDetails: true, Context: b.Context, From: epoch, To: epoch.Add(time.Hour)}
 			out, err := s.QueryTrends(q)
 			if err != nil || len(out.TransitionHours) != 0 {

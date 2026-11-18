@@ -183,11 +183,11 @@ func canonicalSnapshotIdentity[I any](out *canonicalDashboardProjection, s Snaps
 	}
 }
 
-func (m *manager) canonicalDashboardSignals(p *clusterPlane, namespaces NamespaceSnapshot, names []string, nodes NodesSnapshot, at time.Time) canonicalDashboardProjection {
+func (m *manager) canonicalDashboardSignals(p *clusterPlane, _ NamespaceSnapshot, _ []string, _ NodesSnapshot, at time.Time) canonicalDashboardProjection {
 	p = captureCanonicalPlane(p)
-	namespaces, _ = peekClusterSnapshot(&p.nsStore)
-	nodes, _ = peekClusterSnapshot(&p.nodesStore)
-	names = make([]string, 0, len(namespaces.Items))
+	namespaces, _ := peekClusterSnapshot(&p.nsStore)
+	nodes, _ := peekClusterSnapshot(&p.nodesStore)
+	names := make([]string, 0, len(namespaces.Items))
 	for _, ns := range namespaces.Items {
 		names = append(names, ns.Name)
 	}

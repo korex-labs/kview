@@ -33,7 +33,9 @@ func TestCurrentSchemaRoundTripReadOnlyAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	if other, err := createCurrent(path, 30); err == nil {
-		other.Close()
+		if err := other.Close(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("exclusive creation overwrote store")
 	}
 	b := trendFixture(epoch, TrendSignal{ID: "one", Severity: "high"})
@@ -102,7 +104,9 @@ func TestCurrentSchemaRoundTripReadOnlyAndIdentity(t *testing.T) {
 		t.Fatal("read-only query mutated DB")
 	}
 	if rw, err := OpenReal(path, 90); err == nil {
-		rw.Close()
+		if err := rw.Close(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("retention silently changed")
 	}
 	after, err = os.ReadFile(path)
@@ -208,7 +212,9 @@ func TestCurrentSchemaRefusalPreservesEveryByte(t *testing.T) {
 			for _, managed := range []bool{false, true} {
 				s, err := openReal(path, 90, managed)
 				if err == nil {
-					s.Close()
+					if err := s.Close(); err != nil {
+						t.Error(err)
+					}
 					t.Fatal("incompatible file accepted", managed)
 				}
 				if !errors.Is(err, ErrIncompatibleDatabase) {
@@ -226,7 +232,9 @@ func TestCurrentSchemaRefusalPreservesEveryByte(t *testing.T) {
 	}
 	missing := filepath.Join(t.TempDir(), "absent.db")
 	if s, err := reopen(missing, false); err == nil {
-		s.Close()
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("reopened missing file")
 	}
 	if _, err := os.Stat(missing); !os.IsNotExist(err) {
@@ -363,7 +371,9 @@ func TestCurrentSchemaPrivateFileAndSymlinkRefusal(t *testing.T) {
 				}
 			}
 			if opened, err := OpenReal(path, 30); err == nil {
-				opened.Close()
+				if err := opened.Close(); err != nil {
+					t.Error(err)
+				}
 				t.Fatal("unsafe DB accepted")
 			}
 			after, err := os.ReadFile(target)
