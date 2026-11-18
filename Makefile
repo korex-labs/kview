@@ -5,7 +5,7 @@ OUTPUT=$(BINARY_NAME)
 DIST_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
-DOCKER_IMAGE=kview-build:go1.26.10-node22.23.1
+DOCKER_IMAGE=kview-build:go1.26.11-node22.23.1
 DOCKER_BUILD?=1
 DOCKER_CPUS?=2
 DOCKER_MEMORY?=4g
@@ -195,7 +195,8 @@ local-audit: local-security local-workflow-lint
 
 local-security: install-git-hooks
 	go mod verify
-	cd $(UI_DIR) && npm audit --audit-level=low
+	node --test scripts/test-npm-audit-wrapper.mjs
+	node scripts/check-npm-vulnerabilities.mjs
 	sh scripts/test-govulncheck-wrapper.sh
 	GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) sh scripts/check-go-vulnerabilities.sh
 

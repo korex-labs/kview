@@ -327,14 +327,14 @@ query-memory limits or writer backpressure.
 
 ## Focused verification
 
-Use the pinned Makefile image `kview-build:go1.26.10-node22.23.1`, offline, 2 CPUs /
+Use the pinned Makefile image `kview-build:go1.26.11-node22.23.1`, offline, 2 CPUs /
 4 GiB. Run sequentially, one Vitest worker; never compete with a backend gate.
 From the repository root, a focused UI command is:
 
 ```sh
 docker run --rm --network=none --cpus=2 --memory=4g \
   -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD:/workspace" -w /workspace/ui kview-build:go1.26.10-node22.23.1 \
+  -v "$PWD:/workspace" -w /workspace/ui kview-build:go1.26.11-node22.23.1 \
   sh -ec 'npm run typecheck; npm run lint; npm run test:full -- src/components/settings/HistorySettings.test.tsx src/components/settings/SettingsView.test.tsx src/components/resources/dashboard/HistoryMaintenance.test.tsx src/components/resources/dashboard/SignalHistoryPanel.test.tsx src/components/resources/dashboard/historyPresentation.test.ts'
 ```
 
