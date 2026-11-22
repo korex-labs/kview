@@ -6,33 +6,36 @@ repository.
 
 ## Recent Highlights
 
-- **v5.18.0 (2026-10-22):** Helm release maps now follow up to two cached
-  ownership hops, connecting manifest workloads to ReplicaSets, Jobs, and Pods.
-  **Expand Pods** reveals sample members, and **Show workload history** reveals
-  older workloads. Coverage warnings distinguish partial evidence from absence.
-- Search now accepts filters such as `kind:pod ns:prod signal:high`, displayed
-  as removable chips. Filters use cached resources without scanning Kubernetes.
-- Search shows the current namespace first, then other results in the active
-  context. Successful results remain available if another page fails, with
-  **Retry failed search** for failed pages.
-- Supported search results now include a keyboard-accessible **Map** entry to
-  open their **Resource Map** directly for faster relationship investigation.
-- Resource maps have steadier layouts and expandable groups of observed Pods
-  with the same exact owner. Counts reflect cached evidence, not cluster totals;
-  a simplified layout preserves navigation if automatic layout fails.
-- With Persistence enabled, opening a resource list restores its saved snapshot
-  before other saved lists finish loading. Rows stay marked stale until refreshed;
-  Dashboard totals and maps may have partial coverage during background loading.
-- The interface loads less code upfront, deferring syntax highlighting, search
-  drawers, and terminals until needed, with compressed and cached asset delivery.
-- A one-time **Optional updates and statistics** invitation offers independent
-  choices, both off by default. **Share anonymous installation statistics** sends
-  a random installation identifier and version, without cluster or resource
-  data. Consent stays in this browser; privacy and retention details are in
-  **Settings → Appearance**.
-- Optional **Check for kview updates** now uses cached release metadata with a
-  GitHub fallback. Update checks do not send installation statistics, and
-  development builds no longer show misleading update notices.
+- **v5.19.0 (2026-11-22):** **Dashboard → History** adds signal trends by
+  **Severity**, **Signal types**, **Nodes**, and **Namespaces**, using cached
+  Dashboard evidence without extra Kubernetes reads.
+- Enable collection and separate signal-identity consent in
+  **Settings → Dataplane → History**; both default off. Choose **Global defaults**
+  or **This context** and 30- or 90-day retention. Disabling collection preserves
+  stored history but stops reads until re-enabled; there is no earlier backfill.
+- History charts remember rankings and custom selections and show legend
+  statistics. **Top signals 10** includes all severities; **Top Changes 10**
+  distinguishes observed changes from first-seen signals. Gaps remain unknown,
+  and last-known values carry coverage warnings rather than implying fresh data.
+- Pod **Logs** load automatically. Switch between **Current** logs and **History**
+  for the last terminated container instance when available, control **Follow**
+  separately, and retry failed reads. Line count, **Pretty JSON**, and **Wrap**
+  preferences survive reloads.
+- Related Pod rows in workload drawers now have a **Logs** button for direct
+  inspection of an individual Pod's logs.
+- Read-only code/YAML, Pod and runtime logs, and YAML diff previews share saved
+  text-size controls. Resizing text does not reconnect Pod logs.
+- JSON imports now preview section-by-section changes before **Apply**. Select
+  what to import, inspect redacted differences, and review normalization warnings;
+  unselected sections stay unchanged.
+- Opening the **Namespace** dropdown refreshes available namespaces while keeping
+  existing options usable and preserving your current selection and view.
+- Resource maps distinguish resource families in both themes. Themed scrollbars,
+  consistent tabs, and compact controls make navigation and drawers easier to use
+  in limited space.
+- Saved investigation snapshots remain available in **Notes** and search, without
+  appearing as running work. Obsolete investigation and Service/Ingress drawer
+  requests no longer replace newer results.
 
 ## Full History
 

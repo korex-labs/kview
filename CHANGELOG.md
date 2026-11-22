@@ -3,6 +3,49 @@
 Release notes for kview are kept in this file. The format is newest first, with
 each release summarizing user-facing changes from the previous tag.
 
+## v5.19.0 - 2026-11-22
+
+- Added opt-in **Dashboard → History** with Severity, Signal types, Nodes, and
+  Namespaces trends derived from the same cached evidence as Dashboard signals,
+  without extra Kubernetes reads. Charts offer period and detail controls,
+  rankings, custom selections, persistent preferences, and legend statistics.
+- Added server-side History settings with global defaults, per-context overrides,
+  separate collection and signal-identity consent (both off by default), and
+  30- or 90-day retention. Disabling collection preserves stored history;
+  settings failures are isolated so the rest of kview can still start.
+- Improved history interpretation across sparse observations and restarts:
+  changes distinguish snapshot differences from first-seen signals, missing
+  evidence remains unknown, and last-known counts retain degraded coverage.
+  Rankings include all severities, with retained transition diagnostics for
+  troubleshooting incomplete evidence rather than treating gaps as resolution.
+- Improved Pod logs with automatic loading, **Current** and **History** sources,
+  separate **Follow**, visible retry controls, and saved line-count, JSON, and
+  wrapping preferences. Workload Pod rows now open logs directly. Previous logs
+  cover only the last terminated container instance when Kubernetes retains it;
+  stream lifecycle and Pod identity checks guard against obsolete reads.
+- Added shared, persistent text-size controls for read-only code/YAML, Pod and
+  runtime logs, and YAML diff previews, without reconnecting log streams.
+- Added section-by-section JSON import previews for transfer bundles, full
+  profiles, and raw settings, with selectable changes, redacted differences,
+  normalization warnings, and explicit **Apply**. Improved failed-read retries,
+  cancellation, and partial-failure handling while preserving unrelated edits.
+- Refreshed namespace inventory when opening the selector while keeping existing
+  options usable. Guarded Service and Ingress drawer requests against stale
+  results and included NetworkPolicies in namespace summary coverage metadata.
+- Kept saved investigation triage out of running work and cancelled obsolete
+  investigation requests. Saved snapshots remain available through Notes and
+  search for follow-up.
+- Improved resource-map node distinction in both themes, unified themed native
+  scrollbars and tab styling, and refined narrow-screen tab navigation, compact
+  controls, drawer spacing, and event controls.
+- Refreshed Go, Kubernetes, frontend, test-tooling, and GitHub Actions dependencies
+  and build toolchains. Resolved Go security and lint findings, hardened dependency
+  audits, retained a scoped minimatch fix, and removed a withdrawn audit exception.
+- Expanded regression coverage for history, logs, import previews, namespace and
+  drawer request lifecycles, and shared UI controls. Simplified internal settings,
+  navigation, and resource-handler ownership, and updated in-app Help, history
+  architecture, API, and security documentation.
+
 ## v5.18.0 - 2026-10-22
 
 - Expanded Helm release maps to follow up to two cached ownership hops from
