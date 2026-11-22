@@ -17,6 +17,28 @@ import (
 // batch. Refreshes keep proof fresh while the same identified signal appears and
 // disappears in different hours. No Kubernetes client may be resolved.
 func TestCanonicalPublicationSeparateHours(t *testing.T) {
+	for _, tc := range []canonicalHoursCase{
+		{"plain", [3]int{12, 13, 12}, [3]int{0, 1, 1}},
+		{"unrelated-snooze", [3]int{12, 13, 12}, [3]int{0, 1, 1}},
+		{"applicable-snooze-and-expiry", [3]int{12, 11, 12}, [3]int{}},
+		{"missing-uid", [3]int{12, 13, 12}, [3]int{}},
+		{"stale", [3]int{12, 13, 12}, [3]int{}},
+		{"restored", [3]int{12, 13, 12}, [3]int{}},
+		{"absent-plane", [3]int{12, 13, 12}, [3]int{0, 1, 1}},
+		{"rebind", [3]int{12, 13, 12}, [3]int{0, 0, 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runCanonicalHours(t, tc)
+		})
+	}
+}
+
+type canonicalHoursCase struct {
+	name          string
+	high, changes [3]int
+}
+
+func runCanonicalHours(t *testing.T, tc canonicalHoursCase) {
 	synctest.Test(t, func(t *testing.T) {
 		m := newExplanationTestManager(t)
 		p := addExplanationTestPlane(m, "synthetic")
@@ -32,18 +54,34 @@ func TestCanonicalPublicationSeparateHours(t *testing.T) {
 					pods[i].ContainerWaitingReasons = []string{"ImagePullBackOff"}
 				}
 			}
-			setNamespacedSnapshot(&p.podsStore, "apps", PodsSnapshot{Meta: p.snapshotMetaHot(at), Items: pods})
+			snapshot := PodsSnapshot{Meta: p.snapshotMetaHot(at), Items: pods}
+			if tc.name == "missing-uid" {
+				pods[12].UID = ""
+			}
+			if high == 13 {
+				switch tc.name {
+				case "stale":
+					snapshot.Meta.ObservedAt = at.Add(-time.Hour)
+				case "restored":
+					snapshot.restored = true
+				}
+			}
+			setNamespacedSnapshot(&p.podsStore, "apps", snapshot)
 		}
 		publish(12)
 		dir := t.TempDir()
 		if err := os.Chmod(dir, 0700); err != nil {
 			t.Fatal(err)
 		}
-		c, err := localhistory.StartManaged(context.Background(), localhistory.Config{Enabled: true, SignalHistory: true, QueryContext: "synthetic", SignalEpoch: "epoch", RetentionDays: 30, Directory: dir}, m)
-		if err != nil {
-			t.Fatal(err)
+		startCollector := func() *localhistory.Collector {
+			c, err := localhistory.StartManaged(context.Background(), localhistory.Config{Enabled: true, SignalHistory: true, QueryContext: "synthetic", SignalEpoch: "epoch", RetentionDays: 30, Directory: dir}, m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return c
 		}
-		defer c.Close()
+		c := startCollector()
+		defer func() { c.Close() }()
 		wait := func() {
 			t.Helper()
 			at := time.Now()
@@ -63,10 +101,49 @@ func TestCanonicalPublicationSeparateHours(t *testing.T) {
 		for step := 1; step <= 24; step++ {
 			time.Sleep(5 * time.Minute)
 			high := 12
-			if step >= 12 && step < 24 {
+			if step >= 12 && step < 24 && tc.name != "applicable-snooze-and-expiry" {
 				high = 13
 			}
+			// Snoozing an unrelated rule coincides with a real Pod transition in
+			// the same publication window. It must not rebase image-pull history.
+			if step == 12 && (tc.name == "unrelated-snooze" || tc.name == "applicable-snooze-and-expiry") {
+				rule := "pod_restarts"
+				duration := int64(SignalSuppressionDurationOneDaySeconds)
+				if tc.name == "applicable-snooze-and-expiry" {
+					rule = "pod_image_pull_failure"
+					duration = SignalSuppressionDurationOneHourSeconds
+				}
+				_, err := m.SuppressSignal("synthetic", SignalSuppressionRequest{HistoryKey: rule + "|namespace|apps|Pod|pod-0", Mode: SignalSuppressionModeSnooze, DurationSeconds: duration})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if step == 12 && tc.name == "rebind" {
+				c.Close()
+			}
+			if step == 12 && tc.name == "absent-plane" {
+				m.mu.Lock()
+				delete(m.planes, "synthetic")
+				m.mu.Unlock()
+				absentAt := time.Now()
+				publish(high)
+				time.Sleep(time.Second)
+				synctest.Wait()
+				out, err := c.QueryTrends(localhistory.TrendQuery{Context: "synthetic", From: start.Truncate(time.Hour), To: time.Now().Truncate(time.Hour).Add(time.Hour), AsOf: time.Now()})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !out.Diagnostics.LastSample.Before(absentAt) || c.Status().LastError == "" {
+					t.Fatal("unavailable plane was not rejected", out.Diagnostics.LastSample, c.Status().LastError)
+				}
+				m.mu.Lock()
+				m.planes["synthetic"] = p
+				m.mu.Unlock()
+			}
 			publish(high)
+			if step == 12 && tc.name == "rebind" {
+				c = startCollector()
+			}
 			wait()
 		}
 		c.Close()
@@ -88,17 +165,15 @@ func TestCanonicalPublicationSeparateHours(t *testing.T) {
 			if len(series) != 1 {
 				t.Fatalf("%s missing: %+v", name, series)
 			}
-			for i, want := range []int{12, 13, 12} {
+			for i, want := range tc.high {
 				point := series[0].Points[i]
-				changes := 0
-				if i > 0 {
-					changes = 1
-				}
+				changes := tc.changes[i]
 				if point.Counts == nil || point.Counts.High != want || point.ConfirmedChanges != changes {
 					t.Fatalf("%s hour %d: want high=%d changes=%d got %+v", name, i, want, changes, point)
 				}
 			}
-			if series[0].ChangesScore != 2 {
+			firstSeen := 12
+			if series[0].Points[0].Counts.FirstSeen != firstSeen || series[0].ChangesScore != firstSeen+tc.changes[1]+tc.changes[2] {
 				t.Fatalf("%s net-cancelled transitions: %+v", name, series[0])
 			}
 		}

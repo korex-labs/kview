@@ -26,7 +26,30 @@ type TrendSignal struct {
 	Severity      string `json:"severity"`
 	Node          string `json:"node,omitempty"`
 }
+
+// effectivePolicy binds a domain to both the context/session and local policy.
+// Only the combined BaselinePolicy needs to survive persistence.
+func (d TrendDomain) effectivePolicy(common string) string {
+	if d.PolicyFingerprint == "" {
+		return common
+	}
+	return common + "/" + d.PolicyFingerprint
+}
+
+// SparseComparison is retained only while the current Dashboard population
+// cannot serve as its own comparison. It is never a projected population.
+type SparseComparison struct {
+	UsesCurrent bool          `json:"usesCurrent,omitempty"`
+	At          time.Time     `json:"at"`
+	Policy      string        `json:"policy"`
+	Generation  string        `json:"generation"`
+	Signals     []TrendSignal `json:"signals,omitempty"`
+}
 type TrendDomain struct {
+	ComparisonLostAt  time.Time         `json:"comparisonLostAt,omitzero"` // Never interpret evicted evidence as a first observation.
+	LastComplete      *SparseComparison `json:"lastComplete,omitempty"`
+	RestoredComplete  bool              `json:"restoredComplete,omitempty"`
+	PolicyFingerprint string            `json:"-"`
 	// SourceStatus explains this domain's own consulted inputs, not cluster age.
 	SourceStatus     string    `json:"sourceStatus,omitempty"`
 	EvidenceAt       time.Time `json:"evidenceAt,omitempty"`
@@ -65,9 +88,15 @@ type TrendDiagnostics struct {
 	Reasons          map[string]int `json:"reasons"`
 }
 type TrendBatch struct {
+	suppressEvents   bool
+	comparisonCutoff time.Time
+	// Optional current-only diagnostic sample. Not a source of domains or candidates.
+	PodObservations       map[string]*PodObservation  `json:"podObservations,omitempty"`
+	PodObservationScopes  []string                    `json:"-"`
+	CapturePodObservation func(string) PodObservation `json:"-"`
 	// Cache-captured evidence for a previously present domain absent from this
 	// population. Used only during reduction; never persisted or called by GET.
-	AbsentDomainEvidence func(namespace, rule string) (string, time.Time) `json:"-"`
+	AbsentDomainEvidence func(namespace, rule string) (status string, at time.Time, policyFingerprint string) `json:"-"`
 	transitionTrace      *TransitionDiagnostics
 	FullProjection       bool             `json:"fullProjection,omitempty"`
 	AcceptedSequence     uint64           `json:"acceptedSequence,omitempty"`
@@ -79,15 +108,17 @@ type TrendBatch struct {
 	Diagnostics          TrendDiagnostics `json:"diagnostics"`
 }
 type TrendCounts struct {
-	High    int `json:"high"`
-	Medium  int `json:"medium"`
-	Low     int `json:"low"`
-	Changes int `json:"changes"`
+	High      int `json:"high"`
+	Medium    int `json:"medium"`
+	Low       int `json:"low"`
+	Changes   int `json:"changes"`
+	FirstSeen int `json:"firstSeen,omitempty"`
 }
 type TrendPoint struct {
 	CarriedForward   bool         `json:"carriedForward,omitempty"`
 	Freshness        string       `json:"freshness,omitempty"`
 	SourceAgeSeconds *int64       `json:"sourceAgeSeconds"`
+	FirstSeen        int          `json:"firstSeen,omitempty"` // preserves discoveries when active counts are unavailable
 	ConfirmedChanges int          `json:"confirmedChanges"`
 	At               time.Time    `json:"at"`
 	Counts           *TrendCounts `json:"counts"`
@@ -196,7 +227,7 @@ func (b TrendBatch) Validate() error {
 	seen := map[string]bool{}
 	for _, d := range b.Domains {
 		k := trendDomainKey(d)
-		if ValidateScope(Scope{Context: b.Context, Namespace: d.Namespace}) != nil || d.Rule == "" || len(d.Rule) > 128 || len(d.Reason) > 128 || len(d.Generation) > 128 || !validTransitionSourceStatus(d.SourceStatus) || seen[k] {
+		if ValidateScope(Scope{Context: b.Context, Namespace: d.Namespace}) != nil || d.Rule == "" || len(d.Rule) > 128 || len(d.Reason) > 128 || len(d.PolicyFingerprint) > 64 || len(d.Generation) > 128 || !validTransitionSourceStatus(d.SourceStatus) || seen[k] {
 			return errors.New("invalid trend domain")
 		}
 		seen[k] = true
@@ -277,6 +308,16 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 	for i := range next.Domains {
 		d := &next.Domains[i]
 		p, exists := prior[trendDomainKey(*d)]
+		sparse := next.FullProjection && d.SourceStatus == "available" && !d.TransitionsUnknown && d.Complete && !d.CarriedForward
+		var comparison *SparseComparison
+		if sparse {
+			comparison = p.comparison(next.comparisonCutoff)
+			if comparison != nil {
+				p.SourceAt, p.ObservedAt, p.Generation = comparison.At, comparison.At, comparison.Generation
+				p.BaselineKnown, p.BaselinePolicy, p.TransitionsUnknown = true, comparison.Policy, false
+				p.Signals = comparison.Signals
+			}
+		}
 		if !d.CachedPopulation && (d.SourceAt.IsZero() || d.SourceAt.After(next.At) || next.At.Sub(d.SourceAt) > 15*time.Minute) {
 			d.Complete = false
 			d.Reason = "source-unavailable"
@@ -288,6 +329,9 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 		if generationKnown {
 			// Fingerprints are equality tokens, not ordered snapshot clocks.
 			fresh = d.Generation != p.Generation
+		}
+		if sparse && comparison != nil && d.SourceAt.Before(p.SourceAt) {
+			fresh = false
 		}
 		targets := []*TrendGroup{all, get("rules", d.Rule)}
 		if d.Namespace != "" {
@@ -308,7 +352,11 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 		for _, s := range p.Signals {
 			previous[s.ID] = s
 		}
-		comparable := exists && p.BaselineKnown && d.Complete && !d.CarriedForward && !p.TransitionsUnknown && !d.TransitionsUnknown && old.Epoch == next.Epoch && p.BaselinePolicy == next.Policy && (generationKnown || !d.SourceAt.Before(p.SourceAt))
+		comparable := exists && p.ComparisonLostAt.IsZero() && p.BaselineKnown && d.Complete && !d.CarriedForward && !p.TransitionsUnknown && !d.TransitionsUnknown && old.Epoch == next.Epoch && p.BaselinePolicy == d.effectivePolicy(next.Policy) && (generationKnown || !d.SourceAt.Before(p.SourceAt))
+		if sparse && comparison == nil {
+			comparable = false
+		}
+		discovery := sparse && p.ComparisonLostAt.IsZero() && comparison == nil && !next.suppressEvents && (old.Policy == "" || old.Policy == next.Policy) && (!exists || p.BaselinePolicy == d.effectivePolicy(next.Policy))
 		gap := p.Gap || next.At.Sub(p.ObservedAt) > 15*time.Minute || next.Diagnostics.Coalesced > 0 || next.Diagnostics.Overflow > 0
 		mark := func(g *TrendGroup) {
 			if g.SourceAt.IsZero() || (!d.SourceAt.IsZero() && d.SourceAt.Before(g.SourceAt)) {
@@ -359,7 +407,10 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 			}
 			before, found := previous[s.ID]
 			changed := identityComparable(s) && fresh && (!found || before.Severity != s.Severity)
-			if !changed && (!found || before.Severity != s.Severity || before.Node != s.Node || before.Multiplicity != s.Multiplicity) {
+			// No complete comparator does not mean every identity is new:
+			// the previous cached population can already contain this signal.
+			firstSeen := discovery && !found && s.IdentityKnown && !unknownIdentities[""] && !unknownIdentities[s.IdentityKey]
+			if !changed && !firstSeen && (!found || before.Severity != s.Severity || before.Node != s.Node || before.Multiplicity != s.Multiplicity) {
 				next.transitionTrace.reject(old, next, p, *d, exists, before, s, found, true, fresh, identityComparable(s), oldCounts, newCounts)
 			}
 			// Membership is not a health event, but the old node is still observed.
@@ -393,6 +444,10 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 				if d.BaselineKnown {
 					observed[g] = true
 					add(g, s, false)
+				}
+				if firstSeen {
+					g.Counts.FirstSeen++
+					changesObserved[g] = true
 				}
 				if changed {
 					add(g, s, true)
@@ -480,6 +535,7 @@ func reduceTrendGroups(old, next TrendBatch) (TrendBatch, TrendHour) {
 	hour := TrendHour{Epoch: next.Epoch, Policy: next.Policy, At: next.At.UTC().Truncate(time.Hour), Groups: []TrendGroup{}}
 	for _, k := range keys {
 		g := groups[k]
+		g.FirstSeen = g.Counts.FirstSeen
 		g.ConfirmedChanges = g.Counts.Changes
 		g.ChangesCoverage = "complete"
 		if changesUnknown[g] || g.Reason != "" {

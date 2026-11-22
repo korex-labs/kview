@@ -24,27 +24,29 @@ type TransitionDiagnostics struct {
 	recentBytes int
 }
 type TransitionRejection struct {
-	At                time.Time             `json:"at"`
-	Namespace         string                `json:"namespace"`
-	Rule              string                `json:"rule"`
-	Reason            string                `json:"reason"`
-	Candidate         string                `json:"candidate"`
-	Decision          string                `json:"decision"`
-	Old               TransitionObservation `json:"old"`
-	New               TransitionObservation `json:"new"`
-	PolicyChanged     bool                  `json:"policyChanged"`
-	GenerationChanged bool                  `json:"generationChanged"`
+	PodObservationIncomplete bool                  `json:"podObservationIncomplete,omitempty"`
+	At                       time.Time             `json:"at"`
+	Namespace                string                `json:"namespace"`
+	Rule                     string                `json:"rule"`
+	Reason                   string                `json:"reason"`
+	Candidate                string                `json:"candidate"`
+	Decision                 string                `json:"decision"`
+	Old                      TransitionObservation `json:"old"`
+	New                      TransitionObservation `json:"new"`
+	PolicyChanged            bool                  `json:"policyChanged"`
+	GenerationChanged        bool                  `json:"generationChanged"`
 }
 type TransitionObservation struct {
-	Active        TrendCounts `json:"active"`
-	SourceAt      time.Time   `json:"sourceAt"`
-	EvaluatedAt   time.Time   `json:"evaluatedAt"`
-	SourceStatus  string      `json:"sourceStatus"`
-	IdentityKnown bool        `json:"identityKnown"`
-	ResourceUID   string      `json:"resourceUID,omitempty"`
-	Node          string      `json:"node,omitempty"`
-	Severity      string      `json:"severity,omitempty"`
-	Present       bool        `json:"present"`
+	PodObservation *PodObservation `json:"podObservation,omitempty"`
+	Active         TrendCounts     `json:"active"`
+	SourceAt       time.Time       `json:"sourceAt"`
+	EvaluatedAt    time.Time       `json:"evaluatedAt"`
+	SourceStatus   string          `json:"sourceStatus"`
+	IdentityKnown  bool            `json:"identityKnown"`
+	ResourceUID    string          `json:"resourceUID,omitempty"`
+	Node           string          `json:"node,omitempty"`
+	Severity       string          `json:"severity,omitempty"`
+	Present        bool            `json:"present"`
 }
 
 func validTransitionSourceStatus(s string) bool {
@@ -80,7 +82,13 @@ func cloneTransitionDiagnostics(in *TransitionDiagnostics, name, epoch string) *
 func (s *Store) transitionDiagnostics(name, epoch string) *TransitionDiagnostics {
 	s.transitionMu.Lock()
 	defer s.transitionMu.Unlock()
-	return cloneTransitionDiagnostics(s.transitions[name], name, epoch)
+	out := cloneTransitionDiagnostics(s.transitions[name], name, epoch)
+	for i := range out.Recent {
+		r := &out.Recent[i]
+		r.Old.PodObservation = r.Old.PodObservation.clone()
+		r.New.PodObservation = r.New.PodObservation.clone()
+	}
+	return out
 }
 
 // Capture an attempted delta before the incremental gate carries the previous
@@ -133,7 +141,7 @@ func (t *TransitionDiagnostics) reject(old, next TrendBatch, p, d TrendDomain, e
 		reason = "epoch-rebase"
 	case !exists || !p.BaselineKnown:
 		reason = "no-previous-baseline"
-	case p.BaselinePolicy != next.Policy:
+	case p.BaselinePolicy != d.effectivePolicy(next.Policy):
 		reason = "policy-rebase"
 	case d.TransitionsUnknown || !d.Complete || d.CarriedForward:
 		reason = transitionSourceStatus(d)
@@ -156,7 +164,14 @@ func (t *TransitionDiagnostics) reject(old, next TrendBatch, p, d TrendDomain, e
 	} else if before.Severity == after.Severity {
 		candidate = "membership-only"
 	}
-	r := TransitionRejection{At: next.At, Namespace: d.Namespace, Rule: d.Rule, Reason: reason, Candidate: candidate, Decision: "not-confirmed", Old: transitionObservation(p, before, had, oldCounts), New: transitionObservation(d, after, has, newCounts), PolicyChanged: old.Policy != "" && old.Policy != next.Policy, GenerationChanged: p.Generation != d.Generation}
+	r := TransitionRejection{At: next.At, Namespace: d.Namespace, Rule: d.Rule, Reason: reason, Candidate: candidate, Decision: "not-confirmed", Old: transitionObservation(p, before, had, oldCounts), New: transitionObservation(d, after, has, newCounts), PolicyChanged: (old.Policy != "" && old.Policy != next.Policy) || (p.BaselineKnown && p.BaselinePolicy != d.effectivePolicy(next.Policy)), GenerationChanged: p.Generation != d.Generation}
+	if d.Rule == "pod_image_pull_failure" && d.Namespace != "" {
+		if old.Context == next.Context && old.Epoch == next.Epoch {
+			r.Old.PodObservation = old.PodObservations[d.Namespace]
+		}
+		r.New.PodObservation = next.PodObservations[d.Namespace]
+		r.PodObservationIncomplete = r.Old.PodObservation == nil || r.New.PodObservation == nil
+	}
 	t.Reasons[reason]++
 	t.hour.record(r)
 	raw, _ := json.Marshal(r)

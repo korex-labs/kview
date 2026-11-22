@@ -100,7 +100,7 @@ function SignalHistoryScope({ token, context, favouriteNamespaces = [], recentNa
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", pt: 0.75 }}>
       <TextField select size="small" label="Period" value={days} onChange={e => edit(old => ({ ...old, days: Number(e.target.value) }))}><MenuItem value={1}>24 hours</MenuItem><MenuItem value={7}>7 days</MenuItem><MenuItem value={30}>30 days</MenuItem><MenuItem value={90}>90 days</MenuItem></TextField>
       <TextField select size="small" label="Detail" value={hours} onChange={e => edit(old => ({ ...old, hours: Number(e.target.value) }))}><MenuItem value={1}>Hourly</MenuItem><MenuItem value={6}>6 hours</MenuItem><MenuItem value={24}>Daily</MenuItem></TextField>
-      <InfoHint title="Signal counts are last observed values, not live readings. Partial values are subtotals; gaps mean no data, not zero. Changes count confirmed transitions and may be incomplete." />
+      <InfoHint title="Signal counts are last observed values, not live readings. Partial values are subtotals; gaps mean no data, not zero. Top Changes combines changes between observations with signals first seen without a comparison. Bars show when they were observed, not when they began." />
     </Box>
     {namespacesMode !== namespaceMode && <Typography variant="caption">Saved {modeLabels[namespaceMode]} ranking is unavailable; showing Top signals 10. Your saved selection is preserved.</Typography>}
     {namespacesMode === "tag" && <Typography variant="caption">Tags use current cached namespace inventory, not historical tags.{!validInventory ? " Inventory unavailable for this context." : " Label/annotation rules require metadata present in that inventory."}</Typography>}
@@ -189,7 +189,17 @@ function TrendRequest({ ruleLabels, query, token, hours, controls, blocked, onEv
     </Box>
     {group && affected.includes(group) && warning}
   </Paper>;
-  const graph = (group: Group | "severity", title: string) => <HistoryGraph title={title} group={group} series={data?.[group] || emptySeries} mode={group === "severity" ? "custom" : (snapshot?.query || query)[`${group}Mode`]} ruleLabels={group === "rules" ? ruleLabels : undefined} from={data?.from || query.from} to={data?.to || query.to} hours={hours} />;
+  // Rankings can omit every series. The unfiltered severity timeline still
+  // describes observation and transition coverage for the accepted period.
+  const changesEmptyText = useMemo(() => {
+    if (!data) return undefined;
+    const asOf = Date.parse(data.asOf || data.to);
+    const points = data.severity[0].points.filter(p => Date.parse(p.at) < asOf);
+    if (points.length && points.every(p => p.reason === "no-sample" && p.counts === null && p.sampleAt === "0001-01-01T00:00:00Z")) return "No observations available for this period.";
+    if (!points.length || points.some(p => p.changesCoverage !== "complete" || p.carriedForward)) return "No changes or first-seen signals recorded. Coverage is incomplete or unknown.";
+    return "No changes or first-seen signals recorded in this period.";
+  }, [data]);
+  const graph = (group: Group | "severity", title: string) => <HistoryGraph emptyText={group !== "severity" && snapshot?.query[`${group}Mode`] === "topChanges10" ? changesEmptyText : undefined} title={title} group={group} series={data?.[group] || emptySeries} mode={group === "severity" ? "custom" : (snapshot?.query || query)[`${group}Mode`]} ruleLabels={group === "rules" ? ruleLabels : undefined} from={data?.from || query.from} to={data?.to || query.to} hours={hours} />;
   return <>
     {!affected.length && warning}
     {!data && !error && !blocked && <Typography role="status">Loading signal trends…</Typography>}
@@ -205,11 +215,11 @@ function TrendRequest({ ruleLabels, query, token, hours, controls, blocked, onEv
 const groups: Group[] = ["rules", "nodes", "namespaces"];
 const emptySeries: TrendSeries[] = [];
 type TrendSnapshot = { data: SignalTrends; query: TrendQuery };
-const HistoryGraph = React.memo(function HistoryGraph({ title, group, series, mode, ruleLabels, from, to, hours }: { title: string; group: Group | "severity"; series: TrendSeries[]; mode: TrendMode; ruleLabels?: ReadonlyMap<string, string>; from: string; to: string; hours: number }) {
+const HistoryGraph = React.memo(function HistoryGraph({ title, group, series, mode, ruleLabels, from, to, hours, emptyText }: { emptyText?: string; title: string; group: Group | "severity"; series: TrendSeries[]; mode: TrendMode; ruleLabels?: ReadonlyMap<string, string>; from: string; to: string; hours: number }) {
   const lines = useMemo(() => group === "severity"
     ? (["high", "medium", "low"] as const).map((metric, i) => ({ key: metric, label: ["High", "Medium", "Low"][i], color: ["#d94b48", "#c69212", "#2688ce"][i], metric, points: series[0]?.points || [] }))
     : trendLines(series, mode, "active").map(line => group === "rules" && ruleLabels ? { ...line, label: signalTypeLabel(line.key, ruleLabels) } : line), [group, series, mode, ruleLabels]);
-  return <SignalTrendsChart title={title} kind={group === "severity" ? "stacked-area" : mode === "topChanges10" ? "stacked-bar" : "line"} preserveZero={group === "severity"} lines={lines} from={from} to={to} hours={hours} />;
+  return <SignalTrendsChart emptyText={emptyText} title={title} kind={group === "severity" ? "stacked-area" : mode === "topChanges10" ? "stacked-bar" : "line"} preserveZero={group === "severity"} lines={lines} from={from} to={to} hours={hours} />;
 });
 function Diagnostics({ data }: { data: SignalTrends }) {
   const d = data.diagnostics;

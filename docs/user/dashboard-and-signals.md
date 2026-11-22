@@ -80,15 +80,18 @@ and saved operator profiles; they do not enable history collection or consent.
   Nodes offer **Top signals 10**, **Top Changes 10**, and **Custom**, and default to
   **Top signals 10**, like Signal types and Namespaces. An explicitly saved
   **Top Changes 10** or **Custom** choice is preserved.
-  **Top Changes 10** ranks confirmed individual transitions and plots stacked
-  bars per interval, with only positive changes in the tooltip,
-  not net differences in active counts. Appearance, confirmed disappearance and
-  severity change each count once; replacing one instance with another counts
-  twice even when totals stay unchanged. A domain's first observation is a
-  baseline with zero changes. Policy, membership and coverage changes do not
-  count as incidents, and a gap cannot prove resolution. Only series with recorded
-  positive changes are included, up to ten, without zero or unknown padding.
-  **No recorded changes** does not mean no activity occurred.
+  **Top Changes 10** ranks up to ten series by the sum of two counts. **Changes**
+  compares usable snapshots, including a baseline restored after restart. Each
+  appearance, disappearance or severity difference counts once; replacing one
+  signal with another counts twice even if the active total stays the same.
+  **First seen** counts signals present at the first usable observation when
+  there is no snapshot to compare. For example, finding five signals on that
+  first observation adds five first seen, not five changes.
+  Bars show the interval when kview observed the signals, not when they began.
+  The tooltip breaks out first-seen counts where recorded; older hours keep
+  their recorded changes. Only positive scores appear. Policy, membership and coverage
+  changes are not incidents. A gap does not prove resolution, and an empty ranking
+  does not prove there was no activity.
 - **Custom** combines retained series from the selected period with current cached
   inventory. Checked choices come first; search and selected identities survive
   refreshes. Signal types use full names from the existing signal catalog in
@@ -121,7 +124,7 @@ and saved operator profiles; they do not enable history collection or consent.
   active values may carry forward with degraded coverage, never before the first
   observation. Partial observations keep their subtotals with per-point coverage markers.
   Legacy evidence without coverage is unknown, not complete. Larger intervals
-  retain the last usable active counts and sum confirmed transitions. Changes
+  retain the last usable active counts and sum changes and first-seen signals separately. Changes
   can retain confirmed subtotals even without active counts; unknown changes
   remain gaps rather than zero. Active-count and Changes coverage are independent,
   and aggregation never promotes partial or unknown evidence to complete.
@@ -130,7 +133,10 @@ and saved operator profiles; they do not enable history collection or consent.
   candidate changes were not confirmed, filterable by rule, namespace and Node
   identity. These explanations survive restart under the same retention policy;
   they do not reconstruct older missing evidence or turn uncertain changes into
-  incidents. Baseline observations are not incidents.
+  incidents. For a future image-pull jump, a retained example can distinguish
+  a namespace omitted by a successful catalog read from a failed catalog read
+  or a missing Pods snapshot. A missing example cannot distinguish these cases.
+  Baseline observations are not incidents.
 - Each chart's legend shows **Min**, **Avg**, **Max**, and **Last** for its
   displayed intervals. Unknown values are excluded from Min/Avg/Max; observed
   zeros are included. Last is the final displayed interval, with **—** for
@@ -142,8 +148,8 @@ and saved operator profiles; they do not enable history collection or consent.
 - Hover a chart or focus it and use <kbd>ArrowLeft</kbd>/<kbd>ArrowRight</kbd>
   to inspect the timestamp and each selected series’ signal or change count.
   Tooltip rows show the series label, value and unit without repeated coverage
-  labels. Signal counts are last observed values, not live readings; changes count
-  confirmed transitions and may be incomplete. **No data** is a missing observation,
+  labels. Signal counts are last observed values, not live readings; Top Changes reports observed differences
+  and first-seen signals, and may be incomplete. **No data** is a missing observation,
   never zero. The shared information tooltip explains these limits without
   repeating explanatory text below every chart. The diagnostic chips
   below the charts show the last observation, evaluated/eligible scopes and

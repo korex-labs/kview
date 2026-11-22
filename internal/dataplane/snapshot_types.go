@@ -11,6 +11,7 @@ import (
 type Snapshot[I any] struct {
 	// restored is process-local provenance, never serialized. A hydrated cell
 	// can be served stale while its first live refresh is in progress.
+	restoredComplete     bool // Original full observation, before hydration downgrades freshness.
 	restored             bool
 	Items                []I
 	Meta                 SnapshotMetadata

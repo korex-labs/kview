@@ -138,6 +138,22 @@ func TestDashboardCanonicalHistoryPopulation(t *testing.T) {
 	}
 }
 
+func TestDashboardCanonicalSuppressionDomains(t *testing.T) {
+	for _, tc := range []struct{ key, ns, rule string }{
+		{"pod_restarts|namespace|apps|Pod|api", "apps", "pod_restarts"},
+		{"node_resource_pressure|cluster|Node|worker", "", "node_resource_pressure"},
+		{"resource_quota_pressure|cluster|quota|limits.cpu", "cluster", "resource_quota_pressure"},
+		{"ingress_missing_service|namespace|apps|Ingress|web|backend|80", "apps", "ingress_missing_service"},
+	} {
+		if got, ok := suppressionDomainKey(tc.key); !ok || got != canonicalKey(tc.ns, tc.rule) {
+			t.Errorf("%q: wrong domain %q", tc.key, got)
+		}
+	}
+	if _, ok := suppressionDomainKey("custom-history-key"); ok {
+		t.Fatal("unknown identity should rebase common policy")
+	}
+}
+
 func TestDashboardCanonicalSuppressionPolicyRebase(t *testing.T) {
 	m, _, at := canonicalFixture(t, 3, 2, 1, 1)
 	store, err := localhistory.OpenReal(filepath.Join(t.TempDir(), "history.db"), 30)
@@ -168,8 +184,8 @@ func TestDashboardCanonicalSuppressionPolicyRebase(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := m.canonicalHistoryBatch(context.Background(), "contextA", "epoch", at.Add(time.Second))
-	if next.Policy == first.Policy {
-		t.Fatal("suppression did not rebase")
+	if next.Policy != first.Policy {
+		t.Fatal("suppression rebased common policy")
 	}
 	if err := store.AppendTrends(next); err != nil {
 		t.Fatal(err)

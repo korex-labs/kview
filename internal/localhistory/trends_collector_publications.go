@@ -35,7 +35,10 @@ func (v *Collector) bindPublications() error {
 		return ErrHistorySourceUnavailable
 	}
 	v.publicationQueue, v.publicationRelease = q, release
-	v.publicationSession = rand.Text()
+	v.publicationSession = v.config.Binding
+	if v.publicationSession == "" {
+		v.publicationSession = rand.Text()
+	}
 	return nil
 }
 
@@ -75,6 +78,12 @@ func (v *Collector) consumePublication(ctx context.Context, event Publication) {
 		v.record(at, 0, errors.New("publication identity mismatch"))
 		return
 	}
+	// An unavailable source has no policy. A session suffix must not turn
+	// that sentinel into an admissible empty projection.
+	if b.Policy == "" {
+		v.record(at, 0, ErrHistorySourceUnavailable)
+		return
+	}
 	status := v.publicationQueue.Status()
 	if b.Diagnostics.Reasons == nil {
 		b.Diagnostics.Reasons = map[string]int{}
@@ -88,9 +97,8 @@ func (v *Collector) consumePublication(ctx context.Context, event Publication) {
 	if status.Overflow > 0 {
 		b.Diagnostics.Reasons["publication-overflow"] = 1
 	}
-	// A process-local policy suffix rebases each domain independently on startup
-	// (including domains first observed after startup). It never rotates consent's
-	// durable identity and does not poison the next valid transition's baseline.
+	// The settings owner persists the binding independently of process lifetime.
+	b.suppressEvents = event.Kind == "canonical-policy"
 	b.Policy += "/" + v.publicationSession
 	if event.Kind == "" {
 		b.Diagnostics.Reasons["publication-baseline"] = 1
