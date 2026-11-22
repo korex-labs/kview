@@ -184,10 +184,12 @@ func TestTransitionHoursCapacityDoesNotRejectMainAppend(t *testing.T) {
 		t.Run(strconv.FormatInt(headroom, 10), func(t *testing.T) {
 			s, path := trendStore(t, 30)
 			first := trendFixture(epoch, TrendSignal{ID: "one", Severity: "high"})
+			first.FullProjection = true
 			if err := s.AppendTrends(first); err != nil {
 				t.Fatal(err)
 			}
 			next := trendFixture(epoch.Add(time.Minute), TrendSignal{ID: "one", Severity: "medium"})
+			next.FullProjection = true
 			// Measure the exact canonical replacement delta without diagnostic bytes.
 			var canonicalDelta int64
 			if err := s.db.View(func(tx *bolt.Tx) error {
@@ -214,6 +216,10 @@ func TestTransitionHoursCapacityDoesNotRejectMainAppend(t *testing.T) {
 				return tx.Bucket(trendBucket).Put([]byte("bytes"), stamp(trendRetainedMaxBytes-canonicalDelta-headroom))
 			}); err != nil {
 				t.Fatal(err)
+			}
+			next.PodObservationScopes = []string{"apps"}
+			next.CapturePodObservation = func(string) PodObservation {
+				return PodObservation{PodCapture: PodCapture{At: next.At, Membership: "listed"}}
 			}
 			if err := s.AppendTrends(next); err != nil {
 				t.Fatal("diagnostics rejected canonical append", err)

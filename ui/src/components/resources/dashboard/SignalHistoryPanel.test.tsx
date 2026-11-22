@@ -42,10 +42,56 @@ it.each(["Signal types", "Nodes", "Namespaces"])("uses stacked bars only for %s 
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1);
   select(`${title} ranking`, "Top Changes 10"); await loaded();
   expect(card.querySelectorAll(".MuiBarChart-element")).toHaveLength(1);
+  expect(within(card).queryByText(/No changes or first-seen signals|No observations available/)).toBeNull();
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(0);
   select(`${title} ranking`, "Top signals 10"); await loaded();
   expect(card.querySelectorAll(".MuiLineChart-line")).toHaveLength(1);
   expect(card.querySelectorAll(".MuiBarChart-element")).toHaveLength(0);
+});
+it("plots first-seen-only Nodes with incomplete coverage from the same trend request", async () => {
+  fetchMock.mockImplementation((path: string, init: RequestInit) => {
+    if (!path.startsWith("/api/history/signal-trends?")) return reply(path, init);
+    const data = trendFixture(queryFromTrendURL(path, props.context));
+    const point = data.nodes[0].points[0];
+    Object.assign(point.counts!, { changes: 0, firstSeen: 6 });
+    point.confirmedChanges = 0; point.changesCoverage = "partial";
+    data.nodes[0].changesScore = 6;
+    return json(data);
+  });
+  render(<DashboardHistoryTab {...props} />); await loaded();
+  const requests = fetchMock.mock.calls.length;
+  select("Nodes ranking", "Top Changes 10");
+  const card = screen.getByLabelText("Nodes chart header").parentElement!;
+  await waitFor(() => expect(card.querySelectorAll(".MuiBarChart-element")).toHaveLength(1));
+  expect(fetchMock.mock.calls).toHaveLength(requests + 1);
+  expect(trendCalls()).toHaveLength(2);
+});
+it.each([
+  ["complete", "No changes or first-seen signals recorded in this period."],
+  ["unknown", "No changes or first-seen signals recorded. Coverage is incomplete or unknown."],
+  ["no-sample", "No observations available for this period."],
+] as const)("explains an empty Top Changes ranking with %s evidence", async (evidence, message) => {
+  fetchMock.mockImplementation((path: string, init: RequestInit) => {
+    if (!path.startsWith("/api/history/signal-trends?")) return reply(path, init);
+    const q = queryFromTrendURL(path, props.context);
+    const data = trendFixture(q);
+    if (q.nodesMode !== "topChanges10") return json(data);
+    data.nodes = [];
+    for (const row of [...data.severity, ...data.rules, ...data.namespaces]) {
+      row.points = row.points.map(p => evidence === "no-sample"
+        ? { ...p, counts: null, sampleAt: "0001-01-01T00:00:00Z", sourceAt: "0001-01-01T00:00:00Z", reason: "no-sample" }
+        : { ...p, counts: { high: 1, medium: 0, low: 0, changes: 0 }, sampleAt: p.at, sourceAt: p.at, reason: undefined, changesCoverage: evidence });
+      row.totalScore = evidence === "no-sample" ? 0 : row.points.length;
+      row.changesScore = 0;
+    }
+    return json(data);
+  });
+  render(<DashboardHistoryTab {...props} />); await loaded();
+  select("Nodes ranking", "Top Changes 10");
+  const card = within(screen.getByLabelText("Nodes chart header").parentElement!);
+  expect(await card.findByText(message)).toBeTruthy();
+  expect(card.queryByText(/No data to display/i)).toBeNull();
+  expect(trendCalls()).toHaveLength(2);
 });
 it("ignores a late catalog response after context change and labels retained unknown selections readably", async () => {
   const settings = defaultUserSettings();
@@ -134,7 +180,7 @@ it("shows a concise information tooltip without internal diagnostics", async () 
   render(<DashboardHistoryTab {...props} />); await loaded();
   fireEvent.mouseOver(screen.getByRole("button", { name: "More information" }));
   const tooltip = await screen.findByRole("tooltip");
-  expect(tooltip.textContent).toBe("Signal counts are last observed values, not live readings. Partial values are subtotals; gaps mean no data, not zero. Changes count confirmed transitions and may be incomplete.");
+  expect(tooltip.textContent).toBe("Signal counts are last observed values, not live readings. Partial values are subtotals; gaps mean no data, not zero. Top Changes combines changes between observations with signals first seen without a comparison. Bars show when they were observed, not when they began.");
 });
 it("keeps publication diagnostics below four charts without adding filter controls", async () => {
   fetchMock.mockImplementation((path: string, init: RequestInit) => path === "/api/history/inventory" ? reply(path, init) : json(carriedTrendFixture(queryFromTrendURL(path, props.context))));

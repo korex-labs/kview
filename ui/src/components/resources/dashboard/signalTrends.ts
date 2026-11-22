@@ -4,8 +4,8 @@ import type { ResourceTagsSettings } from "../../../settings";
 
 export type TrendMode = "topSignals10" | "topChanges10" | "custom" | "favourites" | "recent" | "tag";
 export type TrendQuery = { context: string; from: string; to: string; rulesMode: TrendMode; nodesMode: TrendMode; namespacesMode: TrendMode; rules: string[]; nodes: string[]; namespaces: string[] };
-export type TrendCounts = { high: number; medium: number; low: number; changes: number };
-export type TrendPoint = { carriedForward?: boolean; freshness?: "fresh" | "stale" | "unknown"; sourceAgeSeconds?: number | null; confirmedChanges?: number; at: string; counts: TrendCounts | null; sampleAt: string; sourceAt: string; reason?: string; coverage?: "complete" | "partial" | "unknown"; changesCoverage?: "complete" | "partial" | "unknown" };
+export type TrendCounts = { high: number; medium: number; low: number; changes: number; firstSeen?: number };
+export type TrendPoint = { carriedForward?: boolean; freshness?: "fresh" | "stale" | "unknown"; sourceAgeSeconds?: number | null; confirmedChanges?: number; firstSeen?: number; at: string; counts: TrendCounts | null; sampleAt: string; sourceAt: string; reason?: string; coverage?: "complete" | "partial" | "unknown"; changesCoverage?: "complete" | "partial" | "unknown" };
 export type TrendSeries = { key: string; label: string; totalScore: number; changesScore: number; points: TrendPoint[] };
 export type TrendDiagnostics = { coalesced?: number; overflow?: number; eligibleScopes: number; evaluatedScopes: number; snapshotCount: number; supportedRules: string[]; unsupportedRules: string[]; lastSample: string; sourceAt: string; sourceAgeSeconds: number | null; coverageGaps: number; capLosses: number; retainedBytes: number; databaseBytes: number; retainedHours: number; reasons: Record<string, number> };
 export type SignalTrends = { asOf?: string; catalog?: HistoryCatalog; schemaVersion: 1; context: string; from: string; to: string; severity: TrendSeries[]; rules: TrendSeries[]; nodes: TrendSeries[]; namespaces: TrendSeries[]; diagnostics: TrendDiagnostics };
@@ -52,20 +52,22 @@ export function parseSignalTrends(raw: unknown, q: TrendQuery): SignalTrends {
         if (p.carriedForward !== undefined && typeof p.carriedForward !== "boolean") fail("point carriedForward must be boolean");
         if (p.freshness !== undefined && !["fresh", "stale", "unknown"].includes(p.freshness as string)) fail("point freshness invalid");
         if (p.sourceAgeSeconds !== undefined && p.sourceAgeSeconds !== null && !count(p.sourceAgeSeconds)) fail("point sourceAgeSeconds invalid");
+        if (p.firstSeen !== undefined && !count(p.firstSeen)) fail("point firstSeen invalid");
         if (p.confirmedChanges !== undefined && !count(p.confirmedChanges)) fail("point confirmedChanges invalid");
         if (sample > end || source > sample || (sample < 0 && p.sampleAt !== zero) || (source < 0 && p.sourceAt !== zero)) fail("point sampleAt/sourceAt outside observation bounds");
         if (p.carriedForward && (v.asOf === undefined || p.counts === null || sample < 0 || source < 0 || p.freshness !== "stale" || !count(p.confirmedChanges) || !count(p.sourceAgeSeconds) || p.coverage === "complete")) fail("point carriedForward provenance invalid");
         if (p.counts !== null) {
           const c = object(p.counts);
+          if (c.firstSeen !== undefined && (!count(c.firstSeen) || (p.firstSeen !== undefined && p.firstSeen !== c.firstSeen))) fail("point firstSeen invalid");
           if (![c.high, c.medium, c.low, c.changes].every(count) || sample < 0 || (!p.carriedForward && sample < at) || sample >= at + trendHour || at >= asOf) fail("point counts or sampleAt outside bucket bounds");
-          if (sample < at && (c.changes !== 0 || p.confirmedChanges !== 0)) fail("point confirmedChanges before bucket");
+          if (sample < at && (c.changes !== 0 || Number(c.firstSeen ?? 0) !== 0 || p.confirmedChanges !== 0)) fail("point confirmedChanges before bucket");
           total += (c.high as number) + (c.medium as number) + (c.low as number);
         }
         // Go timestamps retain nanoseconds; Date.parse truncates to milliseconds.
         if (p.sourceAgeSeconds !== undefined && p.sourceAgeSeconds !== null && (source < 0 || Math.abs(Number(p.sourceAgeSeconds) - Math.floor((end - source) / 1000)) > 1)) fail("point sourceAgeSeconds does not match sourceAt");
         // Empty future/pre-observation hours cannot carry transition evidence.
-        if (Number(p.confirmedChanges) > 0 && (sample < 0 || sample < at || at >= asOf)) fail("point confirmedChanges without an in-bucket observation");
-        changes += p.confirmedChanges === undefined ? Number((p.counts as TrendCounts | null)?.changes || 0) : p.confirmedChanges as number;
+        if ((Number(p.confirmedChanges) > 0 || Number(p.firstSeen) > 0) && (sample < at || sample >= at + trendHour || at >= asOf)) fail("point confirmedChanges without an in-bucket observation");
+        changes += trendValue(p as TrendPoint, "changes") ?? 0;
       });
       if (s.totalScore !== total || s.changesScore !== changes) fail("series scores do not match points");
     }
@@ -101,14 +103,17 @@ export function namespaceSelection(mode: TrendMode, input: { context: string; to
   return [...new Set(selected.filter(Boolean))];
 }
 export function sampleLabel(value: string): string { return value.startsWith("0001-") ? "Unavailable" : new Date(value).toLocaleString(); }
-export function trendValue(point: TrendPoint | undefined, metric: keyof TrendCounts | "total"): number | null {
+export function trendFirstSeen(point: TrendPoint): number { return point.firstSeen ?? point.counts?.firstSeen ?? 0; }
+export function trendValue(point: TrendPoint | undefined, metric: ChartLine["metric"]): number | null {
   if (!point) return null;
   if (metric === "total") return point.counts ? point.counts.high + point.counts.medium + point.counts.low : null;
   if (metric !== "changes") return point.counts?.[metric] ?? null;
-  const value = point.confirmedChanges ?? point.counts?.changes;
+  const changes = point.confirmedChanges ?? point.counts?.changes;
+  const firstSeen = trendFirstSeen(point);
+  const value = changes === undefined && !firstSeen ? undefined : (changes ?? 0) + firstSeen;
   return value === undefined || (value === 0 && (!point.changesCoverage || point.changesCoverage === "unknown")) ? null : value;
 }
-export type ChartLine = { key: string; label: string; color?: string; points: TrendPoint[]; metric: keyof TrendCounts | "total" };
+export type ChartLine = { key: string; label: string; color?: string; points: TrendPoint[]; metric: "high" | "medium" | "low" | "changes" | "total" };
 // Inspect the requested hourly window, never a coarse bucket or ranking score.
 // Active lines total all severities. Changes remain independent of active-count coverage.
 // Missing hours are gaps, not zero evidence. Incomplete zero subtotals cannot

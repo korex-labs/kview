@@ -1,5 +1,7 @@
 package dataplane
 
+import "maps"
+
 // captureCanonicalPlane copies immutable published envelopes one store at a time.
 // Each store snapshot is stable, but this is NOT an atomic cross-store capture:
 // concurrent publications may be represented by different generations. Policy and
@@ -8,7 +10,9 @@ package dataplane
 // Never nest store locks or hold them across manager/suppression access or IO.
 func captureCanonicalPlane(p *clusterPlane) *clusterPlane {
 	out := &clusterPlane{name: p.name}
-	out.nsStore.snap, _ = peekClusterSnapshot(&p.nsStore)
+	p.nsStore.mu.RLock()
+	out.nsStore.snap = p.nsStore.snap
+	p.nsStore.mu.RUnlock()
 	out.nodesStore.snap, _ = peekClusterSnapshot(&p.nodesStore)
 	out.persistentVolumesStore.snap, _ = peekClusterSnapshot(&p.persistentVolumesStore)
 	out.clusterRolesStore.snap, _ = peekClusterSnapshot(&p.clusterRolesStore)
@@ -16,7 +20,11 @@ func captureCanonicalPlane(p *clusterPlane) *clusterPlane {
 	out.crdsStore.snap, _ = peekClusterSnapshot(&p.crdsStore)
 	out.clusterCustomResourcesStore.snap, _ = peekClusterSnapshot(&p.clusterCustomResourcesStore)
 	out.nodeMetricsStore.snap, _ = peekClusterSnapshot(&p.nodeMetricsStore)
-	out.podsStore.snaps = peekAllNamespacedSnapshots(&p.podsStore)
+	// Preserve cell presence even for a never-usable publication. Population
+	// readers still use getCached/peek, which require an observation timestamp.
+	p.podsStore.mu.RLock()
+	out.podsStore.snaps = maps.Clone(p.podsStore.snaps)
+	p.podsStore.mu.RUnlock()
 	out.depsStore.snaps = peekAllNamespacedSnapshots(&p.depsStore)
 	out.svcsStore.snaps = peekAllNamespacedSnapshots(&p.svcsStore)
 	out.ingStore.snaps = peekAllNamespacedSnapshots(&p.ingStore)

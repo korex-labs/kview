@@ -5,7 +5,7 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { useChartRootRef, useChartsLayerContainerRef, useXScale, useYScale } from "@mui/x-charts/hooks";
 import { getChartPoint, useChartsContext, type LineChartPluginSignatures } from "@mui/x-charts/internals";
 import { formatTrendLegendValue, trendLegendColorIndex, trendLegendStats } from "./signalTrendsLegend";
-import { isZeroTrendLine, trendValue, type ChartLine, type TrendPoint } from "./signalTrends";
+import { isZeroTrendLine, trendFirstSeen, trendValue, type ChartLine, type TrendPoint } from "./signalTrends";
 
 function metricCoverage(point: TrendPoint, metric: ChartLine["metric"]) {
   return (metric === "changes" ? point.changesCoverage : point.coverage) || "unknown";
@@ -20,16 +20,16 @@ export function chartBuckets(points: TrendPoint[], hours: number, _metric: Chart
     const bucket = points.slice(i, i + hours), last = bucket[bucket.length - 1];
     const observed = bucket.filter(p => p.counts !== null);
     const evidence = observed[observed.length - 1];
-    const confirmed = bucket.map(p => trendValue(p, "changes")).filter((n): n is number => n !== null);
-    const confirmedChanges = confirmed.length ? confirmed.reduce((sum, n) => sum + n, 0) : undefined;
     const changed = bucket.filter(p => trendValue(p, "changes") !== null);
+    const confirmedChanges = changed.length ? changed.reduce((sum, p) => sum + (p.confirmedChanges ?? p.counts?.changes ?? 0), 0) : undefined;
+    const firstSeen = changed.reduce((sum, p) => sum + trendFirstSeen(p), 0);
     const provenance = evidence || changed[changed.length - 1];
-    const counts = evidence ? { ...evidence.counts!, changes: confirmedChanges ?? 0 } : null;
+    const counts = evidence ? { ...evidence.counts!, changes: confirmedChanges ?? 0, ...(firstSeen > 0 ? { firstSeen } : {}) } : null;
     const ages = bucket.map(p => p.sourceAgeSeconds).filter((n): n is number => typeof n === "number");
     out.push({ ...last, ...(provenance ? { sampleAt: provenance.sampleAt, sourceAt: provenance.sourceAt } : {}),
       carriedForward: bucket.some(p => p.carriedForward),
       freshness: bucket.some(p => p.freshness === "stale") ? "stale" : bucket.some(p => !p.freshness || p.freshness === "unknown") ? "unknown" : "fresh",
-      sourceAgeSeconds: ages.length ? Math.max(...ages) : null, confirmedChanges,
+      sourceAgeSeconds: ages.length ? Math.max(...ages) : null, confirmedChanges, firstSeen,
       coverage: bucketCoverage(bucket, "coverage"), changesCoverage: bucketCoverage(bucket, "changesCoverage"),
       at: bucket[0].at, counts, reason: [...new Set(bucket.map(p => p.reason).filter(Boolean))].join("; ") });
   }
@@ -41,6 +41,11 @@ const utcTime = (value: string | number | Date) => new Date(value).toLocaleStrin
 function observation(point: TrendPoint | undefined, metric: ChartLine["metric"]): string {
   const value = trendValue(point, metric);
   if (!point || value === null) return "No data";
+  const firstSeen = trendFirstSeen(point);
+  if (metric === "changes" && firstSeen > 0) {
+    const changes = value - firstSeen;
+    return `${changes.toLocaleString()} ${changes === 1 ? "change" : "changes"} + ${firstSeen.toLocaleString()} first seen`;
+  }
   const unit = metric === "changes" ? (value === 1 ? "change" : "changes") : (value === 1 ? "signal" : "signals");
   return `${value.toLocaleString()} ${unit}`;
 }
@@ -117,7 +122,7 @@ const legendLineHeight = 1.5;
 const legendCellPaddingY = 0.25;
 
 export type TrendChartKind = "line" | "stacked-area" | "stacked-bar";
-export default function SignalTrendsChart({ title, lines, from, to, hours, preserveZero = false, kind = "line" }: { title: string; lines: ChartLine[]; from: string; to: string; hours: number; preserveZero?: boolean; kind?: TrendChartKind }) {
+export default function SignalTrendsChart({ title, lines, from, to, hours, preserveZero = false, kind = "line", emptyText }: { emptyText?: string; title: string; lines: ChartLine[]; from: string; to: string; hours: number; preserveZero?: boolean; kind?: TrendChartKind }) {
   const theme = useTheme();
   const chartId = useId();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
@@ -158,7 +163,7 @@ export default function SignalTrendsChart({ title, lines, from, to, hours, prese
   const common: Pick<LineChartProps, "height" | "title" | "desc" | "yAxis" | "margin" | "grid" | "skipAnimation" | "hideLegend" | "sx"> = {
     height: 240,
     title: `${title} chart; UTC; unknown intervals are gaps`,
-    desc: kind === "stacked-bar" ? "Confirmed changes per interval, stacked by series. Missing evidence is not zero; bars may be known subtotals. Use arrow keys to explore intervals."
+    desc: kind === "stacked-bar" ? "Bars combine changes between observations and signals first seen without a comparison. Intervals show when signals were observed, not when they began. Missing evidence is not zero; bars may be known subtotals. Use arrow keys to explore intervals."
       : "Use arrow keys to explore observations. Diamonds indicate incomplete coverage; isolated observations are dots. Short muted marks indicate last-known values. Unknown intervals are gaps; incomplete stacks are known subtotals, not complete totals.",
     yAxis: [{ min: 0, ...(!hasObservations ? { max: 1 } : {}), tickMinStep: 1, tickNumber: 4, width: 44, valueFormatter: (value: number) => Number.isInteger(value) ? value.toLocaleString() : "" }],
     margin: { top: 12, right: 16, bottom: 8, left: 4 },
@@ -168,7 +173,9 @@ export default function SignalTrendsChart({ title, lines, from, to, hours, prese
   const timeAxis = { id: "time", data: timestamps, valueFormatter: (value: Date) => `${utcTime(value)} UTC`, tickLabelStyle: { fontSize: 10 } };
   const tooltip = { trigger: "axis" as const, sx: { maxWidth: "min(90vw, 680px)", "& td": { whiteSpace: "normal", overflowWrap: "anywhere" } } };
   return <Box sx={{ position: "relative", minWidth: 0, width: "100%" }}>
-    {kind === "stacked-bar" ? <BarChart {...common} highlightedItem={highlightedItem} onHighlightChange={setChartHighlight} series={series}
+    {kind === "stacked-bar" && !hasObservations && emptyText ? <Box sx={{ height: 240, px: 2, display: "grid", placeItems: "center", textAlign: "center" }}>
+      <Typography variant="body2" color="text.secondary">{emptyText}</Typography>
+    </Box> : kind === "stacked-bar" ? <BarChart {...common} highlightedItem={highlightedItem} onHighlightChange={setChartHighlight} series={series}
       xAxis={[{ ...timeAxis, scaleType: "band", categoryGapRatio: 0.2, tickLabelInterval: (_value, index) => index % Math.max(1, Math.ceil(timestamps.length / 4)) === 0 }]}
       axisHighlight={{ x: "band", y: "none" }} slotProps={{ tooltip }}
     /> : <LineChart {...common} highlightedItem={highlightedItem} onHighlightChange={setChartHighlight}
@@ -184,7 +191,7 @@ export default function SignalTrendsChart({ title, lines, from, to, hours, prese
         <use href={`#${chartId}-marks-${seriesToken(highlightedKey)}`} />
       </g>}
     </LineChart>}
-    {kind === "stacked-bar" && !hasObservations ? <Typography variant="caption">No recorded changes.</Typography> : !lines.length && <Typography variant="caption">No selected retained series.</Typography>}
+    {kind !== "stacked-bar" && !lines.length && <Typography variant="caption">No selected retained series.</Typography>}
     {kind !== "stacked-bar" && hidden.length > 0 && <Typography variant="caption" color="text.secondary" title={`Hidden for this period: ${hidden.map(line => line.label).join(", ")}. All observed values of the plotted measure are zero with complete coverage; missing hours remain unknown. Custom selections are unchanged.`}>{hidden.length} zero-only series hidden.</Typography>}
     {kind !== "stacked-bar" && plotted.length > 0 && !hasObservations && <Typography variant="caption" color="text.secondary">No observed samples in this period — unknown is not zero.</Typography>}
     <Box className="kview-native-scrollbar" sx={{ fontSize: "0.75rem", lineHeight: legendLineHeight, maxHeight: `calc(${(legendVisibleRows + 1) * legendLineHeight}em + ${theme.spacing((legendVisibleRows + 1) * 2 * legendCellPaddingY)})`, overflow: "auto", mt: 0.5 }}>

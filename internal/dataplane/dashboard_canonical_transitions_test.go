@@ -53,7 +53,7 @@ func TestCanonicalTransitionsUnrelatedMissingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Rules) == 0 || out.Rules[0].Key != "pod_image_pull_failure" || out.Rules[0].ChangesScore != 4 || len(out.Namespaces) == 0 || out.Namespaces[0].ChangesScore != 4 {
+	if len(out.Rules) == 0 || out.Rules[0].Key != "pod_image_pull_failure" || out.Rules[0].ChangesScore != 6 || len(out.Namespaces) == 0 || out.Namespaces[0].ChangesScore != 6 {
 		t.Fatalf("persisted TopChanges lost confirmed changes: %+v", out)
 	}
 }
@@ -78,6 +78,7 @@ func TestCanonicalTransitionSeverityAlongsideUnknownIdentity(t *testing.T) {
 	}
 	p.at = at.Add(time.Second)
 	p.revision = "b"
+	p.sources[canonicalKey("apps", "Pod")] = canonicalSourceEvidence{at: p.at, known: true, generation: "second"}
 	p.items[0].Severity = "high"
 	next := p.historyBatch("contextA", "epoch")
 	if err = store.AppendTrends(next); err != nil {
@@ -96,6 +97,69 @@ func TestCanonicalTransitionSeverityAlongsideUnknownIdentity(t *testing.T) {
 	point := canonicalQuery(t, store, at)
 	if point.ConfirmedChanges != 1 || point.Counts == nil || point.Counts.High != 1 || point.Counts.Low != 1 {
 		t.Fatal("UID loss fabricated events or erased active counts", point)
+	}
+}
+
+func TestCanonicalAbsentDomainSnooze(t *testing.T) {
+	for _, reason := range []string{"source-missing", "policy-rebase"} {
+		t.Run(reason, func(t *testing.T) {
+			const ns, rule = "space-000", "pod_image_pull_failure"
+			m, p, at := canonicalFixture(t, 0, 0, 0, 1)
+			path := filepath.Join(t.TempDir(), "history.db")
+			open := func() *localhistory.Store {
+				s, err := localhistory.OpenReal(path, 30)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return s
+			}
+			s := open()
+			defer func() {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			snooze := func(name string) {
+				if _, err := m.suppressSignalAt("contextA", SignalSuppressionRequest{HistoryKey: rule + "|namespace|" + ns + "|Pod|" + name, Mode: SignalSuppressionModeSnooze, DurationSeconds: 3600}, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			snooze("snoozed")
+			setNamespacedSnapshot(&p.podsStore, ns, PodsSnapshot{Meta: p.snapshotMetaHot(at), Items: []dto.PodListItemDTO{{Name: "visible", UID: "uid", Namespace: ns, Phase: "Running", Ready: "1/1", ContainerWaitingReasons: []string{"ImagePullBackOff"}}}})
+			appendAt := func(now time.Time) {
+				if err := s.AppendTrends(m.canonicalHistoryBatch(context.Background(), "contextA", "epoch", now)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			appendAt(at)
+			if reason == "policy-rebase" {
+				snooze("visible")
+			}
+			setNamespacedSnapshot(&p.podsStore, ns, PodsSnapshot{})
+			appendAt(at.Add(time.Second))
+			if err := s.Close(); err != nil {
+				t.Fatal(err)
+			}
+			s = open()
+			if point := canonicalQuery(t, s, at); point.ConfirmedChanges != 0 {
+				t.Fatal("fabricated change", point)
+			}
+			out, err := s.QueryTrends(localhistory.TrendQuery{Context: "contextA", From: at.Truncate(time.Hour), To: at.Truncate(time.Hour).Add(time.Hour), AsOf: at.Add(time.Minute), TransitionDetails: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, hour := range out.TransitionHours {
+				for _, ex := range hour.Examples {
+					if ex.Namespace == ns && ex.Rule == rule && ex.Candidate == "disappearance-candidate" {
+						if ex.Reason != reason || ex.PolicyChanged != (reason == "policy-rebase") {
+							t.Fatal("wrong persisted rejection", ex)
+						}
+						return
+					}
+				}
+			}
+			t.Fatal("missing persisted disappearance rejection", out.TransitionHours)
+		})
 	}
 }
 
