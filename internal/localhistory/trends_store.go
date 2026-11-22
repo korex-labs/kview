@@ -65,13 +65,35 @@ func (s *Store) pruneTrends(at time.Time) error {
 				return e
 			}
 			cut := at.Add(-time.Duration(s.retention) * 24 * time.Hour)
+			observationsExpired := false
 			kept := old.Domains[:0]
 			for _, d := range old.Domains {
-				if !d.SourceAt.IsZero() && !d.SourceAt.Before(cut) {
+				if d.LastComplete != nil && d.LastComplete.At.Before(cut) {
+					d.LastComplete = nil
+					observationsExpired = true
+				}
+				if !d.ComparisonLostAt.IsZero() && d.ComparisonLostAt.Before(cut) {
+					d.ComparisonLostAt = time.Time{}
+					observationsExpired = true
+				}
+				if !d.ComparisonLostAt.IsZero() || d.LastComplete != nil || (!d.SourceAt.IsZero() && !d.SourceAt.Before(cut)) {
 					kept = append(kept, d)
 				}
 			}
-			if len(kept) != len(old.Domains) {
+			for ns, obs := range old.PodObservations {
+				if obs == nil || obs.At.Before(cut) {
+					delete(old.PodObservations, ns)
+					observationsExpired = true
+				} else if obs.FirstRetainedGap != nil && obs.FirstRetainedGap.At.Before(cut) {
+					obs.BeforeGap = nil
+					obs.FirstRetainedGap = nil
+					observationsExpired = true
+				} else if obs.BeforeGap != nil && obs.BeforeGap.At.Before(cut) {
+					obs.BeforeGap = nil
+					observationsExpired = true
+				}
+			}
+			if len(kept) != len(old.Domains) || observationsExpired {
 				old.Domains = kept
 				data, err := json.Marshal(old)
 				if err != nil {
@@ -141,6 +163,7 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 		trace.Coalesced = batch.Diagnostics.Coalesced
 		trace.Overflow = batch.Diagnostics.Overflow
 		batch.transitionTrace = trace
+		batch.comparisonCutoff = batch.At.Add(-time.Duration(s.retention) * 24 * time.Hour)
 		next, hour := reduceTrends(old, batch)
 		tx.OnCommit(func() {
 			trace.hour = nil
@@ -202,6 +225,7 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			if p.Counts != nil {
 				p.ConfirmedChanges = p.Counts.Changes
 			}
+			g.FirstSeen += p.FirstSeen
 			g.ConfirmedChanges += p.ConfirmedChanges
 			if g.ConfirmedChanges > 0 && g.ChangesCoverage == "unknown" {
 				g.ChangesCoverage = "partial"
@@ -217,6 +241,7 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 				}
 			}
 			if g.Counts != nil {
+				g.Counts.FirstSeen = g.FirstSeen
 				g.Counts.Changes = g.ConfirmedChanges
 			}
 			if old.Policy != next.Policy || old.Epoch != next.Epoch {
@@ -241,6 +266,8 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			return errors.New("canonical projection storage cap: no partial total accepted")
 		}
 
+		observations := next.PodObservations
+		next.PodObservations = nil // admit canonical state and existing hourly evidence first
 		current, e := json.Marshal(next)
 		if e != nil {
 			return e
@@ -253,6 +280,22 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			return errors.New("trend payload cap")
 		}
 		retained := number(root.Get([]byte("bytes"))) + int64(len(current)-len(b.Get([]byte("current")))+len(payload)-len(h.Get(hk)))
+		if batch.FullProjection && retained > trendRetainedMaxBytes {
+			// The global retained-byte budget may have less headroom than
+			// the per-context state budget. Drop comparators, never active rows.
+			for i := range next.Domains {
+				d := &next.Domains[i]
+				if d.LastComplete != nil {
+					d.ComparisonLostAt, d.LastComplete = d.LastComplete.At, nil
+				}
+			}
+			before := len(current)
+			current, e = json.Marshal(next)
+			if e != nil {
+				return e
+			}
+			retained += int64(len(current) - before)
+		}
 		// Optional evidence uses only headroom left by the canonical append.
 		// Include its JSON field envelope in both exact budgets.
 		budget := min(int64(trendHourMaxBytes-len(payload)), int64(trendRetainedMaxBytes)-retained) - int64(len(`,"transitionEvidence":`))
@@ -264,6 +307,18 @@ func (s *Store) AppendTrends(batch TrendBatch) error {
 			}
 			retained += int64(len(withEvidence) - len(payload))
 			payload = withEvidence
+		}
+		if len(observations) > 0 {
+			next.PodObservations = observations
+			withObservations, err := json.Marshal(next)
+			if err != nil {
+				return err
+			}
+			extra := int64(len(withObservations) - len(current))
+			if len(withObservations) <= trendStateMaxBytes && retained+extra <= trendRetainedMaxBytes {
+				current = withObservations
+				retained += extra
+			}
 		}
 		if retained < 0 || retained > trendRetainedMaxBytes {
 			return errors.New("trend retained byte cap")
@@ -479,7 +534,7 @@ func (s *Store) QueryTrendsContext(ctx context.Context, q TrendQuery) (TrendResp
 				if p.Counts != nil {
 					series.TotalScore += p.Counts.High + p.Counts.Medium + p.Counts.Low
 				}
-				series.ChangesScore += p.ConfirmedChanges
+				series.ChangesScore += p.ConfirmedChanges + p.FirstSeen
 				if p.Counts != nil {
 					evidence.totalObserved = true
 					// Rank all active severities, independently of transitions.

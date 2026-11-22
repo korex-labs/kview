@@ -109,7 +109,7 @@ Schema version 1 returns exact context/window and query cutoff `asOf`, `severity
 `namespaces`, bounded `catalog`, and `diagnostics`. Series carry key/label, fixed-window
 ranking scores and hourly points (`at`, nullable counts, sample/source timestamps,
 reason, coverage, `carriedForward`, `freshness`, nullable `sourceAgeSeconds`, and
-independent `confirmedChanges`). Counts contain high/medium/low/changes. Null is unknown, observed
+independent `confirmedChanges`). Counts contain high/medium/low/changes and optional `firstSeen`. Null is unknown, observed
 zero is distinct, partial is an observed subtotal rather than a cluster total.
 Active-count `coverage` and transition `changesCoverage` are independent: confirmed
 changes are subtotals, not proof that every transition was observed. Missing retained
@@ -126,9 +126,13 @@ empty lists. Replay identity uses bounded per-dependency publication generations
 not ordering of the minimum source timestamp; policy changes establish a new baseline.
 
 Rankings are fixed for the range, descending score then ascending exact key.
-Top signals sums displayed hourly active High + Medium + Low values (`totalScore`), including retained carry; Top Changes sums confirmed individual
-appearances, disappearances and severity changes, each once. A replacement can
-contribute two despite unchanged totals. First observations are baselines. Fresh,
+Top signals sums displayed hourly active High + Medium + Low values (`totalScore`), including retained carry. Top Changes (`changesScore`) sums changes and first-seen counts
+in their observation hours. `counts.changes` counts individual appearances, disappearances
+and severity differences between usable snapshots, including a restored baseline.
+A replacement can contribute two despite unchanged totals. Without a comparator,
+`counts.firstSeen` records identified positives at the first complete live observation,
+excluding identities already present in the preceding cached population. It is not an
+onset time, and counted discoveries are not rejection candidates. An absent field adds nothing; older hours are not reclassified. Fresh,
 complete, comparable evidence is required for a disappearance. Gaps, policy changes,
 selection changes, retention expiry and node moves are not operational transitions.
 Node counts union direct and observed hosted contributions; they do not imply
@@ -242,6 +246,23 @@ has unknown transition evidence; unrelated unknown sources are not rejection cau
 for a healthy candidate. Queue loss describes coverage, not an invented per-resource
 cause. Zero source timestamps mean unavailable, not the evaluation time.
 
+For the **next** image-pull jump, select the same UTC hour, exact context and
+`rulesMode=custom&rule=pod_image_pull_failure`. Inspect matching `transitionHours[].examples`
+locally; do not log headers, names, UIDs or raw responses. Compare `old.podObservation`
+with `new.podObservation`. `firstRetainedGap` is the earliest retained capture in the
+uninterrupted gap; `beforeGap`, when available, is the last comparable capture just
+before it. Look at `membership`, `catalog.status`, `podsPresent`, `pods.status` and
+both cells’ revision/observation time. `absent` with an available catalog and Pods
+cell means the catalog omitted the namespace at capture, not that its Pods vanished.
+`unknown` with `source-error` is not an authoritative negative LIST. `domain: omitted`
+means the projection emitted no rule domain, not an observed healthy zero.
+
+At most 64 scoped samples replace the previous current-state sample; only bounded
+rejection examples enter hours. Canonical data is admitted first. A missing side,
+`podObservationIncomplete`, or omitted examples mean evidence is unavailable, not
+that the namespace or Pods were never seen. No historical backfill. If sharing
+findings, report only the UTC hour, statuses, time differences and counts.
+
 The `transitionDiagnostics` ring remains future-only, process-local evidence since successful ingestion under the
 current store/context epoch, not a historical event log or a reconstruction of past
 missing changes. It is not filtered by the requested chart window or selectors.
@@ -264,11 +285,11 @@ formatting and native MUI interactions. Severity stacks High/Medium/Low in stabl
 risk colors; the upper boundary is their total or known subtotal, never a claim
 of complete coverage. Missing severity layers gap the whole stack rather than
 contributing a fabricated zero. Coverage diamonds and carried marks use cumulative
-coordinates. Top signals and Custom remain line charts. Top Changes stacks confirmed
-transitions per interval, admits only positive-evidence series without padding,
-and omits zero/null tooltip rows. Empty changes charts say “No recorded changes”,
-not “no activity”. Coarser intervals retain last active counts and sum confirmed
-transitions while preserving unknown/partial metadata. Axis tooltips show one UTC
+coordinates. Top signals and Custom remain line charts. Top Changes stacks each series’ combined score by observation interval,
+admits only positive-evidence series without padding, and omits zero/null tooltip rows.
+Tooltip values distinguish changes from first-seen signals. Empty rankings distinguish
+no observations, complete coverage and incomplete coverage. Coarser intervals retain
+last active counts and sum the two categories separately while preserving unknown/partial metadata. Axis tooltips show one UTC
 timestamp, human labels and formatted counts without repeated coverage text.
 Missing line/area evidence reads “No data”, not zero. Source timestamps, reason
 codes and collection/storage diagnostics remain below the charts. No CPU/memory

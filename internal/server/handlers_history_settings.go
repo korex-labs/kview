@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/korex-labs/kview/v5/internal/localhistory"
@@ -142,7 +143,7 @@ func (s *Server) startHistoryPolicy(name string, p localhistory.Policy) error {
 		return errors.New("history source unavailable")
 	}
 	sum := sha256.Sum256([]byte(name))
-	c := localhistory.Config{SignalHistory: p.SignalHistory, SignalEpoch: p.SignalEpoch, Enabled: true, Directory: filepath.Join(s.historyDirectory, hex.EncodeToString(sum[:])), RetentionDays: p.RetentionDays, QueryContext: name}
+	c := localhistory.Config{Binding: strconv.FormatUint(s.historySettings.Contexts[name].Binding, 10), SignalHistory: p.SignalHistory, SignalEpoch: p.SignalEpoch, Enabled: true, Directory: filepath.Join(s.historyDirectory, hex.EncodeToString(sum[:])), RetentionDays: p.RetentionDays, QueryContext: name}
 	h, err := localhistory.StartManaged(s.historyParent, c, source)
 	if err != nil {
 		s.historyFailures[name] = classifyHistoryStartFailure(err)
@@ -345,6 +346,14 @@ func (s *Server) saveHistorySettings(w http.ResponseWriter, r *http.Request) {
 	if _, err = s.ensureHistoryIdentities(next); err != nil {
 		writeErrorResponse(w, 503, "signal history identity could not be initialized; existing settings unchanged")
 		return
+	}
+	// Rotate only the exact contexts whose effective collection binding changes.
+	for name, identity := range next.Contexts {
+		before, after := old.Effective(name), next.Effective(name)
+		if before.Enabled != after.Enabled || before.SignalHistory != after.SignalHistory || before.RetentionDays != after.RetentionDays {
+			identity.Binding++
+			next.Contexts[name] = identity
+		}
 	}
 	if err = next.Validate(); err != nil {
 		writeErrorResponse(w, 400, err.Error())

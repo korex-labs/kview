@@ -29,6 +29,8 @@ func projectTrendPoint(at, asOf time.Time, previous, point TrendPoint, present b
 	p := previous
 	counts := *p.Counts
 	counts.Changes = 0
+	counts.FirstSeen = 0
+	p.FirstSeen = 0
 	p.Counts = &counts
 	p.At = at
 	p.ConfirmedChanges = 0

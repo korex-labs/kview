@@ -1201,6 +1201,7 @@ func markPersistedSnapshot[I any](snap *Snapshot[I], maxAge time.Duration) bool 
 	if maxAge > 0 && time.Since(snap.Meta.ObservedAt) > maxAge {
 		return false
 	}
+	_, snap.restoredComplete = historyPublishedMetadata(*snap)
 	snap.Meta.Freshness = FreshnessClassStale
 	if snap.Meta.Degradation == "" || snap.Meta.Degradation == DegradationClassNone {
 		snap.Meta.Degradation = DegradationClassMinor
