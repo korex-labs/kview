@@ -14,6 +14,7 @@ type PolicyOverride struct {
 	RetentionDays *int  `json:"retentionDays,omitempty"`
 }
 type ContextIdentity struct {
+	Binding     uint64 `json:"binding,omitempty"`
 	SignalEpoch string `json:"signalEpoch,omitempty"`
 	Revision    uint64 `json:"revision"`
 }

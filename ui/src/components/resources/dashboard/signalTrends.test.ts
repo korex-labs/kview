@@ -20,10 +20,49 @@ describe("bounded retained signal trends", () => {
     expect(trendLines(data.nodes, "topChanges10", "active")[0].metric).toBe("changes");
     expect(trendLines(data.rules, "topSignals10", "changes")[0].metric).toBe("total");
   });
+  it("ranks first-seen population in the observed hour, without reclassifying legacy changes", () => {
+    const query = { ...q, rulesMode: "topChanges10" as const };
+    const data = trendFixture(query), legacy = data.rules[0];
+    const sparse = structuredClone(legacy);
+    sparse.key = "sparse";
+    const point = sparse.points[1];
+    Object.assign(point, { counts: { high: 0, medium: 5, low: 0, changes: 0, firstSeen: 5 },
+      sampleAt: point.at, sourceAt: query.from, confirmedChanges: 0, changesCoverage: "partial", reason: undefined });
+    sparse.totalScore += 5; sparse.changesScore += 5;
+    data.rules.unshift(sparse);
+    const [ranked, historical] = parseSignalTrends(data, query).rules;
+    expect(trendValue(ranked.points[1], "changes")).toBe(5);
+    expect(trendValue(ranked.points[0], "changes")).toBe(4);
+    expect(historical.points[0].counts).not.toHaveProperty("firstSeen");
+    sparse.changesScore -= 5;
+    expect(() => parseSignalTrends(data, query)).toThrow("series scores do not match points");
+  });
+  it("counts departed and mirrored discoveries once per hour and coarse bucket", () => {
+    const data = trendFixture(q), row = data.rules[0];
+    const [active, departed] = row.points;
+    active.firstSeen = active.counts!.firstSeen = 3;
+    Object.assign(departed, { firstSeen: 5, sampleAt: departed.at });
+    row.changesScore += 8;
+    const points = parseSignalTrends(data, q).rules[0].points;
+    expect(trendValue(points[1], "total")).toBeNull();
+    expect(trendValue(points[1], "changes")).toBe(5);
+    expect(trendValue(chartBuckets(points, 2)[0], "changes")).toBe(12);
+    expect(chartBuckets([departed], 2)[0]).toMatchObject({ counts: null, firstSeen: 5 });
+  });
+  it("rejects first-seen population carried from a previous observation hour", () => {
+    const data = carriedTrendFixture(q);
+    data.rules[0].points[0].counts!.firstSeen = 1;
+    data.rules[0].changesScore = 1;
+    expect(() => parseSignalTrends(data, q)).toThrow("before bucket");
+  });
   const mutations: Array<[string, (d: SignalTrends) => void]> = [
     ["context", d => { d.context = "wrong"; }], ["version", d => { d.schemaVersion = 2 as 1; }],
     ["range", d => { d.to = "2026-01-03T00:00:00Z"; }], ["missing hour", d => { d.rules[0].points.pop(); }],
     ["unaligned hour", d => { d.rules[0].points[1].at = q.from; }], ["negative count", d => { d.rules[0].points[0].counts!.high = -1; }],
+    ["conflicting mirrored firstSeen", d => { const p = d.rules[0].points[0]; p.firstSeen = 1; p.counts!.firstSeen = 2; d.rules[0].changesScore++; }],
+    ["negative point firstSeen", d => { d.rules[0].points[1].firstSeen = -1; }],
+    ["unobserved point firstSeen", d => { d.rules[0].points[1].firstSeen = 1; d.rules[0].changesScore++; }],
+    ["negative firstSeen", d => { d.rules[0].points[0].counts!.firstSeen = -1; }],
     ["score mismatch", d => { d.rules[0].changesScore = 0; }], ["unsafe count", d => { d.diagnostics.snapshotCount = Number.MAX_SAFE_INTEGER + 1; }],
     ["node key", d => { d.nodes[0].key = "synthetic-worker"; }], ["duplicates", d => { d.rules.push(d.rules[0]); }],
     ["top bound", d => { d.rules = Array.from({ length: 11 }, (_, i) => ({ ...d.rules[0], key: String(i) })); }],

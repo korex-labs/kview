@@ -404,6 +404,17 @@ it("stacks discrete change bars and exposes only positive rows through native ke
   fireEvent.keyDown(chart, { key: "Home" });
   expect((await screen.findByRole("tooltip")).textContent).toContain("2 changes");
 });
+it("shows separate first-seen and change subtotals in a coarse bar's keyboard tooltip", async () => {
+  const data = changes([0, 2, null, 0], "sparse");
+  data.points[0].firstSeen = 3;
+  data.points[0].counts = null;
+  data.points[1].counts = null;
+  const { container } = render(<SignalTrendsChart title="Changes" kind="stacked-bar" lines={[data]} from={from} to="2026-01-01T04:00:00Z" hours={4} />);
+  expect(within(screen.getByLabelText("Changes legend")).getAllByText("5")).toHaveLength(4);
+  const chart = container.querySelector('[tabindex="0"]')!;
+  fireEvent.focus(chart); fireEvent.keyDown(chart, { key: "ArrowRight" });
+  expect((await screen.findByRole("tooltip")).textContent).toContain("2 changes + 3 first seen");
+});
 it("sums confirmed changes in coarse bars independently of active counts and unknown remainder", () => {
   const data = changes([2, null, 3, null], "known");
   data.points = data.points.map(point => ({ ...point, counts: null, changesCoverage: "unknown" }));
@@ -415,8 +426,9 @@ it("sums confirmed changes in coarse bars independently of active counts and unk
   expect(screen.getByRole("tooltip").textContent).not.toMatch(/Total|Partial|0 changes/);
 });
 it.each([{ lines: [] }, { lines: [changes([0, 0], "zero")] }, { lines: [changes([null, null], "unknown")] }])("uses honest no-recorded-changes state without padding", ({ lines }) => {
-  const { container } = render(<SignalTrendsChart title="Changes" kind="stacked-bar" lines={lines} from={from} to="2026-01-01T02:00:00Z" hours={1} />);
-  expect(screen.getByText("No recorded changes.")).toBeTruthy();
+  const { container } = render(<SignalTrendsChart title="Changes" kind="stacked-bar" emptyText="No confirmed changes in this period." lines={lines} from={from} to="2026-01-01T02:00:00Z" hours={1} />);
+  expect(screen.getByText("No confirmed changes in this period.")).toBeTruthy();
+  expect(screen.queryByText("No data to display")).toBeNull();
   expect(screen.queryByText(/No activity|No selected retained series|zero-only/)).toBeNull();
   expect(container.querySelectorAll(".MuiBarChart-element")).toHaveLength(0);
 });

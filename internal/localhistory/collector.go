@@ -22,6 +22,8 @@ type Config struct {
 	RetentionDays int    `json:"retentionDays"`
 	// Server-owned managed context; never accepted from startup JSON.
 	QueryContext string `json:"-"`
+	// A nonempty binding is issued by the settings owner and survives process restart.
+	Binding string `json:"-"`
 }
 
 const AdapterVersion = "dashboard-publications-v1"

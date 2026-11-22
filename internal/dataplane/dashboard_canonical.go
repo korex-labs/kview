@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/korex-labs/kview/v5/internal/kube/dto"
@@ -18,17 +20,21 @@ import (
 // is the Dashboard population BEFORE presentation limits, not history admission.
 // No recurrence mutation, plane creation, scheduler, hydration or client reads.
 type canonicalDashboardProjection struct {
-	at                time.Time
-	items, suppressed []ClusterDashboardSignal
-	suppression       SignalSuppressionSummary
-	namespaces        []string
-	policy, revision  string
-	sourceAt          time.Time
-	coverage          string
-	sources           map[string]canonicalSourceEvidence
-	identities        map[string]string
-	nodes             map[string]string
-	placement         map[string]string
+	podScopes             []string
+	capturePod            func(string) localhistory.PodObservation
+	at                    time.Time
+	items, suppressed     []ClusterDashboardSignal
+	suppression           SignalSuppressionSummary
+	namespaces            []string
+	policy, revision      string
+	suppressionPolicy     map[string]string
+	sourceAt              time.Time
+	coverage              string
+	sources               map[string]canonicalSourceEvidence
+	identities            map[string]string
+	nodes                 map[string]string
+	placement             map[string]string
+	nodePressureEvaluated bool
 }
 
 func (projection canonicalDashboardProjection) dashboardSummary(limit int, opts ClusterDashboardListOptions) ClusterDashboardSignalsPanel {
@@ -48,16 +54,18 @@ func canonicalHash(v any) string {
 }
 
 type canonicalSourceEvidence struct {
-	at         time.Time
-	generation string
-	known      bool
-	status     string
+	at            time.Time
+	generation    string
+	priorComplete bool
+	known         bool
+	status        string
 }
 
 // Transition confidence follows consulted sources, never unrelated caches or
 // node placement. Active population continues to use the Dashboard unchanged.
 var canonicalDependencyKinds = map[string]string{
-	"pods": "Pod", "deps": "Deployment", "ds": "DaemonSet", "sts": "StatefulSet", "rs": "ReplicaSet", "jobs": "Job", "cjs": "CronJob", "hpas": "HorizontalPodAutoscaler", "svcs": "Service", "ings": "Ingress", "pvcs": "PersistentVolumeClaim", "pvs": "PersistentVolume", "cms": "ConfigMap", "secs": "Secret", "sas": "ServiceAccount", "roles": "Role", "roleBindings": "RoleBinding", "helm": "HelmRelease", "quotas": "ResourceQuota", "podMetrics": "PodMetrics",
+	"podSelectorEvidence": "PodSelectorEvidence",
+	"pods":                "Pod", "deps": "Deployment", "ds": "DaemonSet", "sts": "StatefulSet", "rs": "ReplicaSet", "jobs": "Job", "cjs": "CronJob", "hpas": "HorizontalPodAutoscaler", "svcs": "Service", "ings": "Ingress", "pvcs": "PersistentVolumeClaim", "pvs": "PersistentVolume", "cms": "ConfigMap", "secs": "Secret", "sas": "ServiceAccount", "roles": "Role", "roleBindings": "RoleBinding", "helm": "HelmRelease", "quotas": "ResourceQuota", "podMetrics": "PodMetrics",
 }
 
 func (projection canonicalDashboardProjection) domainEvidence(ns, rule string) canonicalSourceEvidence {
@@ -76,9 +84,12 @@ func (projection canonicalDashboardProjection) domainEvidence(ns, rule string) c
 		kinds = append(kinds, canonicalDependencyKinds[dep])
 	}
 	if rule == "node_resource_pressure" {
+		if !projection.nodePressureEvaluated {
+			return canonicalSourceEvidence{status: "domain-not-observed"}
+		}
 		kinds = []string{"Node", "NodeMetrics"}
 	}
-	e := canonicalSourceEvidence{known: len(kinds) > 0, status: "available"}
+	e := canonicalSourceEvidence{priorComplete: len(kinds) > 0, known: len(kinds) > 0, status: "available"}
 	if len(kinds) == 0 {
 		e.status = "source-unknown"
 	}
@@ -88,6 +99,7 @@ func (projection canonicalDashboardProjection) domainEvidence(ns, rule string) c
 			scope = ""
 		}
 		s := projection.sources[canonicalKey(scope, kind)]
+		e.priorComplete = e.priorComplete && (s.known || s.priorComplete)
 		e.known = e.known && s.known
 		if !s.known && e.status == "available" {
 			e.status = s.status
@@ -125,7 +137,7 @@ func canonicalSnapshotIdentity[I any](out *canonicalDashboardProjection, s Snaps
 	case !valid:
 		status = "source-partial"
 	}
-	out.sources[canonicalKey(ns, kind)] = canonicalSourceEvidence{at: s.Meta.ObservedAt, generation: canonicalHash([]any{s.Meta.Revision, s.Meta.ObservedAt}), known: status == "available", status: status}
+	out.sources[canonicalKey(ns, kind)] = canonicalSourceEvidence{priorComplete: s.restored && s.restoredComplete && ok && s.Err == nil && !s.Meta.ObservedAt.After(out.at), at: s.Meta.ObservedAt, generation: canonicalHash([]any{s.Meta.Revision, s.Meta.ObservedAt}), known: status == "available", status: status}
 	if !ok {
 		return
 	}
@@ -196,6 +208,8 @@ func (m *manager) canonicalDashboardSignals(p *clusterPlane, _ NamespaceSnapshot
 	policy := m.EffectivePolicy(p.name)
 	thresholds := signalThresholdsFromPolicy(policy)
 	out.namespaces = visibleNamespacesWithCachedDataplaneLists(p, names)
+	out.podScopes = names[:min(len(names), localhistory.PodObservationLimit)]
+	out.capturePod = podObservationCapture(names, p.nsStore.snap, p.podsStore.snaps, at)
 	if namespaces.Meta.ObservedAt.IsZero() || len(out.namespaces) != len(names) || p.persistHydrating.Load() || p.persistHydrationPartial.Load() {
 		out.coverage = "partial"
 	}
@@ -207,6 +221,15 @@ func (m *manager) canonicalDashboardSignals(p *clusterPlane, _ NamespaceSnapshot
 			s := buildSnapshotSetForNamespace(p, ns, thresholds)
 			raw = append(raw, applySignalPolicy(enrichSignalsFromMetadataIndex(detectDashboardSignals(at, ns, s), metadata), policy, p.name)...)
 			canonicalSnapshotIdentity(&out, s.pods, s.podsOK, ns, "Pod")
+			// A full Pod LIST can survive hydration without its in-memory labels.
+			// Only the Service rules that actually consult selectors need those labels.
+			selectorEvidence := out.sources[canonicalKey(ns, "Pod")]
+			if slices.ContainsFunc(s.svcs.Items, func(svc dto.ServiceListItemDTO) bool { return svc.Type != "ExternalName" && len(svc.Selector) > 0 }) &&
+				slices.ContainsFunc(s.pods.Items, func(pod dto.PodListItemDTO) bool { return !pod.LabelsObserved }) {
+				selectorEvidence.known, selectorEvidence.priorComplete = false, false
+				selectorEvidence.status = "source-partial"
+			}
+			out.sources[canonicalKey(ns, "PodSelectorEvidence")] = selectorEvidence
 			canonicalSnapshotIdentity(&out, s.deps, s.depsOK, ns, "Deployment")
 			canonicalSnapshotIdentity(&out, s.ds, s.dsOK, ns, "DaemonSet")
 			canonicalSnapshotIdentity(&out, s.sts, s.stsOK, ns, "StatefulSet")
@@ -230,6 +253,7 @@ func (m *manager) canonicalDashboardSignals(p *clusterPlane, _ NamespaceSnapshot
 			canonicalSnapshotIdentity(&out, s.podMetrics, s.podMetricsOK, ns, "PodMetrics")
 		}
 		raw = append(raw, applySignalPolicy(enrichNodeSignalMetadata(detectNodeResourcePressureSignals(at, p, nodes, thresholds.NodeResourcePressurePct), nodes), policy, p.name)...)
+		out.nodePressureEvaluated = true
 	}
 	canonicalSnapshotIdentity(&out, nodes, !nodes.Meta.ObservedAt.IsZero(), "", "Node")
 	canonicalSnapshotIdentity(&out, p.nodeMetricsStore.snap, !p.nodeMetricsStore.snap.Meta.ObservedAt.IsZero(), "", "NodeMetrics")
@@ -247,8 +271,48 @@ func (m *manager) canonicalDashboardSignals(p *clusterPlane, _ NamespaceSnapshot
 	out.items, out.suppressed, out.suppression = projectPreparedSignalSuppressions(raw, records, at)
 	// Include suppression configuration, not suppressed membership: evidence changes
 	// may legitimately end until-changed suppression and are not policy changes.
-	out.policy = canonicalHash([]any{"dashboard-canonical-v1", policy.Signals, records})
+	// Unrecognized identity formats remain a common gate until their scope is known.
+	grouped := map[string]map[string]SignalSuppressionRecord{}
+	common := map[string]SignalSuppressionRecord{}
+	for key, record := range records {
+		domain, ok := suppressionDomainKey(key)
+		if !ok {
+			common[key] = record
+			continue
+		}
+		if grouped[domain] == nil {
+			grouped[domain] = map[string]SignalSuppressionRecord{}
+		}
+		grouped[domain][key] = record
+	}
+	out.policy = canonicalHash([]any{"dashboard-canonical-v1", policy.Signals, common})
+	out.suppressionPolicy = make(map[string]string, len(grouped))
+	for domain, entries := range grouped {
+		out.suppressionPolicy[domain] = canonicalHash(entries)
+	}
 	return out
+}
+
+// Mirror signalHistoryIdentity and the quota/ingress detector-specific keys.
+// Index configuration, not just currently visible signals: a suppressed resource
+// may be absent on either side of the comparison.
+func suppressionDomainKey(key string) (string, bool) {
+	parts := strings.SplitN(key, "|", 5)
+	if len(parts) < 3 || parts[0] == "" {
+		return "", false
+	}
+	if parts[0] == "resource_quota_pressure" && len(parts) == 4 {
+		return canonicalKey(parts[1], parts[0]), true
+	}
+	switch parts[1] {
+	case "namespace":
+		if len(parts) == 5 {
+			return canonicalKey(parts[2], parts[0]), true
+		}
+	case "cluster":
+		return canonicalKey("", parts[0]), true
+	}
+	return "", false
 }
 
 // Full context consent is already checked by the collector. Scopes used by the
@@ -279,9 +343,10 @@ func (projection canonicalDashboardProjection) historyBatch(name, epoch string) 
 	at := projection.at
 	b := localhistory.TrendBatch{Context: name, Epoch: epoch, At: at, FullProjection: true, Diagnostics: localhistory.TrendDiagnostics{Reasons: map[string]int{}}}
 	b.Policy = projection.policy
-	b.AbsentDomainEvidence = func(namespace, rule string) (string, time.Time) {
+	b.PodObservationScopes, b.CapturePodObservation = projection.podScopes, projection.capturePod
+	b.AbsentDomainEvidence = func(namespace, rule string) (string, time.Time, string) {
 		e := projection.domainEvidence(namespace, rule)
-		return e.status, e.at
+		return e.status, e.at, projection.suppressionPolicy[canonicalKey(namespace, rule)]
 	}
 	b.Diagnostics.EligibleScopes, b.Diagnostics.EvaluatedScopes = len(projection.namespaces), len(projection.namespaces)
 	if projection.coverage != "complete" {
@@ -296,7 +361,7 @@ func (projection canonicalDashboardProjection) historyBatch(name, epoch string) 
 			if at.IsZero() {
 				at = projection.sourceAt
 			}
-			domains[key] = &localhistory.TrendDomain{Namespace: ns, Rule: rule, Complete: true, SourceAt: at, Generation: evidence.generation, TransitionsUnknown: !evidence.known, SourceStatus: evidence.status, EvidenceAt: evidence.at, CachedPopulation: true}
+			domains[key] = &localhistory.TrendDomain{Namespace: ns, Rule: rule, PolicyFingerprint: projection.suppressionPolicy[key], Complete: true, SourceAt: at, Generation: evidence.generation, RestoredComplete: evidence.priorComplete && !evidence.known, TransitionsUnknown: !evidence.known, SourceStatus: evidence.status, EvidenceAt: evidence.at, CachedPopulation: true}
 		}
 		return domains[key]
 	}
@@ -306,7 +371,7 @@ func (projection canonicalDashboardProjection) historyBatch(name, epoch string) 
 			domain("", rule)
 			// Empty complete domains prove disappearance of the last signal.
 			for _, ns := range projection.namespaces {
-				if projection.domainEvidence(ns, rule).known {
+				if e := projection.domainEvidence(ns, rule); e.known || e.priorComplete {
 					domain(ns, rule)
 				}
 			}
@@ -353,6 +418,7 @@ func (projection canonicalDashboardProjection) historyBatch(name, epoch string) 
 			}
 			aggregates[key][canonicalKey(s.Severity, node)]++
 			d.TransitionsUnknown = true
+			d.RestoredComplete = false
 			d.SourceStatus = "identity-compacted"
 			continue
 		}
@@ -380,7 +446,7 @@ func (projection canonicalDashboardProjection) historyBatch(name, epoch string) 
 	for _, key := range keys {
 		d := domains[key]
 		sort.Slice(d.Signals, func(i, j int) bool { return d.Signals[i].ID < d.Signals[j].ID })
-		d.Generation = canonicalHash([]any{d.Generation, d.Signals})
+		// Generation describes consulted source publications, not detector output.
 		// Population coverage is not transition evidence for this domain. A cold
 		// unrelated namespace (or partial hydration elsewhere) cannot veto a
 		// fresh, complete source with known identities. The reducer still marks

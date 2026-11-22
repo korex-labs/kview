@@ -8,7 +8,7 @@ var trendDependencies = map[string][]string{
 	"empty_namespace":        {"pods", "deps", "ds", "sts", "rs", "jobs", "cjs", "hpas", "svcs", "ings", "pvcs", "cms", "secs", "helm"},
 	"pod_image_pull_failure": {"pods"}, "pod_crash_loop_waiting": {"pods"}, "pod_unschedulable": {"pods"}, "pod_restarts": {"pods"},
 	"deployment_unavailable": {"deps"}, "abnormal_job": {"jobs"}, "long_running_job": {"jobs"}, "abnormal_cronjob": {"cjs"}, "cronjob_no_recent_success": {"cjs"}, "hpa_needs_attention": {"hpas"}, "stale_transitional_helm_release": {"helm"},
-	"service_no_matching_cached_pods": {"svcs", "pods"}, "ingress_pending_address": {"ings"}, "ingress_needs_attention": {"ings"}, "ingress_backend_service_missing": {"ings", "svcs"},
+	"service_no_matching_cached_pods": {"svcs", "podSelectorEvidence"}, "ingress_pending_address": {"ings"}, "ingress_needs_attention": {"ings"}, "ingress_backend_service_missing": {"ings", "svcs"},
 	"pvc_needs_attention": {"pvcs"}, "pvc_node_bound_storage": {"pvcs", "pvs"}, "role_permission_surface": {"roles"}, "rolebinding_subject_surface": {"roleBindings"}, "resource_quota_pressure": {"quotas"}, "empty_configmap": {"cms"}, "empty_secret": {"secs"}, "potentially_unused_pvc": {"pvcs", "pods"}, "potentially_unused_serviceaccount": {"sas", "pods"}, "container_near_limit": {"pods", "podMetrics"},
 }
 
