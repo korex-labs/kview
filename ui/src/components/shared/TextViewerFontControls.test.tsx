@@ -27,9 +27,11 @@ describe("shared text viewer zoom", () => {
     for (const [action, count, size] of [["Decrease text size", 3, "10px"], ["Increase text size", 14, "24px"]] as const) {
       for (let i = 0; i < count; i++) press(action);
       expect(getComputedStyle(pre.parentElement!).fontSize).toBe(size);
-      expect(getComputedStyle(pre).lineHeight).toBe("1.5");
+      // jsdom 31 resolves unitless line-height to pixels, including inheritance.
+      const lineHeight = `${Number.parseFloat(size) * 1.5}px`;
+      expect(getComputedStyle(pre).lineHeight).toBe(lineHeight);
       expect(getComputedStyle(fold).fontSize).toBe(size);
-      expect(getComputedStyle(fold).lineHeight).toBe("1.5");
+      expect(getComputedStyle(fold).lineHeight).toBe(lineHeight);
       for (const cell of Array.from(row.children)) {
         expect(["", "0", "0px", "auto"]).toContain(getComputedStyle(cell).minHeight);
       }
