@@ -33,13 +33,13 @@ jobs:
 
       - name: Set up Go
         if: matrix.language == 'go'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b2b7b36cdbec1b41cb56540a8ae11ff9ab0a9f75 # v4
+        uses: github/codeql-action/init@776237d428f23fefc3d9e0fe1962921cbcd53e17 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -50,4 +50,4 @@ jobs:
         run: go build ./...
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@b2b7b36cdbec1b41cb56540a8ae11ff9ab0a9f75 # v4
+        uses: github/codeql-action/analyze@776237d428f23fefc3d9e0fe1962921cbcd53e17 # v4
